@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
+import { addressAPI } from '../../api/profile';
 
 interface Address {
   id: string;
@@ -15,7 +17,7 @@ interface Address {
   line2: string;
 }
 
-const ADDRESSES: Address[] = [
+const FALLBACK_ADDRESSES: Address[] = [
   {
     id: '1',
     type: 'home',
@@ -38,7 +40,15 @@ const ADDRESSES: Address[] = [
   },
 ];
 
-const AddressCard = ({ address }: { address: Address }) => (
+const AddressCard = ({
+  address,
+  onDelete,
+  onSetDefault,
+}: {
+  address: Address;
+  onDelete: (id: string) => void;
+  onSetDefault: (id: string) => void;
+}) => (
   <Card style={styles.addressCard} variant="outlined">
     <View style={styles.addressRow}>
       <View style={styles.addressLeft}>
@@ -58,7 +68,11 @@ const AddressCard = ({ address }: { address: Address }) => (
         <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
           <Text style={styles.editIcon}>{'\u270E'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          activeOpacity={0.7}
+          onPress={() => onDelete(address.id)}
+        >
           <Text style={styles.deleteIcon}>{'\u2716'}</Text>
         </TouchableOpacity>
       </View>
@@ -72,7 +86,11 @@ const AddressCard = ({ address }: { address: Address }) => (
     </View>
 
     {!address.isDefault && (
-      <TouchableOpacity activeOpacity={0.7} style={styles.setDefaultButton}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={styles.setDefaultButton}
+        onPress={() => onSetDefault(address.id)}
+      >
         <Text style={styles.setDefaultText}>Set as default</Text>
       </TouchableOpacity>
     )}
@@ -80,25 +98,83 @@ const AddressCard = ({ address }: { address: Address }) => (
 );
 
 export const MyAddressScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
+
+  const { data: addressData } = useQuery({
+    queryKey: ['addresses'],
+    queryFn: addressAPI.getAddresses,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => addressAPI.deleteAddress(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['addresses'] });
+    },
+    onError: () => {
+      Alert.alert('Error', 'Failed to delete address.');
+    },
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: (id: string) => addressAPI.setDefault(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['addresses'] });
+    },
+    onError: () => {
+      Alert.alert('Error', 'Failed to set default address.');
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    Alert.alert('Delete Address', 'Are you sure you want to delete this address?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(id) },
+    ]);
+  };
+
+  const handleSetDefault = (id: string) => {
+    setDefaultMutation.mutate(id);
+  };
+
+  // Map API data to the local Address shape, fall back to hardcoded data
+  const addresses: Address[] = addressData?.addresses
+    ? addressData.addresses.map((a: any) => ({
+        id: a._id,
+        type: a.label === 'work' ? 'work' : 'home',
+        label: a.label ? a.label.charAt(0).toUpperCase() + a.label.slice(1) : 'Home',
+        isDefault: a.isDefault,
+        name: a.fullName,
+        phone: a.phone,
+        line1: a.addressLine1,
+        line2: `${a.city}, ${a.state} - ${a.pincode}`,
+      }))
+    : FALLBACK_ADDRESSES;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.header}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : 24 }]}>
+      <View style={[styles.header, isMobile && { flexWrap: 'wrap', gap: 8 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7} style={styles.backButton}>
           <Text style={styles.backArrow}>{'\u2190'}</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerLabel}>ACCOUNT</Text>
-          <Text style={styles.headerTitle}>My Addresses</Text>
+          <Text style={[styles.headerTitle, isMobile && { fontSize: 20 }]}>My Addresses</Text>
         </View>
         <TouchableOpacity style={styles.addButton} activeOpacity={0.7}>
           <Text style={styles.addButtonText}>+ Add Address</Text>
         </TouchableOpacity>
       </View>
 
-      {ADDRESSES.map((address) => (
-        <AddressCard key={address.id} address={address} />
+      {addresses.map((address) => (
+        <AddressCard
+          key={address.id}
+          address={address}
+          onDelete={handleDelete}
+          onSetDefault={handleSetDefault}
+        />
       ))}
     </ScrollView>
   );
@@ -110,7 +186,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 24,
     paddingBottom: 60,
   },
   header: {

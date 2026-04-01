@@ -6,11 +6,15 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
+  Alert,
+  useWindowDimensions,
 } from 'react-native';
+import { useMutation } from '@tanstack/react-query';
 import { Colors, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { Card } from '../../components/Card';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { profileAPI } from '../../api/profile';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -91,6 +95,8 @@ const ListItem = ({
 // ---------------------------------------------------------------------------
 
 export const SettingsScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const { logout } = useAuthStore();
 
   // Notification toggle states
@@ -103,19 +109,30 @@ export const SettingsScreen = () => {
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
+  const deleteAccountMutation = useMutation({
+    mutationFn: profileAPI.deleteAccount,
+    onSuccess: async () => {
+      setDeleteModalVisible(false);
+      await useAuthStore.getState().logout();
+    },
+    onError: () => {
+      setDeleteModalVisible(false);
+      Alert.alert('Error', 'Failed to delete account. Please try again.');
+    },
+  });
+
   const handleLogout = async () => {
     setLogoutModalVisible(false);
     await logout();
   };
 
   const handleDeleteAccount = () => {
-    setDeleteModalVisible(false);
-    // TODO: wire up delete-account API
+    deleteAccountMutation.mutate();
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : Spacing.lg }]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} activeOpacity={0.7}>
@@ -240,7 +257,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: Spacing.lg,
     paddingBottom: 60,
   },
 

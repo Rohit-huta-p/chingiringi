@@ -1,42 +1,130 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Search, Zap, SlidersHorizontal } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { DealCard } from '../../components/DealCard';
+import { dealsAPI, categoriesAPI, Deal, Category, TrendingBrand } from '../../api/deals';
 
-const CATEGORIES = ['All', 'Fashion', 'Electronics', 'Home', 'Pharmacy', 'Travel', 'Food'];
-const TRENDING_BRANDS = [
-  { name: 'Myntra', category: 'Fashion', cashback: '12% back' },
-  { name: 'Amazon', category: 'Electronics', cashback: '5% back' },
-  { name: 'Swiggy', category: 'Food', cashback: '₹100 back' },
-  { name: 'Nykaa', category: 'Pharmacy', cashback: '8% back' },
-  { name: 'Campus Sutra', category: 'Fashion', cashback: '10% back' },
+// Fallback data used when API calls fail
+const FALLBACK_CATEGORIES = ['All', 'Fashion', 'Electronics', 'Home', 'Pharmacy', 'Travel', 'Food'];
+const FALLBACK_TRENDING_BRANDS = [
+  { brand: 'Myntra', category: 'Fashion', maxCashback: 12, totalClicks: 0, dealCount: 0 },
+  { brand: 'Amazon', category: 'Electronics', maxCashback: 5, totalClicks: 0, dealCount: 0 },
+  { brand: 'Swiggy', category: 'Food', maxCashback: 100, totalClicks: 0, dealCount: 0 },
+  { brand: 'Nykaa', category: 'Pharmacy', maxCashback: 8, totalClicks: 0, dealCount: 0 },
+  { brand: 'Campus Sutra', category: 'Fashion', maxCashback: 10, totalClicks: 0, dealCount: 0 },
 ];
-const ALL_DEALS = [
-  { id: 1, brand: 'Myntra', description: 'Flat 50% Off on Top Brands', cashback: '12% back', expiresIn: '3 days' },
-  { id: 2, brand: 'Amazon', description: 'Great Indian Festival Sale', cashback: '5% back', expiresIn: 'about 24 hours' },
-  { id: 3, brand: 'Swiggy', description: '50% Off on First Order', cashback: '₹100 back', expiresIn: '7 days' },
-  { id: 4, brand: 'Nykaa', description: 'Mega Beauty Sale', cashback: '8% back', expiresIn: '5 days' },
-  { id: 5, brand: 'Campus Sutra', description: "Campus Sutra Men's Tailored Jacket", cashback: '10% back', expiresIn: '10 days' },
-  { id: 6, brand: 'boAt', description: 'Wireless Earbuds 50% Off', cashback: '15% back', expiresIn: '4 days' },
-  { id: 7, brand: 'Pepperfry', description: 'Home Decor Extravaganza', cashback: '7% back', expiresIn: '12 days' },
-  { id: 8, brand: 'PharmEasy', description: 'Flat 25% Off on Medicines', cashback: '5% back', expiresIn: '6 days' },
+const FALLBACK_DEALS = [
+  { _id: '1', brand: 'Myntra', title: 'Flat 50% Off on Top Brands', description: 'Flat 50% Off on Top Brands', cashbackPercent: 12, cashbackType: 'percentage' as const, flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 3 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Fashion', slug: 'fashion' } },
+  { _id: '2', brand: 'Amazon', title: 'Great Indian Festival Sale', description: 'Great Indian Festival Sale', cashbackPercent: 5, cashbackType: 'percentage' as const, flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 1 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Electronics', slug: 'electronics' } },
+  { _id: '3', brand: 'Swiggy', title: '50% Off on First Order', description: '50% Off on First Order', cashbackPercent: 0, cashbackType: 'flat' as const, flatCashback: 100, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Food', slug: 'food' } },
+  { _id: '4', brand: 'Nykaa', title: 'Mega Beauty Sale', description: 'Mega Beauty Sale', cashbackPercent: 8, cashbackType: 'percentage' as const, flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 5 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Pharmacy', slug: 'pharmacy' } },
+  { _id: '5', brand: 'Campus Sutra', title: "Campus Sutra Men's Tailored Jacket", description: "Campus Sutra Men's Tailored Jacket", cashbackPercent: 10, cashbackType: 'percentage' as const, flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 10 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Fashion', slug: 'fashion' } },
+  { _id: '6', brand: 'boAt', title: 'Wireless Earbuds 50% Off', description: 'Wireless Earbuds 50% Off', cashbackPercent: 15, cashbackType: 'percentage' as const, flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 4 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Electronics', slug: 'electronics' } },
+  { _id: '7', brand: 'Pepperfry', title: 'Home Decor Extravaganza', description: 'Home Decor Extravaganza', cashbackPercent: 7, cashbackType: 'percentage' as const, flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 12 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Home', slug: 'home' } },
+  { _id: '8', brand: 'PharmEasy', title: 'Flat 25% Off on Medicines', description: 'Flat 25% Off on Medicines', cashbackPercent: 5, cashbackType: 'percentage' as const, flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 0, expiresAt: new Date(Date.now() + 6 * 86400000).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Pharmacy', slug: 'pharmacy' } },
 ];
+
+function formatCashback(deal: Deal): string {
+  if (deal.cashbackType === 'flat') {
+    return `\u20B9${deal.flatCashback} back`;
+  }
+  return `${deal.cashbackPercent}% back`;
+}
+
+function formatExpiresIn(expiresAt: string): string {
+  const now = new Date();
+  const expires = new Date(expiresAt);
+  const diffMs = expires.getTime() - now.getTime();
+  if (diffMs <= 0) return 'Expired';
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 1) return 'about 24 hours';
+  if (diffDays === 1) return '1 day';
+  return `${diffDays} days`;
+}
+
+function formatBrandCashback(brand: TrendingBrand): string {
+  return `${brand.maxCashback}% back`;
+}
 
 export const HomeScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  // Fetch deals
+  const {
+    data: dealsResponse,
+    isLoading: dealsLoading,
+  } = useQuery({
+    queryKey: ['deals'],
+    queryFn: () => dealsAPI.getDeals(),
+  });
+
+  // Fetch trending brands
+  const {
+    data: trendingResponse,
+    isLoading: trendingLoading,
+  } = useQuery({
+    queryKey: ['trendingBrands'],
+    queryFn: () => dealsAPI.getTrendingBrands(),
+  });
+
+  // Fetch categories
+  const {
+    data: categoriesResponse,
+    isLoading: categoriesLoading,
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoriesAPI.getCategories(),
+  });
+
+  // Resolve data with fallbacks
+  const allDeals: Deal[] = dealsResponse?.data?.deals ?? dealsResponse?.deals ?? dealsResponse?.data ?? FALLBACK_DEALS;
+  const trendingBrands: TrendingBrand[] = trendingResponse?.data?.brands ?? trendingResponse?.brands ?? trendingResponse?.data ?? FALLBACK_TRENDING_BRANDS;
+  const apiCategories: Category[] = categoriesResponse?.data?.categories ?? categoriesResponse?.categories ?? categoriesResponse?.data ?? [];
+
+  const categories: string[] = useMemo(() => {
+    if (apiCategories.length > 0) {
+      const names = apiCategories.map((c: Category) => c.name);
+      return ['All', ...names];
+    }
+    return FALLBACK_CATEGORIES;
+  }, [apiCategories]);
+
+  // Filter deals by selected category
+  const filteredDeals = useMemo(() => {
+    if (selectedCategory === 'All') return allDeals;
+    return allDeals.filter(
+      (deal) => deal.category?.name?.toLowerCase() === selectedCategory.toLowerCase()
+    );
+  }, [allDeals, selectedCategory]);
+
+  const isLoading = dealsLoading || trendingLoading || categoriesLoading;
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={{ color: Colors.textSecondary, marginTop: 12 }}>Loading deals...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.contentContainer, { padding: isMobile ? 16 : 32 }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isMobile && { flexDirection: 'column', alignItems: 'stretch', gap: 12 }]}>
         <View style={styles.searchContainer}>
           <Search size={20} color={Colors.textSecondary} style={styles.searchIcon} />
-          <TextInput 
-            style={styles.searchInput} 
-            placeholder="Search deals, brands..." 
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search deals, brands..."
             placeholderTextColor={Colors.textSecondary}
           />
         </View>
-        <View style={styles.headerRight}>
+        <View style={[styles.headerRight, isMobile && { justifyContent: 'space-between' }]}>
           <TouchableOpacity style={styles.todayDealsBtn}>
             <Zap size={16} color={Colors.primary} fill={Colors.primary} />
             <Text style={styles.todayDealsText}>Today's Deals</Text>
@@ -54,34 +142,35 @@ export const HomeScreen = () => {
       {/* Categories */}
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesRow}>
-          {CATEGORIES.map((cat, index) => (
-            <TouchableOpacity 
-              key={cat} 
-              style={[styles.categoryPill, index === 0 && styles.categoryPillActive]}
+          {categories.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.categoryPill, selectedCategory === cat && styles.categoryPillActive]}
+              onPress={() => setSelectedCategory(cat)}
             >
-              <Text style={[styles.categoryPillText, index === 0 && styles.categoryPillTextActive]}>{cat}</Text>
+              <Text style={[styles.categoryPillText, selectedCategory === cat && styles.categoryPillTextActive]}>{cat}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
       {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <View style={styles.heroMain}>
+      <View style={[styles.heroSection, isMobile && { flexDirection: 'column' }]}>
+        <View style={[styles.heroMain, isMobile && { marginRight: 0, marginBottom: 16, padding: 24, minWidth: 'auto' as any }]}>
           <View style={styles.featuredBadge}>
             <Zap size={12} color="#fff" fill="#fff" />
             <Text style={styles.featuredBadgeText}>FEATURED</Text>
           </View>
           <Text style={styles.heroSubtitle}>EARN WHILE YOU SHOP</Text>
-          <Text style={styles.heroTitle}>Up to <Text style={{color: '#60a5fa'}}>20% cashback</Text>{'\n'}on fashion brands</Text>
+          <Text style={[styles.heroTitle, isMobile && { fontSize: 22, lineHeight: 30, maxWidth: '100%' }]}>Up to <Text style={{color: '#60a5fa'}}>20% cashback</Text>{'\n'}on fashion brands</Text>
           <TouchableOpacity style={styles.heroBtn}>
             <Text style={styles.heroBtnText}>Explore Fashion ↗</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.heroSide}>
+        <View style={[styles.heroSide, isMobile && { minWidth: 'auto' as any, flexDirection: 'row', gap: 12 }]}>
           <View style={[styles.sideCard, styles.sideCardDark, { marginBottom: 16 }]}>
             <Text style={styles.sideCardLabelLight}>⚡ LIVE DEALS</Text>
-            <Text style={[styles.sideCardHighlight, {color: '#fff'}]}>8<Text style={{color: '#60a5fa'}}>+</Text></Text>
+            <Text style={[styles.sideCardHighlight, {color: '#fff'}]}>{allDeals.length}<Text style={{color: '#60a5fa'}}>+</Text></Text>
             <Text style={{color: '#94a3b8', fontSize: 12}}>Updated daily</Text>
           </View>
           <View style={styles.sideCard}>
@@ -99,15 +188,15 @@ export const HomeScreen = () => {
       </View>
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trendingRow}>
-          {TRENDING_BRANDS.map(brand => (
-            <View key={brand.name} style={styles.trendingItem}>
+          {trendingBrands.map((brand) => (
+            <View key={brand.brand} style={styles.trendingItem}>
               <View style={styles.trendingBrandCircle}>
                 <View style={styles.trendingCashbackBadge}>
-                  <Text style={styles.trendingCashbackText}>{brand.cashback}</Text>
+                  <Text style={styles.trendingCashbackText}>{formatBrandCashback(brand)}</Text>
                 </View>
-                <Text style={styles.trendingBrandText}>{brand.name[0]}</Text>
+                <Text style={styles.trendingBrandText}>{brand.brand[0]}</Text>
               </View>
-              <Text style={styles.trendingBrandName}>{brand.name}</Text>
+              <Text style={styles.trendingBrandName}>{brand.brand}</Text>
               <Text style={styles.trendingBrandCategory}>{brand.category}</Text>
             </View>
           ))}
@@ -118,17 +207,17 @@ export const HomeScreen = () => {
       <View style={styles.sectionHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={styles.sectionTitle}>All Deals</Text>
-          <Text style={styles.dealsCount}>{ALL_DEALS.length} deals</Text>
+          <Text style={styles.dealsCount}>{filteredDeals.length} deals</Text>
         </View>
       </View>
-      <View style={styles.dealsGrid}>
-        {ALL_DEALS.map(deal => (
-          <DealCard 
-            key={deal.id}
+      <View style={[styles.dealsGrid, isMobile && { flexDirection: 'column', marginHorizontal: 0 }]}>
+        {filteredDeals.map((deal) => (
+          <DealCard
+            key={deal._id}
             brand={deal.brand}
-            description={deal.description}
-            cashback={deal.cashback}
-            expiresIn={deal.expiresIn}
+            description={deal.title || deal.description}
+            cashback={formatCashback(deal)}
+            expiresIn={formatExpiresIn(deal.expiresAt)}
           />
         ))}
       </View>
@@ -142,7 +231,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   contentContainer: {
-    padding: 32,
     maxWidth: 1400,
     alignSelf: 'center',
     width: '100%',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Colors } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 
@@ -32,12 +32,14 @@ const TRANSACTIONS = [
 ];
 
 export const TransactionHistoryScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const navigation = useNavigation();
   const [activeType, setActiveType] = useState('Cashback');
   const [activePeriod, setActivePeriod] = useState('All Time');
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.contentContainer, { padding: isMobile ? 16 : 32 }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -46,7 +48,7 @@ export const TransactionHistoryScreen = () => {
           </TouchableOpacity>
           <View>
             <Text style={styles.accountLabel}>ACCOUNT</Text>
-            <Text style={styles.headerTitle}>Transaction History</Text>
+            <Text style={[styles.headerTitle, isMobile && { fontSize: 22 }]}>Transaction History</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.exportBtn}>
@@ -55,7 +57,7 @@ export const TransactionHistoryScreen = () => {
       </View>
 
       {/* Filters Section */}
-      <View style={styles.filtersSection}>
+      <View style={[styles.filtersSection, isMobile && { padding: 16 }]}>
         <View style={styles.filtersHeader}>
           <Text style={styles.filtersIcon}>{'🔽'}</Text>
           <Text style={styles.filtersLabel}>Filters</Text>
@@ -64,37 +66,41 @@ export const TransactionHistoryScreen = () => {
         {/* Transaction Type */}
         <View style={styles.filterGroup}>
           <Text style={styles.filterGroupLabel}>TRANSACTION TYPE</Text>
-          <View style={styles.pillRow}>
-            {TRANSACTION_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type}
-                style={[styles.filterPill, activeType === type && styles.filterPillActive]}
-                onPress={() => setActiveType(type)}
-              >
-                <Text style={[styles.filterPillText, activeType === type && styles.filterPillTextActive]}>
-                  {type}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <ScrollView horizontal={isMobile} showsHorizontalScrollIndicator={false}>
+            <View style={styles.pillRow}>
+              {TRANSACTION_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.filterPill, activeType === type && styles.filterPillActive]}
+                  onPress={() => setActiveType(type)}
+                >
+                  <Text style={[styles.filterPillText, activeType === type && styles.filterPillTextActive]}>
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
         </View>
 
         {/* Time Period */}
         <View style={styles.filterGroup}>
           <Text style={styles.filterGroupLabel}>TIME PERIOD</Text>
-          <View style={styles.pillRow}>
-            {TIME_PERIODS.map((period) => (
-              <TouchableOpacity
-                key={period}
-                style={[styles.filterPill, activePeriod === period && styles.filterPillActive]}
-                onPress={() => setActivePeriod(period)}
-              >
-                <Text style={[styles.filterPillText, activePeriod === period && styles.filterPillTextActive]}>
-                  {period}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <ScrollView horizontal={isMobile} showsHorizontalScrollIndicator={false}>
+            <View style={styles.pillRow}>
+              {TIME_PERIODS.map((period) => (
+                <TouchableOpacity
+                  key={period}
+                  style={[styles.filterPill, activePeriod === period && styles.filterPillActive]}
+                  onPress={() => setActivePeriod(period)}
+                >
+                  <Text style={[styles.filterPillText, activePeriod === period && styles.filterPillTextActive]}>
+                    {period}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
         </View>
       </View>
 
@@ -105,7 +111,7 @@ export const TransactionHistoryScreen = () => {
       </View>
 
       {/* Transaction List */}
-      <View style={styles.transactionList}>
+      <View style={[styles.transactionList, isMobile && { padding: 16 }]}>
         {TRANSACTIONS.map((tx) => (
           <View key={tx.id} style={styles.transactionItem}>
             <View style={styles.txRow}>
@@ -161,7 +167,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   contentContainer: {
-    padding: 32,
     maxWidth: 1400,
     alignSelf: 'center',
     width: '100%',
