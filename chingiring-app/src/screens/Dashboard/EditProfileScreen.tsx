@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
@@ -9,6 +9,8 @@ import { Button } from '../../components/Button';
 import { profileAPI } from '../../api/profile';
 
 export const EditProfileScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const navigation = useNavigation();
   const queryClient = useQueryClient();
 
@@ -55,7 +57,7 @@ export const EditProfileScreen = () => {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : 24 }]}>
       {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -79,7 +81,7 @@ export const EditProfileScreen = () => {
       </View>
 
       {/* Form */}
-      <Card style={styles.formCard}>
+      <Card style={isMobile ? [styles.formCard, { maxWidth: '100%' as any }] : styles.formCard}>
         <Input
           label="Full Name"
           value={fullName}
@@ -115,7 +117,7 @@ export const EditProfileScreen = () => {
       </Card>
 
       {/* Action Buttons */}
-      <View style={styles.buttonRow}>
+      <View style={[styles.buttonRow, isMobile && { flexDirection: 'column' }]}>
         <Button
           title="Cancel"
           variant="outline"
@@ -140,7 +142,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 24,
     paddingBottom: 60,
   },
   headerRow: {

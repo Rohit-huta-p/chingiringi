@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
@@ -35,6 +35,8 @@ const REFERRAL_DATA = {
 };
 
 export const ProfileScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const navigation = useNavigation();
 
   const { data: profileData } = useQuery({
@@ -81,12 +83,12 @@ export const ProfileScreen = () => {
     : FALLBACK_WALLET_STATS;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : 24 }]}>
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
       <Text style={styles.headerTitle}>Profile</Text>
 
       {/* Profile Header */}
-      <Card style={styles.card}>
+      <Card style={isMobile ? [styles.card, { padding: 12 }] : styles.card}>
         <View style={styles.profileCenter}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar} />
@@ -122,7 +124,7 @@ export const ProfileScreen = () => {
       </Card>
 
       {/* Wallet Stats */}
-      <View style={styles.walletRow}>
+      <View style={[styles.walletRow, isMobile && { flexDirection: 'column' }]}>
         {WALLET_STATS.map((stat) => (
           <Card key={stat.label} style={styles.walletCard}>
             <View style={[styles.walletAccent, { backgroundColor: stat.accentColor }]} />
@@ -136,7 +138,7 @@ export const ProfileScreen = () => {
       </View>
 
       {/* Referral Program */}
-      <View style={styles.referralCard}>
+      <View style={[styles.referralCard, isMobile && { padding: 16 }]}>
         <View style={styles.referralHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.referralTitle}>Referral Program</Text>
@@ -215,7 +217,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 24,
     paddingBottom: 60,
   },
   sectionLabel: {

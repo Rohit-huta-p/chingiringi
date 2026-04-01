@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
@@ -98,6 +98,8 @@ const AddressCard = ({
 );
 
 export const MyAddressScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const navigation = useNavigation();
   const queryClient = useQueryClient();
 
@@ -152,14 +154,14 @@ export const MyAddressScreen = () => {
     : FALLBACK_ADDRESSES;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.header}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : 24 }]}>
+      <View style={[styles.header, isMobile && { flexWrap: 'wrap', gap: 8 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7} style={styles.backButton}>
           <Text style={styles.backArrow}>{'\u2190'}</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerLabel}>ACCOUNT</Text>
-          <Text style={styles.headerTitle}>My Addresses</Text>
+          <Text style={[styles.headerTitle, isMobile && { fontSize: 20 }]}>My Addresses</Text>
         </View>
         <TouchableOpacity style={styles.addButton} activeOpacity={0.7}>
           <Text style={styles.addButtonText}>+ Add Address</Text>
@@ -184,7 +186,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 24,
     paddingBottom: 60,
   },
   header: {
