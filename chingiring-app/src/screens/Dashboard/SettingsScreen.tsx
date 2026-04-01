@@ -6,11 +6,14 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
+import { useMutation } from '@tanstack/react-query';
 import { Colors, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { Card } from '../../components/Card';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { profileAPI } from '../../api/profile';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -103,14 +106,25 @@ export const SettingsScreen = () => {
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
+  const deleteAccountMutation = useMutation({
+    mutationFn: profileAPI.deleteAccount,
+    onSuccess: async () => {
+      setDeleteModalVisible(false);
+      await useAuthStore.getState().logout();
+    },
+    onError: () => {
+      setDeleteModalVisible(false);
+      Alert.alert('Error', 'Failed to delete account. Please try again.');
+    },
+  });
+
   const handleLogout = async () => {
     setLogoutModalVisible(false);
     await logout();
   };
 
   const handleDeleteAccount = () => {
-    setDeleteModalVisible(false);
-    // TODO: wire up delete-account API
+    deleteAccountMutation.mutate();
   };
 
   return (

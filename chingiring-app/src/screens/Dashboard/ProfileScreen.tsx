@@ -1,10 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
+import { profileAPI } from '../../api/profile';
 
-const PROFILE_DATA = {
+const FALLBACK_PROFILE = {
   name: 'Dev Chavan',
   memberSince: '2024',
   email: 'dev.chavan@email.com',
@@ -12,7 +14,7 @@ const PROFILE_DATA = {
   location: 'Mumbai, India',
 };
 
-const WALLET_STATS = [
+const FALLBACK_WALLET_STATS = [
   { label: 'CONFIRMED', amount: '\u20B91250', accentColor: '#10b981', link: 'Withdraw \u2192' },
   { label: 'PENDING', amount: '\u20B9450', accentColor: '#f59e0b', link: 'Processing \u2192' },
   { label: 'COINS', amount: '840', accentColor: '#8b5cf6', link: 'Redeem \u2192' },
@@ -34,6 +36,49 @@ const REFERRAL_DATA = {
 
 export const ProfileScreen = () => {
   const navigation = useNavigation();
+
+  const { data: profileData } = useQuery({
+    queryKey: ['profile'],
+    queryFn: profileAPI.getProfile,
+  });
+
+  const user = profileData?.user;
+  const wallet = profileData?.wallet;
+
+  const PROFILE_DATA = user
+    ? {
+        name: user.name || FALLBACK_PROFILE.name,
+        memberSince: user.createdAt
+          ? new Date(user.createdAt).getFullYear().toString()
+          : FALLBACK_PROFILE.memberSince,
+        email: user.email || FALLBACK_PROFILE.email,
+        phone: user.phone || FALLBACK_PROFILE.phone,
+        location: FALLBACK_PROFILE.location,
+      }
+    : FALLBACK_PROFILE;
+
+  const WALLET_STATS = wallet
+    ? [
+        {
+          label: 'CONFIRMED',
+          amount: `\u20B9${wallet.confirmed ?? 0}`,
+          accentColor: '#10b981',
+          link: 'Withdraw \u2192',
+        },
+        {
+          label: 'PENDING',
+          amount: `\u20B9${wallet.pending ?? 0}`,
+          accentColor: '#f59e0b',
+          link: 'Processing \u2192',
+        },
+        {
+          label: 'COINS',
+          amount: `${wallet.coins ?? 0}`,
+          accentColor: '#8b5cf6',
+          link: 'Redeem \u2192',
+        },
+      ]
+    : FALLBACK_WALLET_STATS;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>

@@ -1,21 +1,53 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
+import { profileAPI } from '../../api/profile';
 
 export const EditProfileScreen = () => {
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
+
+  const { data: profileData } = useQuery({
+    queryKey: ['profile'],
+    queryFn: profileAPI.getProfile,
+  });
+
+  const user = profileData?.user;
 
   const [fullName, setFullName] = useState('Dev Chavan');
-  const [username] = useState('Dev Chavan');
+  const [username, setUsername] = useState('Dev Chavan');
   const [email, setEmail] = useState('dev.chavan@email.com');
   const [phone, setPhone] = useState('9876543210');
 
+  useEffect(() => {
+    if (user) {
+      setFullName(user.name || '');
+      setUsername(user.username || user.name || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+    }
+  }, [user]);
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { name?: string; email?: string; phone?: string }) =>
+      profileAPI.updateProfile(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      Alert.alert('Success', 'Profile updated successfully.');
+      navigation.goBack();
+    },
+    onError: () => {
+      Alert.alert('Error', 'Failed to update profile. Please try again.');
+    },
+  });
+
   const handleSave = () => {
-    navigation.goBack();
+    updateMutation.mutate({ name: fullName, email, phone });
   };
 
   const handleCancel = () => {
@@ -91,10 +123,11 @@ export const EditProfileScreen = () => {
           style={styles.cancelButton}
         />
         <Button
-          title="Save Changes"
+          title={updateMutation.isPending ? 'Saving...' : 'Save Changes'}
           variant="primary"
           onPress={handleSave}
           style={styles.saveButton}
+          disabled={updateMutation.isPending}
         />
       </View>
     </ScrollView>

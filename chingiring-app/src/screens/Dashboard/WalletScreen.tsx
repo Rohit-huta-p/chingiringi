@@ -1,21 +1,78 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
+import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 
-const FILTER_TABS = ['All', 'Cashback', 'Coins', 'Withdrawals'];
+const FILTER_TABS = ['All', 'Cashback', 'Coins', 'Withdrawals'] as const;
 
-const TRANSACTIONS = [
-  { id: '1', brand: 'Myntra', timeAgo: '2 days ago', amount: 150, type: 'income' as const },
-  { id: '2', brand: 'Amazon', timeAgo: '15 days ago', amount: 300, type: 'income' as const },
-  { id: '3', brand: 'Withdrawal to UPI', timeAgo: '20 days ago', amount: 500, type: 'withdrawal' as const },
-  { id: '4', brand: 'Referral bonus (User: RAHUL99)', timeAgo: '5 days ago', amount: 50, type: 'income' as const },
-  { id: '5', brand: 'QR Scan Reward', timeAgo: '1 day ago', amount: 100, type: 'income' as const },
+const FILTER_TYPE_MAP: Record<string, string | undefined> = {
+  All: undefined,
+  Cashback: 'cashback',
+  Coins: 'coin_credit',
+  Withdrawals: 'withdrawal',
+};
+
+const FALLBACK_WALLET: Wallet = {
+  _id: '',
+  userId: '',
+  confirmedCashback: 1250,
+  pendingCashback: 450,
+  coins: 840,
+  lifetimeEarned: 1700,
+};
+
+const FALLBACK_TRANSACTIONS: Transaction[] = [
+  { _id: '1', userId: '', type: 'cashback', amount: 150, status: 'confirmed', description: 'Myntra', metadata: { brand: 'Myntra' }, createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
+  { _id: '2', userId: '', type: 'cashback', amount: 300, status: 'confirmed', description: 'Amazon', metadata: { brand: 'Amazon' }, createdAt: new Date(Date.now() - 15 * 86400000).toISOString() },
+  { _id: '3', userId: '', type: 'withdrawal', amount: 500, status: 'completed', description: 'Withdrawal to UPI', createdAt: new Date(Date.now() - 20 * 86400000).toISOString() },
+  { _id: '4', userId: '', type: 'referral', amount: 50, status: 'confirmed', description: 'Referral bonus (User: RAHUL99)', createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+  { _id: '5', userId: '', type: 'bonus', amount: 100, status: 'confirmed', description: 'QR Scan Reward', createdAt: new Date(Date.now() - 1 * 86400000).toISOString() },
 ];
+
+function formatTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return '1 day ago';
+  return `${days} days ago`;
+}
+
+function getTxDisplayType(tx: Transaction): 'income' | 'withdrawal' {
+  return tx.type === 'withdrawal' || tx.type === 'coin_debit' ? 'withdrawal' : 'income';
+}
 
 export const WalletScreen = () => {
   const { user } = useAuthStore();
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [activeFilter, setActiveFilter] = useState<string>('All');
+
+  const {
+    data: summaryData,
+    isLoading: isSummaryLoading,
+  } = useQuery({
+    queryKey: ['walletSummary'],
+    queryFn: walletAPI.getWalletSummary,
+  });
+
+  const filterType = FILTER_TYPE_MAP[activeFilter];
+
+  const {
+    data: filteredTxData,
+    isLoading: isFilteredLoading,
+  } = useQuery({
+    queryKey: ['walletTransactions', activeFilter],
+    queryFn: () => walletAPI.getTransactions({ type: filterType }),
+    enabled: activeFilter !== 'All',
+  });
+
+  const wallet: Wallet = summaryData?.wallet ?? FALLBACK_WALLET;
+  const transactions: Transaction[] =
+    activeFilter === 'All'
+      ? (summaryData?.recentTransactions ?? FALLBACK_TRANSACTIONS)
+      : (filteredTxData?.transactions ?? FALLBACK_TRANSACTIONS);
+
+  const isLoadingTransactions = activeFilter === 'All' ? isSummaryLoading : isFilteredLoading;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -38,47 +95,53 @@ export const WalletScreen = () => {
       </View>
 
       {/* Balance Cards */}
-      <View style={styles.cardsRow}>
-        {/* Confirmed Balance Card */}
-        <View style={styles.confirmedCard}>
-          <View style={styles.cardIconContainer}>
-            <Text style={styles.cardIconText}>{'💳'}</Text>
-          </View>
-          <Text style={styles.confirmedLabel}>Confirmed Balance</Text>
-          <Text style={styles.confirmedAmount}>{'\u20B9'}1250</Text>
-          <Text style={styles.confirmedSubText}>Available to withdraw</Text>
-          <TouchableOpacity style={styles.withdrawBtn}>
-            <Text style={styles.withdrawBtnText}>Withdraw Funds</Text>
-          </TouchableOpacity>
+      {isSummaryLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
         </View>
+      ) : (
+        <View style={styles.cardsRow}>
+          {/* Confirmed Balance Card */}
+          <View style={styles.confirmedCard}>
+            <View style={styles.cardIconContainer}>
+              <Text style={styles.cardIconText}>{'💳'}</Text>
+            </View>
+            <Text style={styles.confirmedLabel}>Confirmed Balance</Text>
+            <Text style={styles.confirmedAmount}>{'\u20B9'}{wallet.confirmedCashback}</Text>
+            <Text style={styles.confirmedSubText}>Available to withdraw</Text>
+            <TouchableOpacity style={styles.withdrawBtn}>
+              <Text style={styles.withdrawBtnText}>Withdraw Funds</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Pending Card */}
-        <View style={styles.balanceCard}>
-          <View style={styles.cardIconContainer}>
-            <Text style={styles.cardIconText}>{'🕐'}</Text>
+          {/* Pending Card */}
+          <View style={styles.balanceCard}>
+            <View style={styles.cardIconContainer}>
+              <Text style={styles.cardIconText}>{'🕐'}</Text>
+            </View>
+            <Text style={styles.cardLabel}>Pending</Text>
+            <Text style={styles.cardAmount}>{'\u20B9'}{wallet.pendingCashback}</Text>
+            <Text style={styles.cardSubText}>In lock period</Text>
           </View>
-          <Text style={styles.cardLabel}>Pending</Text>
-          <Text style={styles.cardAmount}>{'\u20B9'}450</Text>
-          <Text style={styles.cardSubText}>In lock period</Text>
-        </View>
 
-        {/* Coins Card */}
-        <View style={styles.balanceCard}>
-          <View style={styles.cardIconContainer}>
-            <Text style={styles.cardIconText}>{'🪙'}</Text>
+          {/* Coins Card */}
+          <View style={styles.balanceCard}>
+            <View style={styles.cardIconContainer}>
+              <Text style={styles.cardIconText}>{'🪙'}</Text>
+            </View>
+            <Text style={styles.cardLabel}>Coins</Text>
+            <Text style={styles.cardAmount}>{wallet.coins}</Text>
+            <Text style={styles.cardSubText}>Reward points</Text>
           </View>
-          <Text style={styles.cardLabel}>Coins</Text>
-          <Text style={styles.cardAmount}>840</Text>
-          <Text style={styles.cardSubText}>Reward points</Text>
         </View>
-      </View>
+      )}
 
       {/* Total Earned Row */}
       <View style={styles.totalEarnedRow}>
         <View style={styles.totalEarnedLeft}>
           <Text style={styles.trendIcon}>{'📈'}</Text>
           <Text style={styles.totalEarnedLabel}>Total Earned (Lifetime)</Text>
-          <Text style={styles.totalEarnedAmount}>{'\u20B9'}1700</Text>
+          <Text style={styles.totalEarnedAmount}>{'\u20B9'}{wallet.lifetimeEarned}</Text>
         </View>
         <TouchableOpacity>
           <Text style={styles.allTimeLink}>All time {'>'}</Text>
@@ -105,31 +168,41 @@ export const WalletScreen = () => {
         </View>
 
         {/* Transaction List */}
-        {TRANSACTIONS.map((tx) => (
-          <View key={tx.id} style={styles.transactionItem}>
-            <View style={[
-              styles.txIconContainer,
-              { backgroundColor: tx.type === 'income' ? '#ecfdf5' : '#fef2f2' },
-            ]}>
-              <Text style={styles.txIcon}>
-                {tx.type === 'income' ? '↓' : '↑'}
-              </Text>
-            </View>
-            <View style={styles.txInfo}>
-              <Text style={styles.txBrand}>{tx.brand}</Text>
-              <Text style={styles.txTime}>{tx.timeAgo}</Text>
-            </View>
-            <View style={styles.txAmountContainer}>
-              <Text style={[
-                styles.txAmount,
-                { color: tx.type === 'income' ? Colors.success : Colors.danger },
-              ]}>
-                {tx.type === 'income' ? '+' : '-'}{'\u20B9'}{tx.amount}
-              </Text>
-              <Text style={styles.txChevron}>{'›'}</Text>
-            </View>
+        {isLoadingTransactions ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={Colors.primary} />
           </View>
-        ))}
+        ) : (
+          transactions.map((tx) => {
+            const displayType = getTxDisplayType(tx);
+            const label = tx.metadata?.brand || tx.description;
+            return (
+              <View key={tx._id} style={styles.transactionItem}>
+                <View style={[
+                  styles.txIconContainer,
+                  { backgroundColor: displayType === 'income' ? '#ecfdf5' : '#fef2f2' },
+                ]}>
+                  <Text style={styles.txIcon}>
+                    {displayType === 'income' ? '↓' : '↑'}
+                  </Text>
+                </View>
+                <View style={styles.txInfo}>
+                  <Text style={styles.txBrand}>{label}</Text>
+                  <Text style={styles.txTime}>{formatTimeAgo(tx.createdAt)}</Text>
+                </View>
+                <View style={styles.txAmountContainer}>
+                  <Text style={[
+                    styles.txAmount,
+                    { color: displayType === 'income' ? Colors.success : Colors.danger },
+                  ]}>
+                    {displayType === 'income' ? '+' : '-'}{'\u20B9'}{tx.amount}
+                  </Text>
+                  <Text style={styles.txChevron}>{'›'}</Text>
+                </View>
+              </View>
+            );
+          })
+        )}
       </View>
     </ScrollView>
   );
@@ -381,5 +454,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
