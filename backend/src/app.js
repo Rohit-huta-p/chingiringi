@@ -11,6 +11,7 @@ import rateLimit from 'express-rate-limit';
 
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import authRoutes from './modules/auth/authRoutes.js';
+import walletRoutes from './modules/wallet/walletRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -57,8 +58,9 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'success', message: 'API is running' });
 });
 
-// Routes will be mounted here
+// Routes
 app.use('/auth', authRoutes);
+app.use('/api/wallet', walletRoutes);
 
 // Unhandled routes
 app.all('*', notFound);
