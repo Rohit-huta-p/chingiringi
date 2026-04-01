@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Search, Zap, SlidersHorizontal } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
@@ -49,6 +49,8 @@ function formatBrandCashback(brand: TrendingBrand): string {
 }
 
 export const HomeScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Fetch deals
@@ -111,9 +113,9 @@ export const HomeScreen = () => {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.contentContainer, { padding: isMobile ? 16 : 32 }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isMobile && { flexDirection: 'column', alignItems: 'stretch', gap: 12 }]}>
         <View style={styles.searchContainer}>
           <Search size={20} color={Colors.textSecondary} style={styles.searchIcon} />
           <TextInput
@@ -122,7 +124,7 @@ export const HomeScreen = () => {
             placeholderTextColor={Colors.textSecondary}
           />
         </View>
-        <View style={styles.headerRight}>
+        <View style={[styles.headerRight, isMobile && { justifyContent: 'space-between' }]}>
           <TouchableOpacity style={styles.todayDealsBtn}>
             <Zap size={16} color={Colors.primary} fill={Colors.primary} />
             <Text style={styles.todayDealsText}>Today's Deals</Text>
@@ -153,19 +155,19 @@ export const HomeScreen = () => {
       </View>
 
       {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <View style={styles.heroMain}>
+      <View style={[styles.heroSection, isMobile && { flexDirection: 'column' }]}>
+        <View style={[styles.heroMain, isMobile && { marginRight: 0, marginBottom: 16, padding: 24, minWidth: 'auto' as any }]}>
           <View style={styles.featuredBadge}>
             <Zap size={12} color="#fff" fill="#fff" />
             <Text style={styles.featuredBadgeText}>FEATURED</Text>
           </View>
           <Text style={styles.heroSubtitle}>EARN WHILE YOU SHOP</Text>
-          <Text style={styles.heroTitle}>Up to <Text style={{color: '#60a5fa'}}>20% cashback</Text>{'\n'}on fashion brands</Text>
+          <Text style={[styles.heroTitle, isMobile && { fontSize: 22, lineHeight: 30, maxWidth: '100%' }]}>Up to <Text style={{color: '#60a5fa'}}>20% cashback</Text>{'\n'}on fashion brands</Text>
           <TouchableOpacity style={styles.heroBtn}>
             <Text style={styles.heroBtnText}>Explore Fashion ↗</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.heroSide}>
+        <View style={[styles.heroSide, isMobile && { minWidth: 'auto' as any, flexDirection: 'row', gap: 12 }]}>
           <View style={[styles.sideCard, styles.sideCardDark, { marginBottom: 16 }]}>
             <Text style={styles.sideCardLabelLight}>⚡ LIVE DEALS</Text>
             <Text style={[styles.sideCardHighlight, {color: '#fff'}]}>{allDeals.length}<Text style={{color: '#60a5fa'}}>+</Text></Text>
@@ -208,7 +210,7 @@ export const HomeScreen = () => {
           <Text style={styles.dealsCount}>{filteredDeals.length} deals</Text>
         </View>
       </View>
-      <View style={styles.dealsGrid}>
+      <View style={[styles.dealsGrid, isMobile && { flexDirection: 'column', marginHorizontal: 0 }]}>
         {filteredDeals.map((deal) => (
           <DealCard
             key={deal._id}
@@ -229,7 +231,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   contentContainer: {
-    padding: 32,
     maxWidth: 1400,
     alignSelf: 'center',
     width: '100%',

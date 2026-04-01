@@ -7,6 +7,7 @@ import {
   Switch,
   TouchableOpacity,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { Colors, Spacing } from '../../constants/theme';
@@ -94,6 +95,8 @@ const ListItem = ({
 // ---------------------------------------------------------------------------
 
 export const SettingsScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const { logout } = useAuthStore();
 
   // Notification toggle states
@@ -129,7 +132,7 @@ export const SettingsScreen = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : Spacing.lg }]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} activeOpacity={0.7}>
@@ -254,7 +257,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: Spacing.lg,
     paddingBottom: 60,
   },
 

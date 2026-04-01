@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
@@ -44,6 +44,8 @@ function getTxDisplayType(tx: Transaction): 'income' | 'withdrawal' {
 }
 
 export const WalletScreen = () => {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const { user } = useAuthStore();
   const [activeFilter, setActiveFilter] = useState<string>('All');
 
@@ -75,15 +77,15 @@ export const WalletScreen = () => {
   const isLoadingTransactions = activeFilter === 'All' ? isSummaryLoading : isFilteredLoading;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.contentContainer, { padding: isMobile ? 16 : 32 }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isMobile && { flexDirection: 'column', gap: 12 }]}>
         <View>
           <Text style={styles.overviewLabel}>OVERVIEW</Text>
           <Text style={styles.headerTitle}>My Wallet</Text>
         </View>
-        <View style={styles.headerRight}>
-          <View style={styles.userInfo}>
+        <View style={[styles.headerRight, isMobile && { alignSelf: 'flex-start' }]}>
+          <View style={[styles.userInfo, isMobile && { alignItems: 'flex-start' }]}>
             <Text style={styles.userName}>{user?.name || 'Dev Chavan'}</Text>
             <Text style={styles.userRole}>Member</Text>
           </View>
@@ -100,9 +102,9 @@ export const WalletScreen = () => {
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       ) : (
-        <View style={styles.cardsRow}>
+        <View style={[styles.cardsRow, isMobile && { flexDirection: 'column' }]}>
           {/* Confirmed Balance Card */}
-          <View style={styles.confirmedCard}>
+          <View style={[styles.confirmedCard, isMobile && { minWidth: 'auto' as any }]}>
             <View style={styles.cardIconContainer}>
               <Text style={styles.cardIconText}>{'💳'}</Text>
             </View>
@@ -149,10 +151,10 @@ export const WalletScreen = () => {
       </View>
 
       {/* Transaction History */}
-      <View style={styles.transactionSection}>
-        <View style={styles.transactionHeader}>
+      <View style={[styles.transactionSection, isMobile && { padding: 16 }]}>
+        <View style={[styles.transactionHeader, isMobile && { flexDirection: 'column', alignItems: 'flex-start' }]}>
           <Text style={styles.transactionTitle}>Transaction History</Text>
-          <View style={styles.filterRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.filterRow}>
             {FILTER_TABS.map((tab) => (
               <TouchableOpacity
                 key={tab}
@@ -164,7 +166,7 @@ export const WalletScreen = () => {
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </View></ScrollView>
         </View>
 
         {/* Transaction List */}
@@ -214,7 +216,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   contentContainer: {
-    padding: 32,
     maxWidth: 1400,
     alignSelf: 'center',
     width: '100%',
