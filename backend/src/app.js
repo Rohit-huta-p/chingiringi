@@ -15,6 +15,8 @@ import dealRoutes from './modules/deals/dealRoutes.js';
 import categoryRoutes from './modules/categories/categoryRoutes.js';
 import bannerRoutes from './modules/banners/bannerRoutes.js';
 import walletRoutes from './modules/wallet/walletRoutes.js';
+import profileRoutes from './modules/users/profileRoutes.js';
+import addressRoutes from './modules/addresses/addressRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -67,6 +69,8 @@ app.use('/api/deals', dealRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/addresses', addressRoutes);
 
 // Unhandled routes
 app.all('*', notFound);
