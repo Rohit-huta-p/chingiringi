@@ -11,6 +11,9 @@ import rateLimit from 'express-rate-limit';
 
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import authRoutes from './modules/auth/authRoutes.js';
+import dealRoutes from './modules/deals/dealRoutes.js';
+import categoryRoutes from './modules/categories/categoryRoutes.js';
+import bannerRoutes from './modules/banners/bannerRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -57,8 +60,11 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'success', message: 'API is running' });
 });
 
-// Routes will be mounted here
+// Routes
 app.use('/auth', authRoutes);
+app.use('/api/deals', dealRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/banners', bannerRoutes);
 
 // Unhandled routes
 app.all('*', notFound);
