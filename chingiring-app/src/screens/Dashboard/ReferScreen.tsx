@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
-
-const REFERRAL_CODE = 'DEV500';
+import { useAuthStore } from '../../store';
+import { walletAPI } from '../../api/wallet';
 
 const SHARE_OPTIONS = [
   { label: 'WhatsApp', color: '#25D366', icon: 'W' },
@@ -22,6 +23,19 @@ const STEPS = [
 export const ReferScreen = () => {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const REFERRAL_CODE = user?.referralCode || 'SHARE50';
+
+  const { data: txData } = useQuery({
+    queryKey: ['transactions', 'referral'],
+    queryFn: () => walletAPI.getTransactions({ type: 'referral', limit: 100 }),
+    enabled: isAuthenticated,
+  });
+
+  const referralTransactions = txData?.data?.transactions ?? [];
+  const referralCount = referralTransactions.length;
+  const referralEarned = referralTransactions.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0);
 
   const leftColumn = (
     <View style={isWide ? styles.column : undefined}>
@@ -69,12 +83,12 @@ export const ReferScreen = () => {
         <Card style={styles.statCard}>
           <Text style={styles.statIcon}>{'\u{1F465}'}</Text>
           <Text style={styles.statLabel}>Total</Text>
-          <Text style={styles.statValue}>12 Friends joined</Text>
+          <Text style={styles.statValue}>{referralCount} Friends joined</Text>
         </Card>
         <Card style={styles.statCard}>
           <Text style={styles.statIcon}>{'\u{1F4B0}'}</Text>
           <Text style={styles.statLabel}>Earned</Text>
-          <Text style={styles.statValue}>{'\u20B9'}600 From referrals</Text>
+          <Text style={styles.statValue}>{'\u20B9'}{referralEarned} From referrals</Text>
         </Card>
       </View>
     </View>
@@ -134,7 +148,7 @@ export const ReferScreen = () => {
         </View>
         <View style={styles.earnedBadge}>
           <View style={styles.earnedAvatar} />
-          <Text style={styles.earnedText}>{'\u20B9'}600 earned</Text>
+          <Text style={styles.earnedText}>{'\u20B9'}{referralEarned} earned</Text>
         </View>
       </View>
 

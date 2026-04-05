@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authAPI } from '../api/auth';
+import { clearTokens } from '../api/client';
 
 export interface UserType {
   id: string;
@@ -8,6 +9,7 @@ export interface UserType {
   email?: string;
   phone?: string;
   role?: string;
+  referralCode?: string;
 }
 
 interface AuthState {
@@ -42,7 +44,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (err: any) {
       console.warn("Backend logout failed", err.message);
     }
-    // Strict purge on the state immediately
+    // Clear stored tokens (native) and purge state
+    await clearTokens();
     set({ isAuthenticated: false, user: null });
   }
 }));

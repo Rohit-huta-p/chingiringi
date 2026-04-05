@@ -44,8 +44,8 @@ export const ProfileScreen = () => {
     queryFn: profileAPI.getProfile,
   });
 
-  const user = profileData?.user;
-  const wallet = profileData?.wallet;
+  const user = profileData?.data?.user;
+  const wallet = profileData?.data?.wallet;
 
   const PROFILE_DATA = user
     ? {

@@ -2,9 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { Home, Wallet, Users, Bell, Settings, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Colors, Spacing } from '../constants/theme';
 import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store';
+import { walletAPI } from '../api/wallet';
 
 const NavItem = ({
   label,
@@ -38,6 +40,16 @@ export const Sidebar: React.FC<DrawerContentComponentProps> = (props) => {
   const currentRouteName = props.state.routeNames[props.state.index];
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  const { data: walletData } = useQuery({
+    queryKey: ['wallet'],
+    queryFn: () => walletAPI.getWallet(),
+    enabled: isAuthenticated,
+  });
+
+  const wallet = walletData?.data?.wallet || walletData?.data;
+  const walletBalance = wallet?.confirmedCashback ?? 0;
 
   const navigateTo = (screen: string) => {
     props.navigation.navigate(screen);
@@ -130,7 +142,7 @@ export const Sidebar: React.FC<DrawerContentComponentProps> = (props) => {
               <Text style={styles.profileName} numberOfLines={1}>
                 {user?.name || 'Dev Chavan'}
               </Text>
-              <Text style={styles.profileBalance}>₹1250</Text>
+              <Text style={styles.profileBalance}>{'\u20B9'}{walletBalance}</Text>
             </View>
           )}
         </TouchableOpacity>

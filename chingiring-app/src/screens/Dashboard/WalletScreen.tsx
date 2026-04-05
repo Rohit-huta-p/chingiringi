@@ -68,11 +68,11 @@ export const WalletScreen = () => {
     enabled: activeFilter !== 'All',
   });
 
-  const wallet: Wallet = summaryData?.wallet ?? FALLBACK_WALLET;
+  const wallet: Wallet = summaryData?.data?.wallet ?? FALLBACK_WALLET;
   const transactions: Transaction[] =
     activeFilter === 'All'
-      ? (summaryData?.recentTransactions ?? FALLBACK_TRANSACTIONS)
-      : (filteredTxData?.transactions ?? FALLBACK_TRANSACTIONS);
+      ? (summaryData?.data?.recentTransactions ?? FALLBACK_TRANSACTIONS)
+      : (filteredTxData?.data?.transactions ?? FALLBACK_TRANSACTIONS);
 
   const isLoadingTransactions = activeFilter === 'All' ? isSummaryLoading : isFilteredLoading;
 
