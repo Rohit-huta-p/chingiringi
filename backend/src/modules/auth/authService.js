@@ -11,7 +11,9 @@ export const createUser = async (userData) => {
   });
 
   if (existingUser) {
-    throw new Error('User already exists with that email, phone, or username');
+    const err = new Error('User already exists with that email, phone, or username');
+    err.statusCode = 409;
+    throw err;
   }
 
   // Create user
@@ -41,7 +43,9 @@ export const verifyPassword = async (identifier, password) => {
   }).select('+passwordHash');
 
   if (!user || !(await user.matchPassword(password))) {
-    throw new Error('Invalid credentials');
+    const err = new Error('Invalid credentials');
+    err.statusCode = 401;
+    throw err;
   }
 
   return user;

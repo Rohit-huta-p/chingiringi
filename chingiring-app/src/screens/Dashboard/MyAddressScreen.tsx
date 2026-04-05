@@ -44,10 +44,12 @@ const AddressCard = ({
   address,
   onDelete,
   onSetDefault,
+  onEdit,
 }: {
   address: Address;
   onDelete: (id: string) => void;
   onSetDefault: (id: string) => void;
+  onEdit: (address: Address) => void;
 }) => (
   <Card style={styles.addressCard} variant="outlined">
     <View style={styles.addressRow}>
@@ -65,7 +67,7 @@ const AddressCard = ({
         </View>
       </View>
       <View style={styles.addressActions}>
-        <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.actionButton} activeOpacity={0.7} onPress={() => onEdit(address)}>
           <Text style={styles.editIcon}>{'\u270E'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -139,9 +141,19 @@ export const MyAddressScreen = () => {
     setDefaultMutation.mutate(id);
   };
 
+  const handleEdit = (address: Address) => {
+    // Reconstruct the raw API shape the AddEditAddressScreen expects
+    const raw = addressData?.data?.addresses?.find((a: any) => a._id === address.id);
+    navigation.navigate('AddEditAddress' as never, { address: raw || address } as never);
+  };
+
+  const handleAdd = () => {
+    navigation.navigate('AddEditAddress' as never);
+  };
+
   // Map API data to the local Address shape, fall back to hardcoded data
-  const addresses: Address[] = addressData?.addresses
-    ? addressData.addresses.map((a: any) => ({
+  const addresses: Address[] = addressData?.data?.addresses
+    ? addressData.data.addresses.map((a: any) => ({
         id: a._id,
         type: a.label === 'work' ? 'work' : 'home',
         label: a.label ? a.label.charAt(0).toUpperCase() + a.label.slice(1) : 'Home',
@@ -163,7 +175,7 @@ export const MyAddressScreen = () => {
           <Text style={styles.headerLabel}>ACCOUNT</Text>
           <Text style={[styles.headerTitle, isMobile && { fontSize: 20 }]}>My Addresses</Text>
         </View>
-        <TouchableOpacity style={styles.addButton} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.addButton} activeOpacity={0.7} onPress={handleAdd}>
           <Text style={styles.addButtonText}>+ Add Address</Text>
         </TouchableOpacity>
       </View>
@@ -174,6 +186,7 @@ export const MyAddressScreen = () => {
           address={address}
           onDelete={handleDelete}
           onSetDefault={handleSetDefault}
+          onEdit={handleEdit}
         />
       ))}
     </ScrollView>

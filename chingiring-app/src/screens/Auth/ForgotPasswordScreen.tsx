@@ -10,18 +10,25 @@ import { authAPI } from '../../api/auth';
 
 export const ForgotPasswordScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const forgotMutation = useMutation({
     mutationFn: authAPI.forgotPassword,
     onSuccess: () => {
+      setErrorMsg('');
+      setSuccessMsg('OTP sent to your email!');
       navigation.navigate('OTPVerification', { identifier: email });
     },
     onError: (error: any) => {
-      console.warn('Forgot Password Error:', error.message);
+      setSuccessMsg('');
+      setErrorMsg(error.message || 'Failed to send OTP. Please try again.');
     }
   });
 
   const handleForgot = () => {
+    setErrorMsg('');
+    setSuccessMsg('');
     forgotMutation.mutate({ email });
   };
 
@@ -49,10 +56,13 @@ export const ForgotPasswordScreen = ({ navigation }: any) => {
       <Text style={styles.inputLabel}>Email Address</Text>
       <Input placeholder="your@email.com" keyboardType="email-address" value={email} onChangeText={setEmail} />
 
-      <Button 
-        title="Send OTP ->" 
-        onPress={handleForgot} 
-        style={styles.mainButton} 
+      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+      {successMsg ? <Text style={styles.successText}>{successMsg}</Text> : null}
+
+      <Button
+        title="Send OTP ->"
+        onPress={handleForgot}
+        style={styles.mainButton}
         loading={forgotMutation.isPending}
         disabled={forgotMutation.isPending}
       />
@@ -92,6 +102,18 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: 8,
     textAlign: 'center',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  successText: {
+    color: '#22c55e',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
   },
   mainButton: {
     marginTop: 16,

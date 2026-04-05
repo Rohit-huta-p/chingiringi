@@ -1,12 +1,22 @@
 import React, { useEffect } from 'react';
-import 'react-native-gesture-handler'; // Required for react-navigation Drawer
+// react-native-gesture-handler is imported in DrawerNavigator (desktop only)
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/store';
 import { View, ActivityIndicator } from 'react-native';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 export default function App() {
   const { isReady, hydrate } = useAuthStore();

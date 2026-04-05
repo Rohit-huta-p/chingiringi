@@ -17,6 +17,7 @@ import bannerRoutes from './modules/banners/bannerRoutes.js';
 import walletRoutes from './modules/wallet/walletRoutes.js';
 import profileRoutes from './modules/users/profileRoutes.js';
 import addressRoutes from './modules/addresses/addressRoutes.js';
+import adminRoutes from './modules/admin/adminRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -25,10 +26,10 @@ app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to rec
 // Security HTTP headers
 app.use(helmet());
 
-// Rate limiting (100 requests per 15 minutes)
+// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: process.env.NODE_ENV === 'development' ? 1000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -44,11 +45,15 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 // Enable CORS
 app.use(cors({
   origin: [
-    'http://localhost:8081', 
-    'http://192.168.1.90:8081', 
+    'http://localhost:8081',
+    'http://localhost:8082',
+    'http://localhost:8001',
+    'http://localhost:8000',
+    'http://192.168.1.55:8081',
+    'http://192.168.1.55:8082',
     'https://chingiringi-web-app.onrender.com',
-    'https://chingiring-web-app.onrender.com', // Added possible variant
-    'https://chingiringi.com' // Future domain
+    'https://chingiring-web-app.onrender.com',
+    'https://chingiringi.com'
   ],
   credentials: true,
 }));
@@ -71,6 +76,7 @@ app.use('/api/banners', bannerRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/addresses', addressRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Unhandled routes
 app.all('*', notFound);

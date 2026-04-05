@@ -18,11 +18,12 @@ export const signup = async (req, res) => {
   const validatedData = schema.parse(req.body);
   const user = await createUser(validatedData);
 
-  await generateTokens(res, user);
+  const tokens = await generateTokens(res, user);
 
   res.status(201).json({
     status: 'success',
     message: 'Account created efficiently',
+    tokens,
   });
 };
 
@@ -48,11 +49,12 @@ export const login = async (req, res) => {
     }
   }
 
-  await generateTokens(res, user);
+  const tokens = await generateTokens(res, user);
 
   res.status(200).json({
     status: 'success',
     message: 'Logged in successfully',
+    tokens,
   });
 };
 
@@ -88,9 +90,10 @@ export const verifyOtp = async (req, res) => {
   
   const user = await verifyUserOTP(identifier, otp);
   
+  let tokens;
   if (user) {
     // If it's a login verification
-    await generateTokens(res, user);
+    tokens = await generateTokens(res, user);
   }
 
   res.status(200).json({
@@ -98,7 +101,8 @@ export const verifyOtp = async (req, res) => {
     message: 'OTP verified successfully',
     data: {
       isLogin: !!user
-    }
+    },
+    ...(tokens && { tokens }),
   });
 };
 
@@ -126,8 +130,9 @@ export const logout = async (req, res) => {
 };
 
 export const refresh = async (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
-  
+  // Accept refresh token from cookie or request body (for native apps)
+  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+
   if (!refreshToken) {
     res.status(401);
     throw new Error('Not authorized, no refresh token');
@@ -146,11 +151,12 @@ export const refresh = async (req, res) => {
 
     // Prune the used token and issue new ones
     user.refreshTokens = user.refreshTokens.filter(rt => rt.token !== refreshToken);
-    await generateTokens(res, user);
+    const tokens = await generateTokens(res, user);
 
     res.status(200).json({
       status: 'success',
-      message: 'Tokens refreshed'
+      message: 'Tokens refreshed',
+      tokens,
     });
   } catch (error) {
     res.status(401);
@@ -175,6 +181,7 @@ export const getMe = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        referralCode: user.referralCode,
       }
     }
   });

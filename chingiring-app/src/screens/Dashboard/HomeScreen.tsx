@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Search, Zap, SlidersHorizontal } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/theme';
 import { DealCard } from '../../components/DealCard';
 import { dealsAPI, categoriesAPI, Deal, Category, TrendingBrand } from '../../api/deals';
@@ -51,6 +52,7 @@ function formatBrandCashback(brand: TrendingBrand): string {
 export const HomeScreen = () => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const navigation = useNavigation<any>();
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Fetch deals
@@ -218,6 +220,7 @@ export const HomeScreen = () => {
             description={deal.title || deal.description}
             cashback={formatCashback(deal)}
             expiresIn={formatExpiresIn(deal.expiresAt)}
+            onPress={() => navigation.navigate('ProductDetail', { dealId: deal._id, deal })}
           />
         ))}
       </View>

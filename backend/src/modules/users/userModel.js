@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 const userSchema = new mongoose.Schema(
   {
@@ -38,6 +39,7 @@ const userSchema = new mongoose.Schema(
     referralCode: {
       type: String,
       unique: true,
+      default: () => crypto.randomBytes(4).toString('hex').toUpperCase(),
     },
     referredBy: {
       type: mongoose.Schema.Types.ObjectId,

@@ -16,22 +16,23 @@ export const SignupScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const hydrate = useAuthStore((state) => state.hydrate);
 
   const signupMutation = useMutation({
     mutationFn: authAPI.signup,
     onSuccess: async () => {
-      // Profile fetched securely via HTTP-Only token
+      setErrorMsg('');
       await hydrate();
     },
     onError: (error: any) => {
-      console.warn('Signup Error:', error.message);
+      setErrorMsg(error.message || 'Signup failed. Please try again.');
     }
   });
 
   const handleSignup = () => {
-    console.log("HEllo")
+    setErrorMsg('');
     // Only send what's provided
     signupMutation.mutate({
       name,
@@ -60,6 +61,8 @@ export const SignupScreen = ({ navigation }: any) => {
       <Input label="Email" placeholder="your@email.com" keyboardType="email-address" value={email} onChangeText={setEmail} />
       <Input label="Phone Number" placeholder="10-digit mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
       <Input label="Password" placeholder="At least 6 characters" secureTextEntry value={password} onChangeText={setPassword} />
+
+      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
       <Button
         title="Create Account ->"
@@ -102,6 +105,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: 24,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   mainButton: {
     marginTop: 8,

@@ -1,52 +1,110 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import * as SecureStore from 'expo-secure-store';
 
-// For Web testing, use localhost to avoid Cross-Site Cookie blocking. For native devices, use the LAN IP.
-const defaultURL = Platform.OS === 'web' ? 'http://localhost:8000' : 'http://192.168.1.90:8000';
-const baseURL = process.env.EXPO_PUBLIC_API_URL || defaultURL;
-console.log("Backend Target URL:", baseURL);
+function getBaseURL(): string {
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+
+  // Try to auto-detect LAN IP from Expo's dev server connection
+  const debuggerHost = Constants.expoGoConfig?.debuggerHost ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
+
+  if (debuggerHost) {
+    const ip = debuggerHost.split(':')[0];
+    if (ip !== 'localhost' && ip !== '127.0.0.1') {
+      return `http://${ip}:8000`;
+    }
+  }
+
+  if (Platform.OS === 'web') return 'http://localhost:8000';
+  return 'http://192.168.1.55:8000';
+}
+
+const isNative = Platform.OS !== 'web';
+const baseURL = getBaseURL();
+console.log('[API] baseURL:', baseURL, '| platform:', Platform.OS);
+
+// Token storage helpers for native
+async function getToken(key: string): Promise<string | null> {
+  if (!isNative) return null;
+  return SecureStore.getItemAsync(key);
+}
+
+async function setToken(key: string, value: string): Promise<void> {
+  if (!isNative) return;
+  await SecureStore.setItemAsync(key, value);
+}
+
+async function clearTokens(): Promise<void> {
+  if (!isNative) return;
+  await SecureStore.deleteItemAsync('accessToken');
+  await SecureStore.deleteItemAsync('refreshToken');
+}
 
 export const apiClient = axios.create({
   baseURL,
   timeout: 10000,
-  withCredentials: true, // Crucial for passing HTTP-Only cookies globally across network boundaries
+  withCredentials: !isNative, // Cookies for web only
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// We no longer need a request interceptor to attach Bearer tokens since the network stack dynamically attaches the Set-Cookie headers on all subsequent calls!
+// On native, attach the access token as Authorization header
+apiClient.interceptors.request.use(async (config) => {
+  if (isNative) {
+    const accessToken = await getToken('accessToken');
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+  }
+  return config;
+});
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  async (response) => {
+    // On native, store tokens from response body
+    if (isNative && response.data?.tokens) {
+      const { accessToken, refreshToken } = response.data.tokens;
+      if (accessToken) await setToken('accessToken', accessToken);
+      if (refreshToken) await setToken('refreshToken', refreshToken);
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
-    
-    // Prevent infinite loops if login or refresh routes themselves 401
+
     if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
-      return Promise.reject(error);
+      const errorMessage = error.response?.data?.message || error.message;
+      return Promise.reject(new Error(errorMessage));
     }
-    
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        // Attempt a silent token refresh. Because withCredentials is true, the browser will seamlessly transmit the stored refreshToken cookie.
-        await axios.post(`${baseURL}/auth/refresh`, {}, {
-          withCredentials: true
-        });
-
-        // The backend `/auth/refresh` responds with a newly minted Set-Cookie accessToken
-        // Because Axios retains `withCredentials`, we simply re-issue the original failing request directly:
+        if (isNative) {
+          // Send refresh token in body for native
+          const refreshToken = await getToken('refreshToken');
+          if (!refreshToken) return Promise.reject(error);
+          const res = await axios.post(`${baseURL}/auth/refresh`, { refreshToken });
+          if (res.data?.tokens) {
+            await setToken('accessToken', res.data.tokens.accessToken);
+            await setToken('refreshToken', res.data.tokens.refreshToken);
+          }
+        } else {
+          await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
+        }
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // Refresh failed (cookie expired, missing, or revoked). App needs to be punted to login safely via Zustand Hydration
+        if (isNative) await clearTokens();
         return Promise.reject(refreshError);
       }
     }
-    
+
     const errorMessage = error.response?.data?.message || error.message;
     return Promise.reject(new Error(errorMessage));
   }
 );
 
+export { clearTokens };
 export default apiClient;

@@ -1,10 +1,9 @@
-import { useWindowDimensions } from 'react-native';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import React, { lazy, Suspense } from 'react';
+import { useWindowDimensions, Platform, View, ActivityIndicator } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Home, Wallet, Users, Bell, Settings } from 'lucide-react-native';
 import { Colors } from '../constants/theme';
-import { Sidebar } from '../components/Sidebar';
 import { SettingsScreen } from '../screens/Dashboard/SettingsScreen';
 import { HomeScreen } from '../screens/Dashboard/HomeScreen';
 import { WalletScreen } from '../screens/Dashboard/WalletScreen';
@@ -12,47 +11,17 @@ import { ReferScreen } from '../screens/Dashboard/ReferScreen';
 import { ProfileScreen } from '../screens/Dashboard/ProfileScreen';
 import { EditProfileScreen } from '../screens/Dashboard/EditProfileScreen';
 import { MyAddressScreen } from '../screens/Dashboard/MyAddressScreen';
+import { AddEditAddressScreen } from '../screens/Dashboard/AddEditAddressScreen';
 import { TransactionHistoryScreen } from '../screens/Dashboard/TransactionHistoryScreen';
 import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
-import { useUIStore } from '../store/uiStore';
+import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 
-const Drawer = createDrawerNavigator();
+// Lazy-load the desktop drawer navigator so react-native-reanimated
+// is never imported on mobile (Expo Go doesn't bundle the right native version)
+const DesktopDrawerNavigator = lazy(() => import('./DesktopDrawerNavigator'));
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-
-// ─── Desktop: Permanent Drawer Navigator (unchanged) ────────────────────────
-
-function DrawerNavigator() {
-  const isSidebarCollapsed = useUIStore((state) => state.isSidebarCollapsed);
-
-  return (
-    <Drawer.Navigator
-      initialRouteName="Home"
-      drawerContent={(props) => <Sidebar {...props} />}
-      screenOptions={{
-        drawerType: 'permanent',
-        headerShown: false,
-        drawerStyle: {
-          width: isSidebarCollapsed ? 80 : 250,
-          backgroundColor: Colors.surface,
-          borderRightWidth: 1,
-          borderRightColor: Colors.border,
-        },
-      }}
-    >
-      <Drawer.Screen name="Home" component={HomeScreen} />
-      <Drawer.Screen name="Wallet" component={WalletScreen} />
-      <Drawer.Screen name="Referrals" component={ReferScreen} />
-      <Drawer.Screen name="Notifications" component={HomeScreen} />
-      <Drawer.Screen name="Settings" component={SettingsScreen} />
-      <Drawer.Screen name="Profile" component={ProfileScreen} />
-      <Drawer.Screen name="EditProfile" component={EditProfileScreen} />
-      <Drawer.Screen name="MyAddress" component={MyAddressScreen} />
-      <Drawer.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
-      <Drawer.Screen name="ProductDetail" component={ProductDetailScreen} />
-    </Drawer.Navigator>
-  );
-}
 
 // ─── Mobile: Bottom Tab Navigator ───────────────────────────────────────────
 
@@ -99,7 +68,7 @@ function BottomTabNavigator() {
       <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: 'Wallet' }} />
       <Tab.Screen name="Referrals" component={ReferScreen} options={{ tabBarLabel: 'Referrals' }} />
-      <Tab.Screen name="Notifications" component={HomeScreen} options={{ tabBarLabel: 'Alerts' }} />
+      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarLabel: 'Alerts' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: 'Settings' }} />
     </Tab.Navigator>
   );
@@ -114,6 +83,7 @@ function MobileNavigator() {
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="MyAddress" component={MyAddressScreen} />
+      <Stack.Screen name="AddEditAddress" component={AddEditAddressScreen} />
       <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
     </Stack.Navigator>
@@ -122,12 +92,26 @@ function MobileNavigator() {
 
 // ─── Responsive Navigator ───────────────────────────────────────────────────
 
+function DesktopFallback() {
+  return (
+    <View style={{ flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color={Colors.primary} />
+    </View>
+  );
+}
+
 export default function ResponsiveNavigator() {
   const { width } = useWindowDimensions();
 
-  if (width >= 768) {
-    return <DrawerNavigator />;
+  // On native platforms (iOS/Android), always use mobile navigator
+  // to avoid loading react-native-reanimated which causes TurboModule errors in Expo Go
+  if (Platform.OS !== 'web' || width < 768) {
+    return <MobileNavigator />;
   }
 
-  return <MobileNavigator />;
+  return (
+    <Suspense fallback={<DesktopFallback />}>
+      <DesktopDrawerNavigator />
+    </Suspense>
+  );
 }

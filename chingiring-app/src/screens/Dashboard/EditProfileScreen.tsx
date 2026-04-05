@@ -19,7 +19,7 @@ export const EditProfileScreen = () => {
     queryFn: profileAPI.getProfile,
   });
 
-  const user = profileData?.user;
+  const user = profileData?.data?.user;
 
   const [fullName, setFullName] = useState('Dev Chavan');
   const [username, setUsername] = useState('Dev Chavan');

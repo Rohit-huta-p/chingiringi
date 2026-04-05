@@ -8,11 +8,12 @@ interface DealCardProps {
   cashback: string;
   expiresIn: string;
   imageUrl?: string;
+  onPress?: () => void;
 }
 
-export const DealCard: React.FC<DealCardProps> = ({ brand, description, cashback, expiresIn, imageUrl }) => {
+export const DealCard: React.FC<DealCardProps> = ({ brand, description, cashback, expiresIn, imageUrl, onPress }) => {
   return (
-    <TouchableOpacity style={styles.card}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.imageContainer}>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{cashback}</Text>

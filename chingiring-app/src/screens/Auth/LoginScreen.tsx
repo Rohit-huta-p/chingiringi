@@ -13,32 +13,34 @@ export const LoginScreen = ({ navigation }: any) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  
+  const [errorMsg, setErrorMsg] = useState('');
+
   const hydrate = useAuthStore((state) => state.hydrate);
 
   const loginMutation = useMutation({
     mutationFn: authAPI.login,
     onSuccess: async () => {
-      // API call sets the HTTP-Only cookie, we instantly fetch the profile to hydrate state
+      setErrorMsg('');
       await hydrate();
     },
     onError: (error: any) => {
-      // Basic alert handling or UI state
-      console.warn('Login Error:', error.message);
+      setErrorMsg(error.message || 'Login failed. Please try again.');
     }
   });
 
   const sendOtpMutation = useMutation({
     mutationFn: authAPI.sendOtp,
     onSuccess: () => {
+      setErrorMsg('');
       navigation.navigate('OTPVerification', { identifier: phone });
     },
     onError: (error: any) => {
-      console.warn('OTP Error:', error.message);
+      setErrorMsg(error.message || 'Failed to send OTP.');
     }
   });
 
   const handleLogin = () => {
+    setErrorMsg('');
     if (tab === 'password') {
       loginMutation.mutate({ identifier, password });
     } else {
@@ -112,10 +114,12 @@ export const LoginScreen = ({ navigation }: any) => {
         </>
       )}
 
-      <Button 
-        title={tab === 'password' ? 'Sign In ->' : 'Send OTP ->'} 
-        onPress={handleLogin} 
-        style={styles.mainButton} 
+      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+      <Button
+        title={tab === 'password' ? 'Sign In ->' : 'Send OTP ->'}
+        onPress={handleLogin}
+        style={styles.mainButton}
         loading={loginMutation.isPending || sendOtpMutation.isPending}
         disabled={loginMutation.isPending || sendOtpMutation.isPending}
       />
@@ -172,6 +176,12 @@ const styles = StyleSheet.create({
   forgotText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   mainButton: {
     marginTop: 8,
