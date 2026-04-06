@@ -17,7 +17,7 @@ function getBaseURL(): string {
   }
 
   if (Platform.OS === 'web') return 'http://localhost:8000';
-  return 'http://192.168.1.55:8000';
+  return 'https://chingiringi-backend.onrender.com';
 }
 
 const isNative = Platform.OS !== 'web';
@@ -43,7 +43,7 @@ async function clearTokens(): Promise<void> {
 
 export const apiClient = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: 30000,
   withCredentials: !isNative, // Cookies for web only
   headers: {
     'Content-Type': 'application/json',
