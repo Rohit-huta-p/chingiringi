@@ -43,18 +43,24 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
 // Enable CORS
+const allowedOrigins = [
+  'http://localhost:8081',
+  'http://localhost:8082',
+  'http://localhost:8001',
+  'http://localhost:8000',
+  'http://192.168.1.55:8081',
+  'http://192.168.1.55:8082',
+  'https://chingiringi-web-app.onrender.com',
+  'https://chingiring-web-app.onrender.com',
+  'https://chingiringi.com',
+];
 app.use(cors({
-  origin: [
-    'http://localhost:8081',
-    'http://localhost:8082',
-    'http://localhost:8001',
-    'http://localhost:8000',
-    'http://192.168.1.55:8081',
-    'http://192.168.1.55:8082',
-    'https://chingiringi-web-app.onrender.com',
-    'https://chingiring-web-app.onrender.com',
-    'https://chingiringi.com'
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 
