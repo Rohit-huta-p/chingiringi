@@ -172,7 +172,13 @@ export const ProfileScreen = () => {
       <Card style={styles.card}>
         {QUICK_ACTIONS.map((action, index) => (
           <React.Fragment key={action}>
-            <TouchableOpacity style={styles.actionItem}>
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => {
+                if (action === 'Manage Addresses') (navigation as any).navigate('MyAddress');
+                else if (action === 'Account Settings') (navigation as any).navigate('Settings');
+              }}
+            >
               <Text style={styles.actionItemText}>{action}</Text>
               <Text style={styles.arrow}>›</Text>
             </TouchableOpacity>

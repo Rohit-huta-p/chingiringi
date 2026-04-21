@@ -30,4 +30,44 @@ export const adminAPI = {
     const response = await apiClient.delete(`/api/deals/${id}`);
     return response.data;
   },
+
+  // ─── Banners ───────────────────────────────────────────────────────────────
+  getBanners: async () => {
+    const response = await apiClient.get('/api/admin/banners');
+    return response.data;
+  },
+  createBanner: async (data: Record<string, any>) => {
+    const response = await apiClient.post('/api/banners', data);
+    return response.data;
+  },
+  updateBanner: async (id: string, data: Record<string, any>) => {
+    const response = await apiClient.put(`/api/banners/${id}`, data);
+    return response.data;
+  },
+  deleteBanner: async (id: string) => {
+    const response = await apiClient.delete(`/api/banners/${id}`);
+    return response.data;
+  },
+
+  // ─── Coupons ───────────────────────────────────────────────────────────────
+  getCoupons: async () => {
+    const response = await apiClient.get('/api/admin/coupons');
+    return response.data;
+  },
+  createCoupon: async (data: Record<string, any>) => {
+    const response = await apiClient.post('/api/admin/coupons', data);
+    return response.data;
+  },
+  updateCoupon: async (id: string, data: Record<string, any>) => {
+    const response = await apiClient.put(`/api/admin/coupons/${id}`, data);
+    return response.data;
+  },
+  deleteCoupon: async (id: string) => {
+    const response = await apiClient.delete(`/api/admin/coupons/${id}`);
+    return response.data;
+  },
+  getCouponUsage: async (id: string) => {
+    const response = await apiClient.get(`/api/admin/coupons/${id}/usage`);
+    return response.data;
+  },
 };

@@ -92,7 +92,25 @@ export const verifyUserOTP = async (identifier, otpCode) => {
   await OTP.deleteOne({ _id: otpEntry._id });
 
   let user = await User.findOne({ $or: [{ phone: identifier }, { email: identifier }] });
-  
-  // If verifying for login and user doesn't exist, we might need to handle it or just return null
+
+  // Auto-create account if phone verified but no user exists
+  if (!user && identifier.match(/^\d{10,15}$/)) {
+    user = await User.create({
+      name: 'User',
+      phone: identifier,
+      isPhoneVerified: true,
+    });
+    // Create associated wallet
+    const wallet = await Wallet.create({ userId: user._id });
+    user.walletId = wallet._id;
+    await user.save();
+  } else if (user && identifier.match(/^\d/)) {
+    // Mark phone as verified on existing user
+    if (!user.isPhoneVerified) {
+      user.isPhoneVerified = true;
+      await user.save();
+    }
+  }
+
   return user;
 };

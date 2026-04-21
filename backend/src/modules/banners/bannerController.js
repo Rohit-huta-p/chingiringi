@@ -1,5 +1,13 @@
 import Banner from './bannerModel.js';
 
+// @desc    Get ALL banners (admin view — no active/date filter)
+// @route   GET /api/admin/banners
+// @access  Private/Admin
+export const getAdminBanners = async (req, res) => {
+  const banners = await Banner.find({}).sort({ sortOrder: 1, createdAt: -1 }).lean();
+  res.status(200).json({ status: 'success', data: { banners } });
+};
+
 // @desc    Get active banners
 // @route   GET /api/banners
 // @access  Public
