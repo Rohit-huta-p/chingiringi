@@ -18,6 +18,7 @@ import walletRoutes from './modules/wallet/walletRoutes.js';
 import profileRoutes from './modules/users/profileRoutes.js';
 import addressRoutes from './modules/addresses/addressRoutes.js';
 import adminRoutes from './modules/admin/adminRoutes.js';
+import couponRoutes from './modules/coupons/couponRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -83,6 +84,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/coupons', couponRoutes);
 
 // Unhandled routes
 app.all('*', notFound);

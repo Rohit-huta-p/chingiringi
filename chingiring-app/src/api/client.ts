@@ -17,7 +17,7 @@ function getBaseURL(): string {
   }
 
   if (Platform.OS === 'web') return 'http://localhost:8000';
-  return 'https://chingiringi-backend.onrender.com';
+  return 'exp://10.40.27.107:8081';
 }
 
 const isNative = Platform.OS !== 'web';
@@ -39,6 +39,26 @@ async function clearTokens(): Promise<void> {
   if (!isNative) return;
   await SecureStore.deleteItemAsync('accessToken');
   await SecureStore.deleteItemAsync('refreshToken');
+  await SecureStore.deleteItemAsync('cachedUser');
+}
+
+// Cached user (for offline-first hydration on native)
+export async function getCachedUser(): Promise<any | null> {
+  if (!isNative) return null;
+  const raw = await SecureStore.getItemAsync('cachedUser');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export async function setCachedUser(user: any): Promise<void> {
+  if (!isNative) return;
+  await SecureStore.setItemAsync('cachedUser', JSON.stringify(user));
+}
+
+export async function hasStoredAccessToken(): Promise<boolean> {
+  if (!isNative) return false;
+  const t = await SecureStore.getItemAsync('accessToken');
+  return !!t;
 }
 
 export const apiClient = axios.create({
@@ -106,5 +126,5 @@ apiClient.interceptors.response.use(
   }
 );
 
-export { clearTokens };
+export { clearTokens, isNative };
 export default apiClient;

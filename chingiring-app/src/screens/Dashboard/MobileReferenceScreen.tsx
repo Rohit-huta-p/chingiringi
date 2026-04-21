@@ -8,7 +8,7 @@ import {
   Image,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Gift, Copy, Share2, ChevronRight, Users, Coins } from 'lucide-react-native';
+import { Gift, Copy, Share2, Users, Coins } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI } from '../../api/wallet';
@@ -26,7 +26,7 @@ const STEPS = [
   { num: '03', title: 'You earn ₹50', icon: '🎉' },
 ];
 
-export const ReferScreen = () => {
+export const MobileReferenceScreen = () => {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const REFERRAL_CODE = user?.referralCode || 'DEV500';
@@ -47,16 +47,18 @@ export const ReferScreen = () => {
     <View style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-        {/* ── HEADER (blue) ──────────────────────────── */}
+        {/* ── HEADER (blue gradient) ──────────────────── */}
         <View style={s.header}>
-          <View>
-            <Text style={s.headerSmall}>Earn Reward</Text>
-            <Text style={s.headerTitle}>Refer & Earn</Text>
+          <View style={s.headerTop}>
+            <View>
+              <Text style={s.headerSmall}>Earn Reward</Text>
+              <Text style={s.headerName}>Refer & Earn</Text>
+            </View>
+            <Image
+              source={{ uri: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' }}
+              style={s.avatar}
+            />
           </View>
-          <Image
-            source={{ uri: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' }}
-            style={s.avatar}
-          />
         </View>
 
         {/* ── REFERRAL CARD ──────────────────────────── */}
@@ -163,19 +165,18 @@ export const ReferScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#eef2f8',
-  },
+  root: { flex: 1, backgroundColor: '#eef2f8' },
 
-  // Header
+  // Header — matches MobileWalletScreen blue gradient header
   header: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#3b82f6',
     borderBottomLeftRadius: 48,
     borderBottomRightRadius: 48,
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 68,
     paddingBottom: 60,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -183,11 +184,11 @@ const s = StyleSheet.create({
   headerSmall: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.6)',
-    marginBottom: 2,
+    marginBottom: 1,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
+  headerName: {
+    fontSize: 22,
+    fontWeight: '700',
     color: '#fff',
   },
   avatar: {
@@ -198,7 +199,7 @@ const s = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.3)',
   },
 
-  // Referral card
+  // Referral card — overlaps header
   card: {
     backgroundColor: '#fff',
     borderRadius: 24,
