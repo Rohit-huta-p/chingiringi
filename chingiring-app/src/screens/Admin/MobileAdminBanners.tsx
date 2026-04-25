@@ -36,11 +36,29 @@ import {
   Hash,
   Calendar,
   ExternalLink,
+  Palette,
+  Sparkles as SparklesIcon,
+  Zap,
+  Coins,
+  Gift,
+  Rows3,
+  Columns2,
+  Info,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { adminAPI } from '../../api/admin';
+import {
+  Banner,
+  BannerBadge,
+  BannerDraft,
+  BannerLinkType,
+  BannerSlot,
+  BANNER_SLOTS,
+  SLOT_INFO,
+  withDerivedSlot,
+} from '../../api/banners';
 import { Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 
@@ -63,72 +81,70 @@ const NAV_ITEMS = [
   { key: 'AdminCoupons', label: 'Coupons', icon: Ticket },
 ];
 
-// ─── Types ──────────────────────────────────────────────────────────
+// ─── Slot metadata ──────────────────────────────────────────────────
 
-type LinkType = 'deal' | 'category' | 'url';
-type Position = 'hero' | 'sidebar' | 'inline';
+// Icon + preview colors for each slot (admin UI affordance)
+const SLOT_VISUALS: Record<BannerSlot, { Icon: any; preview: [string, string] }> = {
+  hero:           { Icon: SparklesIcon, preview: ['#4A7A32', '#FDE68A'] },
+  'flash-strip':  { Icon: Zap,          preview: ['#0C1021', '#4784E2'] },
+  'dual-left':    { Icon: Columns2,     preview: ['#C084FC', '#F0ABFC'] },
+  'dual-right':   { Icon: Columns2,     preview: ['#FBCFE8', '#F9A8D4'] },
+  'earn-coins':   { Icon: Coins,        preview: ['#F59E0B', '#FDE68A'] },
+  'refer-earn':   { Icon: Gift,         preview: ['#0C1021', '#4784E2'] },
+  'inline-1':     { Icon: Rows3,        preview: ['#64748b', '#94a3b8'] },
+  'inline-2':     { Icon: Rows3,        preview: ['#64748b', '#94a3b8'] },
+};
 
-interface Banner {
-  _id: string;
-  title: string;
-  subtitle: string;
-  imageUrl: string;
-  linkType: LinkType;
-  linkValue: string;
-  position: Position;
-  isActive: boolean;
-  sortOrder?: number;
-  startsAt?: string;
-  expiresAt?: string;
-}
+// Which fields are relevant per slot. The form uses this to show/hide sections.
+const SLOT_FIELDS: Record<
+  BannerSlot,
+  {
+    showImage: boolean;
+    showOverlayImage: boolean;
+    showGradient: boolean;
+    showBadges: boolean;
+    showCta: boolean;
+    showSubtitle: boolean;
+  }
+> = {
+  hero:           { showImage: true,  showOverlayImage: true,  showGradient: true,  showBadges: false, showCta: true,  showSubtitle: true },
+  'flash-strip':  { showImage: false, showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: false },
+  'dual-left':    { showImage: true,  showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: true },
+  'dual-right':   { showImage: true,  showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: true },
+  'earn-coins':   { showImage: false, showOverlayImage: false, showGradient: true,  showBadges: false, showCta: true,  showSubtitle: true },
+  'refer-earn':   { showImage: false, showOverlayImage: true,  showGradient: true,  showBadges: false, showCta: true,  showSubtitle: true },
+  'inline-1':     { showImage: true,  showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: true },
+  'inline-2':     { showImage: true,  showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: true },
+};
 
-// ─── Fallback ───────────────────────────────────────────────────────
+// ─── Fallback (only if API returns empty) ───────────────────────────
 
 const FALLBACK: Banner[] = [
   {
-    _id: '1',
+    _id: 'f1',
     title: 'Mega Sale — Up to 50% Off',
     subtitle: 'Shop top brands and earn cashback',
     imageUrl: '',
     linkType: 'category',
     linkValue: 'electronics',
-    position: 'hero',
+    slot: 'hero',
     isActive: true,
     sortOrder: 1,
   },
   {
-    _id: '2',
+    _id: 'f2',
     title: 'Refer & Earn ₹500',
     subtitle: 'Invite friends and grow your wallet',
     imageUrl: '',
     linkType: 'url',
     linkValue: '/referral',
-    position: 'inline',
+    slot: 'refer-earn',
     isActive: true,
     sortOrder: 2,
   },
-  {
-    _id: '3',
-    title: 'New Arrivals in Fashion',
-    subtitle: 'Latest trends with 10% cashback',
-    imageUrl: '',
-    linkType: 'category',
-    linkValue: 'fashion',
-    position: 'sidebar',
-    isActive: false,
-    sortOrder: 3,
-  },
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────
-
-const POSITION_COLOR: Record<Position, { bg: string; text: string }> = {
-  hero:    { bg: '#eff6ff', text: '#3b82f6' },
-  inline:  { bg: '#f0fdf4', text: '#16a34a' },
-  sidebar: { bg: '#faf5ff', text: '#7c3aed' },
-};
-
-const LINK_LABEL: Record<LinkType, string> = {
+const LINK_LABEL: Record<BannerLinkType, string> = {
   deal: 'Deal',
   category: 'Category',
   url: 'URL',
@@ -147,7 +163,11 @@ function BannerCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const pos = POSITION_COLOR[banner.position];
+  const slot = banner.slot ?? 'hero';
+  const info = SLOT_INFO[slot];
+  const visual = SLOT_VISUALS[slot];
+  const SlotIcon = visual?.Icon ?? MapPin;
+  const preview = visual?.preview ?? ['#cbd5e1', '#94a3b8'];
 
   return (
     <View style={s.card}>
@@ -156,10 +176,15 @@ function BannerCard({
         {banner.imageUrl ? (
           <Image source={{ uri: banner.imageUrl }} style={s.cardImage} resizeMode="cover" />
         ) : (
-          <View style={s.cardImagePlaceholder}>
-            <MonitorPlay size={36} color="#475569" strokeWidth={1.5} />
-            <Text style={s.placeholderTxt}>No image uploaded</Text>
-          </View>
+          <LinearGradient
+            colors={preview as any}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.cardImagePlaceholder}
+          >
+            <SlotIcon size={36} color="rgba(255,255,255,0.95)" strokeWidth={1.8} />
+            <Text style={s.placeholderTxt}>{info?.label ?? slot}</Text>
+          </LinearGradient>
         )}
         {/* Status badge overlaid */}
         <View style={[s.overlayBadge, banner.isActive ? s.overlayActive : s.overlayInactive]}>
@@ -178,20 +203,18 @@ function BannerCard({
       {/* Info */}
       <View style={s.cardBody}>
         <Text style={s.cardTitle} numberOfLines={1}>{banner.title}</Text>
-        <Text style={s.cardSubtitle} numberOfLines={1}>{banner.subtitle}</Text>
+        <Text style={s.cardSubtitle} numberOfLines={1}>{banner.subtitle || '—'}</Text>
 
         {/* Pills */}
         <View style={s.tagsRow}>
-          <View style={[s.pill, { backgroundColor: pos.bg }]}>
-            <MapPin size={10} color={pos.text} strokeWidth={2} />
-            <Text style={[s.pillText, { color: pos.text }]}>
-              {banner.position.charAt(0).toUpperCase() + banner.position.slice(1)}
-            </Text>
+          <View style={s.slotPill}>
+            <SlotIcon size={11} color="#3b82f6" strokeWidth={2.2} />
+            <Text style={s.slotPillText}>{info?.label ?? slot}</Text>
           </View>
           <View style={s.pillNeutral}>
             <Link2 size={10} color="#64748b" strokeWidth={2} />
             <Text style={s.pillNeutralText} numberOfLines={1}>
-              {LINK_LABEL[banner.linkType]}: {banner.linkValue}
+              {LINK_LABEL[banner.linkType]}: {banner.linkValue || '—'}
             </Text>
           </View>
         </View>
@@ -213,15 +236,72 @@ function BannerCard({
   );
 }
 
+// ─── Slot Picker (grid of slot cards) ───────────────────────────────
+
+function SlotPicker({
+  selected,
+  onSelect,
+  allBanners,
+}: {
+  selected: BannerSlot;
+  onSelect: (slot: BannerSlot) => void;
+  allBanners: Banner[];
+}) {
+  return (
+    <View style={m.slotGrid}>
+      {BANNER_SLOTS.map((slot) => {
+        const isActive = selected === slot;
+        const info = SLOT_INFO[slot];
+        const visual = SLOT_VISUALS[slot];
+        const activeInSlot = allBanners.filter((b) => b.slot === slot && b.isActive).length;
+        const Icon = visual.Icon;
+        return (
+          <TouchableOpacity
+            key={slot}
+            style={[m.slotTile, isActive && m.slotTileActive]}
+            onPress={() => onSelect(slot)}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={visual.preview as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={m.slotTilePreview}
+            >
+              <Icon size={18} color="#fff" strokeWidth={2.2} />
+            </LinearGradient>
+            <View style={{ flex: 1 }}>
+              <Text style={[m.slotTileLabel, isActive && m.slotTileLabelActive]} numberOfLines={1}>
+                {info.label}
+              </Text>
+              <Text style={m.slotTileDesc} numberOfLines={2}>
+                {info.description}
+              </Text>
+              {activeInSlot > 0 && (
+                <Text style={m.slotTileCount}>{activeInSlot} active</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 // ─── Banner Form Modal ───────────────────────────────────────────────
 
 interface BannerFormState {
   title: string;
   subtitle: string;
   imageUrl: string;
-  linkType: LinkType;
+  overlayImage: string;
+  linkType: BannerLinkType;
   linkValue: string;
-  position: Position;
+  ctaLabel: string;
+  slot: BannerSlot;
+  gradientColors: string; // comma-separated hex, edited as text
+  textColor: string;
+  badges: BannerBadge[];
   sortOrder: string;
   startsAt: string;
   expiresAt: string;
@@ -232,9 +312,14 @@ const EMPTY_FORM: BannerFormState = {
   title: '',
   subtitle: '',
   imageUrl: '',
+  overlayImage: '',
   linkType: 'url',
   linkValue: '',
-  position: 'hero',
+  ctaLabel: '',
+  slot: 'hero',
+  gradientColors: '',
+  textColor: '',
+  badges: [],
   sortOrder: '',
   startsAt: '',
   expiresAt: '',
@@ -247,12 +332,14 @@ function BannerModal({
   onSubmit,
   submitting,
   initialData,
+  allBanners,
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: Omit<Banner, '_id'>) => void;
+  onSubmit: (data: BannerDraft) => void;
   submitting: boolean;
   initialData?: Banner | null;
+  allBanners: Banner[];
 }) {
   const isEdit = !!initialData;
   const [form, setForm] = useState<BannerFormState>(EMPTY_FORM);
@@ -265,9 +352,14 @@ function BannerModal({
         title: initialData.title ?? '',
         subtitle: initialData.subtitle ?? '',
         imageUrl: initialData.imageUrl ?? '',
+        overlayImage: initialData.overlayImage ?? '',
         linkType: initialData.linkType ?? 'url',
         linkValue: initialData.linkValue ?? '',
-        position: initialData.position ?? 'hero',
+        ctaLabel: initialData.ctaLabel ?? '',
+        slot: initialData.slot ?? 'hero',
+        gradientColors: (initialData.gradientColors ?? []).join(', '),
+        textColor: initialData.textColor ?? '',
+        badges: initialData.badges ?? [],
         sortOrder: initialData.sortOrder != null ? String(initialData.sortOrder) : '',
         startsAt: initialData.startsAt ? initialData.startsAt.slice(0, 10) : '',
         expiresAt: initialData.expiresAt ? initialData.expiresAt.slice(0, 10) : '',
@@ -282,16 +374,39 @@ function BannerModal({
   const update = <K extends keyof BannerFormState>(k: K, v: BannerFormState[K]) =>
     setForm((p) => ({ ...p, [k]: v }));
 
+  const fields = SLOT_FIELDS[form.slot];
+
+  // Dual pairing warning: if user picks dual-left but no dual-right exists, nudge
+  const pair = SLOT_INFO[form.slot].paired;
+  const pairedActive = pair
+    ? allBanners.some(
+        (b) => b.slot === pair && b.isActive && b._id !== initialData?._id,
+      )
+    : true;
+  const showPairWarn = !!pair && !pairedActive && form.isActive;
+
   const handleSubmit = () => {
     if (!form.title.trim()) return setErrMsg('Banner title is required');
+
+    // Parse gradient colors
+    const gradient = form.gradientColors
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0);
+
     setErrMsg('');
     onSubmit({
       title: form.title.trim(),
       subtitle: form.subtitle.trim(),
       imageUrl: form.imageUrl.trim(),
+      overlayImage: form.overlayImage.trim(),
       linkType: form.linkType,
       linkValue: form.linkValue.trim(),
-      position: form.position,
+      ctaLabel: form.ctaLabel.trim(),
+      slot: form.slot,
+      gradientColors: gradient,
+      textColor: form.textColor.trim(),
+      badges: form.badges.filter((b) => b.label.trim().length > 0),
       sortOrder: form.sortOrder ? Number(form.sortOrder) : 0,
       startsAt: form.startsAt || undefined,
       expiresAt: form.expiresAt || undefined,
@@ -305,6 +420,17 @@ function BannerModal({
     onClose();
   };
 
+  // Badge editor helpers
+  const addBadge = () =>
+    update('badges', [...form.badges, { label: '', color: '#16a34a' }]);
+  const updateBadge = (i: number, next: Partial<BannerBadge>) =>
+    update(
+      'badges',
+      form.badges.map((b, idx) => (idx === i ? { ...b, ...next } : b)),
+    );
+  const removeBadge = (i: number) =>
+    update('badges', form.badges.filter((_, idx) => idx !== i));
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <KeyboardAvoidingView
@@ -316,14 +442,40 @@ function BannerModal({
           <View style={m.header}>
             <View>
               <Text style={m.title}>{isEdit ? 'Edit Banner' : 'Add Banner'}</Text>
-              <Text style={m.subtitle}>{isEdit ? 'Update this banner' : 'Create a new banner'}</Text>
+              <Text style={m.subtitle}>
+                {isEdit ? 'Update this banner' : 'Create a new banner'}
+              </Text>
             </View>
-            <TouchableOpacity onPress={handleClose} style={m.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={handleClose}
+              style={m.closeBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <X size={22} color="#64748b" strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={m.body} keyboardShouldPersistTaps="handled">
+
+            {/* Slot Picker — the headline of the form */}
+            <Text style={m.sectionHead}>Placement</Text>
+            <Text style={m.sectionDesc}>Pick where this banner appears on the homepage.</Text>
+            <SlotPicker
+              selected={form.slot}
+              onSelect={(slot) => update('slot', slot)}
+              allBanners={allBanners}
+            />
+
+            {/* Pair warning */}
+            {showPairWarn && (
+              <View style={m.warnRow}>
+                <Info size={14} color="#b45309" strokeWidth={2.2} />
+                <Text style={m.warnTxt}>
+                  Heads up: {SLOT_INFO[form.slot].label} is one half of a dual banner —
+                  add a {SLOT_INFO[pair!].label} banner for it to look right.
+                </Text>
+              </View>
+            )}
 
             {/* Title */}
             <Text style={m.label}>Banner Title <Text style={m.req}>*</Text></Text>
@@ -339,53 +491,118 @@ function BannerModal({
             </View>
 
             {/* Subtitle */}
-            <Text style={m.label}>Subtitle</Text>
-            <View style={m.inputRow}>
-              <TextInput
-                style={m.inputTxt}
-                placeholder="Short description shown below title"
-                placeholderTextColor="#9ca3af"
-                value={form.subtitle}
-                onChangeText={(v) => update('subtitle', v)}
-              />
-            </View>
+            {fields.showSubtitle && (
+              <>
+                <Text style={m.label}>Subtitle</Text>
+                <View style={m.inputRow}>
+                  <TextInput
+                    style={m.inputTxt}
+                    placeholder="Short description shown below title"
+                    placeholderTextColor="#9ca3af"
+                    value={form.subtitle}
+                    onChangeText={(v) => update('subtitle', v)}
+                  />
+                </View>
+              </>
+            )}
 
             {/* Image URL */}
-            <Text style={m.label}>Image URL</Text>
-            <View style={m.inputRow}>
-              <ImageIcon size={16} color="#94a3b8" strokeWidth={2} />
-              <TextInput
-                style={m.inputTxt}
-                placeholder="https://..."
-                placeholderTextColor="#9ca3af"
-                autoCapitalize="none"
-                keyboardType="url"
-                value={form.imageUrl}
-                onChangeText={(v) => update('imageUrl', v)}
-              />
-            </View>
+            {fields.showImage && (
+              <>
+                <Text style={m.label}>Image URL</Text>
+                <View style={m.inputRow}>
+                  <ImageIcon size={16} color="#94a3b8" strokeWidth={2} />
+                  <TextInput
+                    style={m.inputTxt}
+                    placeholder="https://..."
+                    placeholderTextColor="#9ca3af"
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    value={form.imageUrl}
+                    onChangeText={(v) => update('imageUrl', v)}
+                  />
+                </View>
+              </>
+            )}
 
-            {/* Position */}
-            <Text style={m.label}>Position <Text style={m.req}>*</Text></Text>
-            <View style={m.threeToggle}>
-              {(['hero', 'inline', 'sidebar'] as Position[]).map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[m.typeBtn, form.position === p && m.typeBtnActive]}
-                  onPress={() => update('position', p)}
-                >
-                  <Text style={[m.typeBtnTxt, form.position === p && m.typeBtnTxtActive]}>
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                  </Text>
+            {/* Overlay Image */}
+            {fields.showOverlayImage && (
+              <>
+                <Text style={m.label}>Overlay / Foreground Image</Text>
+                <View style={m.inputRow}>
+                  <ImageIcon size={16} color="#94a3b8" strokeWidth={2} />
+                  <TextInput
+                    style={m.inputTxt}
+                    placeholder="Optional foreground image (product / mascot)"
+                    placeholderTextColor="#9ca3af"
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    value={form.overlayImage}
+                    onChangeText={(v) => update('overlayImage', v)}
+                  />
+                </View>
+              </>
+            )}
+
+            {/* Gradient colors */}
+            {fields.showGradient && (
+              <>
+                <Text style={m.label}>
+                  Gradient Colors
+                  <Text style={m.labelHint}> (comma-separated hex)</Text>
+                </Text>
+                <View style={m.inputRow}>
+                  <Palette size={16} color="#94a3b8" strokeWidth={2} />
+                  <TextInput
+                    style={m.inputTxt}
+                    placeholder="#0C1021, #1A2744, #4784E2"
+                    placeholderTextColor="#9ca3af"
+                    autoCapitalize="none"
+                    value={form.gradientColors}
+                    onChangeText={(v) => update('gradientColors', v)}
+                  />
+                </View>
+                <Text style={m.hint}>Leave blank to use the slot default.</Text>
+              </>
+            )}
+
+            {/* Badges */}
+            {fields.showBadges && (
+              <>
+                <Text style={m.label}>Badges</Text>
+                {form.badges.map((badge, i) => (
+                  <View key={i} style={m.badgeRow}>
+                    <TextInput
+                      style={[m.inputTxt, m.badgeLabelInput, { color: '#fff', backgroundColor: badge.color }]}
+                      placeholder="Label"
+                      placeholderTextColor="rgba(255,255,255,0.7)"
+                      value={badge.label}
+                      onChangeText={(v) => updateBadge(i, { label: v })}
+                    />
+                    <TextInput
+                      style={m.badgeColorInput}
+                      placeholder="#hex"
+                      placeholderTextColor="#9ca3af"
+                      autoCapitalize="none"
+                      value={badge.color}
+                      onChangeText={(v) => updateBadge(i, { color: v })}
+                    />
+                    <TouchableOpacity onPress={() => removeBadge(i)} style={m.badgeRemove}>
+                      <X size={14} color="#ef4444" strokeWidth={2.2} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <TouchableOpacity onPress={addBadge} style={m.addBadgeBtn} activeOpacity={0.85}>
+                  <Plus size={14} color="#3b82f6" strokeWidth={2.2} />
+                  <Text style={m.addBadgeBtnTxt}>Add Badge</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={m.hint}>Hero = main carousel · Inline = between content · Sidebar = side rail</Text>
+              </>
+            )}
 
             {/* Link Type */}
             <Text style={m.label}>Link Type</Text>
             <View style={m.threeToggle}>
-              {(['url', 'category', 'deal'] as LinkType[]).map((lt) => (
+              {(['url', 'category', 'deal'] as BannerLinkType[]).map((lt) => (
                 <TouchableOpacity
                   key={lt}
                   style={[m.typeBtn, form.linkType === lt && m.typeBtnActive]}
@@ -402,7 +619,11 @@ function BannerModal({
             <Text style={m.label}>
               Link Value
               <Text style={m.labelHint}>
-                {form.linkType === 'url' ? ' (full URL)' : form.linkType === 'category' ? ' (category slug)' : ' (deal ID)'}
+                {form.linkType === 'url'
+                  ? ' (full URL)'
+                  : form.linkType === 'category'
+                  ? ' (category slug)'
+                  : ' (deal ID)'}
               </Text>
             </Text>
             <View style={m.inputRow}>
@@ -410,8 +631,11 @@ function BannerModal({
               <TextInput
                 style={m.inputTxt}
                 placeholder={
-                  form.linkType === 'url' ? 'https://...' :
-                  form.linkType === 'category' ? 'electronics' : 'deal-id'
+                  form.linkType === 'url'
+                    ? 'https://...'
+                    : form.linkType === 'category'
+                    ? 'electronics'
+                    : 'deal-id'
                 }
                 placeholderTextColor="#9ca3af"
                 autoCapitalize="none"
@@ -420,7 +644,23 @@ function BannerModal({
               />
             </View>
 
-            {/* 2-col: Sort order + (spacer) */}
+            {/* CTA label */}
+            {fields.showCta && (
+              <>
+                <Text style={m.label}>CTA Button Label</Text>
+                <View style={m.inputRow}>
+                  <TextInput
+                    style={m.inputTxt}
+                    placeholder="e.g. Shop Now"
+                    placeholderTextColor="#9ca3af"
+                    value={form.ctaLabel}
+                    onChangeText={(v) => update('ctaLabel', v)}
+                  />
+                </View>
+              </>
+            )}
+
+            {/* 2-col: Sort order + Starts */}
             <View style={m.twoCol}>
               <View style={m.col}>
                 <Text style={m.label}>Sort Order</Text>
@@ -499,9 +739,11 @@ function BannerModal({
                   end={{ x: 1, y: 0 }}
                   style={m.submitBtn}
                 >
-                  {submitting
-                    ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={m.submitTxt}>{isEdit ? 'Update Banner' : 'Add Banner'}</Text>}
+                  {submitting ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={m.submitTxt}>{isEdit ? 'Update Banner' : 'Add Banner'}</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -516,23 +758,34 @@ function BannerModal({
 
 export const MobileAdminBanners = () => {
   const nav = useNavigation<any>();
-  const userName = useAuthStore((s) => s.user?.name);
+  const userName = useAuthStore((st) => st.user?.name);
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [slotFilter, setSlotFilter] = useState<BannerSlot | 'all'>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
 
-  // NOTE: banner GET is public at /api/banners — admin manages via same route for now
   const { data: res, isLoading } = useQuery({
     queryKey: ['admin-banners'],
     queryFn: () => adminAPI.getBanners(),
   });
 
-  const banners: Banner[] = res?.data?.banners ?? res?.banners ?? res?.data ?? FALLBACK;
+  const rawBanners: Banner[] =
+    res?.data?.banners ?? res?.banners ?? res?.data ?? FALLBACK;
+  const banners: Banner[] = withDerivedSlot(rawBanners);
 
-  const openCreate = () => { setEditingBanner(null); setModalOpen(true); };
-  const openEdit   = (b: Banner) => { setEditingBanner(b); setModalOpen(true); };
-  const closeModal = () => { setModalOpen(false); setEditingBanner(null); };
+  const openCreate = () => {
+    setEditingBanner(null);
+    setModalOpen(true);
+  };
+  const openEdit = (b: Banner) => {
+    setEditingBanner(b);
+    setModalOpen(true);
+  };
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingBanner(null);
+  };
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -548,19 +801,27 @@ export const MobileAdminBanners = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: Omit<Banner, '_id'>) => adminAPI.createBanner(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-banners'] }); closeModal(); },
+    mutationFn: (data: BannerDraft) => adminAPI.createBanner(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-banners'] });
+      qc.invalidateQueries({ queryKey: ['banners'] });
+      closeModal();
+    },
     onError: (err: any) => Alert.alert('Error', err.message || 'Failed to create banner.'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Omit<Banner, '_id'> }) =>
+    mutationFn: ({ id, data }: { id: string; data: BannerDraft }) =>
       adminAPI.updateBanner(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-banners'] }); closeModal(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-banners'] });
+      qc.invalidateQueries({ queryKey: ['banners'] });
+      closeModal();
+    },
     onError: (err: any) => Alert.alert('Error', err.message || 'Failed to update banner.'),
   });
 
-  const handleSubmit = (data: Omit<Banner, '_id'>) => {
+  const handleSubmit = (data: BannerDraft) => {
     if (editingBanner) {
       updateMutation.mutate({ id: editingBanner._id, data });
     } else {
@@ -569,30 +830,40 @@ export const MobileAdminBanners = () => {
   };
 
   const handleDelete = (banner: Banner) => {
-    Alert.alert(
-      'Delete Banner',
-      `Delete "${banner.title}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(banner._id) },
-      ],
-    );
+    Alert.alert('Delete Banner', `Delete "${banner.title}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => deleteMutation.mutate(banner._id),
+      },
+    ]);
   };
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return banners;
-    const q = search.toLowerCase();
-    return banners.filter(
-      (b) =>
-        b.title.toLowerCase().includes(q) ||
-        b.subtitle?.toLowerCase().includes(q) ||
-        b.position.toLowerCase().includes(q),
-    );
-  }, [banners, search]);
+    let list = banners;
+    if (slotFilter !== 'all') {
+      list = list.filter((b) => b.slot === slotFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.subtitle?.toLowerCase().includes(q) ||
+          b.slot?.toLowerCase().includes(q) ||
+          SLOT_INFO[b.slot]?.label.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [banners, search, slotFilter]);
 
   const activeCount = banners.filter((b) => b.isActive).length;
-  const heroCount   = banners.filter((b) => b.position === 'hero').length;
-  const inlineCount = banners.filter((b) => b.position === 'inline').length;
+  const slotCounts = useMemo(() => {
+    const m: Partial<Record<BannerSlot, number>> = {};
+    for (const b of banners) m[b.slot] = (m[b.slot] ?? 0) + 1;
+    return m;
+  }, [banners]);
 
   if (isLoading) {
     return (
@@ -604,12 +875,16 @@ export const MobileAdminBanners = () => {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 32 }}
+      >
         {/* Header */}
         <View style={s.header}>
           <View style={s.headerLeft}>
-            <View style={s.logoCircle}><Text style={s.logoTxt}>C</Text></View>
+            <View style={s.logoCircle}>
+              <Text style={s.logoTxt}>C</Text>
+            </View>
             <View>
               <Text style={s.headerTitle}>Admin Panel</Text>
               <Text style={s.headerSub}>Super Admin</Text>
@@ -637,9 +912,15 @@ export const MobileAdminBanners = () => {
               <TouchableOpacity
                 key={item.key}
                 style={[s.navTab, active && s.navTabActive]}
-                onPress={() => { if (!active) nav.navigate(item.key); }}
+                onPress={() => {
+                  if (!active) nav.navigate(item.key);
+                }}
               >
-                <item.icon size={16} color={active ? '#3b82f6' : 'rgba(255,255,255,0.7)'} strokeWidth={2} />
+                <item.icon
+                  size={16}
+                  color={active ? '#3b82f6' : 'rgba(255,255,255,0.7)'}
+                  strokeWidth={2}
+                />
                 <Text style={[s.navLabel, active && s.navLabelActive]}>{item.label}</Text>
               </TouchableOpacity>
             );
@@ -671,7 +952,7 @@ export const MobileAdminBanners = () => {
             <Search size={16} color="#94a3b8" strokeWidth={2} />
             <TextInput
               style={s.searchInput}
-              placeholder="Search banners by title or position..."
+              placeholder="Search banners by title or slot..."
               placeholderTextColor="#94a3b8"
               value={search}
               onChangeText={setSearch}
@@ -680,6 +961,38 @@ export const MobileAdminBanners = () => {
               <SlidersHorizontal size={16} color="#64748b" strokeWidth={2} />
             </TouchableOpacity>
           </View>
+
+          {/* Slot filter chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.filterChipsRow}
+          >
+            <TouchableOpacity
+              style={[s.filterChip, slotFilter === 'all' && s.filterChipActive]}
+              onPress={() => setSlotFilter('all')}
+            >
+              <Text
+                style={[s.filterChipTxt, slotFilter === 'all' && s.filterChipTxtActive]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+            {BANNER_SLOTS.map((slot) => (
+              <TouchableOpacity
+                key={slot}
+                style={[s.filterChip, slotFilter === slot && s.filterChipActive]}
+                onPress={() => setSlotFilter(slot)}
+              >
+                <Text
+                  style={[s.filterChipTxt, slotFilter === slot && s.filterChipTxtActive]}
+                >
+                  {SLOT_INFO[slot].label}
+                  {slotCounts[slot] ? ` (${slotCounts[slot]})` : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
           {/* Stats */}
           <View style={s.statsGrid}>
@@ -692,12 +1005,14 @@ export const MobileAdminBanners = () => {
               <Text style={[s.miniVal, { color: '#22c55e' }]}>{activeCount}</Text>
             </View>
             <View style={s.miniStat}>
-              <Text style={s.miniLabel}>Hero Banners</Text>
-              <Text style={[s.miniVal, { color: '#3b82f6' }]}>{heroCount}</Text>
+              <Text style={s.miniLabel}>Hero</Text>
+              <Text style={[s.miniVal, { color: '#3b82f6' }]}>{slotCounts.hero ?? 0}</Text>
             </View>
             <View style={s.miniStat}>
-              <Text style={s.miniLabel}>Inline Banners</Text>
-              <Text style={[s.miniVal, { color: '#7c3aed' }]}>{inlineCount}</Text>
+              <Text style={s.miniLabel}>Dual Pair</Text>
+              <Text style={[s.miniVal, { color: '#7c3aed' }]}>
+                {(slotCounts['dual-left'] ?? 0) + (slotCounts['dual-right'] ?? 0)}
+              </Text>
             </View>
           </View>
 
@@ -707,7 +1022,9 @@ export const MobileAdminBanners = () => {
               <Inbox size={40} color="#cbd5e1" strokeWidth={1.5} />
               <Text style={s.emptyTitle}>No banners found</Text>
               <Text style={s.emptySub}>
-                {search ? 'Try a different search term.' : 'Tap "+ Add Banner" to create your first banner.'}
+                {search || slotFilter !== 'all'
+                  ? 'Try a different filter or search term.'
+                  : 'Tap "+ Add Banner" to create your first banner.'}
               </Text>
             </View>
           ) : (
@@ -715,7 +1032,9 @@ export const MobileAdminBanners = () => {
               <BannerCard
                 key={banner._id}
                 banner={banner}
-                onToggle={() => toggleMutation.mutate({ id: banner._id, isActive: banner.isActive })}
+                onToggle={() =>
+                  toggleMutation.mutate({ id: banner._id, isActive: banner.isActive })
+                }
                 onEdit={() => openEdit(banner)}
                 onDelete={() => handleDelete(banner)}
               />
@@ -731,6 +1050,7 @@ export const MobileAdminBanners = () => {
         onSubmit={handleSubmit}
         submitting={createMutation.isPending || updateMutation.isPending}
         initialData={editingBanner}
+        allBanners={banners}
       />
     </SafeAreaView>
   );
@@ -742,65 +1062,158 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f5f6fa' },
 
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#3b82f6', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+  logoCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   logoTxt: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#3b82f6' },
   headerTitle: { fontSize: 16, fontFamily: Fonts.bold, color: '#fff' },
   headerSub: { fontSize: 11, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.7)' },
-  avatarCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+  avatarCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#1e293b',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   avatarTxt: { fontSize: 13, fontFamily: Fonts.bold, color: '#fff' },
 
   navScroll: { backgroundColor: '#3b82f6', paddingBottom: 12 },
   navContent: { paddingHorizontal: 12, gap: 4 },
-  navTab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+  navTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
   navTabActive: { backgroundColor: '#fff' },
-  navLabel: { fontSize: 12, fontFamily: Fonts.semiBold, color: 'rgba(255,255,255,0.75)' },
+  navLabel: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
+    color: 'rgba(255,255,255,0.75)',
+  },
   navLabelActive: { color: '#3b82f6', fontFamily: Fonts.bold },
 
   body: { paddingHorizontal: 16, paddingTop: 16 },
 
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
   pageTitle: { fontSize: 22, fontFamily: Fonts.extraBold, color: '#1e293b' },
   pageSub: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 2 },
   addBtnWrap: { borderRadius: 10, overflow: 'hidden' },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
   addBtnText: { fontSize: 13, fontFamily: Fonts.bold, color: '#fff' },
 
   searchRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, height: 46,
-    borderWidth: 1, borderColor: '#e8ecf2', marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    marginBottom: 10,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: Fonts.regular, color: '#1e293b' },
 
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  filterChipsRow: { gap: 6, paddingVertical: 2, paddingRight: 16 },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+  },
+  filterChipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  filterChipTxt: { fontSize: 11, fontFamily: Fonts.semiBold, color: '#64748b' },
+  filterChipTxtActive: { color: '#fff' },
+
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 16 },
   miniStat: {
-    width: '48%' as any, flexGrow: 1,
-    backgroundColor: '#fff', borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: '#f1f5f9',
+    width: '48%' as any,
+    flexGrow: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   miniLabel: { fontSize: 11, fontFamily: Fonts.regular, color: '#94a3b8', marginBottom: 4 },
   miniVal: { fontSize: 20, fontFamily: Fonts.extraBold, color: '#1e293b' },
 
   card: {
-    backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 14,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 2,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
   cardImageArea: { height: 160, backgroundColor: '#1e293b', position: 'relative' },
   cardImage: { width: '100%', height: '100%' },
-  cardImagePlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1e293b', gap: 8 },
-  placeholderTxt: { fontSize: 12, fontFamily: Fonts.medium, color: '#475569' },
+  cardImagePlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  placeholderTxt: { fontSize: 12, fontFamily: Fonts.semiBold, color: 'rgba(255,255,255,0.95)' },
 
-  overlayBadge: { position: 'absolute', top: 10, right: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  overlayBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
   overlayActive: { backgroundColor: 'rgba(220,252,231,0.92)' },
   overlayInactive: { backgroundColor: 'rgba(241,245,249,0.92)' },
   overlayBadgeText: { fontSize: 11, fontFamily: Fonts.semiBold },
   overlayActiveText: { color: '#16a34a' },
   overlayInactiveText: { color: '#94a3b8' },
-  sortBadge: { position: 'absolute', top: 10, left: 10, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  sortBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
   sortBadgeText: { fontSize: 11, fontFamily: Fonts.bold, color: '#fff' },
 
   cardBody: { padding: 14 },
@@ -808,19 +1221,50 @@ const s = StyleSheet.create({
   cardSubtitle: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', marginBottom: 10 },
 
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  pillText: { fontSize: 11, fontFamily: Fonts.semiBold },
-  pillNeutral: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#f1f5f9', flex: 1 },
+  slotPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+  },
+  slotPillText: { fontSize: 11, fontFamily: Fonts.semiBold, color: '#3b82f6' },
+  pillNeutral: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    flex: 1,
+  },
   pillNeutralText: { fontSize: 11, fontFamily: Fonts.medium, color: '#64748b', flexShrink: 1 },
 
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  toggleBtn: { flex: 1, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
+  toggleBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
   toggleBtnText: { fontSize: 13, fontFamily: Fonts.semiBold, color: '#64748b' },
   iconBtn: { width: 36, height: 36, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 
   emptyState: { alignItems: 'center', paddingVertical: 48 },
   emptyTitle: { fontSize: 16, fontFamily: Fonts.semiBold, color: '#94a3b8', marginTop: 12 },
-  emptySub: { fontSize: 13, fontFamily: Fonts.regular, color: '#cbd5e1', marginTop: 4, textAlign: 'center', maxWidth: 240 },
+  emptySub: {
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: '#cbd5e1',
+    marginTop: 4,
+    textAlign: 'center',
+    maxWidth: 240,
+  },
 });
 
 // ─── Modal Styles ────────────────────────────────────────────────────
@@ -829,20 +1273,81 @@ const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '94%' as any,
     overflow: 'hidden',
   },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   title: { fontSize: 18, fontFamily: Fonts.extraBold, color: '#1e293b' },
   subtitle: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 2 },
-  closeBtn: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f1f5f9' },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+  },
 
   body: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28 },
+
+  sectionHead: { fontSize: 14, fontFamily: Fonts.extraBold, color: '#1e293b', marginBottom: 2 },
+  sectionDesc: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', marginBottom: 10 },
+
+  slotGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  slotTile: {
+    width: '48%' as any,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  slotTileActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#3b82f6',
+  },
+  slotTilePreview: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  slotTileLabel: { fontSize: 12, fontFamily: Fonts.bold, color: '#1e293b' },
+  slotTileLabelActive: { color: '#3b82f6' },
+  slotTileDesc: { fontSize: 10, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 2, lineHeight: 13 },
+  slotTileCount: { fontSize: 10, fontFamily: Fonts.semiBold, color: '#22c55e', marginTop: 3 },
+
+  warnRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#fef3c7',
+    borderColor: '#fbbf24',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  warnTxt: { flex: 1, fontSize: 11, fontFamily: Fonts.medium, color: '#78350f', lineHeight: 15 },
 
   label: { fontSize: 12, fontFamily: Fonts.bold, color: '#475569', marginBottom: 6, marginTop: 10 },
   labelHint: { fontFamily: Fonts.regular, color: '#94a3b8' },
@@ -850,29 +1355,97 @@ const m = StyleSheet.create({
   hint: { fontSize: 10, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 4 },
 
   inputRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
-    borderRadius: 10, paddingHorizontal: 12, minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    minHeight: 46,
   },
-  inputTxt: { flex: 1, fontSize: 14, fontFamily: Fonts.regular, color: '#1e293b', paddingVertical: 10 },
+  inputTxt: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: '#1e293b',
+    paddingVertical: 10,
+  },
 
   threeToggle: { flexDirection: 'row', gap: 6 },
   typeBtn: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     backgroundColor: '#f8fafc',
   },
   typeBtnActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
   typeBtnTxt: { fontSize: 12, fontFamily: Fonts.semiBold, color: '#64748b' },
   typeBtnTxtActive: { color: '#fff' },
 
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  badgeLabelInput: {
+    flex: 1.4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+  },
+  badgeColorInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    fontSize: 12,
+    fontFamily: Fonts.regular,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    color: '#1e293b',
+  },
+  badgeRemove: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#fee2e2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addBadgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#bfdbfe',
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  addBadgeBtnTxt: { fontSize: 12, fontFamily: Fonts.semiBold, color: '#3b82f6' },
+
   twoCol: { flexDirection: 'row', gap: 10 },
   col: { flex: 1 },
 
   activeRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#f8fafc', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginTop: 16,
-    borderWidth: 1, borderColor: '#f1f5f9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   activeLabel: { fontSize: 13, fontFamily: Fonts.bold, color: '#1e293b' },
   activeHint: { fontSize: 11, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 2 },
@@ -881,8 +1454,13 @@ const m = StyleSheet.create({
 
   btnRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
   cancelBtn: {
-    flex: 1, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center', backgroundColor: '#fff',
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
   cancelTxt: { fontSize: 14, fontFamily: Fonts.bold, color: '#64748b' },
   submitBtnWrap: { flex: 1.4, borderRadius: 12, overflow: 'hidden' },

@@ -6,27 +6,65 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Platform,
+  useWindowDimensions,
+  Alert,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Gift, Copy, Share2, ChevronRight, Users, Coins } from 'lucide-react-native';
+import {
+  Gift, Copy, Sparkles, Users, ArrowRight, UserPlus,
+  Share2, MessageCircle, Send, MoreHorizontal, MessageSquare,
+} from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI } from '../../api/wallet';
 
-const SHARE_OPTIONS = [
-  { label: 'WhatsApp', color: '#25D366', icon: 'W' },
-  { label: 'Telegram', color: '#0088cc', icon: 'T' },
-  { label: 'SMS', color: '#1e3a5f', icon: 'S' },
-  { label: 'More', color: '#9ca3af', icon: '···' },
+// ─── Static config ──────────────────────────────────────────────────────────
+
+const SHARE_OPTIONS: Array<{
+  label: string;
+  bg: string;
+  icon: React.ComponentType<any>;
+}> = [
+  { label: 'WhatsApp', bg: '#22c55e', icon: MessageCircle },
+  { label: 'Telegram', bg: '#3b82f6', icon: Send },
+  { label: 'SMS',      bg: '#3b82f6', icon: MessageSquare },
+  { label: 'More',     bg: '#94a3b8', icon: MoreHorizontal },
 ];
 
 const STEPS = [
-  { num: '01', title: 'Share your referral code', icon: '📤' },
-  { num: '02', title: 'They sign up & order', icon: '📱' },
-  { num: '03', title: 'You earn ₹50', icon: '🎉' },
+  {
+    num: '01',
+    title: 'Share your code',
+    sub: 'Send your unique referral link to friends',
+    icon: Share2,
+    iconBg: '#eff6ff',
+    iconColor: '#3b82f6',
+  },
+  {
+    num: '02',
+    title: 'They sign up',
+    sub: 'Friend registers and places their first order',
+    icon: UserPlus,
+    iconBg: '#faf5ff',
+    iconColor: '#a855f7',
+  },
+  {
+    num: '03',
+    title: 'You earn ₹50',
+    sub: 'Cashback credited to your wallet instantly',
+    icon: Gift,
+    iconBg: '#ecfdf5',
+    iconColor: '#16a34a',
+  },
 ];
 
+// ─── Screen ─────────────────────────────────────────────────────────────────
+
 export const ReferScreen = () => {
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 1100; // collapse to single column under this
+
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const REFERRAL_CODE = user?.referralCode || 'DEV500';
@@ -37,438 +75,415 @@ export const ReferScreen = () => {
     enabled: isAuthenticated,
   });
 
-  const referralTransactions = txData?.data?.transactions ?? [];
+  const referralTransactions: any[] = txData?.data?.transactions ?? [];
   const referralCount = referralTransactions.length;
   const referralEarned = referralTransactions.reduce(
-    (sum: number, tx: any) => sum + (tx.amount || 0), 0,
+    (sum: number, tx: any) => sum + (tx.amount || 0),
+    0,
   );
 
-  return (
-    <View style={s.root}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+  const handleCopy = () => {
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(REFERRAL_CODE);
+    }
+    Alert.alert('Copied', `${REFERRAL_CODE} copied to clipboard`);
+  };
 
-        {/* ── HEADER (blue) ──────────────────────────── */}
-        <View style={s.header}>
-          <View>
-            <Text style={s.headerSmall}>Earn Reward</Text>
-            <Text style={s.headerTitle}>Refer & Earn</Text>
+  const handleShare = (label?: string) => {
+    Alert.alert('Share', label ? `Share via ${label}` : 'Share Referral Link');
+  };
+
+  return (
+    <ScrollView style={s.root} contentContainerStyle={s.rootContent}>
+      {/* ── Top header ────────────────────────────────── */}
+      <View style={s.topHeader}>
+        <View>
+          <Text style={s.eyebrow}>GROW TOGETHER</Text>
+          <Text style={s.pageTitle}>Refer & Earn</Text>
+        </View>
+        <View style={s.topRight}>
+          <View style={s.earnedPill}>
+            <Sparkles size={14} color={Colors.primary} strokeWidth={2.2} />
+            <Text style={s.earnedPillText}>₹{referralEarned} earned</Text>
           </View>
           <Image
             source={{ uri: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' }}
             style={s.avatar}
           />
         </View>
+      </View>
 
-        {/* ── REFERRAL CARD ──────────────────────────── */}
-        <View style={s.card}>
-          {/* Top row */}
-          <View style={s.cardHeader}>
-            <View style={s.giftCircle}>
-              <Gift size={20} color={Colors.primary} strokeWidth={2} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={s.cardTitle}>Refer & Earn</Text>
-              <Text style={s.cardSub}>₹50 for every friend who joins</Text>
-            </View>
-            <TouchableOpacity style={s.freeBadge}>
-              <Text style={s.freeTxt}>Free</Text>
-            </TouchableOpacity>
-          </View>
+      {/* ── Two-column body ───────────────────────────── */}
+      <View style={[s.body, isNarrow && s.bodyStacked]}>
 
-          {/* Code box */}
-          <View style={s.codeBox}>
-            <Text style={s.codeLabel}>REFERRAL CODE</Text>
-            <View style={s.codeRow}>
-              <Text style={s.codeText}>{REFERRAL_CODE}</Text>
-              <TouchableOpacity style={s.copyBtn} activeOpacity={0.7}>
-                <Copy size={14} color="#fff" strokeWidth={2.5} />
-                <Text style={s.copyTxt}>Copy</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        {/* ─── LEFT COLUMN ──────────────────────────── */}
+        <View style={[s.colLeft, isNarrow && { flex: undefined as any, width: '100%' }]}>
 
-          {/* Share icons */}
-          <View style={s.shareRow}>
-            {SHARE_OPTIONS.map((opt) => (
-              <TouchableOpacity key={opt.label} style={s.shareItem} activeOpacity={0.7}>
-                <View style={[s.shareCircle, { backgroundColor: opt.color }]}>
-                  <Text style={s.shareIcon}>{opt.icon}</Text>
-                </View>
-                <Text style={s.shareLabel}>{opt.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Share button */}
-          <TouchableOpacity style={s.shareBtn} activeOpacity={0.8}>
-            <Share2 size={16} color="#fff" strokeWidth={2.5} />
-            <Text style={s.shareBtnTxt}>Share Referral Link</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── STATS ROW ──────────────────────────────── */}
-        <View style={s.statsRow}>
-          <View style={s.statCard}>
-            <View style={[s.statIcon, { backgroundColor: '#eff6ff' }]}>
-              <Users size={18} color={Colors.primary} strokeWidth={2} />
-            </View>
-            <Text style={s.statVal}>{referralCount}</Text>
-            <Text style={s.statLabel}>FRIENDS JOINED</Text>
-          </View>
-          <View style={s.statCard}>
-            <View style={[s.statIcon, { backgroundColor: '#ecfdf5' }]}>
-              <Coins size={18} color="#10b981" strokeWidth={2} />
-            </View>
-            <Text style={s.statVal}>₹{referralEarned}</Text>
-            <Text style={s.statLabel}>TOTAL EARNINGS</Text>
-          </View>
-        </View>
-
-        {/* ── HOW IT WORKS ───────────────────────────── */}
-        <View style={s.section}>
-          <Text style={s.secTitle}>How it works</Text>
-          <View style={s.stepsCard}>
-            {STEPS.map((step, i) => (
-              <View key={step.num} style={[s.stepRow, i < STEPS.length - 1 && s.stepBorder]}>
-                <View style={s.stepNum}>
-                  <Text style={s.stepNumTxt}>{step.num}</Text>
-                </View>
-                <Text style={s.stepTitle}>{step.title}</Text>
-                <Text style={s.stepEmoji}>{step.icon}</Text>
+          {/* Referral code card */}
+          <View style={s.card}>
+            <View style={s.cardHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.cardTitle}>Your Referral Code</Text>
+                <Text style={s.cardSub}>Share this code and earn ₹50 per friend</Text>
               </View>
-            ))}
-          </View>
-        </View>
+              <View style={s.giftCircleSm}>
+                <Gift size={18} color={Colors.primary} strokeWidth={2} />
+              </View>
+            </View>
 
-        {/* ── RECENT INVITES ─────────────────────────── */}
-        <View style={s.section}>
-          <View style={s.invHeader}>
-            <Text style={s.secTitle}>Recent Invites</Text>
-            <TouchableOpacity>
-              <Text style={s.viewAll}>View All</Text>
+            {/* Code box */}
+            <View style={s.codeBox}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.codeLabel}>REFERRAL CODE</Text>
+                <Text style={s.codeText}>{REFERRAL_CODE}</Text>
+              </View>
+              <TouchableOpacity style={s.copyBtn} onPress={handleCopy} activeOpacity={0.85}>
+                <Copy size={14} color={Colors.primary} strokeWidth={2.2} />
+                <Text style={s.copyBtnText}>Copy</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Share via */}
+            <Text style={s.shareLabel}>SHARE VIA</Text>
+            <View style={s.shareRow}>
+              {SHARE_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                return (
+                  <TouchableOpacity
+                    key={opt.label}
+                    style={s.shareItem}
+                    activeOpacity={0.8}
+                    onPress={() => handleShare(opt.label)}
+                  >
+                    <View style={[s.shareCircle, { backgroundColor: opt.bg }]}>
+                      <Icon size={18} color="#fff" strokeWidth={2.2} />
+                    </View>
+                    <Text style={s.shareItemLabel}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Big share button */}
+            <TouchableOpacity
+              style={s.shareBtn}
+              activeOpacity={0.88}
+              onPress={() => handleShare()}
+            >
+              <Share2 size={16} color="#fff" strokeWidth={2.2} />
+              <Text style={s.shareBtnText}>Share Referral Link</Text>
+              <ArrowRight size={16} color="#fff" strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
-          <View style={s.emptyCard}>
-            <Text style={s.emptyIcon}>👤</Text>
-            <Text style={s.emptyTitle}>No invites yet</Text>
-            <Text style={s.emptySub}>Start sharing to see activity</Text>
+
+          {/* Stats row */}
+          <View style={s.statsRow}>
+            <View style={s.statCard}>
+              <View style={[s.statIconBox, { backgroundColor: '#faf5ff' }]}>
+                <Users size={18} color="#a855f7" strokeWidth={2.2} />
+              </View>
+              <Text style={s.statRightLabel}>Total</Text>
+              <Text style={s.statValue}>{referralCount || 0}</Text>
+              <Text style={s.statSubLabel}>Friends joined</Text>
+            </View>
+
+            <View style={s.statCard}>
+              <View style={[s.statIconBox, { backgroundColor: '#ecfdf5' }]}>
+                <Gift size={18} color="#16a34a" strokeWidth={2.2} />
+              </View>
+              <Text style={s.statRightLabel}>Earned</Text>
+              <Text style={s.statValue}>₹{referralEarned}</Text>
+              <Text style={s.statSubLabel}>From referrals</Text>
+            </View>
           </View>
         </View>
 
-      </ScrollView>
-    </View>
+        {/* ─── RIGHT COLUMN ─────────────────────────── */}
+        <View style={[s.colRight, isNarrow && { flex: undefined as any, width: '100%' }]}>
+
+          {/* How it works */}
+          <View style={s.sideCard}>
+            <Text style={s.sideTitle}>How it works</Text>
+            <View style={{ marginTop: 14, gap: 14 }}>
+              {STEPS.map((step) => {
+                const Icon = step.icon;
+                return (
+                  <View key={step.num} style={s.stepRow}>
+                    <View style={s.stepNumPill}>
+                      <Text style={s.stepNumText}>{step.num}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={s.stepTitleRow}>
+                        <View style={[s.stepIconBox, { backgroundColor: step.iconBg }]}>
+                          <Icon size={13} color={step.iconColor} strokeWidth={2.2} />
+                        </View>
+                        <Text style={s.stepTitle}>{step.title}</Text>
+                      </View>
+                      <Text style={s.stepSub}>{step.sub}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* ₹50 per referral info card */}
+          <View style={s.infoCard}>
+            <View style={s.infoTopRow}>
+              <View style={s.infoIconBox}>
+                <Sparkles size={16} color={Colors.primary} strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.infoTitle}>₹50 per referral</Text>
+                <Text style={s.infoSub}>No limit on earnings</Text>
+              </View>
+            </View>
+            <Text style={s.infoBody}>
+              Earn ₹50 for every friend who signs up and completes their first
+              purchase. Credited within 24 hours.
+            </Text>
+          </View>
+
+          {/* Recent invites */}
+          <View style={s.sideCard}>
+            <View style={s.recentHeader}>
+              <Text style={s.sideTitle}>Recent Invites</Text>
+              <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={s.viewAllText}>View All</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.emptyBox}>
+              <View style={s.emptyIconBox}>
+                <UserPlus size={28} color="#cbd5e1" strokeWidth={1.5} />
+              </View>
+              <Text style={s.emptyTitle}>No invites yet</Text>
+              <Text style={s.emptySub}>Start sharing to see activity</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
   );
 };
 
-// ─── Styles ─────────────────────────────────────────────────────────
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#eef2f8',
-  },
+  root: { flex: 1, backgroundColor: '#f5f7fa' },
+  rootContent: { padding: 24, paddingBottom: 60 },
 
-  // Header
-  header: {
-    backgroundColor: Colors.primary,
-    borderBottomLeftRadius: 48,
-    borderBottomRightRadius: 48,
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 60,
+  // Top header
+  topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    marginBottom: 24,
+    paddingHorizontal: 4,
   },
-  headerSmall: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 2,
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94a3b8',
+    letterSpacing: 1.5,
+    marginBottom: 4,
   },
-  headerTitle: {
+  pageTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#fff',
+    color: Colors.text,
+    letterSpacing: -0.4,
   },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-
-  // Referral card
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
-    marginTop: -32,
-    width: '90%',
-    alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  cardHeader: {
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  earnedPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
-  },
-  giftCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Colors.primaryLight10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  cardSub: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 1,
-  },
-  freeBadge: {
-    backgroundColor: '#ecfdf5',
+    gap: 6,
+    backgroundColor: '#eff6ff',
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
   },
-  freeTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#10b981',
+  earnedPillText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  avatar: { width: 38, height: 38, borderRadius: 19 },
+
+  // Body grid
+  body: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  bodyStacked: { flexDirection: 'column' },
+  colLeft: { flex: 2, gap: 16 },
+  colRight: { flex: 1, gap: 16, minWidth: 280 },
+
+  // Main card (left)
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+  },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18 },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  cardSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
+  giftCircleSm: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center', alignItems: 'center',
   },
 
   // Code box
   codeBox: {
     backgroundColor: '#f8fafc',
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
-    padding: 14,
-    marginBottom: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 22,
   },
   codeLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: '#94a3b8',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  codeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    letterSpacing: 1.4,
+    marginBottom: 4,
   },
   codeText: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#1e293b',
-    letterSpacing: 3,
+    fontSize: 28,
+    fontWeight: '900',
+    color: Colors.primary,
+    letterSpacing: 4,
   },
   copyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.primary,
+    gap: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
-  copyTxt: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
+  copyBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
 
-  // Share
-  shareRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    gap: 20,
-    marginBottom: 18,
-  },
-  shareItem: {
-    alignItems: 'center',
-  },
-  shareCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 5,
-  },
-  shareIcon: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-  },
+  // Share row
   shareLabel: {
     fontSize: 11,
+    fontWeight: '700',
     color: '#94a3b8',
-    fontWeight: '500',
+    letterSpacing: 1.2,
+    marginBottom: 12,
   },
+  shareRow: { flexDirection: 'row', gap: 18, marginBottom: 22 },
+  shareItem: { alignItems: 'center', width: 60 },
+  shareCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 6,
+  },
+  shareItemLabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' },
+
+  // Big share button
   shareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
-    height: 50,
+    borderRadius: 12,
+    paddingVertical: 14,
   },
-  shareBtnTxt: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
-  },
+  shareBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
-  // Stats
-  statsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
-    marginTop: 20,
-    marginBottom: 24,
-  },
+  // Stats row
+  statsRow: { flexDirection: 'row', gap: 16 },
   statCard: {
     flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 4,
-    elevation: 1,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
   },
-  statIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  statVal: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#94a3b8',
-    letterSpacing: 0.5,
-  },
-
-  // Section
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  secTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
+  statIconBox: {
+    width: 36, height: 36, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
     marginBottom: 12,
   },
+  statRightLabel: {
+    position: 'absolute',
+    top: 18, right: 18,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  statValue: { fontSize: 26, fontWeight: '900', color: Colors.text, marginBottom: 4 },
+  statSubLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+
+  // Right column cards
+  sideCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+  },
+  sideTitle: { fontSize: 15, fontWeight: '800', color: Colors.text },
 
   // Steps
-  stepsCard: {
+  stepRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  stepNumPill: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  stepNumText: { fontSize: 11, fontWeight: '800', color: '#64748b' },
+  stepTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  stepIconBox: {
+    width: 22, height: 22, borderRadius: 6,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  stepTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  stepSub: { fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
+
+  // Info card (₹50 per referral)
+  infoCard: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    gap: 12,
+  },
+  infoTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  infoIconBox: {
+    width: 36, height: 36, borderRadius: 12,
     backgroundColor: '#fff',
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 4,
-    elevation: 1,
+    justifyContent: 'center', alignItems: 'center',
   },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  stepBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e8ecf2',
-  },
-  stepNum: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.primaryLight10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  stepNumTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  stepTitle: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  stepEmoji: {
-    fontSize: 18,
-  },
+  infoTitle: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  infoSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  infoBody: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
 
   // Recent invites
-  invHeader: {
+  recentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  viewAll: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  emptyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    paddingVertical: 32,
+  viewAllText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  emptyBox: {
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 4,
-    elevation: 1,
+    paddingVertical: 22,
+    gap: 6,
   },
-  emptyIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-    opacity: 0.4,
+  emptyIconBox: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#f8fafc',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 6,
   },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  emptySub: {
-    fontSize: 13,
-    color: '#94a3b8',
-  },
+  emptyTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  emptySub: { fontSize: 12, color: Colors.textSecondary },
 });

@@ -12,6 +12,25 @@ export const adminAPI = {
     const response = await apiClient.get('/api/admin/users', { params });
     return response.data;
   },
+  updateUserStatus: async (id: string, action: 'block' | 'unblock', reason?: string) => {
+    const response = await apiClient.patch(`/api/admin/users/${id}/status`, {
+      action,
+      reason,
+    });
+    return response.data;
+  },
+  adjustUserWallet: async (
+    id: string,
+    data: {
+      type: 'credit' | 'debit';
+      amount: number;
+      currency?: 'cashback' | 'coins';
+      note?: string;
+    },
+  ) => {
+    const response = await apiClient.post(`/api/admin/users/${id}/wallet-adjust`, data);
+    return response.data;
+  },
 
   // ─── Deals ─────────────────────────────────────────────────────────────────
   getDeals: async (params?: { page?: number; limit?: number }) => {
@@ -46,6 +65,24 @@ export const adminAPI = {
   },
   deleteBanner: async (id: string) => {
     const response = await apiClient.delete(`/api/banners/${id}`);
+    return response.data;
+  },
+
+  // ─── Withdrawals (Payouts) ─────────────────────────────────────────────────
+  getWithdrawals: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+  }) => {
+    const response = await apiClient.get('/api/admin/withdrawals', { params });
+    return response.data;
+  },
+  updateWithdrawal: async (
+    id: string,
+    data: { action: 'process' | 'complete' | 'reject'; note?: string; txnId?: string },
+  ) => {
+    const response = await apiClient.patch(`/api/admin/withdrawals/${id}`, data);
     return response.data;
   },
 
