@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Modal, Dimensions, ActivityIndicator, Alert, Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, X, Edit2, Trash2, Eye, EyeOff } from 'lucide-react-native';
-import { Colors, Spacing } from '../../constants/theme';
+import { Plus, X, Edit2, Trash2, Eye, EyeOff, Search, SlidersHorizontal } from 'lucide-react-native';
+import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import { categoriesAPI } from '../../api/deals';
 
@@ -318,6 +319,7 @@ function DealFormModal({ visible, onClose, deal, categories }: {
 export function AdminDealsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [editDeal, setEditDeal] = useState<any>(null);
+  const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -344,6 +346,16 @@ export function AdminDealsScreen() {
   });
 
   const deals = data?.data?.deals || [];
+  const filteredDeals = useMemo(() => {
+    if (!search.trim()) return deals;
+    const q = search.toLowerCase();
+    return deals.filter((d: any) =>
+      (d.title?.toLowerCase().includes(q)) ||
+      (d.brand?.toLowerCase().includes(q)) ||
+      (d.category?.name?.toLowerCase().includes(q)),
+    );
+  }, [deals, search]);
+
   const screenWidth = Dimensions.get('window').width;
   const isDesktop = screenWidth >= 768;
 
@@ -362,29 +374,71 @@ export function AdminDealsScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>Deals</Text>
+        <View>
+          <Text style={styles.pageTitle}>Deals</Text>
+          <Text style={styles.pageSubtitle}>Manage cashback deals and promotions</Text>
+        </View>
         <TouchableOpacity
-          style={styles.addBtn}
+          activeOpacity={0.85}
           onPress={() => { setEditDeal(null); setShowForm(true); }}
+          style={styles.addBtnWrap}
         >
-          <Plus size={18} color="#fff" />
-          <Text style={styles.addBtnText}>Add Deal</Text>
+          <LinearGradient
+            colors={Gradient.brand}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.addBtn}
+          >
+            <Plus size={18} color="#fff" strokeWidth={2.5} />
+            <Text style={styles.addBtnText}>Add New Deal</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
+      {/* Search */}
+      <View style={styles.searchRow}>
+        <Search size={16} color="#94a3b8" strokeWidth={2} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search deals by title, brand or category..."
+          placeholderTextColor="#94a3b8"
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 ? (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <X size={16} color="#64748b" strokeWidth={2} />
+          </TouchableOpacity>
+        ) : (
+          <SlidersHorizontal size={16} color="#64748b" strokeWidth={2} />
+        )}
+      </View>
+
       {/* Stats row */}
-      <View style={styles.miniStats}>
-        <View style={styles.miniStat}>
-          <Text style={styles.miniStatValue}>{data?.data?.total ?? deals.length}</Text>
-          <Text style={styles.miniStatLabel}>Total Deals</Text>
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Total Deals</Text>
+          <Text style={[styles.statValue, { color: '#0f172a' }]}>
+            {data?.data?.total ?? deals.length}
+          </Text>
         </View>
-        <View style={styles.miniStat}>
-          <Text style={styles.miniStatValue}>{deals.filter((d: any) => d.isActive).length}</Text>
-          <Text style={styles.miniStatLabel}>Active</Text>
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Active Deals</Text>
+          <Text style={[styles.statValue, { color: '#16a34a' }]}>
+            {deals.filter((d: any) => d.isActive).length}
+          </Text>
         </View>
-        <View style={styles.miniStat}>
-          <Text style={styles.miniStatValue}>{deals.filter((d: any) => d.isFeatured).length}</Text>
-          <Text style={styles.miniStatLabel}>Featured</Text>
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Total Clicks</Text>
+          <Text style={[styles.statValue, { color: '#3b82f6' }]}>
+            {deals.reduce((s: number, d: any) => s + (d.clicks ?? 0), 0).toLocaleString()}
+          </Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Total Conversions</Text>
+          <Text style={[styles.statValue, { color: '#7c3aed' }]}>
+            {deals.reduce((s: number, d: any) => s + (d.conversions ?? 0), 0).toLocaleString()}
+          </Text>
         </View>
       </View>
 
@@ -393,25 +447,38 @@ export function AdminDealsScreen() {
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView>
-          {/* Table Header */}
-          {isDesktop && (
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Deal</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Brand</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Cashback</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Status</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Expires</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Actions</Text>
-            </View>
-          )}
+          <View style={styles.tableContainer}>
+            {/* Table Header */}
+            {isDesktop && (
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Deal</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Brand</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Cashback</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Status</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.6 }]}>Performance</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Expires</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Actions</Text>
+              </View>
+            )}
 
-          {deals.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No deals yet. Click "Add Deal" to create one.</Text>
-            </View>
-          ) : (
-            deals.map((deal: any) => (
-              <View key={deal._id} style={[styles.tableRow, !deal.isActive && styles.tableRowInactive]}>
+            {filteredDeals.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  {search.trim()
+                    ? `No deals match "${search}".`
+                    : 'No deals yet. Click "Add New Deal" to create one.'}
+                </Text>
+              </View>
+            ) : (
+              filteredDeals.map((deal: any, idx: number) => (
+                <View
+                  key={deal._id}
+                  style={[
+                    styles.tableRow,
+                    idx === filteredDeals.length - 1 && styles.tableRowLast,
+                    !deal.isActive && styles.tableRowInactive,
+                  ]}
+                >
                 <View style={isDesktop ? { flex: 3 } : { flex: 1 }}>
                   <Text style={styles.dealTitle} numberOfLines={1}>{deal.title}</Text>
                   {!isDesktop && (
@@ -432,6 +499,20 @@ export function AdminDealsScreen() {
                           {deal.isActive ? 'Active' : 'Inactive'}
                         </Text>
                       </View>
+                    </View>
+                    <View style={{ flex: 1.6 }}>
+                      <Text style={styles.perfLine}>
+                        <Text style={[styles.perfNumber, { color: '#3b82f6' }]}>
+                          {(deal.clicks ?? 0).toLocaleString()}
+                        </Text>
+                        <Text style={styles.perfLabel}> clicks</Text>
+                      </Text>
+                      <Text style={styles.perfLine}>
+                        <Text style={[styles.perfNumber, { color: '#7c3aed' }]}>
+                          {(deal.conversions ?? 0).toLocaleString()}
+                        </Text>
+                        <Text style={styles.perfLabel}> conversions</Text>
+                      </Text>
                     </View>
                     <Text style={[styles.cellText, { flex: 1.5 }]}>
                       {deal.expiresAt ? new Date(deal.expiresAt).toLocaleDateString() : '—'}
@@ -458,9 +539,10 @@ export function AdminDealsScreen() {
                     <Trash2 size={16} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
-              </View>
-            ))
-          )}
+                </View>
+              ))
+            )}
+          </View>
         </ScrollView>
       )}
 
@@ -477,60 +559,90 @@ export function AdminDealsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc', padding: Spacing.lg },
-  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
+  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   pageTitle: { fontSize: 24, fontWeight: '700', color: Colors.text },
+  pageSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  addBtnWrap: { borderRadius: 10, overflow: 'hidden' },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 10,
     gap: 6,
   },
-  addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-  // Mini stats
-  miniStats: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.lg },
-  miniStat: {
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 14,
-    flex: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    marginBottom: Spacing.lg,
   },
-  miniStatValue: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  miniStatLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.text,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
+  },
+
+  // Stats cards
+  statsRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.lg },
+  statCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+  },
+  statLabel: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  statValue: { fontSize: 28, fontWeight: '700', marginTop: 6, letterSpacing: -0.5 },
 
   // Table
+  tableContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    overflow: 'hidden',
+  },
   tableHeader: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    marginBottom: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e8ecf2',
   },
-  tableHeaderCell: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, textTransform: 'uppercase' },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
+  tableRowLast: { borderBottomWidth: 0 },
   tableRowInactive: { opacity: 0.6 },
+  perfLine: { fontSize: 13, lineHeight: 18 },
+  perfNumber: { fontWeight: '700' },
+  perfLabel: { color: Colors.textSecondary, fontSize: 12 },
   dealTitle: { fontSize: 14, fontWeight: '600', color: Colors.text },
   dealSubtext: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   cellText: { fontSize: 13, color: Colors.text },

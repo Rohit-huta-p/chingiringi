@@ -13,6 +13,7 @@ import { AddEditAddressScreen } from '../screens/Dashboard/AddEditAddressScreen'
 import { TransactionHistoryScreen } from '../screens/Dashboard/TransactionHistoryScreen';
 import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
+import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 import { useUIStore } from '../store/uiStore';
 
 const Drawer = createDrawerNavigator();
@@ -38,6 +39,7 @@ export default function DesktopDrawerNavigator() {
       <Drawer.Screen name="Home" component={HomeScreen} />
       <Drawer.Screen name="Wallet" component={WalletScreen} />
       <Drawer.Screen name="Referrals" component={ReferScreen} />
+      <Drawer.Screen name="OfflineStores" component={OfflineStoresScreen} />
       <Drawer.Screen name="Notifications" component={NotificationsScreen} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
       <Drawer.Screen name="Profile" component={ProfileScreen} />

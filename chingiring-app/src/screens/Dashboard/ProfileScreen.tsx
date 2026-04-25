@@ -1,10 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
+  useWindowDimensions, Platform,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  Mail, Phone, MapPin, Pencil, Gift, IndianRupee, Clock, Coins,
+  ArrowUpRight, ChevronRight, MapPinHouse, Wallet as WalletIcon, UserCog,
+} from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
-import { Card } from '../../components/Card';
 import { profileAPI } from '../../api/profile';
+import { walletAPI } from '../../api/wallet';
+
+// ─── Static fallbacks ───────────────────────────────────────────────────────
 
 const FALLBACK_PROFILE = {
   name: 'Dev Chavan',
@@ -14,40 +24,55 @@ const FALLBACK_PROFILE = {
   location: 'Mumbai, India',
 };
 
-const FALLBACK_WALLET_STATS = [
-  { label: 'CONFIRMED', amount: '\u20B91250', accentColor: '#10b981', link: 'Withdraw \u2192' },
-  { label: 'PENDING', amount: '\u20B9450', accentColor: '#f59e0b', link: 'Processing \u2192' },
-  { label: 'COINS', amount: '840', accentColor: '#8b5cf6', link: 'Redeem \u2192' },
-];
-
-const QUICK_ACTIONS = ['Manage Addresses', 'Withdraw Money', 'Account Settings'];
-
-const RECENT_ACTIVITY = [
-  { store: 'Myntra', timeAgo: '2 days ago', amount: '+\u20B9150', status: 'pending', statusColor: '#f59e0b' },
-  { store: 'Amazon', timeAgo: '15 days ago', amount: '+\u20B9300', status: 'confirmed', statusColor: '#10b981' },
-  { store: 'Withdrawal to UPI', timeAgo: '20 days ago', amount: '-\u20B9500', status: 'completed', statusColor: '#3b82f6' },
-];
-
-const REFERRAL_DATA = {
-  totalReferred: 12,
-  earnings: '\u20B9600',
-  code: 'DEV500',
+const FALLBACK_WALLET = {
+  confirmedCashback: 1250,
+  pendingCashback: 450,
+  coins: 840,
 };
+
+// Quick action items
+const QUICK_ACTIONS: Array<{
+  label: string;
+  icon: React.ComponentType<any>;
+  route?: string;
+}> = [
+  { label: 'Manage Addresses', icon: MapPinHouse, route: 'MyAddress' },
+  { label: 'Withdraw Money', icon: WalletIcon, route: 'Wallet' },
+  { label: 'Account Settings', icon: UserCog, route: 'Settings' },
+];
+
+// Legal & support items (2 cols + 1 full row)
+const LEGAL_ITEMS = [
+  ['About', 'Help & Support'],
+  ['Affiliate Partners', 'Privacy Policy'],
+];
+
+// ─── Screen ─────────────────────────────────────────────────────────────────
 
 export const ProfileScreen = () => {
   const { width } = useWindowDimensions();
-  const isMobile = width < 768;
-  const navigation = useNavigation();
+  const isNarrow = width < 1100;
+  const navigation = useNavigation<any>();
 
   const { data: profileData } = useQuery({
     queryKey: ['profile'],
     queryFn: profileAPI.getProfile,
   });
 
-  const user = profileData?.data?.user;
-  const wallet = profileData?.data?.wallet;
+  const { data: walletSummary } = useQuery({
+    queryKey: ['walletSummary'],
+    queryFn: walletAPI.getWalletSummary,
+  });
 
-  const PROFILE_DATA = user
+  const { data: referralTxData } = useQuery({
+    queryKey: ['transactions', 'referral'],
+    queryFn: () => walletAPI.getTransactions({ type: 'referral', limit: 100 }),
+  });
+
+  const user = profileData?.data?.user;
+  const wallet = walletSummary?.data?.wallet ?? FALLBACK_WALLET;
+
+  const profile = user
     ? {
         name: user.name || FALLBACK_PROFILE.name,
         memberSince: user.createdAt
@@ -56,415 +81,451 @@ export const ProfileScreen = () => {
         email: user.email || FALLBACK_PROFILE.email,
         phone: user.phone || FALLBACK_PROFILE.phone,
         location: FALLBACK_PROFILE.location,
+        referralCode: user.referralCode || 'DEV500',
       }
-    : FALLBACK_PROFILE;
+    : { ...FALLBACK_PROFILE, referralCode: 'DEV500' };
 
-  const WALLET_STATS = wallet
-    ? [
-        {
-          label: 'CONFIRMED',
-          amount: `\u20B9${wallet.confirmed ?? 0}`,
-          accentColor: '#10b981',
-          link: 'Withdraw \u2192',
-        },
-        {
-          label: 'PENDING',
-          amount: `\u20B9${wallet.pending ?? 0}`,
-          accentColor: '#f59e0b',
-          link: 'Processing \u2192',
-        },
-        {
-          label: 'COINS',
-          amount: `${wallet.coins ?? 0}`,
-          accentColor: '#8b5cf6',
-          link: 'Redeem \u2192',
-        },
-      ]
-    : FALLBACK_WALLET_STATS;
+  const referralTxns: any[] = referralTxData?.data?.transactions ?? [];
+  const totalReferred = referralTxns.length;
+  const referralEarnings = referralTxns.reduce(
+    (sum: number, tx: any) => sum + (tx.amount || 0),
+    0,
+  );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : 24 }]}>
-      <Text style={styles.sectionLabel}>ACCOUNT</Text>
-      <Text style={styles.headerTitle}>Profile</Text>
+    <ScrollView style={s.root} contentContainerStyle={s.rootContent}>
+      {/* Top header */}
+      <View style={s.topHeader}>
+        <Text style={s.eyebrow}>ACCOUNT</Text>
+        <Text style={s.pageTitle}>Profile</Text>
+      </View>
 
-      {/* Profile Header */}
-      <Card style={isMobile ? [styles.card, { padding: 12 }] : styles.card}>
-        <View style={styles.profileCenter}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar} />
-            <View style={styles.cameraIcon}>
-              <Text style={styles.cameraIconText}>📷</Text>
+      {/* Body grid */}
+      <View style={[s.body, isNarrow && s.bodyStacked]}>
+
+        {/* ─── LEFT COLUMN ─────────────────────────── */}
+        <View style={[s.colLeft, isNarrow && { flex: undefined as any, width: '100%' }]}>
+
+          {/* Profile card */}
+          <View style={s.card}>
+            {/* Avatar */}
+            <View style={s.avatarWrap}>
+              <Image
+                source={{ uri: 'https://i.pravatar.cc/220?u=a042581f4e29026704d' }}
+                style={s.avatar}
+              />
+              <View style={s.avatarBadge}>
+                <Pencil size={11} color="#fff" strokeWidth={2.5} />
+              </View>
             </View>
-          </View>
-          <Text style={styles.profileName}>{PROFILE_DATA.name}</Text>
-          <Text style={styles.memberSince}>Member since {PROFILE_DATA.memberSince}</Text>
-        </View>
 
-        <View style={styles.infoRows}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoIcon}>✉️</Text>
-            <Text style={styles.infoText}>{PROFILE_DATA.email}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoIcon}>📱</Text>
-            <Text style={styles.infoText}>{PROFILE_DATA.phone}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoIcon}>📍</Text>
-            <Text style={styles.infoText}>{PROFILE_DATA.location}</Text>
-          </View>
-        </View>
+            <Text style={s.profileName}>{profile.name}</Text>
+            <Text style={s.memberSince}>Member since {profile.memberSince}</Text>
 
-        <TouchableOpacity
-          style={styles.editProfileLink}
-          onPress={() => navigation.navigate('EditProfile' as never)}
-        >
-          <Text style={styles.editProfileText}>✏️ Edit Profile</Text>
-        </TouchableOpacity>
-      </Card>
+            {/* Info rows */}
+            <View style={s.infoCol}>
+              <View style={s.infoRow}>
+                <Mail size={14} color="#94a3b8" strokeWidth={2} />
+                <Text style={s.infoText}>{profile.email}</Text>
+              </View>
+              <View style={s.infoRow}>
+                <Phone size={14} color="#94a3b8" strokeWidth={2} />
+                <Text style={s.infoText}>{profile.phone}</Text>
+              </View>
+              <View style={s.infoRow}>
+                <MapPin size={14} color="#94a3b8" strokeWidth={2} />
+                <Text style={s.infoText}>{profile.location}</Text>
+              </View>
+            </View>
 
-      {/* Wallet Stats */}
-      <View style={[styles.walletRow, isMobile && { flexDirection: 'column' }]}>
-        {WALLET_STATS.map((stat) => (
-          <Card key={stat.label} style={styles.walletCard}>
-            <View style={[styles.walletAccent, { backgroundColor: stat.accentColor }]} />
-            <Text style={styles.walletLabel}>{stat.label}</Text>
-            <Text style={styles.walletAmount}>{stat.amount}</Text>
-            <TouchableOpacity>
-              <Text style={[styles.walletLink, { color: stat.accentColor }]}>{stat.link}</Text>
-            </TouchableOpacity>
-          </Card>
-        ))}
-      </View>
-
-      {/* Referral Program */}
-      <View style={[styles.referralCard, isMobile && { padding: 16 }]}>
-        <View style={styles.referralHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.referralTitle}>Referral Program</Text>
-            <Text style={styles.referralSubtitle}>Earn \u20B950 for every friend</Text>
-          </View>
-          <Text style={styles.qrIcon}>📱</Text>
-        </View>
-
-        <View style={styles.referralStatsRow}>
-          <View style={styles.referralStat}>
-            <Text style={styles.referralStatLabel}>Total Referred</Text>
-            <Text style={styles.referralStatValue}>{REFERRAL_DATA.totalReferred}</Text>
-          </View>
-          <View style={styles.referralStat}>
-            <Text style={styles.referralStatLabel}>Earnings</Text>
-            <Text style={styles.referralStatValue}>{REFERRAL_DATA.earnings}</Text>
-          </View>
-          <View style={styles.referralStat}>
-            <Text style={styles.referralStatLabel}>Your Code</Text>
-            <Text style={styles.referralStatValue}>{REFERRAL_DATA.code}</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity>
-          <Text style={styles.referralLink}>View Details ›</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Actions */}
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-      <Card style={styles.card}>
-        {QUICK_ACTIONS.map((action, index) => (
-          <React.Fragment key={action}>
+            {/* Edit Profile button */}
             <TouchableOpacity
-              style={styles.actionItem}
-              onPress={() => {
-                if (action === 'Manage Addresses') (navigation as any).navigate('MyAddress');
-                else if (action === 'Account Settings') (navigation as any).navigate('Settings');
-              }}
+              style={s.editBtn}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('EditProfile')}
             >
-              <Text style={styles.actionItemText}>{action}</Text>
-              <Text style={styles.arrow}>›</Text>
+              <Pencil size={13} color={Colors.text} strokeWidth={2} />
+              <Text style={s.editBtnText}>Edit Profile</Text>
             </TouchableOpacity>
-            {index < QUICK_ACTIONS.length - 1 && <View style={styles.divider} />}
-          </React.Fragment>
-        ))}
-      </Card>
+          </View>
 
-      {/* Recent Activity */}
-      <View style={styles.activityHeader}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
-        <TouchableOpacity>
-          <Text style={styles.viewAllText}>View all</Text>
-        </TouchableOpacity>
-      </View>
-      <Card style={styles.card}>
-        {RECENT_ACTIVITY.map((item, index) => (
-          <React.Fragment key={item.store}>
-            <View style={styles.activityItem}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.activityStore}>{item.store}</Text>
-                <Text style={styles.activityTime}>{item.timeAgo}</Text>
-              </View>
-              <View style={styles.activityRight}>
-                <Text style={styles.activityAmount}>{item.amount}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: item.statusColor + '20' }]}>
-                  <Text style={[styles.statusText, { color: item.statusColor }]}>{item.status}</Text>
+          {/* Quick Actions card */}
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Quick Actions</Text>
+            <View style={s.quickList}>
+              {QUICK_ACTIONS.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <TouchableOpacity
+                    key={item.label}
+                    style={[s.quickRow, idx < QUICK_ACTIONS.length - 1 && s.quickRowDivider]}
+                    activeOpacity={0.7}
+                    onPress={() => item.route && navigation.navigate(item.route)}
+                  >
+                    <View style={s.quickIconBox}>
+                      <Icon size={15} color="#64748b" strokeWidth={2} />
+                    </View>
+                    <Text style={s.quickLabel}>{item.label}</Text>
+                    <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+
+        {/* ─── RIGHT COLUMN ────────────────────────── */}
+        <View style={[s.colRight, isNarrow && { flex: undefined as any, width: '100%' }]}>
+
+          {/* Wallet stats row */}
+          <View style={s.walletRow}>
+            {/* CONFIRMED — gradient */}
+            <View style={s.walletCardGradient}>
+              <LinearGradient
+                colors={['#4784E2', '#2D6BC9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View pointerEvents="none" style={[s.glob, s.globTopRight]} />
+              <View pointerEvents="none" style={[s.glob, s.globBottomLeft]} />
+
+              <View style={s.walletEyebrowRow}>
+                <View style={[s.walletDot, { backgroundColor: '#fb923c' }]}>
+                  <IndianRupee size={9} color="#fff" strokeWidth={3} />
                 </View>
+                <Text style={[s.walletEyebrow, { color: 'rgba(255,255,255,0.85)' }]}>CONFIRMED</Text>
+              </View>
+              <Text style={[s.walletAmount, { color: '#fff' }]}>₹{wallet.confirmedCashback}</Text>
+              <TouchableOpacity style={s.walletLinkRow} activeOpacity={0.8}>
+                <Text style={[s.walletLinkText, { color: 'rgba(255,255,255,0.95)' }]}>Withdraw</Text>
+                <ArrowUpRight size={13} color="rgba(255,255,255,0.95)" strokeWidth={2.4} />
+              </TouchableOpacity>
+            </View>
+
+            {/* PENDING */}
+            <View style={s.walletCard}>
+              <View style={s.walletEyebrowRow}>
+                <View style={[s.walletDot, { backgroundColor: '#fbbf24' }]}>
+                  <Clock size={9} color="#fff" strokeWidth={3} />
+                </View>
+                <Text style={s.walletEyebrow}>PENDING</Text>
+              </View>
+              <Text style={s.walletAmount}>₹{wallet.pendingCashback}</Text>
+              <Text style={s.walletSubtext}>Processing</Text>
+            </View>
+
+            {/* COINS */}
+            <View style={s.walletCard}>
+              <View style={s.walletEyebrowRow}>
+                <View style={[s.walletDot, { backgroundColor: '#facc15' }]}>
+                  <Coins size={9} color="#fff" strokeWidth={3} />
+                </View>
+                <Text style={s.walletEyebrow}>COINS</Text>
+              </View>
+              <Text style={s.walletAmount}>{wallet.coins}</Text>
+              <TouchableOpacity style={s.walletLinkRow} activeOpacity={0.8}>
+                <Text style={[s.walletLinkText, { color: Colors.primary }]}>Redeem</Text>
+                <ArrowUpRight size={13} color={Colors.primary} strokeWidth={2.4} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Referral program — dark navy card */}
+          <View style={s.referralCard}>
+            <View style={s.referralTopRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.referralTitle}>Referral Program</Text>
+                <Text style={s.referralSubtitle}>Earn ₹50 for every friend</Text>
+              </View>
+              <View style={s.referralGiftBox}>
+                <Gift size={18} color="rgba(255,255,255,0.9)" strokeWidth={2} />
               </View>
             </View>
-            {index < RECENT_ACTIVITY.length - 1 && <View style={styles.divider} />}
-          </React.Fragment>
-        ))}
-      </Card>
+
+            <View style={s.referralStatsRow}>
+              <View style={s.referralStat}>
+                <Text style={s.referralStatLabel}>Total Referred</Text>
+                <Text style={s.referralStatValue}>{totalReferred || 12}</Text>
+              </View>
+              <View style={s.referralStat}>
+                <Text style={s.referralStatLabel}>Earnings</Text>
+                <Text style={s.referralStatValue}>₹{referralEarnings || 600}</Text>
+              </View>
+              <View style={s.referralStat}>
+                <Text style={s.referralStatLabel}>Your Code</Text>
+                <Text style={[s.referralStatValue, { color: '#60a5fa', letterSpacing: 1 }]}>
+                  {profile.referralCode}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={s.referralBtn}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Referrals')}
+            >
+              <Text style={s.referralBtnText}>View Details</Text>
+              <ChevronRight size={14} color="#fff" strokeWidth={2.4} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Legal & Support card */}
+          <View style={s.legalCard}>
+            <Text style={s.legalEyebrow}>LEGAL & SUPPORT</Text>
+
+            {LEGAL_ITEMS.map((row, ri) => (
+              <View key={ri} style={s.legalRow}>
+                {row.map((label) => (
+                  <TouchableOpacity key={label} style={s.legalCell} activeOpacity={0.7}>
+                    <Text style={s.legalLabel}>{label}</Text>
+                    <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+
+            {/* Last full-width row */}
+            <View style={s.legalRow}>
+              <TouchableOpacity style={[s.legalCell, { flex: 1 }]} activeOpacity={0.7}>
+                <Text style={s.legalLabel}>Terms & Conditions</Text>
+                <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollContent: {
-    paddingBottom: 60,
-  },
-  sectionLabel: {
-    fontSize: 12,
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#f5f7fa' },
+  rootContent: { padding: 24, paddingBottom: 60 },
+
+  // Top header
+  topHeader: { marginBottom: 24, paddingHorizontal: 4 },
+  eyebrow: {
+    fontSize: 11,
     fontWeight: '700',
-    color: Colors.textSecondary,
-    letterSpacing: 1,
+    color: '#94a3b8',
+    letterSpacing: 1.5,
     marginBottom: 4,
+    textTransform: 'uppercase',
   },
-  headerTitle: {
-    fontSize: 28,
+  pageTitle: { fontSize: 24, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
+
+  // Body grid
+  body: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  bodyStacked: { flexDirection: 'column' },
+  colLeft: { flex: 1, gap: 16, minWidth: 280, maxWidth: 360 },
+  colRight: { flex: 2, gap: 16 },
+
+  // Generic card
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+  },
+  cardTitle: {
+    fontSize: 15,
     fontWeight: '800',
     color: Colors.text,
-    marginBottom: 24,
-  },
-  card: {
-    padding: 16,
-    marginBottom: 24,
-    borderRadius: 12,
-  },
-  profileCenter: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarContainer: {
-    position: 'relative',
     marginBottom: 12,
   },
+
+  // Avatar
+  avatarWrap: {
+    alignSelf: 'center',
+    width: 110, height: 110,
+    marginBottom: 14,
+    position: 'relative',
+  },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110, height: 110,
+    borderRadius: 55,
     backgroundColor: '#cbd5e1',
   },
-  cameraIcon: {
+  avatarBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: 4, right: 4,
+    width: 26, height: 26, borderRadius: 13,
     backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraIconText: {
-    fontSize: 14,
+    borderWidth: 2, borderColor: '#fff',
+    justifyContent: 'center', alignItems: 'center',
   },
   profileName: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: Colors.text,
-    marginBottom: 4,
+    textAlign: 'center',
+    marginBottom: 2,
   },
   memberSince: {
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 16,
   },
-  infoRows: {
-    marginTop: 8,
-  },
+
+  // Info rows
+  infoCol: { gap: 10, marginBottom: 18 },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
+    gap: 10,
   },
-  infoIcon: {
-    fontSize: 16,
-    marginRight: 12,
-    width: 24,
-    textAlign: 'center',
+  infoText: { fontSize: 13, color: Colors.text, fontWeight: '500' },
+
+  // Edit profile button
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    paddingVertical: 11,
   },
-  infoText: {
-    fontSize: 14,
+  editBtnText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+
+  // Quick actions list
+  quickList: {},
+  quickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  quickRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  quickIconBox: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  quickLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.text,
   },
-  editProfileLink: {
-    alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 8,
-  },
-  editProfileText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  walletRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
+
+  // Wallet row
+  walletRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
   walletCard: {
     flex: 1,
-    padding: 12,
-    borderRadius: 12,
+    minWidth: 140,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    gap: 6,
+  },
+  walletCardGradient: {
+    flex: 1,
+    minWidth: 140,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#4784E2',
   },
-  walletAccent: {
+  glob: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 4,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    width: 140, height: 140,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  walletLabel: {
+  globTopRight: { top: -55, right: -45 },
+  globBottomLeft: { bottom: -55, left: -45 },
+
+  walletEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  walletDot: {
+    width: 14, height: 14, borderRadius: 7,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  walletEyebrow: {
     fontSize: 10,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: 4,
-    marginTop: 4,
-  },
-  walletAmount: {
-    fontSize: 20,
     fontWeight: '800',
-    color: Colors.text,
-    marginBottom: 8,
+    color: '#94a3b8',
+    letterSpacing: 1,
   },
-  walletLink: {
-    fontSize: 12,
-    fontWeight: '600',
+  walletAmount: { fontSize: 24, fontWeight: '900', color: Colors.text, letterSpacing: -0.5 },
+  walletSubtext: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' },
+  walletLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
   },
+  walletLinkText: { fontSize: 11, fontWeight: '700' },
+
+  // Referral card
   referralCard: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 24,
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    padding: 22,
   },
-  referralHeader: {
+  referralTopRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18 },
+  referralTitle: { fontSize: 17, fontWeight: '800', color: '#fff' },
+  referralSubtitle: { fontSize: 13, color: '#94a3b8', marginTop: 3 },
+  referralGiftBox: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+
+  referralStatsRow: { flexDirection: 'row', gap: 24, marginBottom: 18, flexWrap: 'wrap' },
+  referralStat: { gap: 6 },
+  referralStatLabel: { fontSize: 11, color: '#94a3b8', fontWeight: '500' },
+  referralStatValue: { fontSize: 18, fontWeight: '800', color: '#fff' },
+
+  referralBtn: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
-  referralTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 4,
+  referralBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+
+  // Legal & support
+  legalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
   },
-  referralSubtitle: {
-    fontSize: 13,
+  legalEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
     color: '#94a3b8',
+    letterSpacing: 1,
+    marginBottom: 14,
   },
-  qrIcon: {
-    fontSize: 28,
-  },
-  referralStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  referralStat: {},
-  referralStatLabel: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginBottom: 4,
-  },
-  referralStatValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  referralLink: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 12,
-    marginLeft: 4,
-    textTransform: 'uppercase',
-  },
-  actionItem: {
+  legalRow: { flexDirection: 'row', gap: 24 },
+  legalCell: {
+    flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
-  actionItemText: {
-    fontSize: 16,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  arrow: {
-    fontSize: 24,
-    color: Colors.textSecondary,
-    lineHeight: 24,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 4,
-  },
-  activityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    marginLeft: 4,
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  activityStore: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  activityTime: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  activityRight: {
-    alignItems: 'flex-end',
-  },
-  activityAmount: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
+  legalLabel: { fontSize: 13, color: Colors.text, fontWeight: '500' },
 });

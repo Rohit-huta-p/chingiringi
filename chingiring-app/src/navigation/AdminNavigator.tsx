@@ -13,20 +13,20 @@ import { MobileAdminCoupons } from '../screens/Admin/MobileAdminCoupons';
 import { MobileAdminCouponUsage } from '../screens/Admin/MobileAdminCouponUsage';
 import { createAdminPlaceholder } from '../screens/Admin/AdminPlaceholderScreen';
 import { AdminDealsScreen } from '../screens/Admin/AdminDealsScreen';
+import { AdminProductsScreen } from '../screens/Admin/AdminProductsScreen';
+import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen';
+import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
+import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
+import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
 import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 
 const isMobile = Platform.OS !== 'web';
 
 // Placeholder screens for admin sections
 const AdminConversionsScreen = createAdminPlaceholder('Conversions');
-const AdminWithdrawalsScreen = createAdminPlaceholder('Withdrawals');
-const AdminUsersScreen = createAdminPlaceholder('Users Management');
-const AdminAllProductsScreen = createAdminPlaceholder('All Products');
 const AdminCategoriesScreen = createAdminPlaceholder('Categories');
 const AdminOrdersScreen = createAdminPlaceholder('Orders');
 const AdminInventoryScreen = createAdminPlaceholder('Inventory');
-const AdminBannersScreen = createAdminPlaceholder('Banners');
-const AdminCouponsScreen = createAdminPlaceholder('Coupons');
 
 // Lazy-load the desktop admin drawer (uses reanimated)
 const DesktopAdminDrawer = lazy(() => import('./DesktopAdminDrawer'));
@@ -43,7 +43,7 @@ function MobileAdminNavigator() {
       <Stack.Screen name="AdminConversions" component={AdminConversionsScreen} options={{ title: 'Conversions' }} />
       <Stack.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
-      <Stack.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminAllProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
+      <Stack.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
       <Stack.Screen name="AdminCategories" component={AdminCategoriesScreen} options={{ title: 'Categories' }} />
       <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
       <Stack.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />

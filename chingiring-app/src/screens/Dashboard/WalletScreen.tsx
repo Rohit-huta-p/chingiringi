@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
@@ -105,6 +106,18 @@ export const WalletScreen = () => {
         <View style={[styles.cardsRow, isMobile && { flexDirection: 'column' }]}>
           {/* Confirmed Balance Card */}
           <View style={[styles.confirmedCard, isMobile && { minWidth: 'auto' as any }]}>
+            {/* Gradient background */}
+            <LinearGradient
+              colors={['#4784E2', '#2D6BC9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            {/* Decorative globs (slightly off card edges) */}
+            <View pointerEvents="none" style={[styles.glob, styles.globTopRight]} />
+            <View pointerEvents="none" style={[styles.glob, styles.globBottomLeft]} />
+
+            {/* Content */}
             <View style={styles.cardIconContainer}>
               <Text style={styles.cardIconText}>{'💳'}</Text>
             </View>
@@ -116,39 +129,44 @@ export const WalletScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Pending Card */}
-          <View style={styles.balanceCard}>
-            <View style={styles.cardIconContainer}>
-              <Text style={styles.cardIconText}>{'🕐'}</Text>
-            </View>
-            <Text style={styles.cardLabel}>Pending</Text>
-            <Text style={styles.cardAmount}>{'\u20B9'}{wallet.pendingCashback}</Text>
-            <Text style={styles.cardSubText}>In lock period</Text>
-          </View>
+          <View style={{ flex: 2, gap: 20, flexDirection: 'column' }}>
+            <View style={[styles.cardsRow_Pending_Coins_Card, isMobile && { flexDirection: 'row' }]}>
+              {/* Pending Card */}
+              <View style={styles.balanceCard}>
+                <View style={styles.cardIconContainer}>
+                  <Text style={styles.cardIconText}>{'🕐'}</Text>
+                </View>
+                <Text style={styles.cardLabel}>Pending</Text>
+                <Text style={styles.cardAmount}>{'\u20B9'}{wallet.pendingCashback}</Text>
+                <Text style={styles.cardSubText}>In lock period</Text>
+              </View>
 
-          {/* Coins Card */}
-          <View style={styles.balanceCard}>
-            <View style={styles.cardIconContainer}>
-              <Text style={styles.cardIconText}>{'🪙'}</Text>
+              {/* Coins Card */}
+              <View style={styles.balanceCard}>
+                <View style={styles.cardIconContainer}>
+                  <Text style={styles.cardIconText}>{'🪙'}</Text>
+                </View>
+                <Text style={styles.cardLabel}>Coins</Text>
+                <Text style={styles.cardAmount}>{wallet.coins}</Text>
+                <Text style={styles.cardSubText}>Reward points</Text>
+              </View>
             </View>
-            <Text style={styles.cardLabel}>Coins</Text>
-            <Text style={styles.cardAmount}>{wallet.coins}</Text>
-            <Text style={styles.cardSubText}>Reward points</Text>
+            {/* Total Earned Row */}
+            <View style={styles.totalEarnedRow}>
+              <View style={styles.totalEarnedLeft}>
+                <Text style={styles.trendIcon}>{'📈'}</Text>
+                <Text style={styles.totalEarnedLabel}>Total Earned (Lifetime)</Text>
+                <Text style={styles.totalEarnedAmount}>{'$'}{wallet.lifetimeEarned}</Text>
+              </View>
+              <TouchableOpacity>
+                <Text style={styles.allTimeLink}>All time {'>'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
 
-      {/* Total Earned Row */}
-      <View style={styles.totalEarnedRow}>
-        <View style={styles.totalEarnedLeft}>
-          <Text style={styles.trendIcon}>{'📈'}</Text>
-          <Text style={styles.totalEarnedLabel}>Total Earned (Lifetime)</Text>
-          <Text style={styles.totalEarnedAmount}>{'\u20B9'}{wallet.lifetimeEarned}</Text>
-        </View>
-        <TouchableOpacity>
-          <Text style={styles.allTimeLink}>All time {'>'}</Text>
-        </TouchableOpacity>
-      </View>
+
 
       {/* Transaction History */}
       <View style={[styles.transactionSection, isMobile && { padding: 16 }]}>
@@ -264,16 +282,39 @@ const styles = StyleSheet.create({
   },
   cardsRow: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
+    gap: 14,
+    marginBottom: 18,
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+  },
+  cardsRow_Pending_Coins_Card: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 14,
     flexWrap: 'wrap',
   },
   confirmedCard: {
     flex: 1,
-    minWidth: 240,
     borderRadius: 20,
     padding: 24,
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#4784E2',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  glob: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  globTopRight: {
+    top: -70,
+    right: -60,
+  },
+  globBottomLeft: {
+    bottom: -80,
+    left: -50,
   },
   balanceCard: {
     flex: 1,
@@ -342,7 +383,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 20,
-    marginBottom: 32,
     borderWidth: 1,
     borderColor: Colors.border,
   },

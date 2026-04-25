@@ -11,8 +11,11 @@ export const getAdminBanners = async (req, res) => {
 // @desc    Get active banners
 // @route   GET /api/banners
 // @access  Public
+// Filters supported:
+//   ?slot=hero|flash-strip|dual-left|dual-right|earn-coins|refer-earn|inline-1|inline-2
+//   ?position=hero|sidebar|inline (legacy — kept for BC)
 export const getBanners = async (req, res) => {
-  const { position } = req.query;
+  const { position, slot } = req.query;
 
   const filter = {
     isActive: true,
@@ -20,7 +23,8 @@ export const getBanners = async (req, res) => {
     $or: [{ expiresAt: { $gt: new Date() } }, { expiresAt: null }],
   };
 
-  if (position) filter.position = position;
+  if (slot) filter.slot = slot;
+  else if (position) filter.position = position;
 
   const banners = await Banner.find(filter).sort('sortOrder').lean();
 
