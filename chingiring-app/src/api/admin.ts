@@ -86,6 +86,24 @@ export const adminAPI = {
     return response.data;
   },
 
+  // ─── Products ──────────────────────────────────────────────────────────────
+  getProducts: async (params?: { page?: number; limit?: number; search?: string }) => {
+    const response = await apiClient.get('/api/admin/products', { params });
+    return response.data;
+  },
+  createProduct: async (data: Record<string, any>) => {
+    const response = await apiClient.post('/api/products', data);
+    return response.data;
+  },
+  updateProduct: async (id: string, data: Record<string, any>) => {
+    const response = await apiClient.put(`/api/products/${id}`, data);
+    return response.data;
+  },
+  deleteProduct: async (id: string) => {
+    const response = await apiClient.delete(`/api/products/${id}`);
+    return response.data;
+  },
+
   // ─── Coupons ───────────────────────────────────────────────────────────────
   getCoupons: async () => {
     const response = await apiClient.get('/api/admin/coupons');

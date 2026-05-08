@@ -30,7 +30,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
-import { dealsAPI, categoriesAPI, Deal, Category } from '../../api/deals';
+import { categoriesAPI, Category } from '../../api/deals';
+import { productsAPI, Product } from '../../api/products';
 import {
   Banner as BannerModel,
   BannerSlot,
@@ -246,52 +247,52 @@ function ProductGrid({
   startIdx = 0,
   containerWidth,
   cols = 6,
-  onDealPress,
+  onProductPress,
   newBadgeCols = [],
   stockLeftCols = [],
-  deals = [],
+  products = [],
 }: {
   title: string;
   count?: string;
   startIdx?: number;
   containerWidth: number;
   cols?: number;
-  onDealPress: (dealId?: string) => void;
+  onProductPress: (productId?: string) => void;
   newBadgeCols?: number[];
   stockLeftCols?: { col: number; left: number }[];
-  deals?: Deal[];
+  products?: Product[];
 }) {
   const gap = 16;
   const cardW = (containerWidth - gap * (cols - 1)) / cols;
   const totalCount = cols * 2;
 
-  // Merge template (for synthetic price/rating/coins) with live deal data
-  // (title, description, image, brand, cashback). When deals are empty
-  // (loading / API error), falls back to full template content.
+  // Merge template (for synthetic rating/oldPrice/discount) with live product
+  // data (name, description, image, price, coinsPrice, stock). When products
+  // are empty (loading / API error), falls back to full template content.
   const items = Array.from({ length: totalCount }, (_, i) => {
     const tmplIdx = (startIdx + i) % PRODUCT_DETAILS.length;
     const tmpl = PRODUCT_DETAILS[tmplIdx];
-    if (deals.length === 0) {
+    if (products.length === 0) {
       return {
         ...tmpl,
         _id: undefined as string | undefined,
-        dealImage: undefined as string | undefined,
-        brand: '' as string,
-        discountOverride: undefined as number | undefined,
+        productImage: undefined as string | undefined,
+        category: '' as string,
+        productStock: undefined as number | undefined,
       };
     }
-    const dealIdx = (startIdx + i) % deals.length;
-    const deal = deals[dealIdx];
-    const cashbackPct =
-      deal.cashbackType === 'percentage' ? deal.cashbackPercent : tmpl.discount;
+    const prodIdx = (startIdx + i) % products.length;
+    const product = products[prodIdx];
     return {
       ...tmpl,
-      title: deal.title || tmpl.title,
-      subtitle: deal.description || deal.brand || tmpl.subtitle,
-      _id: deal._id,
-      dealImage: deal.imageUrl,
-      brand: deal.brand || '',
-      discountOverride: cashbackPct,
+      title: product.name || tmpl.title,
+      subtitle: product.description || product.category || tmpl.subtitle,
+      price: product.price ?? tmpl.price,
+      coins: product.coinsPrice ?? tmpl.coins,
+      _id: product._id,
+      productImage: product.imageUrl,
+      category: product.category || '',
+      productStock: product.stock,
     };
   });
   const rows = chunk(items, cols);
@@ -321,15 +322,19 @@ function ProductGrid({
           {row.map((item, idx) => {
             const globalIdx = rIdx * cols + idx;
             const image =
-              item.dealImage || PRODUCT_IMAGES[globalIdx % PRODUCT_IMAGES.length];
+              item.productImage || PRODUCT_IMAGES[globalIdx % PRODUCT_IMAGES.length];
             const isNew = newBadgeCols.includes(globalIdx);
-            const stock = stockLeftCols.find((s) => s.col === globalIdx);
-            const discount = item.discountOverride ?? item.discount;
+            const stockHint = stockLeftCols.find((s) => s.col === globalIdx);
+            const stockLeft =
+              item.productStock != null && item.productStock > 0 && item.productStock <= 15
+                ? item.productStock
+                : stockHint?.left;
+            const discount = item.discount;
             return (
               <ProductCard
                 key={`${rIdx}-${idx}-${item._id ?? globalIdx}`}
                 image={image}
-                brand={item.brand || ''}
+                brand={item.category || ''}
                 title={item.title}
                 subtitle={item.subtitle}
                 price={item.price}
@@ -342,8 +347,8 @@ function ProductGrid({
                   color: '#4784E2',
                 }}
                 isNew={isNew}
-                stockLeft={stock?.left}
-                onPress={() => onDealPress(item._id)}
+                stockLeft={stockLeft}
+                onPress={() => onProductPress(item._id)}
                 width={cardW}
               />
             );
@@ -558,11 +563,11 @@ function EarnCoinsBanner({
 function MoreToExploreSection({
   containerWidth,
   onPress,
-  deals = [],
+  products = [],
 }: {
   containerWidth: number;
-  onPress: (dealId?: string) => void;
-  deals?: Deal[];
+  onPress: (productId?: string) => void;
+  products?: Product[];
 }) {
   return (
     <ProductGrid
@@ -571,10 +576,10 @@ function MoreToExploreSection({
       startIdx={15}
       containerWidth={containerWidth}
       cols={6}
-      onDealPress={onPress}
+      onProductPress={onPress}
       stockLeftCols={[{ col: 1, left: 12 }]}
       newBadgeCols={[3]}
-      deals={deals}
+      products={products}
     />
   );
 }
@@ -781,17 +786,17 @@ export const HomeScreen = () => {
   const horizPad = 32 * 2;
   const contentW = Math.max(900, width - sidebarW - horizPad);
 
-  // Fetch all deals (paginated from server, default page size)
-  const { data: dealsData, isLoading: dealsLoading } = useQuery({
-    queryKey: ['deals'],
-    queryFn: () => dealsAPI.getDeals(),
+  // Fetch all products (paginated from server, default page size)
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => productsAPI.getProducts({ limit: 24 }),
     staleTime: 60_000,
   });
 
-  // Featured deals (server-side filtered)
+  // Featured products (server-side filtered)
   const { data: featuredData } = useQuery({
-    queryKey: ['deals', 'featured'],
-    queryFn: () => dealsAPI.getFeaturedDeals(),
+    queryKey: ['products', 'featured'],
+    queryFn: () => productsAPI.getFeaturedProducts(),
     staleTime: 60_000,
   });
 
@@ -811,25 +816,25 @@ export const HomeScreen = () => {
   });
 
   // Extract arrays with fallback normalization (handles a few backend shapes:
-  // { data: { deals } }, { deals }, { data: Deal[] }, raw array).
-  const deals: Deal[] =
-    dealsData?.data?.deals ?? dealsData?.deals ?? dealsData?.data ?? [];
-  const featuredDeals: Deal[] =
-    featuredData?.data?.deals ?? featuredData?.deals ?? featuredData?.data ?? [];
+  // { data: { products } }, { products }, { data: Product[] }, raw array).
+  const products: Product[] =
+    productsData?.data?.products ?? productsData?.products ?? productsData?.data ?? [];
+  const featuredProducts: Product[] =
+    featuredData?.data?.products ?? featuredData?.products ?? featuredData?.data ?? [];
   const categories: Category[] =
     categoriesData?.data?.categories ??
     categoriesData?.categories ??
     categoriesData?.data ??
     [];
-  // Prefer featured for the featured-looking sections; fall back to general deals.
-  const featuredOrAll: Deal[] = featuredDeals.length > 0 ? featuredDeals : deals;
+  // Prefer featured for the featured-looking sections; fall back to all products.
+  const featuredOrAll: Product[] = featuredProducts.length > 0 ? featuredProducts : products;
 
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
   const bySlot = bucketBySlot(allBanners);
   const firstBannerFor = (slot: BannerSlot): BannerModel | null =>
     bySlot[slot]?.[0] ?? null;
 
-  if (dealsLoading) {
+  if (productsLoading) {
     return (
       <View style={[s.root, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -837,8 +842,8 @@ export const HomeScreen = () => {
     );
   }
 
-  const onProductPress = (dealId?: string) => {
-    navigation.navigate('ProductDetail', { dealId: dealId || 'sample' });
+  const onProductPress = (productId?: string) => {
+    navigation.navigate('ProductDetail', { productId: productId || 'sample' });
   };
 
   const onCategoryPress = (name: string) => {
@@ -864,13 +869,13 @@ export const HomeScreen = () => {
 
           <ProductGrid
             title="All Products"
-            count={deals.length ? `${deals.length} items` : '6 items'}
+            count={products.length ? `${products.length} items` : '6 items'}
             startIdx={0}
             containerWidth={contentW}
             cols={6}
-            onDealPress={onProductPress}
+            onProductPress={onProductPress}
             stockLeftCols={[{ col: 1, left: 8 }]}
-            deals={deals}
+            products={products}
           />
 
           <PromoStrip banner={firstBannerFor('flash-strip')} />
@@ -881,9 +886,9 @@ export const HomeScreen = () => {
             startIdx={0}
             containerWidth={contentW}
             cols={6}
-            onDealPress={onProductPress}
+            onProductPress={onProductPress}
             newBadgeCols={[3, 5]}
-            deals={featuredOrAll}
+            products={featuredOrAll}
           />
 
           <DualBanner
@@ -897,10 +902,10 @@ export const HomeScreen = () => {
             startIdx={6}
             containerWidth={contentW}
             cols={6}
-            onDealPress={onProductPress}
+            onProductPress={onProductPress}
             newBadgeCols={[0, 1, 2, 3, 6]}
             stockLeftCols={[{ col: 5, left: 5 }]}
-            deals={deals}
+            products={products}
           />
 
           <EarnCoinsBanner
@@ -911,7 +916,7 @@ export const HomeScreen = () => {
           <MoreToExploreSection
             containerWidth={contentW}
             onPress={onProductPress}
-            deals={deals}
+            products={products}
           />
 
           <ReferBanner
@@ -931,8 +936,8 @@ export const HomeScreen = () => {
             startIdx={3}
             containerWidth={contentW}
             cols={6}
-            onDealPress={onProductPress}
-            deals={featuredOrAll}
+            onProductPress={onProductPress}
+            products={featuredOrAll}
           />
         </View>
       </ScrollView>
