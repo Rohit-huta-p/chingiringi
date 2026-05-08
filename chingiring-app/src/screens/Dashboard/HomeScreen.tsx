@@ -220,26 +220,41 @@ const PRODUCT_DETAILS: {
   coins: number;
   discount: number;
 }[] = [
-  { title: 'Wireless Headphones', subtitle: 'Premium noise-cancelling', rating: 4.5, ratingCount: 128, price: 2999, oldPrice: 5999, coins: 15000, discount: 50 },
-  { title: 'Travel Backpack', subtitle: 'Durable waterproof backpack', rating: 4.7, ratingCount: 245, price: 1499, oldPrice: 2499, coins: 7500, discount: 40 },
-  { title: 'Yoga Mat Premium', subtitle: 'Extra thick non-slip yoga mat', rating: 4.6, ratingCount: 312, price: 899, oldPrice: 1499, coins: 4500, discount: 40 },
-  { title: 'Smart Watch', subtitle: 'Fitness tracking smartwatch', rating: 4.3, ratingCount: 89, price: 4999, oldPrice: 8999, coins: 25000, discount: 44 },
-  { title: 'Portable Speaker', subtitle: '360° surround sound, IPX7', rating: 4.4, ratingCount: 156, price: 1999, oldPrice: 3499, coins: 10000, discount: 43 },
-  { title: 'Stainless Water Bottle', subtitle: 'Double-wall insulated', rating: 4.8, ratingCount: 520, price: 599, oldPrice: 999, coins: 3000, discount: 40 },
-  { title: 'Running Shoes', subtitle: 'Lightweight breathable mesh', rating: 4.5, ratingCount: 203, price: 2499, oldPrice: 4499, coins: 12500, discount: 44 },
-  { title: 'Desk Lamp LED', subtitle: 'Eye-care dimmable USB lamp', rating: 4.2, ratingCount: 94, price: 799, oldPrice: 1299, coins: 4000, discount: 38 },
-  { title: 'White Sneakers', subtitle: 'Premium leather casual shoe', rating: 4.6, ratingCount: 317, price: 1799, oldPrice: 3299, coins: 9000, discount: 45 },
-  { title: 'Vitamin C Serum', subtitle: 'Brightening glow serum 30ml', rating: 4.7, ratingCount: 489, price: 649, oldPrice: 1299, coins: 3250, discount: 50 },
-  { title: 'Mech Keyboard', subtitle: 'TKL tactile switches, RGB', rating: 4.5, ratingCount: 156, price: 3499, oldPrice: 5999, coins: 17500, discount: 42 },
-  { title: 'Resistance Bands', subtitle: '5-level set with carry bag', rating: 4.4, ratingCount: 198, price: 549, oldPrice: 999, coins: 2750, discount: 45 },
-  { title: 'Air Purifier', subtitle: 'HEPA H13, covers 400 sq ft', rating: 4.4, ratingCount: 78, price: 5999, oldPrice: 9999, coins: 30000, discount: 40 },
-  { title: 'Laptop Sleeve 15in', subtitle: 'Water-resistant felt case', rating: 4.5, ratingCount: 145, price: 699, oldPrice: 1299, coins: 3500, discount: 46 },
-  { title: 'Gaming Earphones', subtitle: '7.1 surround, mic, RGB', rating: 4.2, ratingCount: 113, price: 1499, oldPrice: 2799, coins: 7500, discount: 46 },
-  { title: 'Protein Powder', subtitle: 'Whey isolate 2kg, 60 servings', rating: 4.3, ratingCount: 224, price: 1999, oldPrice: 3499, coins: 10000, discount: 43 },
-  { title: 'Aviator Sunglasses', subtitle: 'UV400 polarized lenses', rating: 4.5, ratingCount: 192, price: 899, oldPrice: 1599, coins: 4500, discount: 55 },
-  { title: 'Electric Toothbrush', subtitle: 'Sonic, 4 cleaning modes', rating: 4.6, ratingCount: 341, price: 1299, oldPrice: 2399, coins: 6500, discount: 46 },
-  { title: 'Luxury Perfume', subtitle: 'Eau de parfum 100ml', rating: 4.2, ratingCount: 112, price: 2199, oldPrice: 4499, coins: 11000, discount: 51 },
-];
+    { title: 'Wireless Headphones', subtitle: 'Premium noise-cancelling', rating: 4.5, ratingCount: 128, price: 2999, oldPrice: 5999, coins: 15000, discount: 50 },
+    { title: 'Travel Backpack', subtitle: 'Durable waterproof backpack', rating: 4.7, ratingCount: 245, price: 1499, oldPrice: 2499, coins: 7500, discount: 40 },
+    { title: 'Yoga Mat Premium', subtitle: 'Extra thick non-slip yoga mat', rating: 4.6, ratingCount: 312, price: 899, oldPrice: 1499, coins: 4500, discount: 40 },
+    { title: 'Smart Watch', subtitle: 'Fitness tracking smartwatch', rating: 4.3, ratingCount: 89, price: 4999, oldPrice: 8999, coins: 25000, discount: 44 },
+    { title: 'Portable Speaker', subtitle: '360° surround sound, IPX7', rating: 4.4, ratingCount: 156, price: 1999, oldPrice: 3499, coins: 10000, discount: 43 },
+    { title: 'Stainless Water Bottle', subtitle: 'Double-wall insulated', rating: 4.8, ratingCount: 520, price: 599, oldPrice: 999, coins: 3000, discount: 40 },
+    { title: 'Running Shoes', subtitle: 'Lightweight breathable mesh', rating: 4.5, ratingCount: 203, price: 2499, oldPrice: 4499, coins: 12500, discount: 44 },
+    { title: 'Desk Lamp LED', subtitle: 'Eye-care dimmable USB lamp', rating: 4.2, ratingCount: 94, price: 799, oldPrice: 1299, coins: 4000, discount: 38 },
+    { title: 'White Sneakers', subtitle: 'Premium leather casual shoe', rating: 4.6, ratingCount: 317, price: 1799, oldPrice: 3299, coins: 9000, discount: 45 },
+    { title: 'Vitamin C Serum', subtitle: 'Brightening glow serum 30ml', rating: 4.7, ratingCount: 489, price: 649, oldPrice: 1299, coins: 3250, discount: 50 },
+    { title: 'Mech Keyboard', subtitle: 'TKL tactile switches, RGB', rating: 4.5, ratingCount: 156, price: 3499, oldPrice: 5999, coins: 17500, discount: 42 },
+    { title: 'Resistance Bands', subtitle: '5-level set with carry bag', rating: 4.4, ratingCount: 198, price: 549, oldPrice: 999, coins: 2750, discount: 45 },
+    { title: 'Air Purifier', subtitle: 'HEPA H13, covers 400 sq ft', rating: 4.4, ratingCount: 78, price: 5999, oldPrice: 9999, coins: 30000, discount: 40 },
+    { title: 'Laptop Sleeve 15in', subtitle: 'Water-resistant felt case', rating: 4.5, ratingCount: 145, price: 699, oldPrice: 1299, coins: 3500, discount: 46 },
+    { title: 'Gaming Earphones', subtitle: '7.1 surround, mic, RGB', rating: 4.2, ratingCount: 113, price: 1499, oldPrice: 2799, coins: 7500, discount: 46 },
+    { title: 'Protein Powder', subtitle: 'Whey isolate 2kg, 60 servings', rating: 4.3, ratingCount: 224, price: 1999, oldPrice: 3499, coins: 10000, discount: 43 },
+    { title: 'Aviator Sunglasses', subtitle: 'UV400 polarized lenses', rating: 4.5, ratingCount: 192, price: 899, oldPrice: 1599, coins: 4500, discount: 55 },
+    { title: 'Electric Toothbrush', subtitle: 'Sonic, 4 cleaning modes', rating: 4.6, ratingCount: 341, price: 1299, oldPrice: 2399, coins: 6500, discount: 46 },
+    { title: 'Luxury Perfume', subtitle: 'Eau de parfum 100ml', rating: 4.2, ratingCount: 112, price: 2199, oldPrice: 4499, coins: 11000, discount: 51 },
+  ];
+
+type GridItem = {
+  title: string;
+  subtitle: string;
+  rating: number;
+  ratingCount: number;
+  price: number;
+  oldPrice: number;
+  coins: number;
+  discount: number;
+  _id?: string;
+  productImage?: string;
+  category: string;
+  productStock?: number;
+};
 
 function ProductGrid({
   title,
@@ -257,7 +272,7 @@ function ProductGrid({
   startIdx?: number;
   containerWidth: number;
   cols?: number;
-  onProductPress: (productId?: string) => void;
+  onProductPress: (item: GridItem) => void;
   newBadgeCols?: number[];
   stockLeftCols?: { col: number; left: number }[];
   products?: Product[];
@@ -348,7 +363,7 @@ function ProductGrid({
                 }}
                 isNew={isNew}
                 stockLeft={stockLeft}
-                onPress={() => onProductPress(item._id)}
+                onPress={() => onProductPress({ ...item, productImage: image })}
                 width={cardW}
               />
             );
@@ -566,7 +581,7 @@ function MoreToExploreSection({
   products = [],
 }: {
   containerWidth: number;
-  onPress: (productId?: string) => void;
+  onPress: (item: GridItem) => void;
   products?: Product[];
 }) {
   return (
@@ -842,8 +857,14 @@ export const HomeScreen = () => {
     );
   }
 
-  const onProductPress = (productId?: string) => {
-    navigation.navigate('ProductDetail', { productId: productId || 'sample' });
+  const onProductPress = (item: GridItem) => {
+    // Pass the resolved item so the detail screen can render instantly,
+    // and pass productId separately so it can refetch fresh data when
+    // the click came from a real (non-template) product.
+    navigation.navigate('ProductDetail', {
+      productId: item._id,
+      product: item,
+    });
   };
 
   const onCategoryPress = (name: string) => {

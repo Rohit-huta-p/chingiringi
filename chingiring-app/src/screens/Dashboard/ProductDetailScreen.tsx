@@ -6,6 +6,7 @@ import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
+import { productsAPI } from '../../api/products';
 
 const SIZES = ['30', '32', '34', '36'];
 
@@ -27,6 +28,9 @@ export const ProductDetailScreen = () => {
   const route = useRoute<any>();
   const passedDeal = route.params?.deal;
   const dealId = route.params?.dealId;
+  const passedProduct = route.params?.product;
+  const productId = route.params?.productId;
+  const isProductMode = !!(passedProduct || productId);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
   const { data: fetchedDealResponse } = useQuery({
@@ -35,7 +39,20 @@ export const ProductDetailScreen = () => {
     enabled: !!dealId && !passedDeal,
   });
 
+  // In product mode, fetch the live product when we only got an id.
+  // Skip for "sample"/missing ids — those came from template fallback rows
+  // (no real DB entry), so we just render the passed product object.
+  const { data: fetchedProductResponse } = useQuery({
+    queryKey: ['product', productId],
+    queryFn: () => productsAPI.getProduct(productId),
+    enabled: !!productId && !passedProduct && productId !== 'sample',
+  });
+
   const deal = passedDeal || fetchedDealResponse?.data?.deal || fetchedDealResponse?.data;
+  const product =
+    passedProduct ||
+    fetchedProductResponse?.data?.product ||
+    fetchedProductResponse?.data;
 
   const handleShopNow = async () => {
     const url = deal?.affiliateUrl;
@@ -48,6 +65,7 @@ export const ProductDetailScreen = () => {
     }
   };
 
+  // \u2500\u2500 Deal-mode bindings (used when navigation passes deal/dealId) \u2500\u2500
   const title = deal?.title || deal?.description || 'Flat 50% Off on Top Brands';
   const brand = deal?.brand || 'Myntra';
   const categoryName = deal?.category?.name || 'Fashion';
@@ -56,13 +74,48 @@ export const ProductDetailScreen = () => {
   const flatCashback = deal?.flatCashback ?? 0;
   const expiresAt = deal?.expiresAt;
   const lockPeriodDays = deal?.lockPeriodDays ?? 45;
-  const imageUrl = deal?.imageUrl;
+  const dealImageUrl = deal?.imageUrl;
   const termsAndConditions = deal?.termsAndConditions || '';
   const terms = termsAndConditions
     ? termsAndConditions.split('\n').filter(Boolean)
     : ['Max cashback 500', 'Valid only for new users', 'Cashback tracks in 48 hours'];
   const cashbackDisplay =
     cashbackType === 'flat' ? `\u20B9${flatCashback}` : `${cashbackPercent}%`;
+
+  // \u2500\u2500 Product-mode bindings (used when navigation passes product/productId) \u2500\u2500
+  // Accepts both shapes: the merged HomeScreen template item ({ title,
+  // subtitle, productImage, oldPrice, coins, discount, productStock, ... })
+  // and the raw API Product ({ name, description, imageUrl, price,
+  // coinsPrice, stock, ... }).
+  const productName = product?.title || product?.name || 'Product';
+  const productImage = product?.productImage || product?.imageUrl;
+  const productCategory = product?.category?.name || product?.category || '';
+  const productPrice = product?.price ?? 0;
+  const productOldPrice = product?.oldPrice ?? 0;
+  const productCoins = product?.coins ?? product?.coinsPrice ?? 0;
+  const productStock = product?.productStock ?? product?.stock;
+  const productDescription = product?.subtitle || product?.description || '';
+  const productRating = product?.rating;
+  const productRatingCount = product?.ratingCount;
+  const productDiscount = product?.discount;
+  const stockLabel =
+    productStock == null
+      ? 'In stock'
+      : productStock === 0
+        ? 'Out of stock'
+        : productStock <= 15
+          ? `Only ${productStock} left`
+          : 'In stock';
+
+  const priceFmt = (n: number) => `\u20B9${(n || 0).toLocaleString('en-IN')}`;
+
+  // Image + identity used by the shared image panel.
+  const imageUrl = isProductMode ? productImage : dealImageUrl;
+  const overlayPrimary = isProductMode ? productName : brand;
+  const overlaySecondary = isProductMode
+    ? productCategory || 'Product'
+    : categoryName;
+  const overlayLabel = isProductMode ? 'Available at' : 'Shop at';
 
   // ─── Image Panel ──────────────────────────────────────────────────────
   const imagePanel = (
@@ -91,11 +144,154 @@ export const ProductDetailScreen = () => {
 
       {/* Brand overlay at bottom */}
       <View style={styles.brandOverlay}>
-        <Text style={styles.brandOverlayLabel}>Shop at</Text>
-        <Text style={styles.brandOverlayName}>{brand}</Text>
-        <Text style={styles.brandOverlayCategory}>{categoryName}</Text>
+        <Text style={styles.brandOverlayLabel}>{overlayLabel}</Text>
+        <Text style={styles.brandOverlayName}>{overlayPrimary}</Text>
+        <Text style={styles.brandOverlayCategory}>{overlaySecondary}</Text>
       </View>
     </View>
+  );
+
+  // ─── Product Details Panel ────────────────────────────────────────────
+  const productDetailsPanel = (
+    <ScrollView
+      style={[styles.detailsScroll, isDesktop && styles.detailsScrollDesktop]}
+      contentContainerStyle={styles.detailsContent}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Tags: Category + Stock status */}
+      <View style={styles.tagsRow}>
+        {productCategory ? (
+          <View style={[styles.tagPill, styles.tagBlue]}>
+            <Text style={[styles.tagText, styles.tagBlueText]}>
+              {'◇'} {productCategory}
+            </Text>
+          </View>
+        ) : null}
+        <View
+          style={[
+            styles.tagPill,
+            productStock === 0 ? styles.tagOrange : styles.tagBlue,
+          ]}
+        >
+          <Text
+            style={[
+              styles.tagText,
+              productStock === 0 ? styles.tagOrangeText : styles.tagBlueText,
+            ]}
+          >
+            {'◇'} {stockLabel}
+          </Text>
+        </View>
+      </View>
+
+      {/* Title + description */}
+      <Text style={styles.productTitle}>{productName}</Text>
+      {productDescription ? (
+        <Text style={styles.productSubtitle}>{productDescription}</Text>
+      ) : null}
+
+      {/* Stat cards: Price (with old price) + Coins reward */}
+      <View style={styles.statCardsRow}>
+        <Card style={styles.statCard}>
+          <View style={styles.statHeaderRow}>
+            <View style={styles.statIconCircle}>
+              <Text style={styles.statIconText}>{'₹'}</Text>
+            </View>
+            <Text style={styles.statLabel}>PRICE</Text>
+          </View>
+          <Text style={styles.statValue}>{priceFmt(productPrice)}</Text>
+          {productOldPrice > 0 && productOldPrice > productPrice ? (
+            <Text style={[styles.statSub, { textDecorationLine: 'line-through' }]}>
+              {priceFmt(productOldPrice)}
+            </Text>
+          ) : (
+            <Text style={styles.statSub}>Inclusive of taxes</Text>
+          )}
+        </Card>
+        <Card style={styles.statCard}>
+          <View style={styles.statHeaderRow}>
+            <View style={[styles.statIconCircle, { backgroundColor: '#fef3c7' }]}>
+              <Text style={[styles.statIconText, { color: '#b45309' }]}>{'◆'}</Text>
+            </View>
+            <Text style={styles.statLabel}>COINS</Text>
+          </View>
+          <Text style={styles.statValue}>
+            {productCoins.toLocaleString('en-IN')}
+          </Text>
+          <Text style={styles.statSub}>Or pay with coins</Text>
+        </Card>
+      </View>
+
+      {/* Discount / Rating row (when synthetic template fields are present) */}
+      {productDiscount || productRating ? (
+        <Card style={styles.lockCard}>
+          <View style={styles.lockRow}>
+            <View style={[styles.lockIconCircle, { backgroundColor: '#fef9c3' }]}>
+              <Text style={[styles.lockIconText, { color: '#b45309' }]}>★</Text>
+            </View>
+            <View style={styles.lockTextContainer}>
+              <Text style={styles.lockTitle}>
+                {productRating ? `${productRating.toFixed(1)} rating` : 'Top pick'}
+                {productRatingCount ? ` (${productRatingCount.toLocaleString('en-IN')} reviews)` : ''}
+              </Text>
+              <Text style={styles.lockDescription}>
+                {productDiscount
+                  ? `Save ${productDiscount}% off MRP — limited-time offer.`
+                  : 'Customer favourite based on recent orders.'}
+              </Text>
+            </View>
+          </View>
+        </Card>
+      ) : null}
+
+      {/* Stock card */}
+      <Card style={styles.lockCard}>
+        <View style={styles.lockRow}>
+          <View style={styles.lockIconCircle}>
+            <Text style={styles.lockIconText}>{'✓'}</Text>
+          </View>
+          <View style={styles.lockTextContainer}>
+            <Text style={styles.lockTitle}>{stockLabel}</Text>
+            <Text style={styles.lockDescription}>
+              {productStock === 0
+                ? 'This item is currently sold out. Check back soon.'
+                : 'Ships within 24 hours of order confirmation.'}
+            </Text>
+          </View>
+        </View>
+      </Card>
+
+      {/* Description card (only when description has more than the subtitle) */}
+      {productDescription ? (
+        <Card style={styles.card}>
+          <View style={styles.termsHeader}>
+            <View style={styles.termsIconCircle}>
+              <Text style={styles.termsIconText}>i</Text>
+            </View>
+            <Text style={styles.termsTitle}>About this item</Text>
+          </View>
+          <Text style={[styles.termText, { marginLeft: 0 }]}>
+            {productDescription}
+          </Text>
+        </Card>
+      ) : null}
+
+      {/* CTA */}
+      <Button
+        title={productStock === 0 ? 'Notify Me When Available' : 'Buy Now ↗'}
+        onPress={() => {
+          if (productStock === 0) return;
+          Alert.alert(
+            'Coming soon',
+            'Checkout flow is not wired up yet — you reached the product detail screen successfully!'
+          );
+        }}
+        style={styles.ctaButton}
+      />
+      <Text style={styles.helperText}>
+        Earn coins on every purchase · Free shipping over ₹999
+      </Text>
+    </ScrollView>
   );
 
   // ─── Details Panel ────────────────────────────────────────────────────
@@ -215,12 +411,16 @@ export const ProductDetailScreen = () => {
     </ScrollView>
   );
 
+  // Pick the panel for the current navigation mode. Product mode renders
+  // price/coins/stock; deal mode keeps the existing cashback/lock/terms UI.
+  const activePanel = isProductMode ? productDetailsPanel : detailsPanel;
+
   // ─── Layout ───────────────────────────────────────────────────────────
   if (isDesktop) {
     return (
       <View style={styles.desktopContainer}>
         {imagePanel}
-        {detailsPanel}
+        {activePanel}
       </View>
     );
   }
@@ -229,7 +429,7 @@ export const ProductDetailScreen = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.mobileScrollContent}>
       {imagePanel}
-      <View style={styles.mobileDetails}>{detailsPanel}</View>
+      <View style={styles.mobileDetails}>{activePanel}</View>
     </ScrollView>
   );
 };
