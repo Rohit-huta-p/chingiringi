@@ -2,12 +2,15 @@ import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Modal, Dimensions, Alert, Platform, Image, useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Plus, X, Edit2, Trash2, Search, Package, Circle,
 } from 'lucide-react-native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Colors, Spacing, Gradient } from '../../constants/theme';
+import { adminAPI } from '../../api/admin';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -24,47 +27,6 @@ interface Product {
   isActive: boolean;
   createdAt?: string;
 }
-
-// ─── Fallback data (UI-only, no backend yet) ────────────────────────────────
-
-const FALLBACK: Product[] = [
-  {
-    _id: '1',
-    name: 'Wireless Headphones',
-    description: 'Premium noise-cancelling headphones',
-    category: 'Electronics',
-    price: 2999,
-    coinsPrice: 15000,
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600',
-    stock: 45,
-    sold: 128,
-    isActive: true,
-  },
-  {
-    _id: '2',
-    name: 'Smart Watch',
-    description: 'Fitness tracking smartwatch',
-    category: 'Electronics',
-    price: 4999,
-    coinsPrice: 25000,
-    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600',
-    stock: 12,
-    sold: 89,
-    isActive: false,
-  },
-  {
-    _id: '3',
-    name: 'Travel Backpack',
-    description: 'Durable waterproof backpack',
-    category: 'Accessories',
-    price: 1499,
-    coinsPrice: 7500,
-    imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600',
-    stock: 8,
-    sold: 245,
-    isActive: true,
-  },
-];
 
 // ─── Add/Edit Product Modal ─────────────────────────────────────────────────
 
@@ -299,11 +261,40 @@ function ProductCard({
 // ─── Main Screen ────────────────────────────────────────────────────────────
 
 export function AdminProductsScreen() {
-  const [products, setProducts] = useState<Product[]>(FALLBACK);
+  const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const { width: viewportWidth } = useWindowDimensions();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['admin', 'products'],
+    queryFn: () => adminAPI.getProducts({ limit: 200 }),
+    staleTime: 30_000,
+  });
+
+  const products: Product[] = data?.data?.products ?? [];
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['admin', 'products'] });
+
+  const createMutation = useMutation({
+    mutationFn: (payload: Record<string, any>) => adminAPI.createProduct(payload),
+    onSuccess: invalidate,
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message || 'Failed to create product'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Record<string, any> }) =>
+      adminAPI.updateProduct(id, payload),
+    onSuccess: invalidate,
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message || 'Failed to update product'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminAPI.deleteProduct(id),
+    onSuccess: invalidate,
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message || 'Failed to delete product'),
+  });
 
   const filtered = useMemo(() => {
     if (!search.trim()) return products;
@@ -326,19 +317,29 @@ export function AdminProductsScreen() {
   const cardWidth = (contentWidth - gap * (cols - 1)) / cols;
 
   const handleSave = (p: Product) => {
-    setProducts((prev) => {
-      const exists = prev.find((x) => x._id === p._id);
-      if (exists) return prev.map((x) => (x._id === p._id ? p : x));
-      return [p, ...prev];
-    });
+    const payload = {
+      name: p.name,
+      description: p.description,
+      category: p.category,
+      price: p.price,
+      coinsPrice: p.coinsPrice,
+      imageUrl: p.imageUrl,
+      stock: p.stock,
+      isActive: p.isActive,
+    };
+    if (editProduct) {
+      updateMutation.mutate({ id: editProduct._id, payload });
+    } else {
+      createMutation.mutate(payload);
+    }
   };
 
-  const handleToggle = (id: string) => {
-    setProducts((prev) => prev.map((p) => (p._id === id ? { ...p, isActive: !p.isActive } : p)));
+  const handleToggle = (p: Product) => {
+    updateMutation.mutate({ id: p._id, payload: { isActive: !p.isActive } });
   };
 
   const handleDelete = (id: string, name: string) => {
-    const remove = () => setProducts((prev) => prev.filter((p) => p._id !== id));
+    const remove = () => deleteMutation.mutate(id);
     if (Platform.OS === 'web') {
       if (confirm(`Delete "${name}"?`)) remove();
     } else {
@@ -414,7 +415,17 @@ export function AdminProductsScreen() {
       </View>
 
       {/* Product grid */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.emptyText}>Loading products…</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.emptyState}>
+          <Package size={48} color="#ef4444" strokeWidth={1.5} />
+          <Text style={styles.emptyText}>Failed to load products. Try again.</Text>
+        </View>
+      ) : filtered.length === 0 ? (
         <View style={styles.emptyState}>
           <Package size={48} color="#cbd5e1" strokeWidth={1.5} />
           <Text style={styles.emptyText}>
@@ -430,7 +441,7 @@ export function AdminProductsScreen() {
               key={p._id}
               product={p}
               cardWidth={cardWidth}
-              onToggle={() => handleToggle(p._id)}
+              onToggle={() => handleToggle(p)}
               onEdit={() => { setEditProduct(p); setShowForm(true); }}
               onDelete={() => handleDelete(p._id, p.name)}
             />

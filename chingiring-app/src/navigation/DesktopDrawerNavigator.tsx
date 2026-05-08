@@ -4,6 +4,7 @@ import { Colors } from '../constants/theme';
 import { Sidebar } from '../components/Sidebar';
 import { SettingsScreen } from '../screens/Dashboard/SettingsScreen';
 import { HomeScreen } from '../screens/Dashboard/HomeScreen';
+import { DealsListScreen } from '../screens/Dashboard/DealsListScreen';
 import { WalletScreen } from '../screens/Dashboard/WalletScreen';
 import { ReferScreen } from '../screens/Dashboard/ReferScreen';
 import { ProfileScreen } from '../screens/Dashboard/ProfileScreen';
@@ -37,6 +38,7 @@ export default function DesktopDrawerNavigator() {
       }}
     >
       <Drawer.Screen name="Home" component={HomeScreen} />
+      <Drawer.Screen name="Deals" component={DealsListScreen} />
       <Drawer.Screen name="Wallet" component={WalletScreen} />
       <Drawer.Screen name="Referrals" component={ReferScreen} />
       <Drawer.Screen name="OfflineStores" component={OfflineStoresScreen} />
