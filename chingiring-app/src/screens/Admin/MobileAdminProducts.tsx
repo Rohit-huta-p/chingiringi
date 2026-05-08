@@ -27,7 +27,9 @@ import {
   Ticket,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store';
+import { adminAPI } from '../../api/admin';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -61,14 +63,6 @@ interface Product {
   sold: number;
   isActive: boolean;
 }
-
-// ─── Fallback ───────────────────────────────────────────────────────
-
-const FALLBACK: Product[] = [
-  { _id: '1', name: 'Wireless Headphones', description: 'Premium noise-cancelling headphones', price: 2999, coinsPrice: 15000, imageUrl: '', stock: 45, sold: 128, isActive: true },
-  { _id: '2', name: 'Smart Watch', description: 'Fitness tracking smartwatch', price: 4999, coinsPrice: 25000, imageUrl: '', stock: 12, sold: 89, isActive: false },
-  { _id: '3', name: 'Travel Backpack', description: 'Durable waterproof backpack', price: 1499, coinsPrice: 7500, imageUrl: '', stock: 8, sold: 245, isActive: true },
-];
 
 const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : n.toLocaleString();
 
@@ -132,10 +126,29 @@ export const MobileAdminProducts = () => {
   const nav = useNavigation<any>();
   const userName = useAuthStore((s) => s.user?.name);
   const [search, setSearch] = useState('');
+  const qc = useQueryClient();
 
-  // TODO: Replace with actual admin products API
-  const products: Product[] = FALLBACK;
-  const isLoading = false;
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'products'],
+    queryFn: () => adminAPI.getProducts({ limit: 200 }),
+    staleTime: 30_000,
+  });
+  const products: Product[] = data?.data?.products ?? [];
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['admin', 'products'] });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      adminAPI.updateProduct(id, { isActive }),
+    onSuccess: invalidate,
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message || 'Failed to update product'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminAPI.deleteProduct(id),
+    onSuccess: invalidate,
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message || 'Failed to delete product'),
+  });
 
   const filtered = useMemo(() => {
     if (!search.trim()) return products;
@@ -147,10 +160,14 @@ export const MobileAdminProducts = () => {
   const totalSold = products.reduce((sum, p) => sum + p.sold, 0);
   const totalRevenue = products.reduce((sum, p) => sum + p.price * p.sold, 0);
 
+  const handleToggle = (p: Product) => {
+    toggleMutation.mutate({ id: p._id, isActive: !p.isActive });
+  };
+
   const handleDelete = (p: Product) => {
     Alert.alert('Delete Product', `Delete "${p.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => {} },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(p._id) },
     ]);
   };
 
@@ -244,7 +261,7 @@ export const MobileAdminProducts = () => {
             </View>
           ) : (
             filtered.map((p) => (
-              <ProductCard key={p._id} item={p} onToggle={() => {}} onDelete={() => handleDelete(p)} />
+              <ProductCard key={p._id} item={p} onToggle={() => handleToggle(p)} onDelete={() => handleDelete(p)} />
             ))
           )}
         </View>
