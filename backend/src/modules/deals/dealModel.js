@@ -73,6 +73,13 @@ const dealSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Surfaces the deal in the "Trending Now" row on the user-facing Deals
+    // page. Manually toggled by admin (plan C) — independent of the
+    // computed-by-clicks heuristic the list page may also use.
+    isTrending: {
+      type: Boolean,
+      default: false,
+    },
     clickCount: {
       type: Number,
       default: 0,
@@ -91,6 +98,7 @@ dealSchema.index({ brand: 1 });
 dealSchema.index({ category: 1 });
 dealSchema.index({ isActive: 1, expiresAt: 1 });
 dealSchema.index({ isFeatured: 1 });
+dealSchema.index({ isTrending: 1 });
 dealSchema.index({ title: 'text', brand: 'text', description: 'text' });
 
 const Deal = mongoose.model('Deal', dealSchema);

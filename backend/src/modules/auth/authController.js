@@ -182,6 +182,7 @@ export const getMe = async (req, res) => {
         phone: user.phone,
         role: user.role,
         referralCode: user.referralCode,
+        avatarUrl: user.avatarUrl,
       }
     }
   });
