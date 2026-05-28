@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Linking, Alert, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/theme';
@@ -9,6 +9,134 @@ import { dealsAPI } from '../../api/deals';
 import { productsAPI } from '../../api/products';
 
 const SIZES = ['30', '32', '34', '36'];
+
+// ─── Reviews (placeholder — backend reviews API not yet built) ─────────────
+// Mirrors PLACEHOLDER_REVIEWS in MobileProductDetailScreen so both surfaces
+// show the same sample data until `backend/src/modules/reviews/` ships.
+
+interface Review {
+  _id: string;
+  author: string;
+  initial: string;
+  initialBg: string;
+  rating: number;
+  title: string;
+  body: string;
+  productThumb?: string;
+  daysAgo?: number;
+}
+
+const PLACEHOLDER_REVIEWS: Review[] = [
+  {
+    _id: 'r1',
+    author: 'Rajiv Kumar',
+    initial: 'R',
+    initialBg: '#fde68a',
+    rating: 5,
+    title: 'Excellent sound quality!',
+    body: 'These headphones are amazing! The noise cancellation works perfectly and the battery life is incredible.',
+    productThumb: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=160&q=70',
+    daysAgo: 2,
+  },
+  {
+    _id: 'r2',
+    author: 'Priya Sharma',
+    initial: 'P',
+    initialBg: '#bfdbfe',
+    rating: 4,
+    title: 'Good but slightly heavy',
+    body: "Great sound and build quality, but it's a bit heavy. Still, the comfort makes up for it. Worth the price.",
+    productThumb: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=160&q=70',
+    daysAgo: 5,
+  },
+  {
+    _id: 'r3',
+    author: 'Amit Patel',
+    initial: 'A',
+    initialBg: '#fecaca',
+    rating: 5,
+    title: 'Best purchase this year',
+    body: 'Absolutely love these! Comfortable, great sound, perfect for daily use. I highly recommended.',
+    productThumb: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=160&q=70',
+    daysAgo: 9,
+  },
+];
+
+function StarRow({ rating, size = 12 }: { rating: number; size?: number }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 1 }}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Text key={i} style={{ fontSize: size, color: i < rating ? '#f59e0b' : '#e2e8f0', lineHeight: size + 1 }}>
+          {'★'}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+function ReviewCard({ review, desktop }: { review: Review; desktop?: boolean }) {
+  return (
+    <View style={[reviewStyles.card, desktop && reviewStyles.cardDesktop]}>
+      <View style={reviewStyles.header}>
+        <View style={[reviewStyles.avatar, { backgroundColor: review.initialBg }]}>
+          <Text style={reviewStyles.avatarText}>{review.initial}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={reviewStyles.author} numberOfLines={1}>{review.author}</Text>
+          <StarRow rating={review.rating} size={11} />
+        </View>
+      </View>
+      <Text style={reviewStyles.title}>{review.title}</Text>
+      <Text style={reviewStyles.body} numberOfLines={3}>{review.body}</Text>
+      <View style={reviewStyles.footer}>
+        {review.productThumb ? (
+          <Image source={{ uri: review.productThumb }} style={reviewStyles.thumb} resizeMode="contain" />
+        ) : (
+          <View style={[reviewStyles.thumb, { backgroundColor: '#1e293b' }]} />
+        )}
+        {review.daysAgo != null ? (
+          <Text style={reviewStyles.meta}>{review.daysAgo}d ago</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const reviewStyles = StyleSheet.create({
+  card: {
+    width: 260,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e8edf5',
+    marginRight: 12,
+  },
+  cardDesktop: {
+    flex: 1,
+    marginRight: 0,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
+  author: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  title: { fontSize: 13, fontWeight: '700', color: '#16a34a', marginBottom: 4 },
+  body: { fontSize: 12, color: Colors.textSecondary, lineHeight: 16, marginBottom: 10, minHeight: 48 },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  thumb: { width: 60, height: 60, borderRadius: 8, backgroundColor: '#f1f5f9' },
+  meta: { fontSize: 11, color: Colors.textSecondary },
+});
 
 function formatExpiresIn(expiresAt: string): string {
   const now = new Date();
@@ -58,7 +186,7 @@ export const ProductDetailScreen = () => {
     const url = deal?.affiliateUrl;
     if (!url) return;
     try {
-      if (dealId) dealsAPI.trackClick(dealId).catch(() => {});
+      if (dealId) dealsAPI.trackClick(dealId).catch(() => { });
       await Linking.openURL(url);
     } catch {
       Alert.alert('Error', 'Could not open the link. Please try again.');
@@ -118,8 +246,35 @@ export const ProductDetailScreen = () => {
   const overlayLabel = isProductMode ? 'Available at' : 'Shop at';
 
   // ─── Image Panel ──────────────────────────────────────────────────────
-  const imagePanel = (
-    <View style={[styles.imageContainer, isDesktop && styles.imageContainerDesktop]}>
+  const imagePanel = isDesktop ? (
+    <View style={styles.desktopImageCol}>
+      <View style={styles.desktopImageBox}>
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.placeholderImage}>
+            <Text style={styles.placeholderText}>{brand[0]}</Text>
+          </View>
+        )}
+        <TouchableOpacity
+          style={styles.backButton}
+          activeOpacity={0.7}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>{'‹'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.shareButton} activeOpacity={0.7}>
+          <Text style={styles.shareButtonText}>{'↗'}</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.desktopBrandCard}>
+        <Text style={styles.desktopBrandLabel}>{overlayLabel}</Text>
+        <Text style={styles.desktopBrandName}>{overlayPrimary}</Text>
+        <Text style={styles.desktopBrandCategory}>{overlaySecondary}</Text>
+      </View>
+    </View>
+  ) : (
+    <View style={styles.imageContainer}>
       {imageUrl ? (
         <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
       ) : (
@@ -294,6 +449,39 @@ export const ProductDetailScreen = () => {
     </ScrollView>
   );
 
+  // ─── Reviews block (rendered inside details on mobile; full-width below
+  //     the row on desktop — matches Figma 395:1104 layout) ─────────────
+  const reviewsBlock = (
+    <View style={[styles.reviewsSection, isDesktop && styles.reviewsSectionDesktop]}>
+      <View style={styles.reviewsHeader}>
+        <Text style={styles.reviewsTitle}>
+          Reviews <Text style={styles.reviewsCount}>({PLACEHOLDER_REVIEWS.length})</Text>
+        </Text>
+        <TouchableOpacity style={styles.writeReviewBtn} activeOpacity={0.85}>
+          <Text style={styles.writeReviewText}>{'✎'}  Write Review</Text>
+        </TouchableOpacity>
+      </View>
+
+      {isDesktop ? (
+        <View style={styles.reviewsGrid}>
+          {PLACEHOLDER_REVIEWS.map((r) => (
+            <ReviewCard key={r._id} review={r} desktop />
+          ))}
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.reviewsScroll}
+        >
+          {PLACEHOLDER_REVIEWS.map((r) => (
+            <ReviewCard key={r._id} review={r} />
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+
   // ─── Details Panel ────────────────────────────────────────────────────
   const detailsPanel = (
     <ScrollView
@@ -408,6 +596,11 @@ export const ProductDetailScreen = () => {
       <Text style={styles.helperText}>
         You'll be tracked and cashback credited automatically
       </Text>
+
+      {/* Reviews \u2014 render inline only on mobile. Desktop puts the block
+          full-width BELOW both columns (see desktop layout return). */}
+      {!isDesktop ? reviewsBlock : null}
+
     </ScrollView>
   );
 
@@ -416,12 +609,25 @@ export const ProductDetailScreen = () => {
   const activePanel = isProductMode ? productDetailsPanel : detailsPanel;
 
   // ─── Layout ───────────────────────────────────────────────────────────
+  // Desktop (Figma 395:1104): image + details side-by-side at top, then a
+  // full-width Reviews section below. The whole page scrolls as one unit
+  // (outer ScrollView) so the reviews stay attached to the bottom edge of
+  // the detail content rather than living inside the column's scroll.
   if (isDesktop) {
     return (
-      <View style={styles.desktopContainer}>
-        {imagePanel}
-        {activePanel}
-      </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.desktopScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.desktopRow}>
+          {imagePanel}
+          {activePanel}
+        </View>
+        {/* Reviews always rendered full-width below on desktop — matches
+            Figma 395:1104. Same placeholder data drives deal + product modes. */}
+        <View style={styles.desktopReviewsWrap}>{reviewsBlock}</View>
+      </ScrollView>
     );
   }
 
@@ -449,7 +655,66 @@ const styles = StyleSheet.create({
   desktopContainer: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
+  },
+  // New desktop wrapper: vertical scroll, row at top, reviews below.
+  desktopScrollContent: {
+    backgroundColor: '#F5F8FF',
+  },
+  desktopRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F5F8FF',
+    alignItems: 'flex-start', // image col is fixed-height; let details col size naturally
+  },
+  desktopReviewsWrap: {
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+    backgroundColor: '#F5F8FF',
+  },
+
+  // ─── Desktop image col (Figma 395:1104) ─────────────────────────────
+  // Image is fixed-height (NOT column-filling). Brand info sits in its own
+  // white card BELOW the image.
+  desktopImageCol: {
+    width: 480,
+    padding: 28,
+    paddingRight: 14,
+    gap: 14,
+    backgroundColor: '#F5F8FF',
+  },
+  desktopImageBox: {
+    width: '100%',
+    aspectRatio: 0.92, // ~Figma proportions, scales with column width — no forced upscale
+    borderRadius: 18,
+    backgroundColor: '#e8ecf0',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  desktopBrandCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#e8edf5',
+  },
+  desktopBrandLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  desktopBrandName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  desktopBrandCategory: {
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
 
   // ─── Image Panel ────────────────────────────────────────────────────
@@ -470,6 +735,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
+    // Better browser-side scaling for product images that aren't native-res.
+    // No-op on native; honoured by react-native-web → <img style="image-rendering:...">.
+    ...(Platform.OS === 'web'
+      ? ({ imageRendering: 'high-quality', WebkitImageRendering: 'high-quality' } as any)
+      : {}),
   },
   placeholderImage: {
     width: 120,
@@ -557,7 +827,7 @@ const styles = StyleSheet.create({
   },
   detailsScrollDesktop: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
   },
   detailsContent: {
     padding: 28,
@@ -797,5 +1067,51 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+
+  // ─── Reviews ────────────────────────────────────────────────────────
+  reviewsSection: {
+    marginTop: 28,
+  },
+  reviewsSectionDesktop: {
+    marginTop: 12,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#e8edf5',
+  },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  reviewsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  reviewsCount: {
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  writeReviewBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#eff6ff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  writeReviewText: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  reviewsScroll: {
+    paddingRight: 4,
+  },
+  reviewsGrid: {
+    flexDirection: 'row',
+    gap: 12,
   },
 });

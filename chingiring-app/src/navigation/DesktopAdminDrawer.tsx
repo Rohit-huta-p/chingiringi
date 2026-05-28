@@ -10,11 +10,11 @@ import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen'
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
 import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
+import { AdminCategoriesScreen } from '../screens/Admin/AdminCategoriesScreen';
 
 const Drawer = createDrawerNavigator();
 
 const AdminConversionsScreen = createAdminPlaceholder('Conversions');
-const AdminCategoriesScreen = createAdminPlaceholder('Categories');
 const AdminOrdersScreen = createAdminPlaceholder('Orders');
 const AdminInventoryScreen = createAdminPlaceholder('Inventory');
 

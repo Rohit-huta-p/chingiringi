@@ -14,6 +14,8 @@ import {
   Alert,
 } from 'react-native';
 import { ArrowDownToLine, QrCode, Clock, X, ChevronRight, Wallet as WalletIcon } from 'lucide-react-native';
+import { MobileAuthHeader } from '../../components/MobileAuthHeader';
+import { Fonts } from '../../constants/theme';
 // expo-camera v17 incompatible with SDK 54 in Expo Go — disabled until version aligned
 // import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQuery } from '@tanstack/react-query';
@@ -172,7 +174,7 @@ const ws = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderRadius: 16,
     padding: 18,
     marginBottom: 24,
@@ -483,17 +485,31 @@ export const MobileWalletScreen = () => {
     <View style={m.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-        {/* ── HEADER (blue gradient) ──────────────────── */}
-        <View style={m.header}>
-          <View style={m.headerTop}>
-            <View>
-              <Text style={m.headerSmall}>Wallet</Text>
-              <Text style={m.headerName}>{user?.name || 'Dev Chavan'}</Text>
+        {/* ── HEADER (shared gradient header) ───────────────────────────────
+            Uses the same MobileAuthHeader as every other mobile screen.
+            Baseline height already leaves room for the balance card's
+            -20 marginTop overlap, so no extraBottomSpace needed. */}
+        <MobileAuthHeader
+          hideBack
+          kicker="WALLET"
+          title={user?.name || 'Guest'}
+          align="left"
+          rightSlot={
+            <View style={m.headerAvatar}>
+              {user?.avatarUrl ? (
+                <Image
+                  source={{ uri: user.avatarUrl }}
+                  style={m.headerAvatarImg}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={m.headerAvatarInitials}>
+                  {(user?.name?.[0] ?? 'U').toUpperCase()}
+                </Text>
+              )}
             </View>
-            <Image source={{ uri: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' }} style={m.avatar} />
-          </View>
-
-        </View>
+          }
+        />
         {/* Balance card */}
         <View style={m.balCard}>
           <Text style={m.balWm}>₹</Text>
@@ -585,19 +601,24 @@ export const MobileWalletScreen = () => {
 const m = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#eef2f8' },
 
-  // Header
-  header: {
-    backgroundColor: '#3b82f6',
-    borderBottomLeftRadius: 48,
-    borderBottomRightRadius: 48,
-    paddingHorizontal: 20,
-    paddingTop: 68,
-    paddingBottom: 28,
+  // Header avatar (rendered inside MobileAuthHeader's rightSlot)
+  headerAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, },
-  headerSmall: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 1 },
-  headerName: { fontSize: 22, fontWeight: '700', color: '#fff' },
-  avatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)' },
+  headerAvatarImg: { width: '100%', height: '100%' },
+  headerAvatarInitials: {
+    fontSize: 16,
+    fontFamily: Fonts.extraBold,
+    color: '#fff',
+  },
 
   // Balance card
   balCard: {

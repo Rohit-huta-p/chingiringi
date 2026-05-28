@@ -8,6 +8,7 @@ export interface UserProfile {
   phone?: string;
   role: string;
   referralCode?: string;
+  avatarUrl?: string;
   isPhoneVerified: boolean;
   isEmailVerified: boolean;
   createdAt: string;
@@ -33,7 +34,7 @@ export const profileAPI = {
     return response.data;
   },
 
-  updateProfile: async (data: { name?: string; email?: string; phone?: string }) => {
+  updateProfile: async (data: { name?: string; email?: string; phone?: string; avatarUrl?: string }) => {
     const response = await apiClient.put('/api/profile', data);
     return response.data;
   },

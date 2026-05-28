@@ -29,7 +29,14 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Chingiringi needs access to your photos so you can set a profile picture.",
+          "cameraPermission": "Chingiringi needs access to your camera so you can take a profile picture."
+        }
+      ]
     ],
     "extra": {
       "eas": {

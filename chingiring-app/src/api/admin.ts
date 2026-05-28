@@ -104,6 +104,26 @@ export const adminAPI = {
     return response.data;
   },
 
+  // ─── Categories ────────────────────────────────────────────────────────────
+  // Public GET hits the same /api/categories endpoint; admin CRUD goes
+  // through the admin-protected POST/PUT/DELETE routes on the same path.
+  getCategories: async () => {
+    const response = await apiClient.get('/api/categories');
+    return response.data;
+  },
+  createCategory: async (data: Record<string, any>) => {
+    const response = await apiClient.post('/api/categories', data);
+    return response.data;
+  },
+  updateCategory: async (id: string, data: Record<string, any>) => {
+    const response = await apiClient.put(`/api/categories/${id}`, data);
+    return response.data;
+  },
+  deleteCategory: async (id: string) => {
+    const response = await apiClient.delete(`/api/categories/${id}`);
+    return response.data;
+  },
+
   // ─── Coupons ───────────────────────────────────────────────────────────────
   getCoupons: async () => {
     const response = await apiClient.get('/api/admin/coupons');

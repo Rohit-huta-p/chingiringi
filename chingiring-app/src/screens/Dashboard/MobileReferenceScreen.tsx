@@ -252,7 +252,7 @@ const s = StyleSheet.create({
 
   // Code box
   codeBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#e2e8f0',

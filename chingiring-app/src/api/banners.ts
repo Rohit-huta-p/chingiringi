@@ -77,6 +77,44 @@ export const SLOT_INFO: Record<
 
 export type BannerLinkType = 'deal' | 'category' | 'url';
 
+/**
+ * Default gradient per slot — used when a banner has no `imageUrl` AND no
+ * explicit `gradientColors` override. Source of truth for the slot-coloured
+ * placeholders that appear in both the admin form's slot picker and the
+ * home-page banner cards (HomeScreen + MobileHomeScreen). Keeping the map
+ * here means an admin can preview the colour scheme in the form and trust
+ * it'll match production exactly.
+ *
+ * Two-stop gradients to keep the LinearGradient API consistent. Add a third
+ * mid-stop locally if a slot needs richer depth.
+ */
+export const SLOT_GRADIENTS: Record<BannerSlot, [string, string]> = {
+  hero:          ['#4A7A32', '#FDE68A'],
+  'flash-strip': ['#0C1021', '#4784E2'],
+  'dual-left':   ['#C084FC', '#F0ABFC'],
+  'dual-right':  ['#FBCFE8', '#F9A8D4'],
+  'earn-coins':  ['#F59E0B', '#FDE68A'],
+  'refer-earn':  ['#0C1021', '#4784E2'],
+  'inline-1':    ['#64748b', '#94a3b8'],
+  'inline-2':    ['#64748b', '#94a3b8'],
+};
+
+/**
+ * Resolve gradient for a banner with three-tier priority:
+ *   1. Admin-set `gradientColors` (explicit override)
+ *   2. Slot default from `SLOT_GRADIENTS`
+ *   3. Brand fallback (only if slot is unknown — should never hit)
+ */
+export function resolveBannerGradient(
+  banner: Pick<Banner, 'gradientColors' | 'slot' | 'position'>,
+): [string, string] {
+  if (banner.gradientColors && banner.gradientColors.length >= 2) {
+    return [banner.gradientColors[0], banner.gradientColors[1]];
+  }
+  const slot = banner.slot ?? normalizeSlot(banner);
+  return SLOT_GRADIENTS[slot] ?? ['#4784E2', '#91BDFF'];
+}
+
 export interface BannerBadge {
   label: string;
   color: string; // hex

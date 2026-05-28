@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,21 +9,20 @@ import {
   Image,
   ActivityIndicator,
   useWindowDimensions,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search } from 'lucide-react-native';
+import { Search, Star, Coins } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, Fonts, Gradient } from '../../constants/theme';
+import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
-import { dealsAPI, categoriesAPI, bannersAPI, Deal, Category, Banner } from '../../api/deals';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import { categoriesAPI, Category } from '../../api/deals';
+import { productsAPI, Product } from '../../api/products';
+import { bannersAPI, Banner, resolveBannerGradient } from '../../api/banners';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function formatCashback(deal: Deal): string {
-  if (deal.cashbackType === 'flat') return `₹${deal.flatCashback}`;
-  return `${deal.cashbackPercent}%`;
-}
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -32,279 +31,230 @@ function greeting(): string {
   return 'Good Evening!';
 }
 
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
-  return chunks;
+function priceFmt(n: number): string {
+  return `₹${n.toLocaleString('en-IN')}`;
 }
 
-// ─── Category emoji icons ────────────────────────────────────────────────────
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// ─── Category emoji icons (legacy horizontal-scroll row) ────────────────────
 
 const CATEGORY_ICONS: Record<string, string> = {
   Fashion: '👗', Electronics: '📱', Home: '🏠',
   Pharmacy: '💊', Travel: '✈️', Food: '🍔', All: '🔥',
 };
 
-// ─── Category images (Unsplash) ──────────────────────────────────────────────
-
-const CATEGORY_IMAGES: Record<string, string> = {
-  Men:         'https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=500&q=75',
-  Women:       'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&q=75',
-  Kids:        'https://images.unsplash.com/photo-1622290291468-a28f7a7dc6a8?w=400&q=75',
-  Footwear:    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=75',
-  Accessories: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=75',
-  Fashion:     'https://images.unsplash.com/photo-1445205170230-053b83016050?w=500&q=75',
-  Electronics: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&q=75',
-  Home:        'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=75',
-  Pharmacy:    'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&q=75',
-  Travel:      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=400&q=75',
-  Food:        'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&q=75',
-};
-
-// Static 5-category showcase (shown when API categories are generic / unnamed)
-const SHOWCASE_CATEGORIES = [
-  { _id: 'sc-men',   name: 'Men' },
-  { _id: 'sc-wom',   name: 'Women' },
-  { _id: 'sc-kid',   name: 'Kids' },
-  { _id: 'sc-foot',  name: 'Footwear' },
-  { _id: 'sc-acc',   name: 'Accessories' },
+const PRODUCT_FALLBACK_IMAGES = [
+  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=75',
+  'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=500&q=75',
+  'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&q=75',
+  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=75',
+  'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=500&q=75',
+  'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=500&q=75',
 ];
 
-// Gradient palettes — cycled per banner index
-const BANNER_GRADIENTS: [string, string][] = [
-  ['#4784E2', '#91BDFF'],
-  ['#4338ca', '#6366f1'],
-  ['#059669', '#34d399'],
-  ['#7c3aed', '#a78bfa'],
+const FALLBACK_PRODUCTS: Product[] = [
+  { _id: 'p1', name: 'Wireless Headphones', description: 'Premium noise-cancelling headphones with 30hr battery', category: 'Electronics', price: 2999,  coinsPrice: 15000, imageUrl: PRODUCT_FALLBACK_IMAGES[0], stock: 50, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
+  { _id: 'p2', name: 'Smart Watch',         description: 'Fitness tracking smartwatch with heart rate monitor', category: 'Electronics', price: 4999,  coinsPrice: 25000, imageUrl: PRODUCT_FALLBACK_IMAGES[1], stock: 30, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
+  { _id: 'p3', name: 'Travel Backpack',     description: 'Durable waterproof backpack',                          category: 'Fashion',     price: 1499,  coinsPrice: 7500,  imageUrl: PRODUCT_FALLBACK_IMAGES[2], stock: 8,  sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
+  { _id: 'p4', name: 'Portable Speaker',    description: '360° surround sound, IPX7 waterproof, 12hr battery',   category: 'Electronics', price: 1899,  coinsPrice: 9500,  imageUrl: PRODUCT_FALLBACK_IMAGES[3], stock: 20, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
+  { _id: 'p5', name: 'Cotton T-Shirt',      description: 'Premium organic cotton blend',                         category: 'Fashion',     price: 599,   coinsPrice: 3000,  imageUrl: PRODUCT_FALLBACK_IMAGES[4], stock: 100, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
+  { _id: 'p6', name: 'Leather Wallet',      description: 'Slim bifold genuine leather wallet',                   category: 'Fashion',     price: 899,   coinsPrice: 4500,  imageUrl: PRODUCT_FALLBACK_IMAGES[5], stock: 40, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
 ];
 
-// ─── Fallback data ───────────────────────────────────────────────────────────
+// ─── Promo Banner (Supersonic SALE style) ───────────────────────────────────
 
-const FALLBACK_DEALS: Deal[] = [
-  { _id: '1', brand: 'Myntra',       title: 'Flat 50% Off on Top Brands',  description: '', cashbackPercent: 12, cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 45, expiresAt: new Date(Date.now() + 3 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Fashion', slug: 'fashion' } },
-  { _id: '2', brand: 'Amazon',       title: 'Great Indian Festival Sale',  description: '', cashbackPercent: 5,  cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 30, expiresAt: new Date(Date.now() + 1 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Electronics', slug: 'electronics' } },
-  { _id: '3', brand: 'Nykaa',        title: 'Mega Beauty Sale',            description: '', cashbackPercent: 8,  cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 30, expiresAt: new Date(Date.now() + 5 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Pharmacy', slug: 'pharmacy' } },
-  { _id: '4', brand: 'boAt',         title: 'Wireless Earbuds 50% Off',    description: '', cashbackPercent: 15, cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 30, expiresAt: new Date(Date.now() + 4 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Electronics', slug: 'electronics' } },
-  { _id: '5', brand: 'PharmEasy',    title: 'Flat 25% Off on Medicines',   description: '', cashbackPercent: 5,  cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 30, expiresAt: new Date(Date.now() + 6 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Pharmacy', slug: 'pharmacy' } },
-  { _id: '6', brand: 'Campus Sutra', title: "Men's Tailored Jacket",       description: '', cashbackPercent: 10, cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 30, expiresAt: new Date(Date.now() + 10 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Fashion', slug: 'fashion' } },
-  { _id: '7', brand: 'Zomato',       title: '40% Off on First Order',      description: '', cashbackPercent: 8,  cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 30, expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Food', slug: 'food' } },
-  { _id: '8', brand: 'MakeMyTrip',   title: 'Hotel Deals — Save Big',      description: '', cashbackPercent: 6,  cashbackType: 'percentage', flatCashback: 0, affiliateUrl: '', imageUrl: '', lockPeriodDays: 30, expiresAt: new Date(Date.now() + 8 * 864e5).toISOString(), tags: [], termsAndConditions: '', isActive: true, isFeatured: false, clickCount: 0, createdAt: '', category: { _id: '', name: 'Travel', slug: 'travel' } },
-];
-
-const FALLBACK_BANNERS: Banner[] = [
-  { _id: 'fb1', title: 'Supersonic SALE',      subtitle: 'UP TO 100% CASHBACK on your first order', imageUrl: '', linkType: 'url', linkValue: '', position: 'hero' },
-  { _id: 'fb2', title: 'Mega Cashback Event',  subtitle: 'Earn up to ₹500 back this week',           imageUrl: '', linkType: 'url', linkValue: '', position: 'inline' },
-  { _id: 'fb3', title: 'Refer & Earn ₹50',     subtitle: 'Share your code and earn with every friend',imageUrl: '', linkType: 'url', linkValue: '', position: 'inline' },
-];
-
-// ─── Deal Card (2-col grid) ──────────────────────────────────────────────────
-
-function MobileDealCard({ deal, onPress }: { deal: Deal; onPress: () => void }) {
-  const { width } = useWindowDimensions();
-  const cardWidth = (width - 48) / 2;
+function PromoBanner({ banner }: { banner?: Banner }) {
+  // When admin uploaded an image, render IT — that's what they edited in the
+  // banner form and what desktop already shows. Falling back to the gradient
+  // placeholder caused "I uploaded BIG SALE, mobile shows orange ribbon" bug.
+  const imageUrl = banner?.imageUrl;
+  const title    = banner?.title    ?? 'Supersonic SALE';
+  const subtitle = banner?.subtitle ?? '';
+  const ctaLabel = banner?.ctaLabel;
+  // Colour priority: admin's explicit gradientColors > slot default > brand fallback.
+  // Used only when no imageUrl is set.
+  const colors   = banner
+    ? resolveBannerGradient(banner)
+    : (['#1f4ed4', '#4784E2'] as [string, string]);
 
   return (
-    <TouchableOpacity style={[st.dealCard, { width: cardWidth }]} onPress={onPress} activeOpacity={0.75}>
-      <View style={st.dealImageBox}>
-        {deal.imageUrl ? (
-          <Image source={{ uri: deal.imageUrl }} style={st.dealImage} resizeMode="cover" />
+    <TouchableOpacity style={st.banner} activeOpacity={0.92}>
+      {imageUrl ? (
+        <Image
+          source={{ uri: imageUrl }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+      ) : (
+        <>
+          <LinearGradient
+            colors={colors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={st.bannerBlobLeft} />
+          <View style={st.bannerBlobRight} />
+
+          <View style={st.bannerContent}>
+            <Text style={st.bannerTitle}>{title}</Text>
+            {subtitle ? (
+              <View style={st.bannerSubChip}>
+                <Text style={st.bannerSubChipText}>⚡ {subtitle}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {ctaLabel ? (
+            <View style={st.bannerFeeRow}>
+              <View style={st.bannerFeeChip}>
+                <Text style={st.bannerFeeChipMain}>{ctaLabel}</Text>
+              </View>
+            </View>
+          ) : null}
+        </>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ─── Product Card (2-col) ───────────────────────────────────────────────────
+
+function ProductCard({ product, onPress }: { product: Product; onPress: () => void }) {
+  const { width } = useWindowDimensions();
+  const cardW = (width - 16 * 2 - 12) / 2;
+
+  const discountPercent = 50;
+  const originalPrice   = Math.round(product.price * (100 / (100 - discountPercent)));
+  const lowStock        = product.stock > 0 && product.stock <= 10;
+
+  return (
+    <TouchableOpacity style={[st.card, { width: cardW }]} onPress={onPress} activeOpacity={0.85}>
+      <View style={st.cardImageBox}>
+        {product.imageUrl ? (
+          <Image source={{ uri: product.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
         ) : (
-          <View style={st.dealImagePlaceholder}>
-            <Text style={st.dealImageLetter}>{deal.brand[0]}</Text>
+          <View style={[StyleSheet.absoluteFillObject, st.cardImageFallback]}>
+            <Text style={st.cardImageLetter}>{product.name?.[0] ?? '?'}</Text>
           </View>
         )}
-        {/* Cashback badge overlaid */}
-        <View style={st.dealCashbackBadge}>
-          <Text style={st.dealCashbackText}>Get {formatCashback(deal)} off</Text>
+        <View style={st.discountBadge}>
+          <Text style={st.discountBadgeText}>{discountPercent}% OFF</Text>
         </View>
+        {lowStock && (
+          <View style={st.stockBadge}>
+            <Text style={st.stockBadgeText}>{product.stock} left</Text>
+          </View>
+        )}
       </View>
-      <View style={st.dealInfo}>
-        <Text style={st.dealBrand} numberOfLines={1}>{deal.brand}</Text>
-        <Text style={st.dealTitle} numberOfLines={2}>{deal.title || deal.description}</Text>
+
+      <View style={st.cardBody}>
+        <Text style={st.cardTitle} numberOfLines={1}>{product.name}</Text>
+        <Text style={st.cardDesc}  numberOfLines={2}>{product.description}</Text>
+
+        <View style={st.cardRatingRow}>
+          <Star size={11} color="#f59e0b" fill="#f59e0b" />
+          <Text style={st.cardRating}>4.5</Text>
+          <Text style={st.cardReviewCount}>(128)</Text>
+        </View>
+
+        <View style={st.cardPriceRow}>
+          <Text style={st.cardPrice}>{priceFmt(product.price)}</Text>
+          <Text style={st.cardPriceStrike}>{priceFmt(originalPrice)}</Text>
+        </View>
+
+        <View style={st.coinsPill}>
+          <Coins size={11} color={Colors.primary} />
+          <Text style={st.coinsPillText}>{product.coinsPrice.toLocaleString('en-IN')} coins</Text>
+        </View>
+
+        <View style={st.buyBtn}>
+          <Text style={st.buyBtnText}>Buy Now</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
 }
 
-// ─── Banner Strip ────────────────────────────────────────────────────────────
-
-function BannerStrip({ banner, gradientIndex = 0 }: { banner: Banner; gradientIndex?: number }) {
-  const gradient = BANNER_GRADIENTS[gradientIndex % BANNER_GRADIENTS.length];
-
-  if (banner.imageUrl) {
-    return (
-      <TouchableOpacity style={st.bannerStrip} activeOpacity={0.9}>
-        <Image source={{ uri: banner.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.72)']}
-          style={[StyleSheet.absoluteFillObject]}
-        />
-        <View style={st.bannerTextBox}>
-          <Text style={st.bannerTitle}>{banner.title}</Text>
-          {banner.subtitle ? <Text style={st.bannerSub}>{banner.subtitle}</Text> : null}
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  return (
-    <View style={[st.bannerStrip, { overflow: 'hidden' }]}>
-      <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
-      {/* Decorative circle */}
-      <View style={st.bannerCircle} />
-      <View style={st.bannerTextBox}>
-        <Text style={[st.bannerTitle, { color: '#fff' }]}>{banner.title}</Text>
-        {banner.subtitle ? (
-          <Text style={[st.bannerSub, { color: 'rgba(255,255,255,0.85)' }]}>{banner.subtitle}</Text>
-        ) : null}
-        <View style={st.bannerBadgesRow}>
-          <View style={st.bannerBadge}><Text style={st.bannerBadgeTxt}>₹0 Handling Fee</Text></View>
-          <View style={st.bannerBadge}><Text style={st.bannerBadgeTxt}>Free Delivery*</Text></View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ─── Shop by Category ────────────────────────────────────────────────────────
-
-function ShopByCategorySection({
-  apiCategories,
-  onPress,
-}: {
-  apiCategories: Category[];
-  onPress: (name: string) => void;
-}) {
-  const { width } = useWindowDimensions();
-
-  // Use API categories (sans 'All'), fall back to static showcase
-  const raw = apiCategories.filter((c) => c.name !== 'All');
-  const display = raw.length >= 2 ? raw.slice(0, 5) : SHOWCASE_CATEGORIES;
-
-  const hPad = 32; // 16 left + 16 right
-  const gap = 8;
-  const containerW = width - hPad;
-  const bigW = Math.floor(containerW * 0.42);
-  const rightW = containerW - bigW - gap;
-  const smallW = Math.floor((rightW - gap) / 2);
-
-  const bigCat = display[0];
-  const smallCats = display.slice(1, 5);
-
-  const bigImg = CATEGORY_IMAGES[bigCat.name] ?? `https://picsum.photos/seed/${bigCat.name}/400/600`;
-  const smallImg = (name: string) => CATEGORY_IMAGES[name] ?? `https://picsum.photos/seed/${name}/300/300`;
-
-  return (
-    <View style={st.catSection}>
-      <Text style={st.catSectionTitle}>Shop by category</Text>
-      <View style={st.catGrid}>
-
-        {/* ── Big left card ── */}
-        <TouchableOpacity
-          style={[st.catBigCard, { width: bigW }]}
-          onPress={() => onPress(bigCat.name)}
-          activeOpacity={0.85}
-        >
-          <Image source={{ uri: bigImg }} style={[st.catBigImage, { height: smallCats.length > 2 ? 268 : 140 }]} resizeMode="cover" />
-          <Text style={st.catLabel}>{bigCat.name}</Text>
-        </TouchableOpacity>
-
-        {/* ── Right 2×2 grid ── */}
-        <View style={[st.catRightGrid, { width: rightW }]}>
-          {smallCats.map((cat) => (
-            <TouchableOpacity
-              key={cat._id}
-              style={[st.catSmallCard, { width: smallW }]}
-              onPress={() => onPress(cat.name)}
-              activeOpacity={0.85}
-            >
-              <Image source={{ uri: smallImg(cat.name) }} style={st.catSmallImage} resizeMode="cover" />
-              <Text style={st.catLabel}>{cat.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Main Screen ────────────────────────────────────────────────────────────
 
 export const MobileHomeScreen = () => {
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
+  const refresh = usePullToRefresh();
+
+  const [activeTab, setActiveTab] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState(0);
 
-  // ── Data fetching
-  const { data: dealsResponse, isLoading: dealsLoading } = useQuery({
-    queryKey: ['deals'],
-    queryFn: () => dealsAPI.getDeals(),
+  // Data fetching
+  const { data: productsRes, isLoading: productsLoading } = useQuery({
+    queryKey: ['products', 'home'],
+    queryFn: () => productsAPI.getProducts({ limit: 24 }),
   });
-  const { data: categoriesResponse } = useQuery({
+  const { data: bannersRes } = useQuery({
+    // Same key as desktop HomeScreen so admin mutations invalidate both surfaces.
+    queryKey: ['banners'],
+    queryFn: () => bannersAPI.getActiveBanners(),
+  });
+  const { data: categoriesRes } = useQuery({
     queryKey: ['categories'],
     queryFn: () => categoriesAPI.getCategories(),
   });
-  const { data: bannersResponse } = useQuery({
-    queryKey: ['public-banners'],
-    queryFn: () => bannersAPI.getBanners(),
-  });
 
-  // ── Normalise API responses
-  const allDeals: Deal[] = dealsResponse?.data?.deals ?? dealsResponse?.deals ?? dealsResponse?.data ?? FALLBACK_DEALS;
-  const apiCategories: Category[] = categoriesResponse?.data?.categories ?? categoriesResponse?.categories ?? categoriesResponse?.data ?? [];
-  const banners: Banner[] = bannersResponse?.data?.banners ?? bannersResponse?.banners ?? bannersResponse?.data ?? FALLBACK_BANNERS;
+  // Normalise responses
+  const allProducts: Product[] =
+    productsRes?.data?.products ?? productsRes?.products ?? FALLBACK_PRODUCTS;
+  const banners: Banner[] =
+    bannersRes?.data?.banners ?? [];
+  const apiCategories: Category[] =
+    categoriesRes?.data?.categories ?? categoriesRes?.categories ?? [];
 
+  // Horizontal-scroll category list (original behaviour)
   const categories = useMemo(() => {
     if (apiCategories.length > 0) return ['All', ...apiCategories.map((c) => c.name)];
     return ['All', 'Fashion', 'Electronics', 'Home', 'Pharmacy'];
   }, [apiCategories]);
 
-  // ── Filter + search
-  const filteredDeals = useMemo(() => {
-    let deals = allDeals;
+  // Filter + search
+  const filteredProducts = useMemo(() => {
+    let p = allProducts;
     if (selectedCategory !== 'All') {
-      deals = deals.filter((d) => d.category?.name?.toLowerCase() === selectedCategory.toLowerCase());
+      p = p.filter((x) => x.category?.toLowerCase() === selectedCategory.toLowerCase());
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      deals = deals.filter((d) => d.brand.toLowerCase().includes(q) || d.title?.toLowerCase().includes(q));
+      p = p.filter((x) => x.name.toLowerCase().includes(q) || x.description?.toLowerCase().includes(q));
     }
-    return deals;
-  }, [allDeals, selectedCategory, searchQuery]);
+    return p;
+  }, [allProducts, selectedCategory, searchQuery]);
 
-  // ── Build repeating sections: Banner → 6Deals → Banner → Categories → repeat
+  // Build repeating sections: banner → 4 products → banner → 4 products → ...
   const sections = useMemo(() => {
     type Section =
-      | { type: 'banner'; data: Banner; gradientIndex: number }
-      | { type: 'deals'; data: Deal[] }
-      | { type: 'categories' };
+      | { type: 'banner'; data?: Banner; index: number }
+      | { type: 'products'; data: Product[] };
 
     const result: Section[] = [];
-    const dealChunks = filteredDeals.length > 0 ? chunkArray(filteredDeals, 6) : [[]];
-    let bannerIdx = 0;
+    const productChunks = filteredProducts.length > 0 ? chunkArray(filteredProducts, 4) : [[]];
 
-    for (let i = 0; i < dealChunks.length; i++) {
-      // Banner 1
-      result.push({ type: 'banner', data: banners[bannerIdx % banners.length], gradientIndex: bannerIdx });
-      bannerIdx++;
-
-      // 6 deals
-      result.push({ type: 'deals', data: dealChunks[i] });
-
-      // Banner 2
-      result.push({ type: 'banner', data: banners[bannerIdx % banners.length], gradientIndex: bannerIdx });
-      bannerIdx++;
-
-      // Shop by category
-      result.push({ type: 'categories' });
+    for (let i = 0; i < productChunks.length; i++) {
+      result.push({ type: 'banner',   data: banners[i % Math.max(banners.length, 1)], index: i });
+      result.push({ type: 'products', data: productChunks[i] });
     }
-
     return result;
-  }, [filteredDeals, banners]);
+  }, [filteredProducts, banners]);
 
-  if (dealsLoading) {
+  const handleProductPress = (p: Product) => {
+    navigation.navigate('ProductDetail', { productId: p._id, product: p });
+  };
+
+  if (productsLoading) {
     return (
       <View style={[st.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -313,7 +263,11 @@ export const MobileHomeScreen = () => {
   }
 
   return (
-    <ScrollView style={st.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={st.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl {...refresh} />}
+    >
 
       {/* ── Blue Header ───────────────────────────────────────────── */}
       <View style={st.headerBg}>
@@ -325,7 +279,11 @@ export const MobileHomeScreen = () => {
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
             <View style={st.avatarCircle}>
-              <Text style={st.avatarInitial}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
+              {user?.avatarUrl ? (
+                <Image source={{ uri: user.avatarUrl }} style={st.avatarImg} resizeMode="cover" />
+              ) : (
+                <Text style={st.avatarInitial}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
+              )}
             </View>
           </TouchableOpacity>
         </View>
@@ -334,7 +292,7 @@ export const MobileHomeScreen = () => {
         <View style={st.tabSearchWrapper}>
           {/* Tabs row */}
           <View style={st.tabsRow}>
-            {['Demo', '50%', 'Super', 'Cafe'].map((label, i) => {
+            {['Products', 'Deals', 'Festivals', 'Season'].map((label, i) => {
               const isActive = i === activeTab;
               return (
                 <TouchableOpacity
@@ -394,68 +352,42 @@ export const MobileHomeScreen = () => {
         </View>
       </View>
 
-      {/* ── Repeating sections ─────────────────────────────────────── */}
+      {/* ── Repeating: banner → product grid ────────────────────────── */}
       {sections.map((section, idx) => {
         if (section.type === 'banner') {
-          return (
-            <BannerStrip
-              key={`banner-${idx}`}
-              banner={section.data}
-              gradientIndex={section.gradientIndex}
-            />
-          );
+          return <PromoBanner key={`b-${idx}`} banner={section.data} />;
         }
-
-        if (section.type === 'deals') {
-          if (section.data.length === 0) {
-            return (
-              <View key={`deals-${idx}`} style={st.emptyState}>
-                <Text style={st.emptyTitle}>No deals found</Text>
-                <Text style={st.emptySub}>Try a different category or search term</Text>
-              </View>
-            );
-          }
+        if (section.data.length === 0) {
           return (
-            <View key={`deals-${idx}`} style={st.dealsGrid}>
-              {section.data.map((deal) => (
-                <MobileDealCard
-                  key={deal._id}
-                  deal={deal}
-                  onPress={() => navigation.navigate('ProductDetail', { dealId: deal._id, deal })}
-                />
-              ))}
+            <View key={`empty-${idx}`} style={st.empty}>
+              <Text style={st.emptyTitle}>No products found</Text>
+              <Text style={st.emptySub}>Try a different category or search term</Text>
             </View>
           );
         }
-
-        if (section.type === 'categories') {
-          return (
-            <ShopByCategorySection
-              key={`cat-${idx}`}
-              apiCategories={apiCategories}
-              onPress={(name) => setSelectedCategory(name)}
-            />
-          );
-        }
-
-        return null;
+        return (
+          <View key={`g-${idx}`} style={st.grid}>
+            {section.data.map((p) => (
+              <ProductCard key={p._id} product={p} onPress={() => handleProductPress(p)} />
+            ))}
+          </View>
+        );
       })}
 
-      {/* Bottom spacer for floating tab bar */}
       <View style={{ height: 110 }} />
     </ScrollView>
   );
 };
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fb',
+    backgroundColor: '#F5F8FF',
   },
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  // ── Header (original) ────────────────────────────────────────────────────
   headerBg: {
     backgroundColor: Colors.primaryLight,
     borderBottomLeftRadius: 24,
@@ -488,7 +420,9 @@ const st = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
+  avatarImg: { width: '100%', height: '100%' },
   avatarInitial: {
     fontSize: 16,
     fontFamily: Fonts.extraBold,
@@ -582,165 +516,226 @@ const st = StyleSheet.create({
   },
   categoryIconLabelActive: { color: '#fff', fontFamily: Fonts.bold },
 
-  // ── Banner Strip ──────────────────────────────────────────────────────────
-  bannerStrip: {
-    height: 168,
-    justifyContent: 'flex-end',
+  // ── Banner ───────────────────────────────────────────────────────────────
+  banner: {
+    height: 160,
+    marginHorizontal: 0,
     overflow: 'hidden',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
-  bannerCircle: {
+  bannerBlobLeft: {
     position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    top: -30,
+    left: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  bannerTextBox: {
-    paddingHorizontal: 20,
-    paddingBottom: 18,
+  bannerBlobRight: {
+    position: 'absolute',
+    bottom: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   bannerTitle: {
-    fontSize: 22,
-    fontFamily: Fonts.extraBold,
     color: '#fff',
-    marginBottom: 4,
+    fontSize: 26,
+    fontFamily: Fonts.extraBold,
+    letterSpacing: 0.5,
   },
-  bannerSub: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: 'rgba(255,255,255,0.85)',
-    marginBottom: 10,
-  },
-  bannerBadgesRow: { flexDirection: 'row', gap: 8 },
-  bannerBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  bannerSubChip: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 8,
   },
-  bannerBadgeTxt: {
+  bannerSubChipText: {
     color: '#fff',
-    fontSize: 11,
-    fontFamily: Fonts.semiBold,
-  },
-
-  // ── Deal Cards Grid ───────────────────────────────────────────────────────
-  dealsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
-  },
-  dealCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  dealImageBox: {
-    height: 210,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  dealImage: { width: '100%', height: '100%' },
-  dealImagePlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#e2e8f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dealImageLetter: {
-    fontSize: 24,
-    fontFamily: Fonts.extraBold,
-    color: Colors.textSecondary,
-  },
-  dealCashbackBadge: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  dealCashbackText: {
-    color: '#16a34a',
     fontSize: 11,
     fontFamily: Fonts.bold,
   },
-  dealInfo: { padding: 10 },
-  dealBrand: {
-    fontSize: 14,
+  bannerFeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bannerFeeChip: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  bannerFeeChipMain: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: Fonts.extraBold,
+  },
+  bannerFeeText: {
+    color: Colors.text,
+    fontSize: 10,
+    fontFamily: Fonts.semiBold,
+  },
+
+  // ── Product Grid ─────────────────────────────────────────────────────────
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardImageBox: {
+    height: 148,
+    backgroundColor: '#0f172a',
+    position: 'relative',
+  },
+  cardImageFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+  },
+  cardImageLetter: {
+    fontSize: 32,
+    fontFamily: Fonts.extraBold,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: Colors.primaryLight10,
+    borderColor: Colors.primary,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  discountBadgeText: {
+    color: Colors.primary,
+    fontSize: 10,
+    fontFamily: Fonts.extraBold,
+  },
+  stockBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  stockBadgeText: {
+    color: '#92400e',
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+  },
+  cardBody: {
+    padding: 10,
+  },
+  cardTitle: {
+    fontSize: 13,
     fontFamily: Fonts.bold,
     color: Colors.text,
     marginBottom: 2,
   },
-  dealTitle: {
-    fontSize: 12,
+  cardDesc: {
+    fontSize: 11,
     fontFamily: Fonts.regular,
     color: Colors.textSecondary,
-    lineHeight: 16,
+    lineHeight: 14,
+    minHeight: 28,
+    marginBottom: 4,
   },
-
-  // ── Shop by Category ─────────────────────────────────────────────────────
-  catSection: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
-  catSectionTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.extraBold,
-    color: '#1e293b',
-    marginBottom: 12,
-  },
-  catGrid: {
+  cardRatingRow: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  catBigCard: {
     alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
   },
-  catBigImage: {
-    width: '100%',
-    borderRadius: 16,
-    marginBottom: 8,
+  cardRating: {
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+    color: Colors.text,
   },
-  catRightGrid: {
+  cardReviewCount: {
+    fontSize: 10,
+    fontFamily: Fonts.regular,
+    color: Colors.textSecondary,
+  },
+  cardPriceRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  catSmallCard: {
-    alignItems: 'center',
-  },
-  catSmallImage: {
-    width: '100%',
-    height: 125,
-    borderRadius: 14,
+    alignItems: 'baseline',
+    gap: 6,
     marginBottom: 6,
   },
-  catLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: '#1e293b',
-    textAlign: 'center',
+  cardPrice: {
+    fontSize: 14,
+    fontFamily: Fonts.extraBold,
+    color: Colors.text,
+  },
+  cardPriceStrike: {
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: Colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+  coinsPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primaryLight10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  coinsPillText: {
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+    color: Colors.primary,
+  },
+  buyBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  buyBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: Fonts.bold,
   },
 
-  // ── Empty state ───────────────────────────────────────────────────────────
-  emptyState: {
+  // ── Empty state ──────────────────────────────────────────────────────────
+  empty: {
     alignItems: 'center',
     paddingVertical: 32,
     paddingHorizontal: 24,

@@ -9,10 +9,11 @@ import { Plus, X, Edit2, Trash2, Eye, EyeOff, Search, SlidersHorizontal } from '
 import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import { categoriesAPI } from '../../api/deals';
+import { ImageUploader } from '../../components/ImageUploader';
 
 // ─── Add/Edit Deal Modal ────────────────────────────────────────────────────
 
-function DealFormModal({ visible, onClose, deal, categories }: {
+export function DealFormModal({ visible, onClose, deal, categories }: {
   visible: boolean;
   onClose: () => void;
   deal?: any;
@@ -36,6 +37,7 @@ function DealFormModal({ visible, onClose, deal, categories }: {
     tags: deal?.tags?.join(', ') || '',
     termsAndConditions: deal?.termsAndConditions || '',
     isFeatured: deal?.isFeatured || false,
+    isTrending: deal?.isTrending || false,
   });
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
@@ -233,14 +235,12 @@ function DealFormModal({ visible, onClose, deal, categories }: {
               onChangeText={(v) => setForm({ ...form, description: v })}
             />
 
-            {/* Image URL */}
-            <Text style={styles.fieldLabel}>Image URL</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="https://..."
-              placeholderTextColor="#94a3b8"
+            {/* Image — Cloudinary upload (web), URL fallback */}
+            <Text style={styles.fieldLabel}>Image</Text>
+            <ImageUploader
               value={form.imageUrl}
-              onChangeText={(v) => setForm({ ...form, imageUrl: v })}
+              onChange={(url) => setForm({ ...form, imageUrl: url })}
+              folder="chingiringi/deals"
             />
 
             {/* Lock Period + Tags row */}
@@ -288,6 +288,18 @@ function DealFormModal({ visible, onClose, deal, categories }: {
                 <View style={[styles.toggleDot, form.isFeatured && styles.toggleDotActive]} />
               </View>
               <Text style={styles.toggleLabel}>Featured Deal</Text>
+            </TouchableOpacity>
+
+            {/* Trending toggle — surfaces this deal in the "Trending Now" row
+                on the user Deals page (plan C). Independent of Featured. */}
+            <TouchableOpacity
+              style={styles.toggleRow}
+              onPress={() => setForm({ ...form, isTrending: !form.isTrending })}
+            >
+              <View style={[styles.toggle, form.isTrending && styles.toggleActive]}>
+                <View style={[styles.toggleDot, form.isTrending && styles.toggleDotActive]} />
+              </View>
+              <Text style={styles.toggleLabel}>Mark as Trending</Text>
             </TouchableOpacity>
           </ScrollView>
 
@@ -558,7 +570,7 @@ export function AdminDealsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc', padding: Spacing.lg },
+  container: { flex: 1, backgroundColor: '#F5F8FF', padding: Spacing.lg },
   pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   pageTitle: { fontSize: 24, fontWeight: '700', color: Colors.text },
   pageSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
@@ -618,7 +630,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderBottomWidth: 1,
     borderBottomColor: '#e8ecf2',
   },
@@ -653,7 +665,7 @@ const styles = StyleSheet.create({
   statusActiveText: { color: '#16a34a' },
   statusInactiveText: { color: '#dc2626' },
   actions: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 6, borderRadius: 6, backgroundColor: '#f8fafc' },
+  actionBtn: { padding: 6, borderRadius: 6, backgroundColor: '#F5F8FF' },
 
   emptyState: { padding: 40, alignItems: 'center' },
   emptyText: { fontSize: 14, color: Colors.textSecondary },

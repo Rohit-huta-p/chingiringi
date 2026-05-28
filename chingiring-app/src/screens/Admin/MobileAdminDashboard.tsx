@@ -20,7 +20,8 @@ import {
   CreditCard,
   Package,
   Image as ImageIcon,
-  Ticket,
+ Ticket,
+  Grid3X3,
   Inbox,
 } from 'lucide-react-native';
 // import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
@@ -70,6 +71,7 @@ const FB = {
 const NAV_ITEMS = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'AdminDeals', label: 'Deals', icon: Tag },
+  { key: 'AdminCategories', label: 'Categories', icon: Grid3X3 },
   { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
   { key: 'AdminUsers', label: 'Users', icon: Users },
   { key: 'AdminAllProducts', label: 'Products', icon: Package },
@@ -286,7 +288,7 @@ export const MobileAdminDashboard = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f6fa' },
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
 
   // Header
   header: {

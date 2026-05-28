@@ -8,6 +8,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -26,13 +27,15 @@ import {
   Users,
   Package,
   Image as ImageIcon,
-  Ticket,
+ Ticket,
+  Grid3X3,
 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { adminAPI } from '../../api/admin';
-import { Deal } from '../../api/deals';
+import { Deal, categoriesAPI } from '../../api/deals';
 import { useAuthStore } from '../../store';
+import { DealFormModal } from './AdminDealsScreen';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -59,6 +62,7 @@ function formatExpiry(d: string): string {
 const NAV_ITEMS = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'AdminDeals', label: 'Deals', icon: Tag },
+  { key: 'AdminCategories', label: 'Categories', icon: Grid3X3 },
   { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
   { key: 'AdminUsers', label: 'Users', icon: Users },
   { key: 'AdminAllProducts', label: 'Products', icon: Package },
@@ -68,9 +72,11 @@ const NAV_ITEMS = [
 
 // ─── Deal Card ──────────────────────────────────────────────────────
 
-function DealCard({ deal, onToggle, onDelete }: {
+function DealCard({ deal, onToggle, onEdit, onExternal, onDelete }: {
   deal: Deal;
   onToggle: () => void;
+  onEdit: () => void;
+  onExternal: () => void;
   onDelete: () => void;
 }) {
   const cashback = deal.cashbackType === 'flat'
@@ -116,10 +122,10 @@ function DealCard({ deal, onToggle, onDelete }: {
         <TouchableOpacity style={s.toggleBtn} onPress={onToggle}>
           <Text style={s.toggleBtnText}>{deal.isActive ? 'Deactivate' : 'Activate'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.iconBtn}>
+        <TouchableOpacity style={s.iconBtn} onPress={onExternal}>
           <ExternalLink size={16} color="#3b82f6" strokeWidth={2} />
         </TouchableOpacity>
-        <TouchableOpacity style={s.iconBtn}>
+        <TouchableOpacity style={s.iconBtn} onPress={onEdit}>
           <Pencil size={16} color="#eab308" strokeWidth={2} />
         </TouchableOpacity>
         <TouchableOpacity style={s.iconBtn} onPress={onDelete}>
@@ -137,11 +143,22 @@ export const MobileAdminDeals = () => {
   const userName = useAuthStore((s) => s.user?.name);
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editDeal, setEditDeal] = useState<Deal | null>(null);
 
   const { data: res, isLoading } = useQuery({
     queryKey: ['admin-deals'],
     queryFn: () => adminAPI.getDeals(),
   });
+
+  // Categories — needed by the DealFormModal's picker.
+  const { data: catRes } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoriesAPI.getCategories(),
+    staleTime: 5 * 60_000,
+  });
+  const categories: any[] =
+    catRes?.data?.categories ?? catRes?.categories ?? catRes?.data ?? [];
 
   const deals: Deal[] = res?.data?.deals ?? res?.deals ?? res?.data ?? [];
 
@@ -161,6 +178,29 @@ export const MobileAdminDeals = () => {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(deal._id) },
     ]);
+  };
+
+  const handleExternal = async (deal: Deal) => {
+    const url = deal.affiliateUrl;
+    if (!url) {
+      Alert.alert('No link', 'This deal has no affiliate URL set.');
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Error', 'Could not open the link.');
+    }
+  };
+
+  const handleEdit = (deal: Deal) => {
+    setEditDeal(deal);
+    setShowForm(true);
+  };
+
+  const handleAdd = () => {
+    setEditDeal(null);
+    setShowForm(true);
   };
 
   const filtered = useMemo(() => {
@@ -226,7 +266,7 @@ export const MobileAdminDeals = () => {
               <Text style={s.pageTitle}>Deal Management</Text>
               <Text style={s.pageSub}>Manage cashback deals and affiliate links</Text>
             </View>
-            <TouchableOpacity style={s.addBtn} activeOpacity={0.8}>
+            <TouchableOpacity style={s.addBtn} activeOpacity={0.8} onPress={handleAdd}>
               <Plus size={16} color="#fff" strokeWidth={2.5} />
               <Text style={s.addBtnText}>Add Deal</Text>
             </TouchableOpacity>
@@ -282,20 +322,52 @@ export const MobileAdminDeals = () => {
                 key={deal._id}
                 deal={deal}
                 onToggle={() => toggleMutation.mutate({ id: deal._id, isActive: deal.isActive })}
+                onEdit={() => handleEdit(deal)}
+                onExternal={() => handleExternal(deal)}
                 onDelete={() => handleDelete(deal)}
               />
             ))
           )}
         </View>
       </ScrollView>
+
+      {/* Add/Edit deal modal — uses the same DealFormModal as desktop so
+          field validation + create/update mutations stay in one place. The
+          modal handles its own create/update + cache invalidation; we just
+          need to mount it and close it when done. */}
+      <DealFormModal
+        visible={showForm}
+        onClose={() => { setShowForm(false); setEditDeal(null); }}
+        deal={editDeal}
+        categories={categories}
+      />
+
+      {/* React Query key drift: the shared modal invalidates 'admin','deals'
+          but this screen uses 'admin-deals'. Bridge the two so updates show
+          here without a manual refresh. */}
+      <ModalInvalidator open={showForm} qc={qc} />
     </SafeAreaView>
   );
 };
 
+// Tiny helper: when the modal opens/closes, refresh the mobile screen's
+// cached deals list. Avoids the need to refactor the desktop modal's mutation
+// to invalidate multiple keys. Renders nothing.
+function ModalInvalidator({ open, qc }: { open: boolean; qc: ReturnType<typeof useQueryClient> }) {
+  const wasOpen = React.useRef(false);
+  React.useEffect(() => {
+    if (wasOpen.current && !open) {
+      qc.invalidateQueries({ queryKey: ['admin-deals'] });
+    }
+    wasOpen.current = open;
+  }, [open, qc]);
+  return null;
+}
+
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f6fa' },
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
 
   // Header (reused from Dashboard)
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#3b82f6', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14 },

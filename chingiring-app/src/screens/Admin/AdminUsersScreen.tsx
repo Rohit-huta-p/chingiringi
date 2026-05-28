@@ -537,7 +537,7 @@ export function AdminUsersScreen() {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc', padding: Spacing.lg },
+  container: { flex: 1, backgroundColor: '#F5F8FF', padding: Spacing.lg },
   pageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderBottomWidth: 1,
     borderBottomColor: '#e8ecf2',
   },

@@ -11,6 +11,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
+import { ProductFormModal, ProductFormValues } from '../../components/ProductFormModal';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -28,9 +29,12 @@ interface Product {
   createdAt?: string;
 }
 
-// ─── Add/Edit Product Modal ─────────────────────────────────────────────────
+// ─── Add/Edit Product Modal — replaced by shared ProductFormModal ───────────
+// Legacy inline modal removed; the screen now imports
+// `ProductFormModal` from src/components/ProductFormModal.tsx.
 
-function ProductFormModal({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _RemovedLegacyProductFormModal({
   visible, onClose, product, onSave,
 }: {
   visible: boolean;
@@ -316,21 +320,13 @@ export function AdminProductsScreen() {
   const gap = 16;
   const cardWidth = (contentWidth - gap * (cols - 1)) / cols;
 
-  const handleSave = (p: Product) => {
-    const payload = {
-      name: p.name,
-      description: p.description,
-      category: p.category,
-      price: p.price,
-      coinsPrice: p.coinsPrice,
-      imageUrl: p.imageUrl,
-      stock: p.stock,
-      isActive: p.isActive,
-    };
+  // Called by <ProductFormModal>. Returns a Promise so the modal can show
+  // its inline spinner and close only after the mutation succeeds.
+  const handleSave = async (values: ProductFormValues) => {
     if (editProduct) {
-      updateMutation.mutate({ id: editProduct._id, payload });
+      await updateMutation.mutateAsync({ id: editProduct._id, payload: values });
     } else {
-      createMutation.mutate(payload);
+      await createMutation.mutateAsync(values);
     }
   };
 
@@ -453,7 +449,7 @@ export function AdminProductsScreen() {
         visible={showForm}
         onClose={() => { setShowForm(false); setEditProduct(null); }}
         product={editProduct}
-        onSave={handleSave}
+        onSubmit={handleSave}
       />
     </ScrollView>
   );
@@ -462,7 +458,7 @@ export function AdminProductsScreen() {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: '#F5F8FF' },
   containerContent: { padding: Spacing.lg, paddingBottom: 60 },
 
   // Page header
@@ -568,7 +564,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusPillActive: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
-  statusPillInactive: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
+  statusPillInactive: { backgroundColor: '#F5F8FF', borderColor: '#e2e8f0' },
   statusPillText: { fontSize: 13, fontWeight: '600' },
   statusPillTextActive: { color: '#16a34a' },
   statusPillTextInactive: { color: '#64748b' },

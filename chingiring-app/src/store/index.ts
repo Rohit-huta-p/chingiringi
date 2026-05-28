@@ -10,6 +10,7 @@ export interface UserType {
   phone?: string;
   role?: string;
   referralCode?: string;
+  avatarUrl?: string;
 }
 
 interface AuthState {

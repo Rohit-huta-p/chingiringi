@@ -1,11 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 // react-native-gesture-handler is imported in DrawerNavigator (desktop only)
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/store';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { View, Text } from 'react-native';
 import { useFonts } from 'expo-font';
+import { SplashAnimation } from './src/components/SplashAnimation';
 import {
   Outfit_400Regular,
   Outfit_500Medium,
@@ -33,6 +34,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const { isReady, hydrate } = useAuthStore();
+  const [splashDone, setSplashDone] = useState(false);
 
   const [fontsLoaded] = useFonts({
     Outfit_400Regular,
@@ -53,10 +55,13 @@ export default function App() {
     Text.defaultProps = { ...(Text.defaultProps ?? {}), style: { fontFamily: 'Outfit_400Regular' } };
   }
 
-  if (!isReady || !fontsLoaded) {
+  // Show the animated splash until both (1) hydration is done AND (2) the
+  // splash timeline has finished playing. This guarantees the user sees the
+  // full animation even on fast-hydrating sessions.
+  if (!splashDone || !isReady || !fontsLoaded) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#6093f4" />
+      <View style={{ flex: 1 }}>
+        <SplashAnimation onComplete={() => setSplashDone(true)} />
       </View>
     );
   }

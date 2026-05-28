@@ -37,6 +37,7 @@ import {
   BannerSlot,
   bannersAPI,
   bucketBySlot,
+  resolveBannerGradient,
 } from '../../api/banners';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -279,15 +280,23 @@ function ProductGrid({
 }) {
   const gap = 16;
   const cardW = (containerWidth - gap * (cols - 1)) / cols;
-  const totalCount = cols * 2;
+  const templateSlots = cols * 2;
 
-  // Merge template (for synthetic rating/oldPrice/discount) with live product
-  // data (name, description, image, price, coinsPrice, stock). When products
-  // are empty (loading / API error), falls back to full template content.
+  // When the DB is empty (loading / API error) we still render a full grid of
+  // template tiles so the home doesn't look broken. When real products exist
+  // we cap rendering at products.length — otherwise a single product gets
+  // duplicated `templateSlots` times across every section (12 × ~5 sections
+  // = 60 identical cards). Each ProductGrid still respects `startIdx` so
+  // different sections show different products when there are enough.
+  const productsAvailable = products.length;
+  const totalCount = productsAvailable > 0
+    ? Math.min(productsAvailable, templateSlots)
+    : templateSlots;
+
   const items = Array.from({ length: totalCount }, (_, i) => {
     const tmplIdx = (startIdx + i) % PRODUCT_DETAILS.length;
     const tmpl = PRODUCT_DETAILS[tmplIdx];
-    if (products.length === 0) {
+    if (productsAvailable === 0) {
       return {
         ...tmpl,
         _id: undefined as string | undefined,
@@ -296,7 +305,7 @@ function ProductGrid({
         productStock: undefined as number | undefined,
       };
     }
-    const prodIdx = (startIdx + i) % products.length;
+    const prodIdx = (startIdx + i) % productsAvailable;
     const product = products[prodIdx];
     return {
       ...tmpl,
@@ -375,13 +384,16 @@ function ProductGrid({
 }
 
 // ─── Banner fallback (when no image) ────────────────────────────────────────
+//
+// Colours come from the banner's slot (or its admin-set gradientColors
+// override). This keeps the home page consistent with the slot preview shown
+// in the admin form — see SLOT_GRADIENTS in src/api/banners.ts.
 
-const FALLBACK_GRADIENT = ['#0C1021', '#1A2744', '#4784E2'] as const;
-
-function FallbackGradient() {
+function FallbackGradient({ banner }: { banner: BannerModel }) {
+  const colors = resolveBannerGradient(banner);
   return (
     <LinearGradient
-      colors={FALLBACK_GRADIENT as any}
+      colors={colors as any}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={StyleSheet.absoluteFillObject}
@@ -400,7 +412,7 @@ function HeroBanner({ banner, onPress }: { banner?: BannerModel | null; onPress?
         <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
       ) : (
         <>
-          <FallbackGradient />
+          <FallbackGradient banner={banner} />
           <View style={s.fbHero}>
             {banner.title ? <Text style={s.fbHeroTitle}>{banner.title}</Text> : null}
             {banner.subtitle ? <Text style={s.fbHeroSub}>{banner.subtitle}</Text> : null}
@@ -434,7 +446,7 @@ function PromoStrip({
         <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
       ) : (
         <>
-          <FallbackGradient />
+          <FallbackGradient banner={banner} />
           <View style={s.fbThin}>
             <View style={{ flex: 1, gap: 4 }}>
               {banner.badges && banner.badges.length > 0 ? (
@@ -484,7 +496,7 @@ function DualBannerHalf({
         <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
       ) : (
         <>
-          <FallbackGradient />
+          <FallbackGradient banner={banner} />
           <View style={s.fbDual}>
             {banner.badges && banner.badges[0] ? (
               <View
@@ -549,7 +561,7 @@ function EarnCoinsBanner({
         <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
       ) : (
         <>
-          <FallbackGradient />
+          <FallbackGradient banner={banner} />
           <View style={s.fbThin}>
             <View style={s.fbIcon}>
               <Sparkles size={20} color="#fff" strokeWidth={2.5} />
@@ -616,7 +628,7 @@ function ReferBanner({
         <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
       ) : (
         <>
-          <FallbackGradient />
+          <FallbackGradient banner={banner} />
           <View style={s.fbThin}>
             <View style={s.fbIcon}>
               <Share2 size={20} color="#fff" strokeWidth={2.5} />
@@ -722,12 +734,14 @@ function TopNav({
   selectedCategory,
   onCategoryChange,
   userName,
+  userAvatarUrl,
   onProfilePress,
   width,
 }: {
   selectedCategory: string;
   onCategoryChange: (c: string) => void;
   userName?: string;
+  userAvatarUrl?: string;
   onProfilePress: () => void;
   width: number;
 }) {
@@ -752,11 +766,17 @@ function TopNav({
             activeOpacity={0.7}
             onPress={onProfilePress}
           >
-            <LinearGradient
-              colors={Gradient.brand}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <Text style={s.navAvatarTxt}>{userInitials(userName)}</Text>
+            {userAvatarUrl ? (
+              <Image source={{ uri: userAvatarUrl }} style={StyleSheet.absoluteFillObject as any} resizeMode="cover" />
+            ) : (
+              <>
+                <LinearGradient
+                  colors={Gradient.brand}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <Text style={s.navAvatarTxt}>{userInitials(userName)}</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
         {/* Row 2: Category chips with icons */}
@@ -794,6 +814,7 @@ export const HomeScreen = () => {
   const { width } = useWindowDimensions();
   const navigation = useNavigation<any>();
   const userName = useAuthStore((st) => st.user?.name);
+  const userAvatarUrl = useAuthStore((st) => st.user?.avatarUrl);
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Approx content area width after sidebar + padding
@@ -845,6 +866,7 @@ export const HomeScreen = () => {
   const featuredOrAll: Product[] = featuredProducts.length > 0 ? featuredProducts : products;
 
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
+  console.log("allBanners", allBanners);
   const bySlot = bucketBySlot(allBanners);
   const firstBannerFor = (slot: BannerSlot): BannerModel | null =>
     bySlot[slot]?.[0] ?? null;
@@ -877,6 +899,7 @@ export const HomeScreen = () => {
         selectedCategory={selectedCategory}
         onCategoryChange={setSelectedCategory}
         userName={userName}
+        userAvatarUrl={userAvatarUrl}
         onProfilePress={() => navigation.navigate('Profile')}
         width={contentW}
       />
@@ -969,7 +992,7 @@ export const HomeScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
 
   // Generic full-bleed image (used by image-only banners)
   fullImage: { width: '100%', height: '100%' },

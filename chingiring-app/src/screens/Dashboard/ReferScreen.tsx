@@ -332,7 +332,7 @@ const s = StyleSheet.create({
 
   // Code box
   codeBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 14,
@@ -480,7 +480,7 @@ const s = StyleSheet.create({
   },
   emptyIconBox: {
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 6,
   },

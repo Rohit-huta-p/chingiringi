@@ -8,9 +8,9 @@ import {
   Platform,
   TouchableOpacity,
 } from 'react-native';
-import { ArrowLeft } from 'lucide-react-native';
 import { Button } from '../../components/Button';
 import { Colors } from '../../constants/theme';
+import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
 import { useAuthStore } from '../../store';
@@ -106,18 +106,13 @@ export const MobileOTPScreen = ({ navigation, route }: any) => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ArrowLeft size={22} color={Colors.text} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>OTP Verification</Text>
-        <View style={styles.backBtn} />
-      </View>
+      {/* Shared blue-gradient header (also used by ForgotPassword,
+          ResetPassword, Signup, etc — see src/components/MobileAuthHeader). */}
+      <MobileAuthHeader
+        title="OTP Verification"
+        subtitle={formattedPhone}
+        onBack={() => navigation.goBack()}
+      />
 
       {/* Content */}
       <View style={styles.content}>
@@ -230,7 +225,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: Colors.text,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
   },
   otpBoxFilled: {
     borderColor: Colors.primary,

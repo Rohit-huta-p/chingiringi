@@ -27,7 +27,8 @@ import {
   Users,
   Package,
   Image as ImageIcon,
-  Ticket,
+ Ticket,
+  Grid3X3,
   Link2,
   MapPin,
   MonitorPlay,
@@ -74,6 +75,7 @@ function userInitials(name?: string | null): string {
 const NAV_ITEMS = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'AdminDeals', label: 'Deals', icon: Tag },
+  { key: 'AdminCategories', label: 'Categories', icon: Grid3X3 },
   { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
   { key: 'AdminUsers', label: 'Users', icon: Users },
   { key: 'AdminAllProducts', label: 'Products', icon: Package },
@@ -716,7 +718,7 @@ function BannerModal({
                 value={form.isActive}
                 onValueChange={(v) => update('isActive', v)}
                 trackColor={{ false: '#e2e8f0', true: '#86efac' }}
-                thumbColor={form.isActive ? '#22c55e' : '#f8fafc'}
+                thumbColor={form.isActive ? '#22c55e' : '#F5F8FF'}
               />
             </View>
 
@@ -1059,7 +1061,7 @@ export const MobileAdminBanners = () => {
 // ─── Page Styles ────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f6fa' },
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
 
   header: {
     flexDirection: 'row',
@@ -1318,7 +1320,7 @@ const m = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
   },
   slotTileActive: {
     backgroundColor: '#eff6ff',
@@ -1358,7 +1360,7 @@ const m = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 10,
@@ -1382,7 +1384,7 @@ const m = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
   },
   typeBtnActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
   typeBtnTxt: { fontSize: 12, fontFamily: Fonts.semiBold, color: '#64748b' },
@@ -1404,7 +1406,7 @@ const m = StyleSheet.create({
     borderRadius: 8,
     fontSize: 12,
     fontFamily: Fonts.regular,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     color: '#1e293b',
@@ -1439,7 +1441,7 @@ const m = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,

@@ -82,8 +82,9 @@ export const ProfileScreen = () => {
         phone: user.phone || FALLBACK_PROFILE.phone,
         location: FALLBACK_PROFILE.location,
         referralCode: user.referralCode || 'DEV500',
+        avatarUrl: user.avatarUrl || '',
       }
-    : { ...FALLBACK_PROFILE, referralCode: 'DEV500' };
+    : { ...FALLBACK_PROFILE, referralCode: 'DEV500', avatarUrl: '' };
 
   const referralTxns: any[] = referralTxData?.data?.transactions ?? [];
   const totalReferred = referralTxns.length;
@@ -111,7 +112,10 @@ export const ProfileScreen = () => {
             {/* Avatar */}
             <View style={s.avatarWrap}>
               <Image
-                source={{ uri: 'https://i.pravatar.cc/220?u=a042581f4e29026704d' }}
+                source={{
+                  uri: profile.avatarUrl
+                    || `https://ui-avatars.com/api/?background=4784E2&color=fff&bold=true&name=${encodeURIComponent(profile.name)}`,
+                }}
                 style={s.avatar}
               />
               <View style={s.avatarBadge}>
@@ -407,7 +411,7 @@ const s = StyleSheet.create({
   },
   quickIconBox: {
     width: 28, height: 28, borderRadius: 8,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F8FF',
     justifyContent: 'center', alignItems: 'center',
   },
   quickLabel: {
