@@ -24,67 +24,90 @@ const isNative = Platform.OS !== 'web';
 const baseURL = getBaseURL();
 console.log('[API] baseURL:', baseURL, '| platform:', Platform.OS);
 
-// Token storage helpers for native
+// ── Token storage — Bearer everywhere ──────────────────────────────────
+// Native uses SecureStore (encrypted keychain). Web uses localStorage.
+//
+// Web previously relied on httpOnly cookies with SameSite=None; Secure.
+// That works in Chrome/Firefox but Safari's ITP treats cross-origin
+// Set-Cookie as tracking and silently drops it. Result: user "logs in"
+// (200 response) but every subsequent request 401s because the cookie
+// isn't attached. Switching to bearer tokens on web too makes auth work
+// in every browser identically to native.
 async function getToken(key: string): Promise<string | null> {
-  if (!isNative) return null;
-  return SecureStore.getItemAsync(key);
+  if (isNative) return SecureStore.getItemAsync(key);
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  return window.localStorage.getItem(key);
 }
 
 async function setToken(key: string, value: string): Promise<void> {
-  if (!isNative) return;
-  await SecureStore.setItemAsync(key, value);
+  if (isNative) return SecureStore.setItemAsync(key, value);
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.setItem(key, value);
 }
 
 async function clearTokens(): Promise<void> {
-  if (!isNative) return;
-  await SecureStore.deleteItemAsync('accessToken');
-  await SecureStore.deleteItemAsync('refreshToken');
-  await SecureStore.deleteItemAsync('cachedUser');
+  if (isNative) {
+    await SecureStore.deleteItemAsync('accessToken');
+    await SecureStore.deleteItemAsync('refreshToken');
+    await SecureStore.deleteItemAsync('cachedUser');
+    return;
+  }
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.removeItem('accessToken');
+  window.localStorage.removeItem('refreshToken');
+  window.localStorage.removeItem('cachedUser');
 }
 
-// Cached user (for offline-first hydration on native)
+// Cached user — works on native (offline-first) and web (session restore).
 export async function getCachedUser(): Promise<any | null> {
-  if (!isNative) return null;
-  const raw = await SecureStore.getItemAsync('cachedUser');
+  let raw: string | null = null;
+  if (isNative) {
+    raw = await SecureStore.getItemAsync('cachedUser');
+  } else if (typeof window !== 'undefined' && window.localStorage) {
+    raw = window.localStorage.getItem('cachedUser');
+  }
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
 
 export async function setCachedUser(user: any): Promise<void> {
-  if (!isNative) return;
-  await SecureStore.setItemAsync('cachedUser', JSON.stringify(user));
+  const payload = JSON.stringify(user);
+  if (isNative) return SecureStore.setItemAsync('cachedUser', payload);
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.setItem('cachedUser', payload);
 }
 
 export async function hasStoredAccessToken(): Promise<boolean> {
-  if (!isNative) return false;
-  const t = await SecureStore.getItemAsync('accessToken');
+  const t = await getToken('accessToken');
   return !!t;
 }
 
 export const apiClient = axios.create({
   baseURL,
   timeout: 30000,
-  withCredentials: !isNative, // Cookies for web only
+  // Cookies kept as fallback for same-origin dev / same-domain prod setups.
+  // Primary auth is Bearer header (works cross-origin in every browser).
+  withCredentials: !isNative,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// On native, attach the access token as Authorization header
+// Attach access token as Bearer on EVERY request (web + native). Cookies
+// still ride along on web via withCredentials as a bonus, but Bearer is
+// the reliable path — Safari ITP blocks the cross-origin cookies.
 apiClient.interceptors.request.use(async (config) => {
-  if (isNative) {
-    const accessToken = await getToken('accessToken');
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
+  const accessToken = await getToken('accessToken');
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 });
 
 apiClient.interceptors.response.use(
   async (response) => {
-    // On native, store tokens from response body
-    if (isNative && response.data?.tokens) {
+    // Store tokens from response body on both platforms.
+    if (response.data?.tokens) {
       const { accessToken, refreshToken } = response.data.tokens;
       if (accessToken) await setToken('accessToken', accessToken);
       if (refreshToken) await setToken('refreshToken', refreshToken);
@@ -102,21 +125,26 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        if (isNative) {
-          // Send refresh token in body for native
-          const refreshToken = await getToken('refreshToken');
-          if (!refreshToken) return Promise.reject(error);
+        // Refresh flow — same on web + native. Send refresh token in body,
+        // get back new tokens, store, retry the original request.
+        const refreshToken = await getToken('refreshToken');
+        if (refreshToken) {
           const res = await axios.post(`${baseURL}/auth/refresh`, { refreshToken });
           if (res.data?.tokens) {
             await setToken('accessToken', res.data.tokens.accessToken);
             await setToken('refreshToken', res.data.tokens.refreshToken);
           }
-        } else {
+        } else if (!isNative) {
+          // No stored refresh token on web — try the cookie path as a
+          // fallback for any pre-existing session left over from the old
+          // cookie-based auth.
           await axios.post(`${baseURL}/auth/refresh`, {}, { withCredentials: true });
+        } else {
+          return Promise.reject(error);
         }
         return apiClient(originalRequest);
       } catch (refreshError) {
-        if (isNative) await clearTokens();
+        await clearTokens();
         return Promise.reject(refreshError);
       }
     }
