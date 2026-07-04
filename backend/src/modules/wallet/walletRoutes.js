@@ -4,6 +4,7 @@ import {
   getWalletSummary,
   getTransactions,
   getTransaction,
+  requestWithdrawal,
 } from './walletController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 
@@ -16,5 +17,6 @@ router.get('/', getWallet);
 router.get('/summary', getWalletSummary);
 router.get('/transactions', getTransactions);
 router.get('/transactions/:id', getTransaction);
+router.post('/withdraw', requestWithdrawal);
 
 export default router;

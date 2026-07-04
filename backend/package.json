@@ -9,6 +9,8 @@
     "dev": "nodemon src/server.js",
     "lint": "eslint src",
     "seed:deals": "node src/scripts/seedDeals.js",
+    "seed:products": "node src/scripts/seedProducts.js",
+    "cron:confirm-locks": "node src/scripts/confirmExpiredLocks.js",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --forceExit --detectOpenHandles"
   },
   "keywords": [],

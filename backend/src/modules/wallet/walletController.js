@@ -1,5 +1,6 @@
 import Wallet from './walletModel.js';
 import Transaction from '../transactions/transactionModel.js';
+import AdminSettings from '../admin/adminSettingsModel.js';
 
 // @desc    Get current user's wallet
 // @route   GET /api/wallet
@@ -111,6 +112,80 @@ export const getTransactions = async (req, res) => {
         limit: Number(limit),
         total,
         pages: Math.ceil(total / Number(limit)),
+      },
+    },
+  });
+};
+
+// @desc    Request a withdrawal
+// @route   POST /api/wallet/withdraw
+// @access  Private
+//
+// User submits an amount in COINS and a payment destination. Server:
+//   1. Loads the current coinsPerRupee to compute the ₹ payout.
+//   2. Checks the user has enough CONFIRMED coins (wallet.coins, not pending).
+//   3. Creates a pending Transaction(type='withdrawal') with the ₹ + coin
+//      count + locked rate stamped on metadata for later audit.
+//   4. Does NOT debit the wallet — that happens on admin approval.
+//
+// The rate is locked at request time so a settings change between request
+// and approval doesn't retroactively change what the user is owed.
+export const requestWithdrawal = async (req, res) => {
+  const { coins, method, paymentDetails, accountNumber, ifsc } = req.body;
+
+  const coinAmount = Number(coins);
+  if (!Number.isFinite(coinAmount) || coinAmount <= 0) {
+    res.status(400);
+    throw new Error('coins must be a positive number');
+  }
+  if (!['UPI', 'Bank'].includes(method)) {
+    res.status(400);
+    throw new Error('method must be UPI or Bank');
+  }
+  if (!paymentDetails || typeof paymentDetails !== 'string' || !paymentDetails.trim()) {
+    res.status(400);
+    throw new Error('paymentDetails is required');
+  }
+  if (method === 'Bank' && (!accountNumber || !ifsc)) {
+    res.status(400);
+    throw new Error('accountNumber and ifsc are required for Bank withdrawals');
+  }
+
+  const wallet = await Wallet.findOne({ userId: req.user._id });
+  if (!wallet || wallet.coins < coinAmount) {
+    res.status(400);
+    throw new Error(`Insufficient confirmed coins (${wallet?.coins ?? 0} available, ${coinAmount} requested)`);
+  }
+
+  const settings = await AdminSettings.get();
+  const coinRate = settings.coinsPerRupee;   // coins per ₹1
+  const rupees = Math.round((coinAmount / coinRate) * 100) / 100;
+
+  const transaction = await Transaction.create({
+    userId: req.user._id,
+    type: 'withdrawal',
+    amount: rupees,
+    status: 'pending',
+    description: `Withdrawal request — ${coinAmount} coins (₹${rupees})`,
+    metadata: {
+      method,
+      paymentDetails: paymentDetails.trim(),
+      ...(accountNumber ? { accountNumber } : {}),
+      ...(ifsc          ? { ifsc }          : {}),
+      coinsRedeemed: coinAmount,
+      coinRate,                 // locked at request time
+      requestedAt: new Date(),
+    },
+  });
+
+  res.status(201).json({
+    status: 'success',
+    data: {
+      transaction,
+      preview: {
+        coinsRedeemed: coinAmount,
+        rupees,
+        coinRate,
       },
     },
   });

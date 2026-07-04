@@ -18,13 +18,14 @@ import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen'
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
 import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
+import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 
 const isMobile = Platform.OS !== 'web';
 
-// Placeholder screens for admin sections
+// Categories management is now inline inside the Product form (CategoryPicker).
+// No dedicated Categories screen — admins create / edit / delete from there.
 const AdminConversionsScreen = createAdminPlaceholder('Conversions');
-const AdminCategoriesScreen = createAdminPlaceholder('Categories');
 const AdminOrdersScreen = createAdminPlaceholder('Orders');
 const AdminInventoryScreen = createAdminPlaceholder('Inventory');
 
@@ -41,10 +42,10 @@ function MobileAdminNavigator() {
       <Stack.Screen name="AdminDashboard" component={isMobile ? MobileAdminDashboard : AdminDashboardScreen} options={{ headerShown: !isMobile, title: 'Admin Dashboard' }} />
       <Stack.Screen name="AdminDeals" component={isMobile ? MobileAdminDeals : AdminDealsScreen} options={{ headerShown: !isMobile, title: 'Deals' }} />
       <Stack.Screen name="AdminConversions" component={AdminConversionsScreen} options={{ title: 'Conversions' }} />
+      <Stack.Screen name="AdminWalletOps" component={isMobile ? AdminUsersScreen : WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
       <Stack.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
       <Stack.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
-      <Stack.Screen name="AdminCategories" component={AdminCategoriesScreen} options={{ title: 'Categories' }} />
       <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
       <Stack.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />
       <Stack.Screen name="AdminBanners" component={isMobile ? MobileAdminBanners : AdminBannersScreen} options={{ headerShown: !isMobile, title: 'Banners' }} />

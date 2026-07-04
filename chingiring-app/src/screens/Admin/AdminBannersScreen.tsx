@@ -13,21 +13,29 @@ import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import {
   Banner, BannerDraft, BannerLinkType, BannerSlot,
-  BANNER_SLOTS, SLOT_INFO, withDerivedSlot,
+  BANNER_SLOTS, SLOT_INFO, SLOT_GRADIENTS, withDerivedSlot,
 } from '../../api/banners';
+import { ImageUploader } from '../../components/ImageUploader';
 
-// ─── Slot visuals (mirrors MobileAdminBanners) ──────────────────────────────
+// ─── Slot visuals ───────────────────────────────────────────────────────────
+// Gradients come from SLOT_GRADIENTS (shared with home screens) so the
+// admin preview matches production exactly. Icons stay local — they're
+// admin-form-only chrome.
 
-const SLOT_VISUALS: Record<BannerSlot, { Icon: any; preview: [string, string] }> = {
-  hero:           { Icon: Sparkles, preview: ['#4A7A32', '#FDE68A'] },
-  'flash-strip':  { Icon: Zap,      preview: ['#0C1021', '#4784E2'] },
-  'dual-left':    { Icon: Columns2, preview: ['#C084FC', '#F0ABFC'] },
-  'dual-right':   { Icon: Columns2, preview: ['#FBCFE8', '#F9A8D4'] },
-  'earn-coins':   { Icon: Coins,    preview: ['#F59E0B', '#FDE68A'] },
-  'refer-earn':   { Icon: Gift,     preview: ['#0C1021', '#4784E2'] },
-  'inline-1':     { Icon: Rows3,    preview: ['#64748b', '#94a3b8'] },
-  'inline-2':     { Icon: Rows3,    preview: ['#64748b', '#94a3b8'] },
+const SLOT_ICONS: Record<BannerSlot, any> = {
+  hero:          Sparkles,
+  'flash-strip': Zap,
+  'dual-left':   Columns2,
+  'dual-right':  Columns2,
+  'earn-coins':  Coins,
+  'refer-earn':  Gift,
+  'inline-1':    Rows3,
+  'inline-2':    Rows3,
 };
+
+const SLOT_VISUALS: Record<BannerSlot, { Icon: any; preview: [string, string] }> = Object.fromEntries(
+  BANNER_SLOTS.map((slot) => [slot, { Icon: SLOT_ICONS[slot], preview: SLOT_GRADIENTS[slot] }]),
+) as Record<BannerSlot, { Icon: any; preview: [string, string] }>;
 
 // ─── Fallback (backend-empty safety net) ────────────────────────────────────
 
@@ -287,15 +295,12 @@ function BannerFormModal({
               onChangeText={(v) => setDraft({ ...draft, subtitle: v })}
             />
 
-            {/* Image */}
-            <Text style={styles.fieldLabel}>Image URL</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="https://..."
-              placeholderTextColor="#94a3b8"
-              autoCapitalize="none"
+            {/* Image — Cloudinary upload (web), URL fallback */}
+            <Text style={styles.fieldLabel}>Image</Text>
+            <ImageUploader
               value={draft.imageUrl}
-              onChangeText={(v) => setDraft({ ...draft, imageUrl: v })}
+              onChange={(url) => setDraft({ ...draft, imageUrl: url })}
+              folder="chingiringi/banners"
             />
 
             {/* CTA label */}
@@ -427,19 +432,28 @@ export function AdminBannersScreen() {
     return withDerivedSlot(list);
   }, [data]);
 
+  // Every banner mutation must invalidate BOTH the admin-only list AND the
+  // user-facing key, otherwise mobile/desktop home pages stay stale after an
+  // admin edit (cache key drift caused the "banner doesn't update on mobile"
+  // bug). Mirrors MobileAdminBanners.tsx.
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-banners'] });
+    queryClient.invalidateQueries({ queryKey: ['banners'] });
+  };
+
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       adminAPI.updateBanner(id, { isActive }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-banners'] }),
+    onSuccess: invalidateAll,
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminAPI.deleteBanner(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-banners'] }),
+    onSuccess: invalidateAll,
   });
   const createMutation = useMutation({
     mutationFn: (draft: BannerDraft) => adminAPI.createBanner(draft),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-banners'] });
+      invalidateAll();
       setShowForm(false); setEditBanner(null);
     },
   });
@@ -447,7 +461,7 @@ export function AdminBannersScreen() {
     mutationFn: ({ id, draft }: { id: string; draft: BannerDraft }) =>
       adminAPI.updateBanner(id, draft),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-banners'] });
+      invalidateAll();
       setShowForm(false); setEditBanner(null);
     },
   });
@@ -533,7 +547,7 @@ export function AdminBannersScreen() {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: '#F5F8FF' },
   containerContent: { padding: Spacing.lg, paddingBottom: 60 },
 
   // Page header
@@ -627,7 +641,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   activePillOn: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
-  activePillOff: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
+  activePillOff: { backgroundColor: '#F5F8FF', borderColor: '#e2e8f0' },
   activePillText: { fontSize: 14, fontWeight: '600' },
   activePillTextOn: { color: '#16a34a' },
   activePillTextOff: { color: '#64748b' },

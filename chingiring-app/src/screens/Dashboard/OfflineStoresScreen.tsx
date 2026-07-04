@@ -23,8 +23,10 @@ import {
   Plus,
   Minus,
 } from 'lucide-react-native';
-import { Colors } from '../../constants/theme';
+import { Colors, Fonts } from '../../constants/theme';
 import { StoreMap } from '../../components/StoreMap';
+import { MobileAuthHeader } from '../../components/MobileAuthHeader';
+import { useAuthStore } from '../../store';
 import {
   MOCK_STORES,
   STORE_CATEGORIES,
@@ -40,6 +42,7 @@ const PRIMARY = Colors.primary;
 export const OfflineStoresScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isNarrow = width < 1100;
+  const user = useAuthStore((st) => st.user);
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
@@ -72,65 +75,141 @@ export const OfflineStoresScreen: React.FC = () => {
   const showList = !isNarrow || viewMode === 'list';
 
   return (
-    <View style={styles.root}>
-      {/* ── Top Header ──────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>Offline Stores</Text>
-          <View style={styles.locationRow}>
-            <MapPin size={13} color={Colors.textSecondary} />
-            <Text style={styles.locationText}>Bengaluru, Karnataka</Text>
-          </View>
-        </View>
-
-        <View style={styles.searchWrap}>
-          <Search size={16} color={Colors.textSecondary} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search stores, categories..."
-            placeholderTextColor={Colors.textSecondary}
-            style={styles.searchInput}
+    <View
+      style={[
+        styles.root,
+        isNarrow && { paddingHorizontal: 0, paddingVertical: 0 },
+      ]}
+    >
+      {isNarrow ? (
+        // ── Mobile: blue gradient header + stacked controls ─────────────
+        <>
+          <MobileAuthHeader
+            hideBack
+            title="Offline Stores"
+            subtitle="Bengaluru, Karnataka"
+            align="left"
+            rightSlot={
+              <View style={styles.headerAvatarMobile}>
+                {user?.avatarUrl ? (
+                  <View style={styles.headerAvatarImgWrap}>
+                    {/* Image deferred — using initials fallback to keep
+                        bundle import small here. */}
+                    <Text style={styles.headerAvatarTxt}>
+                      {(user?.name?.[0] ?? 'D').toUpperCase()}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.headerAvatarTxt}>
+                    {(user?.name?.[0] ?? 'D').toUpperCase()}
+                  </Text>
+                )}
+              </View>
+            }
           />
-        </View>
 
-        <View style={styles.headerRight}>
-          {/* List / Map toggle */}
-          <View style={styles.viewToggle}>
-            <Pressable
-              onPress={() => setViewMode('list')}
-              style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
+          {/* Search bar */}
+          <View style={styles.mobileSearchRow}>
+            <View style={styles.searchWrap}>
+              <Search size={16} color={Colors.textSecondary} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search stores, categories..."
+                placeholderTextColor={Colors.textSecondary}
+                style={styles.searchInput}
+              />
+            </View>
+          </View>
+
+          {/* List/Map + Sort pills */}
+          <View style={styles.mobileControlsRow}>
+            <View style={styles.viewToggle}>
+              <Pressable
+                onPress={() => setViewMode('list')}
+                style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
+              >
+                <List size={14} color={viewMode === 'list' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setViewMode('map')}
+                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+              >
+                <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.sortGroup}
             >
-              <List size={14} color={viewMode === 'list' ? PRIMARY : Colors.textSecondary} />
-              <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setViewMode('map')}
-              style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
-            >
-              <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
-              <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
-            </Pressable>
+              <SortPill label="Near"   icon={Navigation} active={sort === 'near'}   onPress={() => setSort('near')} />
+              <SortPill label="Coins"  icon={Coins}      active={sort === 'coins'}  onPress={() => setSort('coins')} />
+              <SortPill label="Rating" icon={Star}       active={sort === 'rating'} onPress={() => setSort('rating')} />
+            </ScrollView>
+          </View>
+        </>
+      ) : (
+        // ── Desktop: existing horizontal header (unchanged) ─────────────
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>Offline Stores</Text>
+            <View style={styles.locationRow}>
+              <MapPin size={13} color={Colors.textSecondary} />
+              <Text style={styles.locationText}>Bengaluru, Karnataka</Text>
+            </View>
           </View>
 
-          {/* Sort pills */}
-          <View style={styles.sortGroup}>
-            <SortPill label="Near" icon={Navigation} active={sort === 'near'} onPress={() => setSort('near')} />
-            <SortPill label="Coins" icon={Coins} active={sort === 'coins'} onPress={() => setSort('coins')} />
-            <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
+          <View style={styles.searchWrap}>
+            <Search size={16} color={Colors.textSecondary} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search stores, categories..."
+              placeholderTextColor={Colors.textSecondary}
+              style={styles.searchInput}
+            />
           </View>
 
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>D</Text>
+          <View style={styles.headerRight}>
+            <View style={styles.viewToggle}>
+              <Pressable
+                onPress={() => setViewMode('list')}
+                style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
+              >
+                <List size={14} color={viewMode === 'list' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setViewMode('map')}
+                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+              >
+                <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.sortGroup}>
+              <SortPill label="Near" icon={Navigation} active={sort === 'near'} onPress={() => setSort('near')} />
+              <SortPill label="Coins" icon={Coins} active={sort === 'coins'} onPress={() => setSort('coins')} />
+              <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
+            </View>
+
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>D</Text>
+            </View>
           </View>
         </View>
-      </View>
+      )}
 
       {/* ── Category chip row ───────────────────────────────────── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipRow}
+        contentContainerStyle={[styles.chipRow, isNarrow && { paddingHorizontal: 16 }]}
         style={{ flexGrow: 0 }}
       >
         <CategoryChip
@@ -151,7 +230,7 @@ export const OfflineStoresScreen: React.FC = () => {
       </ScrollView>
 
       {/* ── Status row ──────────────────────────────────────────── */}
-      <View style={styles.statusRow}>
+      <View style={[styles.statusRow, isNarrow && { paddingHorizontal: 16 }]}>
         <View style={styles.statusLeft}>
           <View style={styles.openDot} />
           <Text style={styles.statusText}>
@@ -168,7 +247,10 @@ export const OfflineStoresScreen: React.FC = () => {
       </View>
 
       {/* ── Body: map + list ────────────────────────────────────── */}
-      <View style={[styles.body, isNarrow && { flexDirection: 'column' }]}>
+      <View style={[
+        styles.body,
+        isNarrow && { flexDirection: 'column', paddingHorizontal: 16 },
+      ]}>
         {showMap && (
           <View style={[styles.mapCol, isNarrow && { flex: 0, height: 360 }]}>
             <View style={styles.mapInner}>
@@ -381,7 +463,36 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
 
-  // Header
+  // Mobile-only header avatar (inside MobileAuthHeader's rightSlot)
+  headerAvatarMobile: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  headerAvatarImgWrap: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+  headerAvatarTxt: { fontSize: 15, fontFamily: Fonts.extraBold, color: '#fff' },
+
+  // Mobile control rows that sit below the gradient header
+  mobileSearchRow: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  mobileControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+
+  // Header (desktop)
   header: {
     flexDirection: 'row',
     alignItems: 'center',

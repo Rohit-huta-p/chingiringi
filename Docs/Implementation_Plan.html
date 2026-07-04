@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chingiringi · Affiliate Implementation Plan</title>
+<style>
+  :root {
+    --paper: #F2EFE8;
+    --panel: #FBFAF5;
+    --ink:   #171923;
+    --mute:  #6B6E7C;
+    --line:  #DCD6C7;
+    --deep:  #1F5D5A;
+    --coin:  #8E6E2B;
+    --moss:  #487F5F;
+    --warn:  #8B3730;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 40px 28px 72px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1, h2, h3 { font-family: ui-serif, "Iowan Old Style", Palatino, Georgia, serif; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  .num { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ── Header ──────────────────────────────────────────────────── */
+  header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: end;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 28px;
+  }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--deep);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  h1 { font-size: 36px; line-height: 1.1; font-weight: 500; }
+  .sub { color: var(--mute); font-size: 15px; margin-top: 8px; max-width: 60ch; }
+  .kpi {
+    text-align: right;
+    padding-left: 18px;
+    border-left: 3px solid var(--deep);
+  }
+  .kpi .n { font-family: ui-serif, Georgia, serif; font-size: 46px; line-height: 1; color: var(--deep); font-weight: 500; }
+  .kpi .u { display: block; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); margin-top: 4px; }
+  .meta { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+  .meta span {
+    font-size: 12px; color: var(--mute);
+    padding: 4px 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 100px;
+  }
+  .meta span b { color: var(--ink); font-weight: 600; }
+
+  /* ── Timeline ────────────────────────────────────────────────── */
+  section { margin: 40px 0; }
+  h2 {
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--deep); font-family: system-ui, sans-serif; font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .timeline {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 16px 18px 20px;
+    overflow-x: auto;
+  }
+  .tl-grid {
+    display: grid;
+    grid-template-columns: 130px repeat(12, 1fr);
+    gap: 3px;
+    align-items: center;
+    min-width: 720px;
+  }
+  .tl-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mute); padding: 0 0 8px; text-align: center; }
+  .tl-week { grid-column: span 6; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .tl-week.w2 { border-left: 1px solid var(--line); }
+  .tl-row-lbl {
+    font-size: 12px;
+    color: var(--ink);
+    padding-right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tl-code {
+    display: inline-flex;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--deep); color: var(--panel);
+    align-items: center; justify-content: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; font-weight: 700;
+  }
+  .tl-bar {
+    height: 22px;
+    border-radius: 3px;
+    background: var(--deep);
+    position: relative;
+  }
+  .tl-bar.parallel { background: var(--coin); }
+  .tl-bar.testing  { background: var(--moss); }
+  .tl-bar.deploy   { background: var(--ink); }
+  .tl-bar.spacer   { background: transparent; }
+
+  /* ── Phase cards ─────────────────────────────────────────────── */
+  .phases { display: grid; gap: 14px; }
+  .phase {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--deep);
+    border-radius: 4px;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    gap: 24px;
+    align-items: start;
+  }
+  .phase.parallel { border-left-color: var(--coin); }
+  .phase-code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 26px; font-weight: 700;
+    color: var(--deep);
+    line-height: 1;
+  }
+  .phase.parallel .phase-code { color: var(--coin); }
+  .phase-body h3 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .phase-why {
+    font-size: 12px; color: var(--mute);
+    font-style: italic;
+    margin: 6px 0 12px;
+  }
+  .phase-ships { margin: 0; padding: 0; list-style: none; }
+  .phase-ships li {
+    font-size: 13.5px;
+    padding: 3px 0 3px 18px;
+    position: relative;
+    color: var(--ink);
+  }
+  .phase-ships li::before {
+    content: "";
+    position: absolute; left: 0; top: 10px;
+    width: 6px; height: 6px;
+    background: var(--deep);
+    border-radius: 2px;
+  }
+  .phase.parallel .phase-ships li::before { background: var(--coin); }
+  .phase-effort {
+    text-align: right;
+    padding-left: 18px;
+    border-left: 1px solid var(--line);
+    align-self: stretch;
+    min-width: 88px;
+  }
+  .phase-effort .d {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 30px; font-weight: 700;
+    color: var(--ink); line-height: 1;
+  }
+  .phase-effort .u {
+    display: block; font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--mute); margin-top: 4px;
+  }
+  .parallel-tag {
+    display: inline-block;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--coin); font-weight: 700;
+    margin-left: 8px; padding: 2px 8px;
+    background: rgba(142,110,43,0.08);
+    border-radius: 3px;
+    vertical-align: middle;
+  }
+
+  /* ── Decisions ───────────────────────────────────────────────── */
+  .decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .decision {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 16px 18px;
+  }
+  .decision .q { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .decision .rec { font-size: 12px; color: var(--mute); }
+  .decision .rec b { color: var(--deep); font-weight: 700; }
+
+  /* ── Footer ──────────────────────────────────────────────────── */
+  .foot {
+    margin-top: 44px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    gap: 18px;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    color: var(--mute);
+    font-size: 12px;
+  }
+  .foot strong { color: var(--ink); }
+
+  @media (max-width: 680px) {
+    h1 { font-size: 28px; }
+    header { grid-template-columns: 1fr; }
+    .kpi { text-align: left; border-left: 0; border-top: 3px solid var(--deep); padding: 12px 0 0; }
+    .phase { grid-template-columns: 40px 1fr; }
+    .phase-effort { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); padding: 12px 0 0; margin-top: 8px; text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="eyebrow">Chingiringi · Engineering Plan</div>
+      <h1>Affiliate flow to coin economy</h1>
+      <p class="sub">
+        Fix the commission formula, wire Cuelinks &amp; Amazon, ship the user withdrawal loop,
+        automate confirmation. In one sprint.
+      </p>
+      <div class="meta">
+        <span>Prereqs shipped: <b>ClickEvent, Wallet Ops UI, Reports Inbox base</b></span>
+        <span>Status: <b>Ready to start</b></span>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="n num">10</div>
+      <span class="u">Dev days · 5 phases</span>
+    </div>
+  </header>
+
+  <!-- ═════ TIMELINE ═════════════════════════════════════════════ -->
+  <section>
+    <h2>Timeline · Two weeks</h2>
+    <div class="timeline">
+      <div class="tl-grid">
+        <div></div>
+        <div class="tl-head tl-week">Week 1 · Day 1–5</div>
+        <div class="tl-head tl-week w2">Week 2 · Day 6–10 · Deploy 11–12</div>
+
+        <div class="tl-row-lbl"><span class="tl-code">A</span>Formula</div>
+        <div class="tl-bar" style="grid-column: span 2"></div>
+        <div class="tl-bar spacer" style="grid-column: span 10"></div>
+
+        <div class="tl-row-lbl"><span class="tl-code" style="background:var(--coin)">E</span>Signup</div>
+        <div class="tl-bar spacer" style="grid-column: span 2"></div>
+        <div class="tl-bar parallel" style="grid-column: span 1"></div>
+        <div class="tl-bar spacer" style="grid-column: span 9"></div>
+
+        <div class="tl-row-lbl"><span class="tl-code">B</span>Withdrawals</div>
+        <div class="tl-bar spacer" style="grid-column: span 3"></div>
+        <div class="tl-bar" style="grid-column: span 2"></div>
+        <div class="tl-bar spacer" style="grid-column: span 7"></div>
+
+        <div class="tl-row-lbl"><span class="tl-code">C</span>Cuelinks/Amazon</div>
+        <div class="tl-bar spacer" style="grid-column: span 5"></div>
+        <div class="tl-bar" style="grid-column: span 2"></div>
+        <div class="tl-bar spacer" style="grid-column: span 5"></div>
+
+        <div class="tl-row-lbl"><span class="tl-code">D</span>Automation</div>
+        <div class="tl-bar spacer" style="grid-column: span 7"></div>
+        <div class="tl-bar" style="grid-column: span 3"></div>
+        <div class="tl-bar spacer" style="grid-column: span 2"></div>
+
+        <div class="tl-row-lbl">Test &amp; deploy</div>
+        <div class="tl-bar spacer" style="grid-column: span 10"></div>
+        <div class="tl-bar testing"></div>
+        <div class="tl-bar deploy"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════ PHASES ══════════════════════════════════════════════ -->
+  <section>
+    <h2>The five phases</h2>
+    <div class="phases">
+
+      <article class="phase">
+        <div class="phase-code">A</div>
+        <div class="phase-body">
+          <h3>Commission-based coin formula</h3>
+          <p class="phase-why">Every downstream flow depends on this being right. No point wiring Cuelinks/Amazon on top of a wrong model.</p>
+          <ul class="phase-ships">
+            <li>AdminSettings model: <span class="num">passThroughPercent</span>, <span class="num">coinsPerRupee</span>, <span class="num">defaultLockDays</span></li>
+            <li>Rewrite importer: <span class="num">coins = commission × passThroughPercent × coinsPerRupee</span></li>
+            <li>Deal.coinsReward becomes optional promotional override</li>
+            <li>Reports Inbox preview: per-row breakdown (₹ comm → coins → user ₹)</li>
+            <li>New Settings tab with live preview slider</li>
+          </ul>
+        </div>
+        <div class="phase-effort"><div class="d num">2</div><span class="u">Days</span></div>
+      </article>
+
+      <article class="phase parallel">
+        <div class="phase-code">E</div>
+        <div class="phase-body">
+          <h3>Sign up Cuelinks &amp; Amazon <span class="parallel-tag">Runs parallel to A</span></h3>
+          <p class="phase-why">Paperwork happens in the background. No code, but blocks Phase C from finishing without it.</p>
+          <ul class="phase-ships">
+            <li>Cuelinks: publisher ID + per-merchant approvals (Myntra, Flipkart, Meesho, Ajio, Nykaa)</li>
+            <li>Amazon Associates: associate tag + site verification</li>
+            <li>Bank account, KYC, TDS setup</li>
+            <li>One test click on each path end-to-end</li>
+          </ul>
+        </div>
+        <div class="phase-effort"><div class="d num">1</div><span class="u">Day</span></div>
+      </article>
+
+      <article class="phase">
+        <div class="phase-code">B</div>
+        <div class="phase-body">
+          <h3>User withdrawal flow</h3>
+          <p class="phase-why">Admin side already works. User side is stubbed. Closes the loop.</p>
+          <ul class="phase-ships">
+            <li><span class="num">POST /api/wallet/withdraw</span> — user submits coin amount + UPI/bank</li>
+            <li>Server locks in the coinsPerRupee rate at request time on the Transaction</li>
+            <li>Mobile Withdraw Money screen: balance + coin input + live ₹ conversion + UPI form</li>
+            <li>Withdrawal statuses show in existing Transaction History screen</li>
+          </ul>
+        </div>
+        <div class="phase-effort"><div class="d num">2</div><span class="u">Days</span></div>
+      </article>
+
+      <article class="phase">
+        <div class="phase-code">C</div>
+        <div class="phase-body">
+          <h3>Cuelinks + Amazon URL plumbing</h3>
+          <p class="phase-why">Without real credentials wired in, no commission actually earns.</p>
+          <ul class="phase-ships">
+            <li>Cuelinks: admin pastes raw merchant URL, backend auto-wraps in linksredirect.com template with our publisher ID</li>
+            <li>Amazon: subidBuilder auto-appends <span class="num">tag=&lt;associateTag&gt;</span> for amazon.* hosts</li>
+            <li>CSV parsers hard-code Cuelinks + Amazon column headers (both quirky, worth one-time work)</li>
+          </ul>
+        </div>
+        <div class="phase-effort"><div class="d num">2</div><span class="u">Days</span></div>
+      </article>
+
+      <article class="phase">
+        <div class="phase-code">D</div>
+        <div class="phase-body">
+          <h3>Automation &amp; fallback matching</h3>
+          <p class="phase-why">Eliminates the last bits of manual admin work; rescues subid-stripped rows.</p>
+          <ul class="phase-ships">
+            <li>Cron <span class="num">confirmExpiredLocks</span> hourly — flips lock-expired pending → confirmed + notifies user</li>
+            <li>Cron <span class="num">staleWithdrawalReminder</span> — pings admin on requests &gt;48h old</li>
+            <li>Click-log fallback matcher: merchant + ±24h + ±5% amount → confidence-scored candidate users</li>
+            <li>Admin review UI for medium-confidence matches</li>
+          </ul>
+        </div>
+        <div class="phase-effort"><div class="d num">3</div><span class="u">Days</span></div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ═════ DECISIONS ═══════════════════════════════════════════ -->
+  <section>
+    <h2>Decide before Day 1</h2>
+    <div class="decisions">
+      <div class="decision">
+        <div class="q">Pass-through %</div>
+        <div class="rec">User's share of every ₹ of commission. <b>Recommend 25%</b>. Growth-aggressive: 40–50%. Cash-conservative: 15–20%.</div>
+      </div>
+      <div class="decision">
+        <div class="q">Conversion rate</div>
+        <div class="rec"><b>10 coins = ₹1</b> is intuitive. Alt: 100 = ₹1 makes coin numbers "feel bigger" to users. Cosmetic.</div>
+      </div>
+      <div class="decision">
+        <div class="q">Aggregator</div>
+        <div class="rec">Default is Cuelinks. If EarnKaro or Admitad turns out stronger for your merchants, URL template swap is <b>1 hour</b> later.</div>
+      </div>
+      <div class="decision">
+        <div class="q">Working capital reserve</div>
+        <div class="rec">Users get paid on confirmation, network pays us 30–60 days later. Size ~<b>2 months</b> of expected payouts in the bank.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <div><strong>Total:</strong> <span class="num">10</span> dev days &nbsp;·&nbsp; 5 phases &nbsp;·&nbsp; 1 parallel signup track</div>
+    <div><strong>Next:</strong> approve → start Phase A</div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -12,6 +12,7 @@ export const getDeals = async (req, res) => {
     search,
     brand,
     featured,
+    trending,
     sort = '-createdAt',
   } = req.query;
 
@@ -24,6 +25,7 @@ export const getDeals = async (req, res) => {
 
   if (brand) filter.brand = { $regex: brand, $options: 'i' };
   if (featured === 'true') filter.isFeatured = true;
+  if (trending === 'true') filter.isTrending = true;
 
   if (search) {
     filter.$text = { $search: search };

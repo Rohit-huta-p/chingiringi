@@ -23,7 +23,8 @@ import {
   Users,
   Package,
   Image as ImageIcon,
-  Ticket,
+ Ticket,
+  Grid3X3,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
@@ -282,7 +283,7 @@ export const MobileAdminWithdrawals = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f6fa' },
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#3b82f6', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14 },
@@ -329,7 +330,7 @@ const s = StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '600' },
 
   // Details
-  detailsBox: { backgroundColor: '#f8fafc', borderRadius: 10, padding: 12, marginBottom: 12 },
+  detailsBox: { backgroundColor: '#F5F8FF', borderRadius: 10, padding: 12, marginBottom: 12 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   detailLabel: { fontSize: 12, color: '#94a3b8' },
   detailValue: { fontSize: 13, fontWeight: '600', color: '#1e293b', maxWidth: '55%', textAlign: 'right' },

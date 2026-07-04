@@ -17,6 +17,8 @@ export interface Deal {
   termsAndConditions: string;
   isActive: boolean;
   isFeatured: boolean;
+  /** Admin-toggled — drives the "Trending Now" row on the user Deals page. */
+  isTrending?: boolean;
   clickCount: number;
   createdAt: string;
 }
@@ -28,6 +30,10 @@ export interface Category {
   icon: string;
   isActive: boolean;
   sortOrder: number;
+  /** Admin-toggled — hide this category from the user Deals page. Default true. */
+  showOnDealsPage?: boolean;
+  /** Per-category position WITHIN the deals page. Lower = higher. */
+  dealsPageSortOrder?: number;
 }
 
 export interface Banner {
@@ -63,6 +69,8 @@ export const dealsAPI = {
     search?: string;
     brand?: string;
     featured?: string;
+    /** Pass `'true'` to filter to only admin-flagged trending deals. */
+    trending?: string;
     sort?: string;
   }) => {
     const response = await apiClient.get('/api/deals', { params });

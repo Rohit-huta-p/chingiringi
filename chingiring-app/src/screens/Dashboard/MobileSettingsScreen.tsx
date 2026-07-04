@@ -8,10 +8,10 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Image,
+  RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ChevronLeft,
   Bell,
   Shield,
   Lock,
@@ -20,17 +20,20 @@ import {
   LogOut,
   Trash2,
   ChevronRight,
-  Tag,
   Info,
   FileText,
   HelpCircle,
   Star,
+  ScrollText,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useMutation } from '@tanstack/react-query';
 import { useAuthStore } from '../../store';
 import { profileAPI } from '../../api/profile';
 import { Fonts, Colors } from '../../constants/theme';
+import { MobileAuthHeader } from '../../components/MobileAuthHeader';
+import { DeleteAccountModal } from '../../components/DeleteAccountModal';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 // ─── Sub-components ──────────────────────────────────────────────────
 
@@ -52,7 +55,7 @@ function ToggleRow({ label, subtitle, value, onToggle }: ToggleRowProps) {
         value={value}
         onValueChange={onToggle}
         trackColor={{ false: '#e2e8f0', true: Colors.primaryLight }}
-        thumbColor={value ? Colors.primary : '#f8fafc'}
+        thumbColor={value ? Colors.primary : '#F5F8FF'}
         ios_backgroundColor="#e2e8f0"
       />
     </View>
@@ -65,11 +68,12 @@ interface NavRowProps {
   subtitle?: string;
   iconBg?: string;
   iconColor?: string;
-  badge?: string;
   onPress: () => void;
 }
 
-function NavRow({ icon: Icon, label, subtitle, iconBg = '#f1f5f9', iconColor = '#64748b', badge, onPress }: NavRowProps) {
+function NavRow({
+  icon: Icon, label, subtitle, iconBg = '#f1f5f9', iconColor = '#64748b', onPress,
+}: NavRowProps) {
   return (
     <TouchableOpacity style={s.navRow} onPress={onPress} activeOpacity={0.65}>
       <View style={[s.navIconWrap, { backgroundColor: iconBg }]}>
@@ -79,13 +83,7 @@ function NavRow({ icon: Icon, label, subtitle, iconBg = '#f1f5f9', iconColor = '
         <Text style={s.navLabel}>{label}</Text>
         {subtitle ? <Text style={s.navSub}>{subtitle}</Text> : null}
       </View>
-      {badge ? (
-        <View style={s.navBadge}>
-          <Text style={s.navBadgeTxt}>{badge}</Text>
-        </View>
-      ) : (
-        <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
-      )}
+      <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
     </TouchableOpacity>
   );
 }
@@ -96,6 +94,7 @@ export const MobileSettingsScreen = () => {
   const nav = useNavigation<any>();
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
+  const refresh = usePullToRefresh();
 
   // ── Notification states
   const [cashback, setCashback] = useState(true);
@@ -103,258 +102,248 @@ export const MobileSettingsScreen = () => {
   const [referral, setReferral] = useState(false);
   const [email, setEmail] = useState(true);
 
-  // ── Delete account mutation
+  // ── Delete account
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const deleteMutation = useMutation({
     mutationFn: profileAPI.deleteAccount,
-    onSuccess: () => logout(),
-    onError: () => Alert.alert('Error', 'Failed to delete account. Please try again.'),
+    onSuccess: () => {
+      setDeleteModalOpen(false);
+      logout();
+    },
+    onError: () =>
+      Alert.alert('Error', 'Failed to delete account. Please try again.'),
   });
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Log Out', style: 'destructive', onPress: () => logout() },
-      ],
-    );
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This action is permanent. All your cashback, coins, transaction history and referral data will be erased and cannot be recovered.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Forever',
-          style: 'destructive',
-          onPress: () => deleteMutation.mutate(),
-        },
-      ],
-    );
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log Out', style: 'destructive', onPress: () => logout() },
+    ]);
   };
 
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
-
-      {/* ── Header ─────────────────────────────────────── */}
-      <View style={s.header}>
-        <TouchableOpacity
-          style={s.backBtn}
-          onPress={() => nav.goBack()}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <ChevronLeft size={22} color="#fff" strokeWidth={2.5} />
-        </TouchableOpacity>
-        <View>
-          <Text style={s.headerSmall}>ACCOUNT</Text>
-          <Text style={s.headerTitle}>Settings</Text>
-        </View>
-      </View>
-
+    <View style={s.root}>
       <ScrollView
         style={s.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 48 }}
+        refreshControl={<RefreshControl {...refresh} />}
       >
+        {/* Shared blue gradient header */}
+        <MobileAuthHeader
+          kicker="ACCOUNT"
+          title="Settings"
+          align="left"
+        />
 
-        {/* ── Profile quick info ──────────────────────── */}
-        {user && (
+        <View style={s.body}>
+          {/* ── Profile quick info ──────────────────────── */}
+          {user && (
+            <TouchableOpacity
+              style={s.profileStrip}
+              onPress={() => nav.navigate('EditProfile')}
+              activeOpacity={0.75}
+            >
+              <View style={s.profileAvatarSmall}>
+                {user.avatarUrl ? (
+                  <Image
+                    source={{ uri: user.avatarUrl }}
+                    style={s.profileAvatarImg}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text style={s.profileAvatarTxt}>
+                    {user.name ? user.name[0].toUpperCase() : 'U'}
+                  </Text>
+                )}
+              </View>
+              <View style={s.profileStripInfo}>
+                <Text style={s.profileStripName}>{user.name}</Text>
+                <Text style={s.profileStripSub}>
+                  {user.phone || user.email || 'Edit profile →'}
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#cbd5e1" strokeWidth={2} />
+            </TouchableOpacity>
+          )}
+
+          {/* ── Notifications ───────────────────────────── */}
+          <View style={s.sectionRow}>
+            <View style={[s.sectionIcon, { backgroundColor: '#eff6ff' }]}>
+              <Bell size={13} color={Colors.primary} strokeWidth={2.2} />
+            </View>
+            <Text style={s.sectionTitle}>Notifications</Text>
+          </View>
+          <View style={s.card}>
+            <ToggleRow
+              label="Cashback Updates"
+              subtitle="Get notified when cashback is confirmed"
+              value={cashback}
+              onToggle={setCashback}
+            />
+            <View style={s.divider} />
+            <ToggleRow
+              label="Deal Alerts"
+              subtitle="Notify about new deals and offers"
+              value={deals}
+              onToggle={setDeals}
+            />
+            <View style={s.divider} />
+            <ToggleRow
+              label="Referral Updates"
+              subtitle="Updates about your referrals"
+              value={referral}
+              onToggle={setReferral}
+            />
+            <View style={s.divider} />
+            <ToggleRow
+              label="Email Notifications"
+              subtitle="Receive updates via email"
+              value={email}
+              onToggle={setEmail}
+            />
+          </View>
+
+          {/* ── Security & Privacy ──────────────────────── */}
+          <View style={s.sectionRow}>
+            <View style={[s.sectionIcon, { backgroundColor: '#f5f3ff' }]}>
+              <Shield size={13} color="#8b5cf6" strokeWidth={2.2} />
+            </View>
+            <Text style={s.sectionTitle}>Security & Privacy</Text>
+          </View>
+          <View style={s.card}>
+            <NavRow
+              icon={Lock}
+              label="Change Password"
+              iconBg="#f1f5f9"
+              iconColor="#64748b"
+              onPress={() => {}}
+            />
+            <View style={s.divider} />
+            <NavRow
+              icon={Smartphone}
+              label="Two-Factor Authentication"
+              subtitle="Disabled"
+              iconBg="#f1f5f9"
+              iconColor="#64748b"
+              onPress={() => {}}
+            />
+            <View style={s.divider} />
+            <NavRow
+              icon={Link2}
+              label="Linked Accounts"
+              iconBg="#f1f5f9"
+              iconColor="#64748b"
+              onPress={() => {}}
+            />
+          </View>
+
+          {/* ── About ───────────────────────────────────── */}
+          <View style={s.sectionRow}>
+            <View style={[s.sectionIcon, { backgroundColor: '#f0fdfa' }]}>
+              <Info size={13} color="#0d9488" strokeWidth={2.2} />
+            </View>
+            <Text style={s.sectionTitle}>About</Text>
+          </View>
+          <View style={s.card}>
+            <NavRow
+              icon={HelpCircle}
+              label="Help & Support"
+              iconBg="#f0f9ff"
+              iconColor="#0ea5e9"
+              onPress={() => {}}
+            />
+            <View style={s.divider} />
+            <NavRow
+              icon={FileText}
+              label="Terms of Service"
+              onPress={() => {}}
+            />
+            <View style={s.divider} />
+            <NavRow
+              icon={ScrollText}
+              label="Privacy Policy"
+              onPress={() => {}}
+            />
+            <View style={s.divider} />
+            <NavRow
+              icon={Star}
+              label="Rate the App"
+              iconBg="#fffbeb"
+              iconColor="#f59e0b"
+              onPress={() => {}}
+            />
+          </View>
+
+          {/* ── Account Actions ─────────────────────────── */}
+          <View style={s.sectionRow}>
+            <View style={[s.sectionIcon, { backgroundColor: '#f1f5f9' }]}>
+              <LogOut size={13} color="#64748b" strokeWidth={2.2} />
+            </View>
+            <Text style={s.sectionTitle}>Account Actions</Text>
+          </View>
+          <View style={s.card}>
+            <TouchableOpacity
+              style={s.navRow}
+              onPress={handleLogout}
+              activeOpacity={0.65}
+            >
+              <View style={[s.navIconWrap, { backgroundColor: '#f1f5f9' }]}>
+                <LogOut size={18} color="#64748b" strokeWidth={2} />
+              </View>
+              <Text style={s.logoutLabel}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Delete Account — full-width red button ──── */}
           <TouchableOpacity
-            style={s.profileStrip}
-            onPress={() => nav.navigate('EditProfile')}
-            activeOpacity={0.75}
+            style={[s.deleteBtn, deleteMutation.isPending && { opacity: 0.7 }]}
+            onPress={() => setDeleteModalOpen(true)}
+            activeOpacity={0.85}
+            disabled={deleteMutation.isPending}
           >
-            <View style={s.profileAvatarSmall}>
-              <Text style={s.profileAvatarTxt}>
-                {user.name ? user.name[0].toUpperCase() : 'U'}
-              </Text>
-            </View>
-            <View style={s.profileStripInfo}>
-              <Text style={s.profileStripName}>{user.name}</Text>
-              <Text style={s.profileStripSub}>{user.phone || user.email || 'Edit profile →'}</Text>
-            </View>
-            <ChevronRight size={18} color="#cbd5e1" strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-
-        {/* ── Notifications ───────────────────────────── */}
-        <View style={s.sectionRow}>
-          <Bell size={15} color={Colors.primary} strokeWidth={2} />
-          <Text style={s.sectionTitle}>Notifications</Text>
-        </View>
-        <View style={s.card}>
-          <ToggleRow
-            label="Cashback Updates"
-            subtitle="Notified when cashback is confirmed"
-            value={cashback}
-            onToggle={setCashback}
-          />
-          <View style={s.divider} />
-          <ToggleRow
-            label="Deal Alerts"
-            subtitle="New deals and limited-time offers"
-            value={deals}
-            onToggle={setDeals}
-          />
-          <View style={s.divider} />
-          <ToggleRow
-            label="Referral Updates"
-            subtitle="When someone uses your code"
-            value={referral}
-            onToggle={setReferral}
-          />
-          <View style={s.divider} />
-          <ToggleRow
-            label="Email Notifications"
-            subtitle="Receive updates via email"
-            value={email}
-            onToggle={setEmail}
-          />
-        </View>
-
-        {/* ── Security & Privacy ──────────────────────── */}
-        <View style={s.sectionRow}>
-          <Shield size={15} color="#f97316" strokeWidth={2} />
-          <Text style={s.sectionTitle}>Security & Privacy</Text>
-        </View>
-        <View style={s.card}>
-          <NavRow
-            icon={Lock}
-            label="Change Password"
-            iconBg="#eff6ff"
-            iconColor={Colors.primary}
-            onPress={() => {}}
-          />
-          <View style={s.divider} />
-          <NavRow
-            icon={Smartphone}
-            label="Two-Factor Authentication"
-            subtitle="Add extra protection to your account"
-            iconBg="#f0fdf4"
-            iconColor="#16a34a"
-            badge="Off"
-            onPress={() => {}}
-          />
-          <View style={s.divider} />
-          <NavRow
-            icon={Link2}
-            label="Linked Accounts"
-            subtitle="Manage connected Google / social accounts"
-            onPress={() => {}}
-          />
-        </View>
-
-        {/* ── About ───────────────────────────────────── */}
-        <View style={s.sectionRow}>
-          <Info size={15} color="#8b5cf6" strokeWidth={2} />
-          <Text style={s.sectionTitle}>About</Text>
-        </View>
-        <View style={s.card}>
-          <NavRow
-            icon={HelpCircle}
-            label="Help & Support"
-            iconBg="#f0f9ff"
-            iconColor="#0ea5e9"
-            onPress={() => {}}
-          />
-          <View style={s.divider} />
-          <NavRow
-            icon={FileText}
-            label="Terms of Service"
-            onPress={() => {}}
-          />
-          <View style={s.divider} />
-          <NavRow
-            icon={Tag}
-            label="Privacy Policy"
-            onPress={() => {}}
-          />
-          <View style={s.divider} />
-          <NavRow
-            icon={Star}
-            label="Rate the App"
-            iconBg="#fffbeb"
-            iconColor="#f59e0b"
-            onPress={() => {}}
-          />
-        </View>
-
-        {/* ── Log Out ─────────────────────────────────── */}
-        <TouchableOpacity style={s.logoutRow} onPress={handleLogout} activeOpacity={0.7}>
-          <View style={s.logoutIcon}>
-            <LogOut size={18} color="#64748b" strokeWidth={2} />
-          </View>
-          <Text style={s.logoutTxt}>Log Out</Text>
-          <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
-        </TouchableOpacity>
-
-        {/* ── Delete Account ──────────────────────────── */}
-        <TouchableOpacity
-          style={[s.deleteRow, deleteMutation.isPending && { opacity: 0.5 }]}
-          onPress={handleDeleteAccount}
-          activeOpacity={0.75}
-          disabled={deleteMutation.isPending}
-        >
-          <View style={s.deleteIcon}>
             {deleteMutation.isPending ? (
-              <ActivityIndicator size="small" color="#ef4444" />
+              <ActivityIndicator color="#fff" />
             ) : (
-              <Trash2 size={18} color="#ef4444" strokeWidth={2} />
+              <>
+                <Trash2 size={18} color="#fff" strokeWidth={2.2} />
+                <Text style={s.deleteBtnText}>Delete Account</Text>
+              </>
             )}
-          </View>
-          <Text style={s.deleteTxt}>Delete Account</Text>
-          <ChevronRight size={16} color="#fca5a5" strokeWidth={2} />
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* ── Version ─────────────────────────────────── */}
-        <Text style={s.versionTxt}>ChingiRingi v1.0.0</Text>
-
+          <Text style={s.versionTxt}>ChingiRingi v1.0.0</Text>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+
+      <DeleteAccountModal
+        visible={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirmDelete={() => deleteMutation.mutate()}
+        onShowDeals={() => {
+          setDeleteModalOpen(false);
+          // Mobile has no dedicated Deals tab — Home shows banners + product
+          // grids, which is the closest match. Fall back gracefully if the
+          // route name differs (e.g. on desktop builds).
+          try {
+            nav.navigate('MainTabs', { screen: 'Home' });
+          } catch {
+            try { nav.navigate('Home'); } catch { /* ignore */ }
+          }
+        }}
+        isDeleting={deleteMutation.isPending}
+      />
+    </View>
   );
 };
 
 // ─── Styles ──────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f6fa' },
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
 
-  // Header
-  header: {
-    backgroundColor: Colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 18,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerSmall: {
-    fontSize: 10,
-    fontFamily: Fonts.bold,
-    color: 'rgba(255,255,255,0.65)',
-    letterSpacing: 1.2,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontFamily: Fonts.extraBold,
-    color: '#fff',
-  },
-
-  scroll: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+  scroll: { flex: 1 },
+  body: { paddingHorizontal: 16, paddingTop: 16 },
 
   // Profile strip
   profileStrip: {
@@ -365,10 +354,10 @@ const s = StyleSheet.create({
     padding: 14,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
   profileAvatarSmall: {
     width: 44,
@@ -378,7 +367,9 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
   },
+  profileAvatarImg: { width: '100%', height: '100%' },
   profileAvatarTxt: {
     fontSize: 18,
     fontFamily: Fonts.extraBold,
@@ -406,12 +397,17 @@ const s = StyleSheet.create({
     marginTop: 4,
     paddingHorizontal: 4,
   },
+  sectionIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: Fonts.bold,
-    color: '#1e293b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    color: '#0f172a',
   },
 
   // Card container
@@ -421,12 +417,16 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#f1f5f9', marginHorizontal: 12 },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#f1f5f9',
+    marginHorizontal: 12,
+  },
 
   // Toggle rows
   toggleRow: {
@@ -439,8 +439,8 @@ const s = StyleSheet.create({
   toggleInfo: { flex: 1, marginRight: 16 },
   toggleLabel: {
     fontSize: 15,
-    fontFamily: Fonts.semiBold,
-    color: '#1e293b',
+    fontFamily: Fonts.bold,
+    color: '#0f172a',
   },
   toggleSub: {
     fontSize: 12,
@@ -467,8 +467,8 @@ const s = StyleSheet.create({
   navInfo: { flex: 1 },
   navLabel: {
     fontSize: 15,
-    fontFamily: Fonts.semiBold,
-    color: '#1e293b',
+    fontFamily: Fonts.bold,
+    color: '#0f172a',
   },
   navSub: {
     fontSize: 12,
@@ -476,75 +476,34 @@ const s = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 2,
   },
-  navBadge: {
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  navBadgeTxt: {
-    fontSize: 11,
-    fontFamily: Fonts.semiBold,
-    color: '#64748b',
-  },
-
-  // Logout row
-  logoutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  logoutIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  logoutTxt: {
+  logoutLabel: {
     flex: 1,
     fontSize: 15,
-    fontFamily: Fonts.semiBold,
-    color: '#64748b',
+    fontFamily: Fonts.bold,
+    color: '#0f172a',
   },
 
-  // Delete row
-  deleteRow: {
+  // Delete button — big red CTA
+  deleteBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff5f5',
+    gap: 8,
+    backgroundColor: '#ef4444',
     borderRadius: 16,
-    paddingHorizontal: 16,
     paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#fee2e2',
+    shadowColor: '#ef4444',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 4,
   },
-  deleteIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#fef2f2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  deleteTxt: {
-    flex: 1,
+  deleteBtnText: {
     fontSize: 15,
-    fontFamily: Fonts.semiBold,
-    color: '#ef4444',
+    fontFamily: Fonts.bold,
+    color: '#fff',
   },
 
   // Version
@@ -556,3 +515,5 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
 });
+
+export default MobileSettingsScreen;

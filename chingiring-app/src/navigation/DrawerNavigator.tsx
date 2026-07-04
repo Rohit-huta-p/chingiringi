@@ -3,7 +3,7 @@ import { useWindowDimensions, Platform, View, ActivityIndicator, TouchableOpacit
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Wallet, Users, Bell, Settings } from 'lucide-react-native';
+import { Home, Wallet, Users, Bell, Settings, PlaySquare, Store, User } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts, Gradient } from '../constants/theme';
 import { useAuthStore } from '../store';
@@ -16,14 +16,18 @@ import { ReferScreen } from '../screens/Dashboard/ReferScreen';
 import { ProfileScreen } from '../screens/Dashboard/ProfileScreen';
 import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 import { EditProfileScreen } from '../screens/Dashboard/EditProfileScreen';
+import { MobileEditProfileScreen } from '../screens/Dashboard/MobileEditProfileScreen';
 import { MyAddressScreen } from '../screens/Dashboard/MyAddressScreen';
 import { AddEditAddressScreen } from '../screens/Dashboard/AddEditAddressScreen';
 import { TransactionHistoryScreen } from '../screens/Dashboard/TransactionHistoryScreen';
+import { MobileTransactionHistoryScreen } from '../screens/Dashboard/MobileTransactionHistoryScreen';
 import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
 import { MobileProductDetailScreen } from '../screens/Dashboard/MobileProductDetailScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
 import { MobileReferenceScreen } from '../screens/Dashboard/MobileReferenceScreen';
+import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
+import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 
 const isMobile = Platform.OS !== 'web';
 
@@ -34,24 +38,24 @@ const DesktopDrawerNavigator = lazy(() => import('./DesktopDrawerNavigator'));
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// ─── Mobile: Custom Tab Bar matching Figma mobile-bottom-nav ────────────────
+// ─── Mobile: Custom Tab Bar matching Figma 21:2130 ─────────────────────────
+// Visual rules:
+//   - Inactive tabs: light-gray icon + light-gray label, stacked
+//   - Active non-Home tab: white rounded-rect pill, blue icon + blue label
+//   - Active Home tab: raised white CIRCLE that pokes above the bar
+//     (negative marginTop), blue icon, blue label below the circle
+// Tab set: Videos · Stores · Home · Wallet · Profile  (Home centre)
 
 const MOBILE_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
+  Videos: PlaySquare,
+  Stores: Store,
   Home:   Home,
-  Refer:  Users,
   Wallet: Wallet,
+  Profile: User,
 };
-
-function userInitials(name?: string | null): string {
-  if (!name) return 'U';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 function MobileTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const userName = useAuthStore((s) => s.user?.name);
 
   return (
     <View style={[tabStyles.barOuter, { paddingBottom: Math.max(insets.bottom, 8) }]}>
@@ -61,7 +65,7 @@ function MobileTabBar({ state, descriptors, navigation }: any) {
           const label = options.tabBarLabel ?? route.name;
           const isFocused = state.index === index;
           const Icon = MOBILE_TAB_ICON_MAP[route.name];
-          const isProfile = route.name === 'Profile';
+          const isHome = route.name === 'Home';
 
           const onPress = () => {
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -70,36 +74,47 @@ function MobileTabBar({ state, descriptors, navigation }: any) {
             }
           };
 
+          // Inactive colour: muted gray. Active: brand blue.
+          const iconColor = isFocused ? Colors.primary : '#9ca3af';
+
+          if (isHome) {
+            // Raised circle pulls UP via negative top margin so the FAB-style
+            // home button visually breaks out of the bar's top edge.
+            return (
+              <TouchableOpacity
+                key={route.key}
+                onPress={onPress}
+                activeOpacity={0.85}
+                style={tabStyles.tabHome}
+              >
+                <View style={[tabStyles.homeCircle, isFocused && tabStyles.homeCircleActive]}>
+                  {Icon ? (
+                    <Icon size={22} color={iconColor} strokeWidth={2.2} />
+                  ) : null}
+                </View>
+                <Text style={[tabStyles.label, isFocused && tabStyles.labelActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+
+          // Regular tabs — when active, wrap icon+label in a white rounded pill.
           return (
             <TouchableOpacity
               key={route.key}
               onPress={onPress}
-              activeOpacity={0.7}
-              style={[tabStyles.tab, isFocused && tabStyles.tabActive]}
+              activeOpacity={0.75}
+              style={tabStyles.tab}
             >
-              {isProfile ? (
-                // ── User-initials avatar ──────────────────────────────
-                isFocused ? (
-                  <LinearGradient
-                    colors={Gradient.brand}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={tabStyles.avatarGradient}
-                  >
-                    <View style={tabStyles.avatarInner}>
-                      <Text style={tabStyles.avatarInitialsActive}>{userInitials(userName)}</Text>
-                    </View>
-                  </LinearGradient>
-                ) : (
-                  <View style={tabStyles.avatarInactive}>
-                    <Text style={tabStyles.avatarInitialsInactive}>{userInitials(userName)}</Text>
-                  </View>
-                )
-              ) : (
-                // ── Regular icon ──────────────────────────────────────
-                Icon && <Icon size={20} color={isFocused ? Colors.primary : '#9ca3af'} strokeWidth={2} />
-              )}
-              <Text style={[tabStyles.label, isFocused && tabStyles.labelActive]}>{label}</Text>
+              <View style={[tabStyles.pill, isFocused && tabStyles.pillActive]}>
+                {Icon ? (
+                  <Icon size={20} color={iconColor} strokeWidth={2} />
+                ) : null}
+                <Text style={[tabStyles.label, isFocused && tabStyles.labelActive]}>
+                  {label}
+                </Text>
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -119,15 +134,19 @@ const WEB_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
 
 function BottomTabNavigator() {
   if (isMobile) {
+    // Tab order matters — Home is centre tab so the raised pill sits in the
+    // middle of the bar. Refer moved out to a stack route (still reachable
+    // via the Profile screen / dashboard CTAs).
     return (
       <Tab.Navigator
         initialRouteName="Home"
         tabBar={(props) => <MobileTabBar {...props} />}
         screenOptions={{ headerShown: false }}
       >
-        <Tab.Screen name="Home" component={MobileHomeScreen} options={{ tabBarLabel: 'Home' }} />
-        <Tab.Screen name="Refer" component={MobileReferenceScreen} options={{ tabBarLabel: 'Refer' }} />
-        <Tab.Screen name="Wallet" component={MobileWalletScreen} options={{ tabBarLabel: 'Wallet' }} />
+        <Tab.Screen name="Videos" component={MobileVideosScreen}      options={{ tabBarLabel: 'Videos' }} />
+        <Tab.Screen name="Stores" component={OfflineStoresScreen}     options={{ tabBarLabel: 'Stores' }} />
+        <Tab.Screen name="Home"   component={MobileHomeScreen}        options={{ tabBarLabel: 'Home' }} />
+        <Tab.Screen name="Wallet" component={MobileWalletScreen}      options={{ tabBarLabel: 'Wallet' }} />
         <Tab.Screen name="Profile" component={isMobile ? MobileProfileScreen : ProfileScreen} options={{ tabBarLabel: 'Profile' }} />
       </Tab.Navigator>
     );
@@ -174,31 +193,74 @@ const tabStyles = StyleSheet.create({
   },
   barInner: {
     flexDirection: 'row',
-    backgroundColor: '#ffffffce',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    backgroundColor: '#d8dbe2',
+    borderRadius: 28,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    minHeight: 64,
+    // Allow the raised Home circle to overflow the top of the bar.
+    overflow: 'visible',
     shadowColor: '#000',
     shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
     elevation: 10,
-    alignItems: 'center',
   },
   tab: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Active-state pill (Wallet / Profile / Videos / Stores)
+  pill: {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
+    paddingHorizontal: 6,
+    borderRadius: 18,
+    gap: 2,
+    minWidth: 56,
   },
-  tabActive: {
-    backgroundColor: `${Colors.primaryLight10}`,
+  pillActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
   },
+
+  // Raised Home tab — the circle pokes above the bar via negative margin.
+  tabHome: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  homeCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -28,
+    marginBottom: 4,
+    borderWidth: 4,
+    borderColor: '#d8dbe2',
+  },
+  homeCircleActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: Fonts.medium,
     color: '#9ca3af',
   },
@@ -252,10 +314,10 @@ function MobileNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={BottomTabNavigator} />
         <Stack.Screen name="Profile" component={isMobile ? MobileProfileScreen : ProfileScreen} />
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+        <Stack.Screen name="EditProfile" component={isMobile ? MobileEditProfileScreen : EditProfileScreen} />
         <Stack.Screen name="MyAddress" component={MyAddressScreen} />
         <Stack.Screen name="AddEditAddress" component={AddEditAddressScreen} />
-        <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
+        <Stack.Screen name="TransactionHistory" component={isMobile ? MobileTransactionHistoryScreen : TransactionHistoryScreen} />
         <Stack.Screen name="ProductDetail" component={isMobile ? MobileProductDetailScreen : ProductDetailScreen} />
         <Stack.Screen name="Settings" component={isMobile ? MobileSettingsScreen : SettingsScreen} />
       </Stack.Navigator>

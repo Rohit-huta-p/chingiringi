@@ -73,6 +73,13 @@ const dealSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Surfaces the deal in the "Trending Now" row on the user-facing Deals
+    // page. Manually toggled by admin (plan C) — independent of the
+    // computed-by-clicks heuristic the list page may also use.
+    isTrending: {
+      type: Boolean,
+      default: false,
+    },
     clickCount: {
       type: Number,
       default: 0,
@@ -80,6 +87,24 @@ const dealSchema = new mongoose.Schema(
     conversionCount: {
       type: Number,
       default: 0,
+    },
+    // ── Coin rewards (Model B: coins are the only currency) ───────────────
+    // Coins awarded to the user when a purchase via this deal lands in our
+    // merchant report. Optional PROMOTIONAL OVERRIDE — if 0, the importer
+    // uses the standard commission × passThroughPercent × coinsPerRupee
+    // formula from AdminSettings.
+    coinsReward: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // When true, the click-time URL rewriter wraps affiliateUrl in the
+    // Cuelinks linksredirect.com template using our publisher ID from
+    // AdminSettings. Admin toggles this for Myntra / Flipkart / Meesho / Ajio
+    // / Nykaa deals that route via Cuelinks; leave false for direct Amazon.
+    viaCuelinks: {
+      type: Boolean,
+      default: false,
     },
   },
   {
@@ -91,6 +116,7 @@ dealSchema.index({ brand: 1 });
 dealSchema.index({ category: 1 });
 dealSchema.index({ isActive: 1, expiresAt: 1 });
 dealSchema.index({ isFeatured: 1 });
+dealSchema.index({ isTrending: 1 });
 dealSchema.index({ title: 'text', brand: 'text', description: 'text' });
 
 const Deal = mongoose.model('Deal', dealSchema);

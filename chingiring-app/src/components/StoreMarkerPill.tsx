@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   },
   pillClosed: {
     borderColor: '#94A3B8',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F5F8FF',
   },
   pillText: {
     fontSize: 13,

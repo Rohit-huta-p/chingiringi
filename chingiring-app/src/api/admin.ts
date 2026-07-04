@@ -104,6 +104,26 @@ export const adminAPI = {
     return response.data;
   },
 
+  // ─── Categories ────────────────────────────────────────────────────────────
+  // Public GET hits the same /api/categories endpoint; admin CRUD goes
+  // through the admin-protected POST/PUT/DELETE routes on the same path.
+  getCategories: async () => {
+    const response = await apiClient.get('/api/categories');
+    return response.data;
+  },
+  createCategory: async (data: Record<string, any>) => {
+    const response = await apiClient.post('/api/categories', data);
+    return response.data;
+  },
+  updateCategory: async (id: string, data: Record<string, any>) => {
+    const response = await apiClient.put(`/api/categories/${id}`, data);
+    return response.data;
+  },
+  deleteCategory: async (id: string) => {
+    const response = await apiClient.delete(`/api/categories/${id}`);
+    return response.data;
+  },
+
   // ─── Coupons ───────────────────────────────────────────────────────────────
   getCoupons: async () => {
     const response = await apiClient.get('/api/admin/coupons');
@@ -123,6 +143,66 @@ export const adminAPI = {
   },
   getCouponUsage: async (id: string) => {
     const response = await apiClient.get(`/api/admin/coupons/${id}/usage`);
+    return response.data;
+  },
+
+  // ─── Wallet Operations Hub ─────────────────────────────────────────────────
+
+  /** Pending Queue tab — withdrawals + lock-expired txns + recent imports. */
+  getQueueSummary: async () => {
+    const response = await apiClient.get('/api/admin/queue');
+    return response.data;
+  },
+
+  /** User Wallet tab — clicks + transactions interleaved on a single timeline. */
+  getUserTimeline: async (userId: string, params?: { limit?: number }) => {
+    const response = await apiClient.get(`/api/admin/users/${userId}/timeline`, { params });
+    return response.data;
+  },
+
+  /** Reports Inbox tab — bulk-credit from a parsed merchant report. */
+  importReport: async (data: {
+    merchant: string;
+    periodStart?: string;
+    periodEnd?: string;
+    rows: Array<{
+      orderId: string;
+      subid?: string;
+      amount?: number;
+      commission: number;
+      status?: string;
+      timestamp?: string;
+    }>;
+  }) => {
+    const response = await apiClient.post('/api/admin/reports/import', data);
+    return response.data;
+  },
+
+  /** Reports Inbox — history list. */
+  listReportImports: async (params?: { limit?: number }) => {
+    const response = await apiClient.get('/api/admin/reports/imports', { params });
+    return response.data;
+  },
+
+  /** Reports Inbox — drill into a single past import for forensics. */
+  getReportImport: async (id: string) => {
+    const response = await apiClient.get(`/api/admin/reports/imports/${id}`);
+    return response.data;
+  },
+
+  // ─── Coin-economy settings ─────────────────────────────────────────────────
+  getSettings: async () => {
+    const response = await apiClient.get('/api/admin/settings');
+    return response.data;
+  },
+  updateSettings: async (data: {
+    passThroughPercent?: number;
+    coinsPerRupee?: number;
+    defaultLockDays?: number;
+    cuelinksPublisherId?: string;
+    amazonAssociateTag?: string;
+  }) => {
+    const response = await apiClient.patch('/api/admin/settings', data);
     return response.data;
   },
 };

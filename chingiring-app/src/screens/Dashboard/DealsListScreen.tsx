@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   useWindowDimensions,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -25,7 +26,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { dealsAPI, categoriesAPI, Deal, Category } from '../../api/deals';
+import {
+  bannersAPI,
+  Banner as BannerModel,
+  resolveBannerGradient,
+} from '../../api/banners';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -110,6 +117,7 @@ function TopNav({
   onCategoryChange,
   categories,
   userName,
+  userAvatarUrl,
   onProfilePress,
   width,
 }: {
@@ -119,6 +127,7 @@ function TopNav({
   onCategoryChange: (c: string) => void;
   categories: { label: string; emoji: string }[];
   userName?: string;
+  userAvatarUrl?: string;
   onProfilePress: () => void;
   width: number;
 }) {
@@ -144,8 +153,14 @@ function TopNav({
             <SlidersHorizontal size={16} color={Colors.text} strokeWidth={2} />
           </TouchableOpacity>
           <TouchableOpacity style={s.navAvatar} activeOpacity={0.7} onPress={onProfilePress}>
-            <LinearGradient colors={Gradient.brand} style={StyleSheet.absoluteFillObject} />
-            <Text style={s.navAvatarTxt}>{userInitials(userName)}</Text>
+            {userAvatarUrl ? (
+              <Image source={{ uri: userAvatarUrl }} style={StyleSheet.absoluteFillObject as any} resizeMode="cover" />
+            ) : (
+              <>
+                <LinearGradient colors={Gradient.brand} style={StyleSheet.absoluteFillObject} />
+                <Text style={s.navAvatarTxt}>{userInitials(userName)}</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -396,12 +411,88 @@ function SectionHeader({
   );
 }
 
+// ─── Shop-by-Category horizontal card ──────────────────────────────────────
+//
+// Renders a square emoji-on-color tile per category. Tapping sets the page
+// filter (parent passes onPress). Width is fixed so a row of them feels like
+// a scrollable rail rather than a wrapping grid.
+function CategoryShopCard({
+  category,
+  onPress,
+}: {
+  category: Category;
+  onPress: () => void;
+}) {
+  // Deterministic gradient per category so colors stay stable across reloads.
+  const PALETTES: [string, string][] = [
+    ['#4784E2', '#91BDFF'],
+    ['#F59E0B', '#FDE68A'],
+    ['#10b981', '#a7f3d0'],
+    ['#ec4899', '#fbcfe8'],
+    ['#8b5cf6', '#ddd6fe'],
+    ['#0891b2', '#a5f3fc'],
+    ['#ef4444', '#fecaca'],
+    ['#f97316', '#fed7aa'],
+  ];
+  let hash = 0;
+  for (let i = 0; i < category.name.length; i++) hash = (hash + category.name.charCodeAt(i)) % PALETTES.length;
+  const gradient = PALETTES[hash];
+
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={s.shopByCatCard}>
+      <LinearGradient
+        colors={gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={s.shopByCatEmojiWrap}>
+        <Text style={s.shopByCatEmoji}>{emojiForCategory(category.name)}</Text>
+      </View>
+      <Text style={s.shopByCatLabel} numberOfLines={1}>{category.name}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Promo banner strip ────────────────────────────────────────────────────
+//
+// Uses the shared SLOT_GRADIENTS via resolveBannerGradient — keeps the
+// admin form preview consistent with what shows on this page.
+function PromoBannerStrip({ banner, onPress }: { banner: BannerModel; onPress?: () => void }) {
+  const colors = resolveBannerGradient(banner);
+  return (
+    <TouchableOpacity activeOpacity={onPress ? 0.92 : 1} onPress={onPress} style={s.bannerStrip}>
+      <LinearGradient
+        colors={colors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {banner.imageUrl ? (
+        <Image source={{ uri: banner.imageUrl }} style={s.bannerStripImage} resizeMode="cover" />
+      ) : null}
+      <View style={s.bannerStripContent}>
+        {banner.title ? <Text style={s.bannerStripTitle}>{banner.title}</Text> : null}
+        {banner.subtitle ? <Text style={s.bannerStripSub}>{banner.subtitle}</Text> : null}
+      </View>
+      {banner.ctaLabel ? (
+        <View style={s.bannerStripCta}>
+          <Text style={s.bannerStripCtaTxt}>{banner.ctaLabel}</Text>
+          <ChevronRight size={14} color="#0f172a" strokeWidth={2.5} />
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
 // ─── Main Screen ────────────────────────────────────────────────────────────
 
 export const DealsListScreen = () => {
   const { width } = useWindowDimensions();
   const navigation = useNavigation<any>();
   const userName = useAuthStore((st) => st.user?.name);
+  const userAvatarUrl = useAuthStore((st) => st.user?.avatarUrl);
+  const refresh = usePullToRefresh();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -428,21 +519,43 @@ export const DealsListScreen = () => {
     staleTime: 60_000,
   });
 
+  // Admin-flagged trending deals (plan C). Falls back to click-count
+  // sort if admin hasn't marked anything yet — see `trendingDeals` below.
+  const { data: trendingData } = useQuery({
+    queryKey: ['deals', 'trending'],
+    queryFn: () => dealsAPI.getDeals({ trending: 'true', limit: 10 }),
+    staleTime: 60_000,
+  });
+
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
     queryFn: () => categoriesAPI.getCategories(),
     staleTime: 5 * 60_000,
   });
 
+  const { data: bannerRes } = useQuery({
+    queryKey: ['banners'],
+    queryFn: () => bannersAPI.getActiveBanners(),
+    staleTime: 60_000,
+  });
+
   const allDeals: Deal[] =
     dealsData?.data?.deals ?? dealsData?.deals ?? dealsData?.data ?? [];
   const featuredDeals: Deal[] =
     featuredData?.data?.deals ?? featuredData?.deals ?? featuredData?.data ?? [];
+  const adminTrendingDeals: Deal[] =
+    trendingData?.data?.deals ?? trendingData?.deals ?? trendingData?.data ?? [];
   const apiCategories: Category[] =
     categoriesData?.data?.categories ??
     categoriesData?.categories ??
     categoriesData?.data ??
     [];
+  const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
+  // Pick a banner for the Deals page promo strip — admin can set the
+  // 'flash-strip' slot; fall back to any active banner so the section
+  // never sits empty when admin has banners configured for other slots.
+  const dealsBanner =
+    allBanners.find((b) => b.slot === 'flash-strip') ?? allBanners[0] ?? null;
 
   // Build category chip list. Prefer live API names, fall back to PRD-spec
   // categories from the design (Fashion, Electronics, Home, Pharmacy).
@@ -483,13 +596,40 @@ export const DealsListScreen = () => {
     filteredDeals.find((d) => d._id !== heroDeal?._id) ??
     null;
 
-  // Trending: top 5 by clickCount; falls back to first 5 of filtered list.
+  // Trending: prefer admin-flagged `isTrending` deals (plan C). When admin
+  // hasn't curated anything yet, fall back to top 5 by clickCount so the
+  // section is never empty on a fresh install.
   const trendingDeals = useMemo(() => {
+    if (adminTrendingDeals.length > 0) return adminTrendingDeals.slice(0, 8);
     const pool = allDeals.length > 0 ? allDeals : filteredDeals;
     return [...pool]
       .sort((a, b) => (b.clickCount ?? 0) - (a.clickCount ?? 0))
       .slice(0, 5);
-  }, [allDeals, filteredDeals]);
+  }, [adminTrendingDeals, allDeals, filteredDeals]);
+
+  // Group deals by category for the per-category rows. Indexed by category _id.
+  const dealsByCategory = useMemo(() => {
+    const map: Record<string, Deal[]> = {};
+    for (const d of allDeals) {
+      const id = d.category?._id;
+      if (!id) continue;
+      (map[id] ??= []).push(d);
+    }
+    return map;
+  }, [allDeals]);
+
+  // Active categories that should appear as their own row on the deals page.
+  // `showOnDealsPage` defaults true server-side so existing setups don't
+  // require admin action — toggle to false to hide a category.
+  const dealsPageCategories = useMemo(() => {
+    return apiCategories
+      .filter((c) => c.isActive !== false && c.showOnDealsPage !== false)
+      .sort(
+        (a, b) =>
+          (a.dealsPageSortOrder ?? 0) - (b.dealsPageSortOrder ?? 0) ||
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+      );
+  }, [apiCategories]);
 
   // ── Layout grid columns
   const trendCols = isMobile ? 2.4 : isCompact ? 4 : 5; // 2.4 → horizontal scroll feel on mobile
@@ -524,6 +664,7 @@ export const DealsListScreen = () => {
         onCategoryChange={setSelectedCategory}
         categories={categoryChips}
         userName={userName}
+        userAvatarUrl={userAvatarUrl}
         onProfilePress={() => navigation.navigate('Profile')}
         width={contentW}
       />
@@ -532,6 +673,7 @@ export const DealsListScreen = () => {
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl {...refresh} />}
       >
         <View style={[s.body, { width: contentW + (isMobile ? 32 : 64) }]}>
           {/* ── Hero Row ─────────────────────────────────────────────────── */}
@@ -616,6 +758,109 @@ export const DealsListScreen = () => {
               </View>
             )}
           </View>
+
+          {/* ── Featured Picks ───────────────────────────────────────────── */}
+          {featuredDeals.length > 0 ? (
+            <View style={s.section}>
+              <SectionHeader title="Featured Picks" count={`${featuredDeals.length} deals`} />
+              {isMobile ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap, paddingRight: 16 }}
+                >
+                  {featuredDeals.map((deal) => (
+                    <TrendingCard
+                      key={deal._id}
+                      deal={deal}
+                      width={trendCardW}
+                      onPress={() => onDealPress(deal)}
+                    />
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={[s.row, { gap }]}>
+                  {featuredDeals.slice(0, Math.floor(trendCols)).map((deal) => (
+                    <TrendingCard
+                      key={deal._id}
+                      deal={deal}
+                      width={trendCardW}
+                      onPress={() => onDealPress(deal)}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : null}
+
+          {/* ── Shop by Category ─────────────────────────────────────────── */}
+          {dealsPageCategories.length > 0 ? (
+            <View style={s.section}>
+              <SectionHeader title="Shop by Category" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap, paddingRight: 16 }}
+              >
+                {dealsPageCategories.map((cat) => (
+                  <CategoryShopCard
+                    key={cat._id}
+                    category={cat}
+                    onPress={() => setSelectedCategory(cat.name)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {/* ── Promo Banner ─────────────────────────────────────────────── */}
+          {dealsBanner ? (
+            <View style={s.section}>
+              <PromoBannerStrip banner={dealsBanner} />
+            </View>
+          ) : null}
+
+          {/* ── Per-Category rows (Food & Dining, Electronics, ...) ──────── */}
+          {dealsPageCategories.map((cat) => {
+            const list = dealsByCategory[cat._id] ?? [];
+            if (list.length === 0) return null; // auto-hide empty
+            return (
+              <View key={`cat-row-${cat._id}`} style={s.section}>
+                <SectionHeader
+                  title={cat.name}
+                  count={`${list.length} deals`}
+                  onSeeAll={() => setSelectedCategory(cat.name)}
+                />
+                {isMobile ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap, paddingRight: 16 }}
+                  >
+                    {list.map((deal) => (
+                      <TrendingCard
+                        key={deal._id}
+                        deal={deal}
+                        width={trendCardW}
+                        onPress={() => onDealPress(deal)}
+                      />
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={[s.row, { gap }]}>
+                    {list.slice(0, Math.floor(trendCols)).map((deal) => (
+                      <TrendingCard
+                        key={deal._id}
+                        deal={deal}
+                        width={trendCardW}
+                        onPress={() => onDealPress(deal)}
+                      />
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -625,7 +870,7 @@ export const DealsListScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
 
   fullImage: { width: '100%', height: '100%' },
 
@@ -1065,5 +1310,77 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontFamily: Fonts.regular,
     color: '#64748b',
+  },
+
+  // ── Shop by Category (horizontal cards)
+  shopByCatCard: {
+    width: 140,
+    height: 96,
+    borderRadius: 16,
+    overflow: 'hidden',
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  shopByCatEmojiWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shopByCatEmoji: { fontSize: 18 },
+  shopByCatLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    color: '#fff',
+    letterSpacing: -0.2,
+  },
+
+  // ── Promo banner strip
+  bannerStrip: {
+    height: 132,
+    borderRadius: 18,
+    overflow: 'hidden',
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  bannerStripImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.35,
+  },
+  bannerStripContent: {
+    gap: 4,
+    maxWidth: '70%',
+  },
+  bannerStripTitle: {
+    fontSize: 22,
+    fontFamily: Fonts.extraBold,
+    color: '#fff',
+    letterSpacing: -0.3,
+  },
+  bannerStripSub: {
+    fontSize: 13,
+    fontFamily: Fonts.medium,
+    color: 'rgba(255,255,255,0.92)',
+  },
+  bannerStripCta: {
+    position: 'absolute',
+    right: 24,
+    top: '50%',
+    transform: [{ translateY: -16 }],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  bannerStripCtaTxt: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: '#0f172a',
   },
 });

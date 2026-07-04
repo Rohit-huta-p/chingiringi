@@ -5,7 +5,7 @@ import Wallet from '../wallet/walletModel.js';
 // @route   PUT /api/profile
 // @access  Private
 export const updateProfile = async (req, res) => {
-  const allowedFields = ['name', 'email', 'phone'];
+  const allowedFields = ['name', 'email', 'phone', 'avatarUrl'];
   const updates = {};
 
   for (const field of allowedFields) {
