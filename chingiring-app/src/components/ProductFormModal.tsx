@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { X, Package } from 'lucide-react-native';
 import { ImageUploader } from './ImageUploader';
+import { CategoryPicker } from './CategoryPicker';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -246,14 +247,12 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
               </Field>
             </View>
 
-            {/* Category */}
+            {/* Category — inline picker with create / edit / delete */}
             <Field label="Category">
-              <TextInput
-                style={st.input}
-                placeholder="Enter category..."
-                placeholderTextColor="#94a3b8"
+              <CategoryPicker
                 value={form.category}
-                onChangeText={(v) => update('category', v)}
+                onChange={(v) => update('category', v)}
+                disabled={submitting}
               />
             </Field>
           </ScrollView>

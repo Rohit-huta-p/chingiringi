@@ -6,6 +6,7 @@ export interface Wallet {
   pendingCashback: number;
   confirmedCashback: number;
   coins: number;
+  pendingCoins?: number;
   lifetimeEarned: number;
 }
 
@@ -51,6 +52,17 @@ export const walletAPI = {
 
   getTransaction: async (id: string) => {
     const response = await apiClient.get(`/api/wallet/transactions/${id}`);
+    return response.data;
+  },
+
+  requestWithdrawal: async (data: {
+    coins: number;
+    method: 'UPI' | 'Bank';
+    paymentDetails: string;
+    accountNumber?: string;
+    ifsc?: string;
+  }) => {
+    const response = await apiClient.post('/api/wallet/withdraw', data);
     return response.data;
   },
 };

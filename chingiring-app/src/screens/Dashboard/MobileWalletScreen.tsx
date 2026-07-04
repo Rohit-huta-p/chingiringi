@@ -18,7 +18,7 @@ import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { Fonts } from '../../constants/theme';
 // expo-camera v17 incompatible with SDK 54 in Expo Go — disabled until version aligned
 // import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
@@ -57,73 +57,181 @@ function amtPrefix(t: string) { return t === 'withdrawal' ? '-' : '+'; }
 
 // ─── Withdraw Sheet ─────────────────────────────────────────────────
 
-function WithdrawSheet({ visible, onClose, balance }: { visible: boolean; onClose: () => void; balance: number }) {
-  const [method, setMethod] = useState<'UPI' | 'Bank' | 'Paytm'>('UPI');
+function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; onClose: () => void; coinBalance: number }) {
+  const qc = useQueryClient();
+  const [method, setMethod] = useState<'UPI' | 'Bank'>('UPI');
   const [payId, setPayId] = useState('');
-  const [amount, setAmount] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [coinAmount, setCoinAmount] = useState('');
+
+  // Reset form each time the sheet opens.
+  React.useEffect(() => {
+    if (!visible) {
+      setCoinAmount('');
+      setPayId('');
+      setAccountNumber('');
+      setIfsc('');
+      setMethod('UPI');
+    }
+  }, [visible]);
+
+  // Fetch coinsPerRupee from the wallet backend via a lightweight settings
+  // read. For simplicity we hit /api/wallet — it doesn't return the rate,
+  // so we default to 10 (matches server default). Live-rate polish can come
+  // later via a dedicated /api/config public endpoint.
+  const RATE = 10; // coins per ₹1 — mirrors AdminSettings default
+
+  const coinsNum = Number(coinAmount) || 0;
+  const rupees = Math.round((coinsNum / RATE) * 100) / 100;
+  const overBalance = coinsNum > coinBalance;
+  const belowMin = coinsNum > 0 && rupees < 10; // ₹10 minimum
+
+  const submit = useMutation({
+    mutationFn: () => walletAPI.requestWithdrawal({
+      coins: coinsNum,
+      method,
+      paymentDetails: method === 'UPI' ? payId.trim() : accountNumber.trim(),
+      ...(method === 'Bank' ? { accountNumber: accountNumber.trim(), ifsc: ifsc.trim().toUpperCase() } : {}),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wallet'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['wallet', 'transactions', 'mobile'] });
+      Alert.alert(
+        'Request submitted',
+        `${coinsNum} coins → ₹${rupees} will be sent to ${method === 'UPI' ? payId : accountNumber} once approved.`,
+        [{ text: 'OK', onPress: onClose }],
+      );
+    },
+    onError: (e: any) => {
+      Alert.alert('Failed', e?.response?.data?.message || e?.message || 'Try again');
+    },
+  });
+
+  const canSubmit =
+    coinsNum > 0
+    && !overBalance
+    && !belowMin
+    && (method === 'UPI' ? payId.trim().length > 0 : accountNumber.trim().length > 0 && ifsc.trim().length > 0)
+    && !submit.isPending;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={ws.overlay}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
           <View style={ws.sheet}>
-            {/* Handle bar */}
             <View style={ws.handleBar} />
 
             <View style={ws.header}>
-              <Text style={ws.title}>Withdraw Money</Text>
+              <Text style={ws.title}>Withdraw Coins</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <X size={20} color="#64748b" strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
-            {/* Balance */}
+            {/* Coin balance */}
             <View style={ws.balCard}>
               <View>
-                <Text style={ws.balLabel}>Available Balance</Text>
-                <Text style={ws.balAmt}>₹{balance}</Text>
+                <Text style={ws.balLabel}>Available Coins</Text>
+                <Text style={ws.balAmt}>{coinBalance.toLocaleString('en-IN')}</Text>
+                <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                  ≈ ₹{Math.round((coinBalance / RATE) * 100) / 100}
+                </Text>
               </View>
-              <Text style={ws.balWatermark}>₹</Text>
+              <Text style={ws.balWatermark}>🪙</Text>
+            </View>
+
+            {/* Amount in coins */}
+            <Text style={ws.secLabel}>Coins to redeem</Text>
+            <TextInput
+              style={ws.input}
+              placeholder={`Min 100 coins (₹${Math.round(100 / RATE * 100) / 100})`}
+              placeholderTextColor="#b0b8c4"
+              keyboardType="number-pad"
+              value={coinAmount}
+              onChangeText={(v) => setCoinAmount(v.replace(/[^0-9]/g, ''))}
+            />
+            {coinsNum > 0 && (
+              <Text style={{ fontSize: 13, marginTop: -12, marginBottom: 14, color: overBalance ? '#ef4444' : belowMin ? '#d97706' : '#16a34a' }}>
+                {overBalance
+                  ? `Not enough coins — you have ${coinBalance}`
+                  : belowMin
+                  ? 'Below ₹10 minimum'
+                  : `You'll receive ₹${rupees}`}
+              </Text>
+            )}
+
+            {/* Quick amounts */}
+            <View style={ws.quickRow}>
+              {[100, 500, 1000].map((q) => (
+                <TouchableOpacity
+                  key={q}
+                  style={[ws.chip, q > coinBalance && { opacity: 0.4 }]}
+                  onPress={() => q <= coinBalance && setCoinAmount(String(q))}
+                  disabled={q > coinBalance}
+                >
+                  <Text style={ws.chipTxt}>{q} coins</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={ws.chip}
+                onPress={() => setCoinAmount(String(coinBalance))}
+                disabled={coinBalance <= 0}
+              >
+                <Text style={ws.chipTxt}>All</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Method */}
-            <Text style={ws.secLabel}>Withdraw to</Text>
+            <Text style={ws.secLabel}>Send to</Text>
             <View style={ws.methodRow}>
-              {(['UPI', 'Bank', 'Paytm'] as const).map((m) => (
+              {(['UPI', 'Bank'] as const).map((m) => (
                 <TouchableOpacity key={m} style={[ws.pill, method === m && ws.pillOn]} onPress={() => setMethod(m)}>
                   <Text style={[ws.pillTxt, method === m && ws.pillTxtOn]}>{m}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <TextInput
-              style={ws.input}
-              placeholder={method === 'UPI' ? 'Enter UPI ID' : method === 'Bank' ? 'Enter Account Number' : 'Enter Paytm Number'}
-              placeholderTextColor="#b0b8c4"
-              value={payId}
-              onChangeText={setPayId}
-            />
+            {method === 'UPI' ? (
+              <TextInput
+                style={ws.input}
+                placeholder="UPI ID (e.g., rahul@paytm)"
+                placeholderTextColor="#b0b8c4"
+                autoCapitalize="none"
+                value={payId}
+                onChangeText={setPayId}
+              />
+            ) : (
+              <>
+                <TextInput
+                  style={ws.input}
+                  placeholder="Account Number"
+                  placeholderTextColor="#b0b8c4"
+                  keyboardType="number-pad"
+                  value={accountNumber}
+                  onChangeText={setAccountNumber}
+                />
+                <TextInput
+                  style={ws.input}
+                  placeholder="IFSC Code"
+                  placeholderTextColor="#b0b8c4"
+                  autoCapitalize="characters"
+                  value={ifsc}
+                  onChangeText={setIfsc}
+                />
+              </>
+            )}
 
-            <Text style={ws.secLabel}>Withdrawal amount</Text>
-            <TextInput
-              style={ws.input}
-              placeholder="Minimum ₹100"
-              placeholderTextColor="#b0b8c4"
-              keyboardType="number-pad"
-              value={amount}
-              onChangeText={setAmount}
-            />
-
-            <View style={ws.quickRow}>
-              {[100, 500, 1000].map((q) => (
-                <TouchableOpacity key={q} style={ws.chip} onPress={() => setAmount(String(q))}>
-                  <Text style={ws.chipTxt}>₹{q}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity style={ws.confirmBtn} activeOpacity={0.8}>
-              <Text style={ws.confirmTxt}>Confirm Withdrawal</Text>
+            <TouchableOpacity
+              style={[ws.confirmBtn, !canSubmit && { opacity: 0.5 }]}
+              activeOpacity={0.85}
+              onPress={() => canSubmit && submit.mutate()}
+              disabled={!canSubmit}
+            >
+              {submit.isPending
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={ws.confirmTxt}>Confirm Withdrawal</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -590,7 +698,7 @@ export const MobileWalletScreen = () => {
 
       </ScrollView>
 
-      <WithdrawSheet visible={showWithdraw} onClose={() => setShowWithdraw(false)} balance={w.confirmedCashback} />
+      <WithdrawSheet visible={showWithdraw} onClose={() => setShowWithdraw(false)} coinBalance={w.coins ?? 0} />
       <ScannerSheet visible={showScanner} onClose={() => setShowScanner(false)} balance={w.confirmedCashback} />
     </View>
   );

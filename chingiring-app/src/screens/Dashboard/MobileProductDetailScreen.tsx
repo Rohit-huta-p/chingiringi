@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
+import { clicksAPI } from '../../api/clicks';
 import { productsAPI } from '../../api/products';
 
 function formatExpiresIn(expiresAt: string): string {
@@ -300,8 +301,19 @@ export const MobileProductDetailScreen = () => {
     const url = deal?.affiliateUrl;
     if (!url) return;
     try {
-      if (dealId) dealsAPI.trackClick(dealId).catch(() => {});
-      await Linking.openURL(url);
+      // Subid-rewritten URL so the merchant report can attribute the sale back
+      // to this user. Fall back to the raw URL if logging fails — don't break
+      // the user's tap because our analytics is down.
+      let openUrl = url;
+      if (dealId) {
+        try {
+          const { redirectUrl } = await clicksAPI.log({ dealId, source: 'product_detail' });
+          if (redirectUrl) openUrl = redirectUrl;
+        } catch {
+          /* fall through to raw url */
+        }
+      }
+      await Linking.openURL(openUrl);
     } catch {
       Alert.alert('Error', 'Could not open the link.');
     }

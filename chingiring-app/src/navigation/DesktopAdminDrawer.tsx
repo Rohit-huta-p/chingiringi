@@ -10,7 +10,7 @@ import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen'
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
 import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
-import { AdminCategoriesScreen } from '../screens/Admin/AdminCategoriesScreen';
+import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -37,10 +37,10 @@ export default function DesktopAdminDrawer() {
       <Drawer.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       <Drawer.Screen name="AdminDeals" component={AdminDealsScreen} />
       <Drawer.Screen name="AdminConversions" component={AdminConversionsScreen} />
+      <Drawer.Screen name="AdminWalletOps" component={WalletOperationsScreen} />
       <Drawer.Screen name="AdminWithdrawals" component={AdminWithdrawalsScreen} />
       <Drawer.Screen name="AdminUsers" component={AdminUsersScreen} />
       <Drawer.Screen name="AdminAllProducts" component={AdminProductsScreen} />
-      <Drawer.Screen name="AdminCategories" component={AdminCategoriesScreen} />
       <Drawer.Screen name="AdminOrders" component={AdminOrdersScreen} />
       <Drawer.Screen name="AdminInventory" component={AdminInventoryScreen} />
       <Drawer.Screen name="AdminBanners" component={AdminBannersScreen} />

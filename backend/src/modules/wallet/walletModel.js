@@ -23,6 +23,16 @@ const walletSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Coins credited from a merchant report but still inside the merchant's
+    // return window (lock period). Users can SEE these in their app but
+    // can't WITHDRAW against them — only `coins` (confirmed) is spendable.
+    // Split lets us reverse a canceled/returned order without touching the
+    // user's confirmed balance.
+    pendingCoins: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     lifetimeEarned: {
       type: Number,
       default: 0,

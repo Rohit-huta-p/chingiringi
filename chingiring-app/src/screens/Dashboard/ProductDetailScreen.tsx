@@ -7,6 +7,7 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
 import { productsAPI } from '../../api/products';
+import { clicksAPI } from '../../api/clicks';
 
 const SIZES = ['30', '32', '34', '36'];
 
@@ -186,8 +187,18 @@ export const ProductDetailScreen = () => {
     const url = deal?.affiliateUrl;
     if (!url) return;
     try {
-      if (dealId) dealsAPI.trackClick(dealId).catch(() => { });
-      await Linking.openURL(url);
+      // Subid-rewritten URL so the merchant report can attribute the sale back
+      // to this user. Falls back to raw URL if click logging fails.
+      let openUrl = url;
+      if (dealId) {
+        try {
+          const { redirectUrl } = await clicksAPI.log({ dealId, source: 'product_detail_web' });
+          if (redirectUrl) openUrl = redirectUrl;
+        } catch {
+          /* fall through */
+        }
+      }
+      await Linking.openURL(openUrl);
     } catch {
       Alert.alert('Error', 'Could not open the link. Please try again.');
     }

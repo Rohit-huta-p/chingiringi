@@ -41,3 +41,4 @@ graphify-out/
 # Generated
 PRD.pdf
 *.log
+.gstack/

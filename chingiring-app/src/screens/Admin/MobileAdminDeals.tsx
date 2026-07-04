@@ -62,7 +62,6 @@ function formatExpiry(d: string): string {
 const NAV_ITEMS = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'AdminDeals', label: 'Deals', icon: Tag },
-  { key: 'AdminCategories', label: 'Categories', icon: Grid3X3 },
   { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
   { key: 'AdminUsers', label: 'Users', icon: Users },
   { key: 'AdminAllProducts', label: 'Products', icon: Package },

@@ -11,7 +11,6 @@ import { MobileAdminProducts } from '../screens/Admin/MobileAdminProducts';
 import { MobileAdminBanners } from '../screens/Admin/MobileAdminBanners';
 import { MobileAdminCoupons } from '../screens/Admin/MobileAdminCoupons';
 import { MobileAdminCouponUsage } from '../screens/Admin/MobileAdminCouponUsage';
-import { MobileAdminCategories } from '../screens/Admin/MobileAdminCategories';
 import { createAdminPlaceholder } from '../screens/Admin/AdminPlaceholderScreen';
 import { AdminDealsScreen } from '../screens/Admin/AdminDealsScreen';
 import { AdminProductsScreen } from '../screens/Admin/AdminProductsScreen';
@@ -19,12 +18,13 @@ import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen'
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
 import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
-import { AdminCategoriesScreen } from '../screens/Admin/AdminCategoriesScreen';
+import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 
 const isMobile = Platform.OS !== 'web';
 
-// Placeholder screens for admin sections (Categories now has a real screen)
+// Categories management is now inline inside the Product form (CategoryPicker).
+// No dedicated Categories screen — admins create / edit / delete from there.
 const AdminConversionsScreen = createAdminPlaceholder('Conversions');
 const AdminOrdersScreen = createAdminPlaceholder('Orders');
 const AdminInventoryScreen = createAdminPlaceholder('Inventory');
@@ -42,10 +42,10 @@ function MobileAdminNavigator() {
       <Stack.Screen name="AdminDashboard" component={isMobile ? MobileAdminDashboard : AdminDashboardScreen} options={{ headerShown: !isMobile, title: 'Admin Dashboard' }} />
       <Stack.Screen name="AdminDeals" component={isMobile ? MobileAdminDeals : AdminDealsScreen} options={{ headerShown: !isMobile, title: 'Deals' }} />
       <Stack.Screen name="AdminConversions" component={AdminConversionsScreen} options={{ title: 'Conversions' }} />
+      <Stack.Screen name="AdminWalletOps" component={isMobile ? AdminUsersScreen : WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
       <Stack.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
       <Stack.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
-      <Stack.Screen name="AdminCategories" component={isMobile ? MobileAdminCategories : AdminCategoriesScreen} options={{ headerShown: !isMobile, title: 'Categories' }} />
       <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
       <Stack.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />
       <Stack.Screen name="AdminBanners" component={isMobile ? MobileAdminBanners : AdminBannersScreen} options={{ headerShown: !isMobile, title: 'Banners' }} />

@@ -34,10 +34,12 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
     description: deal?.description || '',
     imageUrl: deal?.imageUrl || '',
     lockPeriodDays: deal?.lockPeriodDays?.toString() || '30',
+    coinsReward: deal?.coinsReward?.toString() || '',
     tags: deal?.tags?.join(', ') || '',
     termsAndConditions: deal?.termsAndConditions || '',
     isFeatured: deal?.isFeatured || false,
     isTrending: deal?.isTrending || false,
+    viaCuelinks: deal?.viaCuelinks || false,
   });
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
@@ -68,6 +70,7 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
       cashbackPercent: form.cashbackType === 'percentage' ? parseFloat(form.cashbackPercent) : 0,
       flatCashback: form.cashbackType === 'flat' ? parseFloat(form.flatCashback) : 0,
       lockPeriodDays: parseInt(form.lockPeriodDays) || 30,
+      coinsReward: form.coinsReward ? parseInt(form.coinsReward, 10) : 0,
       tags: form.tags ? form.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       category: form.category || undefined,
     });
@@ -243,8 +246,22 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
               folder="chingiringi/deals"
             />
 
-            {/* Lock Period + Tags row */}
+            {/* Coins Reward — coins the user earns per purchase via this deal. */}
             <View style={styles.fieldRow}>
+              <View style={styles.fieldHalf}>
+                <Text style={styles.fieldLabel}>Coins Reward (per purchase)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 50"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  value={form.coinsReward}
+                  onChangeText={(v) => setForm({ ...form, coinsReward: v.replace(/[^0-9]/g, '') })}
+                />
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                  Leave blank to fall back to system rate (commission × 10).
+                </Text>
+              </View>
               <View style={styles.fieldHalf}>
                 <Text style={styles.fieldLabel}>Lock Period (days)</Text>
                 <TextInput
@@ -256,7 +273,11 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
                   onChangeText={(v) => setForm({ ...form, lockPeriodDays: v })}
                 />
               </View>
-              <View style={styles.fieldHalf}>
+            </View>
+
+            {/* Tags row (kept separate) */}
+            <View style={styles.fieldRow}>
+              <View style={[styles.fieldHalf, { flex: 1 }]}>
                 <Text style={styles.fieldLabel}>Tags (comma separated)</Text>
                 <TextInput
                   style={styles.input}
@@ -300,6 +321,20 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
                 <View style={[styles.toggleDot, form.isTrending && styles.toggleDotActive]} />
               </View>
               <Text style={styles.toggleLabel}>Mark as Trending</Text>
+            </TouchableOpacity>
+
+            {/* Cuelinks toggle — at click time backend wraps the raw merchant
+                URL in linksredirect.com using our Cuelinks publisher ID.
+                Turn ON for Myntra, Flipkart, Meesho, Ajio, Nykaa. Leave OFF
+                for direct Amazon deals. */}
+            <TouchableOpacity
+              style={styles.toggleRow}
+              onPress={() => setForm({ ...form, viaCuelinks: !form.viaCuelinks })}
+            >
+              <View style={[styles.toggle, form.viaCuelinks && styles.toggleActive]}>
+                <View style={[styles.toggleDot, form.viaCuelinks && styles.toggleDotActive]} />
+              </View>
+              <Text style={styles.toggleLabel}>Route via Cuelinks</Text>
             </TouchableOpacity>
           </ScrollView>
 
