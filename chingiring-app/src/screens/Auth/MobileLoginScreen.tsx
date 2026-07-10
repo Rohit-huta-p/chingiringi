@@ -94,12 +94,12 @@ export const MobileLoginScreen = ({ navigation }: any) => {
         tileOpacity={0.92}
       />
       <DiagonalImageScroll
-        top={140}
+        top={278}
         height={150}
         tileSize={84}
         loopSeconds={24}
         direction="right"
-        tiltDeg={-5}
+        tiltDeg={-12}
         imageSeed={5}
         tileOpacity={0.92}
       />
