@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   Tag,
   CreditCard,
+  Wallet,
   Package,
   Image as ImageIcon,
  Ticket,
@@ -71,6 +72,7 @@ const FB = {
 const NAV_ITEMS = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'AdminDeals', label: 'Deals', icon: Tag },
+  { key: 'AdminWalletOps', label: 'Wallet Ops', icon: Wallet },
   { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
   { key: 'AdminUsers', label: 'Users', icon: Users },
   { key: 'AdminAllProducts', label: 'Products', icon: Package },
