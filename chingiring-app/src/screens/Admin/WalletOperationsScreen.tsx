@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert, Platform, useWindowDimensions,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -623,6 +623,8 @@ function SummaryStat({ label, value, tint }: { label: string; value: string; tin
 function UserWalletTab() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 700;
 
   const searchQuery = useQuery({
     queryKey: ['admin', 'users', 'search', search],
@@ -630,6 +632,64 @@ function UserWalletTab() {
     enabled: search.length >= 2,
   });
   const searchResults: TimelineUser[] = searchQuery.data?.data?.users ?? [];
+
+  if (isNarrow && selectedId) {
+    return (
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, backgroundColor: '#f1f5f9' }}
+          onPress={() => setSelectedId(null)}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primary }}>← Back to search</Text>
+        </TouchableOpacity>
+        <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+          <UserTimelineDetail userId={selectedId} />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (isNarrow) {
+    return (
+      <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+        <View style={[s.searchRow, { marginBottom: 12 }]}>
+          <Search size={16} color="#94a3b8" strokeWidth={2} />
+          <TextInput
+            style={s.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Name, phone, email…"
+            placeholderTextColor="#94a3b8"
+          />
+        </View>
+
+        {search.length < 2 ? (
+          <View style={s.emptyHint}>
+            <Text style={s.emptyTxt}>Type 2+ characters to search.</Text>
+          </View>
+        ) : searchQuery.isLoading ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginTop: 24 }} />
+        ) : searchResults.length === 0 ? (
+          <View style={s.emptyHint}>
+            <Text style={s.emptyTxt}>No users match "{search}".</Text>
+          </View>
+        ) : (
+          searchResults.map((u) => (
+            <TouchableOpacity
+              key={u._id}
+              style={[s.searchResult, selectedId === u._id && s.searchResultActive]}
+              onPress={() => setSelectedId(u._id)}
+            >
+              <Text style={s.searchResultName} numberOfLines={1}>{u.name}</Text>
+              <Text style={s.searchResultMeta} numberOfLines={1}>
+                {u.phone || u.email || '—'}
+              </Text>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
+    );
+  }
 
   return (
     <View style={{ flex: 1, flexDirection: 'row' }}>
@@ -1206,9 +1266,10 @@ const s = StyleSheet.create({
 
   // ── Queue tab
   queueHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  queueCountsRow: { flexDirection: 'row', gap: 14, marginTop: 12, marginBottom: 8 },
+  queueCountsRow: { flexDirection: 'row', gap: 14, marginTop: 12, marginBottom: 8, flexWrap: 'wrap' },
   countCard: {
     flex: 1,
+    minWidth: 140,
     backgroundColor: '#fff',
     borderRadius: 14,
     padding: 18,
@@ -1382,9 +1443,10 @@ const s = StyleSheet.create({
   },
   smallActBtnTxt: { fontSize: 12, fontWeight: '600', color: '#64748b' },
 
-  walletStats: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  walletStats: { flexDirection: 'row', gap: 10, marginTop: 16, flexWrap: 'wrap' },
   walletStatBox: {
     flex: 1,
+    minWidth: 120,
     backgroundColor: '#F5F8FF',
     borderRadius: 10,
     padding: 12,
@@ -1392,7 +1454,7 @@ const s = StyleSheet.create({
   walletStatLabel: { fontSize: 10, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' },
   walletStatValue: { fontSize: 20, fontWeight: '800', marginTop: 4 },
 
-  userCardBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  userCardBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap' },
   actBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
@@ -1404,6 +1466,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 12,
     backgroundColor: '#fef3c7',
     borderRadius: 12,

@@ -42,7 +42,7 @@ function MobileAdminNavigator() {
       <Stack.Screen name="AdminDashboard" component={isMobile ? MobileAdminDashboard : AdminDashboardScreen} options={{ headerShown: !isMobile, title: 'Admin Dashboard' }} />
       <Stack.Screen name="AdminDeals" component={isMobile ? MobileAdminDeals : AdminDealsScreen} options={{ headerShown: !isMobile, title: 'Deals' }} />
       <Stack.Screen name="AdminConversions" component={AdminConversionsScreen} options={{ title: 'Conversions' }} />
-      <Stack.Screen name="AdminWalletOps" component={isMobile ? AdminUsersScreen : WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
+      <Stack.Screen name="AdminWalletOps" component={WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
       <Stack.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
       <Stack.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
