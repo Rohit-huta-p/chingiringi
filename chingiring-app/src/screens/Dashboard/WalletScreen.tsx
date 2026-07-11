@@ -370,7 +370,7 @@ export const WalletScreen = () => {
             </View>
             <Text style={styles.confirmedLabel}>Available to Withdraw</Text>
             <Text style={styles.confirmedAmount}>{'\u20B9'}{Math.floor((wallet.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
-            <Text style={styles.confirmedSubText}>{(wallet.coins ?? 0).toLocaleString('en-IN')} coins \u00B7 {COINS_PER_RUPEE} coins = \u20B91</Text>
+            <Text style={styles.confirmedSubText}>{(wallet.coins ?? 0).toLocaleString('en-IN')} coins available {'\u00B7'} {COINS_PER_RUPEE} coins = {'\u20B9'}1</Text>
             <TouchableOpacity style={styles.withdrawBtn} onPress={() => setShowWithdraw(true)}>
               <Text style={styles.withdrawBtnText}>Withdraw Funds</Text>
             </TouchableOpacity>
@@ -385,7 +385,7 @@ export const WalletScreen = () => {
                 </View>
                 <Text style={styles.cardLabel}>Pending Coins</Text>
                 <Text style={styles.cardAmount}>{(wallet.pendingCoins ?? 0).toLocaleString('en-IN')}</Text>
-                <Text style={styles.cardSubText}>In lock period \u00B7 \u2248 {'\u20B9'}{Math.floor((wallet.pendingCoins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
+                <Text style={styles.cardSubText}>In lock period {'\u00B7 \u2248 \u20B9'}{Math.floor((wallet.pendingCoins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
               </View>
 
               {/* Coins Card */}
