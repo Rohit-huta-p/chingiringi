@@ -62,6 +62,9 @@ export function MobileAdminNav({ active }: { active: string }) {
         showsHorizontalScrollIndicator={false}
         style={st.navScroll}
         contentContainerStyle={st.navContent}
+        // flexGrow:0 → a horizontal ScrollView otherwise expands vertically to
+        // fill a flex-column parent (as in WalletOps, where this sits directly
+        // under SafeAreaView), overlapping whatever follows.
       >
         {ADMIN_NAV_ITEMS.map((item) => {
           const isActive = item.key === active;
@@ -91,7 +94,7 @@ const st = StyleSheet.create({
   avatarCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
   avatarTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
-  navScroll: { backgroundColor: '#3b82f6', paddingBottom: 12 },
+  navScroll: { backgroundColor: '#3b82f6', paddingBottom: 12, flexGrow: 0, flexShrink: 0 },
   navContent: { paddingHorizontal: 12, gap: 4 },
   navTab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   navTabActive: { backgroundColor: '#fff' },
