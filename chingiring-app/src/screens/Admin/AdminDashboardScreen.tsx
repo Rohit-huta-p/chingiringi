@@ -88,21 +88,9 @@ export function AdminDashboardScreen() {
   const stats = data?.data?.stats;
   const coins = data?.data?.coinsEconomy;
 
-  const topDeals = data?.data?.topDeals?.length ? data.data.topDeals : [
-    { name: 'Myntra Fashion Sale', brand: 'Myntra', amount: 12450, orders: 420 },
-    { name: 'Amazon Electronics', brand: 'Amazon', amount: 18900, orders: 380 },
-    { name: 'Flipkart Big Billion Days', brand: 'Flipkart', amount: 15600, orders: 340 },
-    { name: 'Zomato Gold', brand: 'Zomato', amount: 8900, orders: 290 },
-    { name: 'Swiggy Super', brand: 'Swiggy', amount: 7800, orders: 250 },
-  ];
-
-  const topUsers = data?.data?.topUsers?.length ? data.data.topUsers : [
-    { name: 'Rahul Sharma', email: 'rahul@example.com', amount: 12450, orders: 45 },
-    { name: 'Priya Patel', email: 'priya@example.com', amount: 9800, orders: 38 },
-    { name: 'Amit Kumar', email: 'amit@example.com', amount: 8900, orders: 32 },
-    { name: 'Sneha Gupta', email: 'sneha@example.com', amount: 7650, orders: 28 },
-    { name: 'Vikram Singh', email: 'vikram@example.com', amount: 6780, orders: 25 },
-  ];
+  // Real, live from the API — no seed/mock fallback.
+  const topDeals: any[] = data?.data?.topDeals ?? [];
+  const topUsers: any[] = data?.data?.topUsers ?? [];
 
   const screenWidth = Dimensions.get('window').width;
   const isDesktop = screenWidth >= 768;
@@ -117,30 +105,30 @@ export function AdminDashboardScreen() {
         <StatCard
           icon={TrendingUp}
           iconBg="#3b82f6"
-          value={formatNumber(stats?.totalClicks ?? 45280)}
+          value={formatNumber(stats?.totalClicks ?? 0)}
           label="Total Clicks"
-          change="+12.5%"
+          change=""
         />
         <StatCard
           icon={CheckCircle}
           iconBg="#10b981"
-          value={formatNumber(stats?.conversions ?? 3456)}
+          value={formatNumber(stats?.conversions ?? 0)}
           label="Conversions"
-          change="+8.2%"
+          change=""
         />
         <StatCard
           icon={DollarSign}
           iconBg="#8b5cf6"
-          value={formatCurrency(stats?.cashbackIssued ?? 245700)}
+          value={formatCurrency(stats?.cashbackIssued ?? 0)}
           label="Cashback Issued"
-          change="+15.3%"
+          change=""
         />
         <StatCard
           icon={Users}
           iconBg="#f97316"
-          value={formatNumber(stats?.activeUsers ?? 8920)}
+          value={formatNumber(stats?.activeUsers ?? 0)}
           label="Active Users"
-          change="+6.7%"
+          change=""
         />
       </View>
 
@@ -151,9 +139,9 @@ export function AdminDashboardScreen() {
           <Text style={styles.sectionTitle}>Coins Economy</Text>
         </View>
         <View style={[styles.coinsRow, !isDesktop && styles.coinsRowMobile]}>
-          <CoinsCard label="Coins Issued" value={formatNumber(coins?.issued ?? 1245000)} color="#10b981" />
-          <CoinsCard label="Coins Redeemed" value={formatNumber(coins?.redeemed ?? 856000)} color="#f97316" />
-          <CoinsCard label="Coins in Circulation" value={formatNumber(coins?.circulation ?? 389000)} color="#3b82f6" />
+          <CoinsCard label="Coins Issued" value={formatNumber(coins?.issued ?? 0)} color="#10b981" />
+          <CoinsCard label="Coins Redeemed" value={formatNumber(coins?.redeemed ?? 0)} color="#f97316" />
+          <CoinsCard label="Coins in Circulation" value={formatNumber(coins?.circulation ?? 0)} color="#3b82f6" />
         </View>
       </View>
 
@@ -172,27 +160,31 @@ export function AdminDashboardScreen() {
       <View style={[styles.tablesRow, !isDesktop && styles.tablesRowMobile]}>
         <View style={[styles.tableCard, !isDesktop && styles.tableCardMobile]}>
           <Text style={styles.tableTitle}>Top Performing Deals</Text>
-          {topDeals.map((deal: any, i: number) => (
+          {topDeals.length === 0 ? (
+            <Text style={styles.tableEmpty}>No deals with clicks yet.</Text>
+          ) : topDeals.map((deal: any, i: number) => (
             <RankedRow
               key={i}
               rank={i + 1}
-              title={deal.name}
+              title={deal.title}
               subtitle={deal.brand}
-              amount={formatCurrency(deal.amount)}
-              detail={`${deal.orders} orders`}
+              amount={`${deal.orders}`}
+              detail="clicks"
             />
           ))}
         </View>
         <View style={[styles.tableCard, !isDesktop && styles.tableCardMobile]}>
           <Text style={styles.tableTitle}>Top Users</Text>
-          {topUsers.map((user: any, i: number) => (
+          {topUsers.length === 0 ? (
+            <Text style={styles.tableEmpty}>No user activity yet.</Text>
+          ) : topUsers.map((user: any, i: number) => (
             <RankedRow
               key={i}
               rank={i + 1}
               title={user.name}
               subtitle={user.email}
-              amount={formatCurrency(user.amount)}
-              detail={`${user.orders} orders`}
+              amount={formatCurrency(user.earned)}
+              detail="lifetime"
             />
           ))}
         </View>
@@ -280,6 +272,7 @@ const styles = StyleSheet.create({
   },
   tableCardMobile: { marginBottom: Spacing.md },
   tableTitle: { fontSize: 16, fontWeight: '600', color: Colors.text, marginBottom: Spacing.md },
+  tableEmpty: { fontSize: 13, color: Colors.textSecondary, paddingVertical: 20, textAlign: 'center' },
 
   // Ranked rows
   rankedRow: {
