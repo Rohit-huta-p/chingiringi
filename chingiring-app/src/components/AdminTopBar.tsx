@@ -10,7 +10,6 @@ import { useAuthStore } from '../store';
 const ROUTE_TITLES: Record<string, string> = {
   AdminDashboard:   'Dashboard',
   AdminDeals:       'Deals',
-  AdminConversions: 'Conversions',
   AdminWalletOps:   'Wallet Ops',
   AdminWithdrawals: 'Withdrawals',
   AdminUsers:       'Users',

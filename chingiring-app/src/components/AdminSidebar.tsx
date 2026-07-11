@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import {
-  LayoutDashboard, Tag, ArrowLeftRight, Wallet, Users, Package,
+  LayoutDashboard, Tag, Wallet, Users, Package,
   Grid3X3, ClipboardList, Warehouse, Image as ImageIcon, Ticket,
   LogOut, ChevronDown, ChevronUp, X, Coins,
 } from 'lucide-react-native';
@@ -11,7 +11,6 @@ import { useAuthStore } from '../store';
 const ADMIN_NAV = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'AdminDeals', label: 'Deals', icon: Tag },
-  { key: 'AdminConversions', label: 'Conversions', icon: ArrowLeftRight },
   // Wallet Operations Hub — unified workflow for crediting from merchant reports,
   // processing withdrawals, and drilling into any user's wallet timeline.
   { key: 'AdminWalletOps', label: 'Wallet Ops', icon: Coins },

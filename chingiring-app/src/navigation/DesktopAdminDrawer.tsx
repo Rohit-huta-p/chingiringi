@@ -16,7 +16,6 @@ import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 
 const Drawer = createDrawerNavigator();
 
-const AdminConversionsScreen = createAdminPlaceholder('Conversions');
 const AdminOrdersScreen = createAdminPlaceholder('Orders');
 const AdminInventoryScreen = createAdminPlaceholder('Inventory');
 
@@ -39,7 +38,6 @@ export default function DesktopAdminDrawer() {
     >
       <Drawer.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       <Drawer.Screen name="AdminDeals" component={AdminDealsScreen} />
-      <Drawer.Screen name="AdminConversions" component={AdminConversionsScreen} />
       <Drawer.Screen name="AdminWalletOps" component={WalletOperationsScreen} />
       <Drawer.Screen name="AdminWithdrawals" component={AdminWithdrawalsScreen} />
       <Drawer.Screen name="AdminUsers" component={AdminUsersScreen} />

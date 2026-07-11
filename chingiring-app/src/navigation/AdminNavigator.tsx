@@ -25,7 +25,6 @@ const isMobile = Platform.OS !== 'web';
 
 // Categories management is now inline inside the Product form (CategoryPicker).
 // No dedicated Categories screen — admins create / edit / delete from there.
-const AdminConversionsScreen = createAdminPlaceholder('Conversions');
 const AdminOrdersScreen = createAdminPlaceholder('Orders');
 const AdminInventoryScreen = createAdminPlaceholder('Inventory');
 
@@ -41,7 +40,6 @@ function MobileAdminNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: true, headerTintColor: Colors.primary }}>
       <Stack.Screen name="AdminDashboard" component={isMobile ? MobileAdminDashboard : AdminDashboardScreen} options={{ headerShown: !isMobile, title: 'Admin Dashboard' }} />
       <Stack.Screen name="AdminDeals" component={isMobile ? MobileAdminDeals : AdminDealsScreen} options={{ headerShown: !isMobile, title: 'Deals' }} />
-      <Stack.Screen name="AdminConversions" component={AdminConversionsScreen} options={{ title: 'Conversions' }} />
       <Stack.Screen name="AdminWalletOps" component={WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
       <Stack.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
