@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, CheckCircle, DollarSign, Users, Coins } from 'lucide-react-native';
 import { Colors, Spacing } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
+import { RevenueTrendChart } from '../../components/RevenueTrendChart';
 
 const formatNumber = (num: number): string => {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -151,9 +152,7 @@ export function AdminDashboardScreen() {
           <TrendingUp size={18} color={Colors.text} />
           <Text style={styles.sectionTitle}>Revenue Trend (Last 30 Days)</Text>
         </View>
-        <View style={styles.chartPlaceholder}>
-          <Text style={styles.chartPlaceholderText}>Chart coming soon</Text>
-        </View>
+        <RevenueTrendChart data={data?.data?.revenueTrend ?? []} />
       </View>
 
       {/* Top Performing Deals & Top Users */}
@@ -246,15 +245,6 @@ const styles = StyleSheet.create({
   coinsLabel: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
   coinsValue: { fontSize: 24, fontWeight: '700' },
 
-  // Chart placeholder
-  chartPlaceholder: {
-    height: 200,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chartPlaceholderText: { color: Colors.textSecondary, fontSize: 14 },
 
   // Tables
   tablesRow: { flexDirection: 'row', gap: Spacing.lg, marginBottom: Spacing.lg },

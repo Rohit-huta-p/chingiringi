@@ -31,6 +31,7 @@ import { useNavigation } from '@react-navigation/native';
 import { adminAPI } from '../../api/admin';
 import { useAuthStore } from '../../store';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
+import { RevenueTrendChart } from '../../components/RevenueTrendChart';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -132,6 +133,7 @@ export const MobileAdminDashboard = () => {
   const economy = d.coinsEconomy ?? {};
   const topDeals = d.topDeals ?? FB.topDeals;
   const topUsers = d.topUsers ?? FB.topUsers;
+  const revenueTrend = d.revenueTrend ?? [];
 
   if (isLoading) {
     return <View style={[s.root, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#3b82f6" /></View>;
@@ -165,19 +167,13 @@ export const MobileAdminDashboard = () => {
           </View>
         </View>
 
-        {/* ── Revenue Trend ───────────────────────────────
-            Empty state until a real per-day revenue aggregation exists —
-            no more decorative fake bars. */}
+        {/* ── Revenue Trend (real daily line chart) ──── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <TrendingUp size={16} color="#1e293b" strokeWidth={2} />
             <Text style={s.sectionTitle}>Revenue Trend (30 Days)</Text>
           </View>
-          <View style={s.emptyState}>
-            <TrendingUp size={32} color="#cbd5e1" strokeWidth={1.5} />
-            <Text style={s.emptyTitle}>No revenue yet</Text>
-            <Text style={s.emptySub}>The trend appears once conversions start crediting.</Text>
-          </View>
+          <RevenueTrendChart data={revenueTrend} />
         </View>
 
         {/* ── Top Performing Deals ─────────────────────── */}

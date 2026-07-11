@@ -57,6 +57,40 @@ export const getDashboardStats = async (req, res) => {
     .filter((w) => w.userId && (w.lifetimeEarned || 0) > 0)
     .map((w) => ({ name: w.userId.name, email: w.userId.email, earned: w.lifetimeEarned || 0, orders: 0 }));
 
+  // ── Revenue trend: last 30 days, one point per day (UTC) ──────────────────
+  // revenue     = merchant commission we earned that day (metadata.commissionPaid)
+  // conversions = number of credited purchases that day
+  const DAYS = 30;
+  const startDay = new Date();
+  startDay.setUTCHours(0, 0, 0, 0);
+  startDay.setUTCDate(startDay.getUTCDate() - (DAYS - 1));
+
+  const trendAgg = await Transaction.aggregate([
+    { $match: { type: 'coin_credit', createdAt: { $gte: startDay } } },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+        revenue: { $sum: { $ifNull: ['$metadata.commissionPaid', 0] } },
+        conversions: { $sum: 1 },
+      },
+    },
+  ]);
+  const byDay = new Map(trendAgg.map((r) => [r._id, r]));
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const pad2 = (x) => String(x).padStart(2, '0');
+  const revenueTrend = [];
+  for (let i = 0; i < DAYS; i++) {
+    const dt = new Date(startDay);
+    dt.setUTCDate(startDay.getUTCDate() + i);
+    const key = `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+    const rec = byDay.get(key);
+    revenueTrend.push({
+      label: `${MONTHS[dt.getUTCMonth()]} ${dt.getUTCDate()}`,
+      revenue: rec?.revenue || 0,
+      conversions: rec?.conversions || 0,
+    });
+  }
+
   res.json({
     status: 'success',
     data: {
@@ -73,6 +107,7 @@ export const getDashboardStats = async (req, res) => {
       },
       topDeals,
       topUsers,
+      revenueTrend,
       totalUsers,
       totalDeals,
     },
