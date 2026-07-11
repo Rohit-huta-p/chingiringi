@@ -582,12 +582,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  cardIconContainer: {
-    marginBottom: 12,
-  },
-  cardIconText: {
-    fontSize: 24,
-  },
   iconChip: {
     width: 44,
     height: 44,
@@ -658,9 +652,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  trendIcon: {
-    fontSize: 20,
   },
   totalEarnedLabel: {
     fontSize: 15,
