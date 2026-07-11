@@ -645,21 +645,31 @@ export const MobileWalletScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* ── STATS (Pending + Coins) ─────────────────── */}
+        {/* ── STATS (Coins available + Pending coins) ─────
+            Coin-economy: imported rewards land in pendingCoins (locked for
+            the return window), then move to coins (withdrawable) once the
+            lock expires. Both surfaced so users see rewards immediately. */}
         <View style={m.statsRow}>
-          <View style={m.statCard}>
-            <View style={m.statLabelRow}>
-              <View style={m.statDot}><Clock size={12} color="#94a3b8" strokeWidth={2} /></View>
-              <Text style={m.statLabel}>Pending</Text>
-            </View>
-            <Text style={m.statVal}>₹{w.pendingCashback}</Text>
-          </View>
           <View style={m.statCard}>
             <View style={m.statLabelRow}>
               <View style={m.statDot}><Text style={{ fontSize: 12 }}>🪙</Text></View>
               <Text style={m.statLabel}>Coins</Text>
             </View>
-            <Text style={m.statVal}>{w.coins}</Text>
+            <Text style={m.statVal}>{w.coins ?? 0}</Text>
+          </View>
+          <View style={m.statCard}>
+            <View style={m.statLabelRow}>
+              <View style={m.statDot}><Clock size={12} color="#d97706" strokeWidth={2} /></View>
+              <Text style={m.statLabel}>Pending Coins</Text>
+            </View>
+            <Text style={[m.statVal, { color: '#d97706' }]}>{w.pendingCoins ?? 0}</Text>
+          </View>
+          <View style={m.statCard}>
+            <View style={m.statLabelRow}>
+              <View style={m.statDot}><Clock size={12} color="#94a3b8" strokeWidth={2} /></View>
+              <Text style={m.statLabel}>Pending ₹</Text>
+            </View>
+            <Text style={m.statVal}>₹{w.pendingCashback ?? 0}</Text>
           </View>
         </View>
 
@@ -771,15 +781,15 @@ const m = StyleSheet.create({
   historyTxt: { textAlign: 'center', fontSize: 13, fontWeight: '600', color: '#3b82f6', textDecorationStyle: 'dashed' },
 
   // Stats
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginTop: 16, marginBottom: 20 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginTop: 16, marginBottom: 20 },
   statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 16,
+    flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 13,
     shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 1,
   },
-  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  statDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
-  statLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '500' },
-  statVal: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
+  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  statDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  statLabel: { fontSize: 11, color: '#94a3b8', fontWeight: '500', flexShrink: 1 },
+  statVal: { fontSize: 20, fontWeight: '800', color: '#1e293b' },
 
   // Activity
   activity: { paddingHorizontal: 20 },

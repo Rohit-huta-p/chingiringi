@@ -11,9 +11,10 @@ import {
   ArrowDownToLine, RefreshCw, Trash2, Plus, Minus, Ban, ShieldCheck,
   CalendarDays, FileText, Sliders, Save,
 } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
-import { MobileAuthHeader } from '../../components/MobileAuthHeader';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 const isNative = Platform.OS !== 'web';
 
@@ -142,10 +143,15 @@ export function WalletOperationsScreen() {
     { key: 'settings', icon: Sliders,        label: 'Settings',      shortLabel: 'Settings' },
   ];
 
+  const Root: any = isNative ? SafeAreaView : View;
+  const rootProps = isNative ? { edges: ['top'] as const } : {};
+
   return (
-    <View style={s.root}>
+    <Root style={s.root} {...rootProps}>
       {isNative ? (
-        <MobileAuthHeader title="Wallet Operations" />
+        /* Same blue admin header + section nav as every other admin screen,
+           so Wallet Ops stops being the odd screen with no nav bar. */
+        <MobileAdminNav active="AdminWalletOps" />
       ) : (
         <View style={s.header}>
           <Text style={s.title}>Wallet Operations</Text>
@@ -156,7 +162,7 @@ export function WalletOperationsScreen() {
         </View>
       )}
 
-      {/* Tab bar — plain flex row (a horizontal ScrollView would expand
+      {/* Sub-tab bar — plain flex row (a horizontal ScrollView would expand
           vertically and clip labels / center in empty space). */}
       <View style={s.tabBar}>
         {TABS.map((t) => (
@@ -181,7 +187,7 @@ export function WalletOperationsScreen() {
       {tab === 'reports'  && <ReportsInboxTab />}
       {tab === 'user'     && <UserWalletTab />}
       {tab === 'settings' && <SettingsTab />}
-    </View>
+    </Root>
   );
 }
 

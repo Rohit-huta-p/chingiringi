@@ -30,6 +30,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { adminAPI } from '../../api/admin';
 import { useAuthStore } from '../../store';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -150,40 +151,8 @@ export const MobileAdminDashboard = () => {
     <SafeAreaView style={s.root} edges={['top', 'bottom']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
-        {/* ── Header ──────────────────────────────────── */}
-        <View style={s.header}>
-          <View style={s.headerLeft}>
-            <View style={s.logoCircle}><Text style={s.logoTxt}>C</Text></View>
-            <View>
-              <Text style={s.headerTitle}>Admin Panel</Text>
-              <Text style={s.headerSub}>Super Admin</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={s.avatarCircle}
-            onPress={() => nav.navigate('AdminProfile')}
-            activeOpacity={0.7}
-          >
-            <Text style={s.avatarTxt}>{userInitials(userName)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Nav tabs (horizontal scroll) ─────────────── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.navScroll} contentContainerStyle={s.navContent}>
-          {NAV_ITEMS.map((item) => {
-            const active = item.key === 'AdminDashboard';
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[s.navTab, active && s.navTabActive]}
-                onPress={() => { if (!active) nav.navigate(item.key); }}
-              >
-                <item.icon size={16} color={active ? '#3b82f6' : '#94a3b8'} strokeWidth={2} />
-                <Text style={[s.navLabel, active && s.navLabelActive]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* ── Shared admin header + section nav ────────── */}
+        <MobileAdminNav active="AdminDashboard" />
 
         {/* ── Stats 2×2 grid ──────────────────────────── */}
         <View style={s.statsGrid}>

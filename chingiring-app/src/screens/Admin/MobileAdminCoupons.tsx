@@ -43,6 +43,7 @@ import { useNavigation } from '@react-navigation/native';
 import { adminAPI } from '../../api/admin';
 import { Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -674,45 +675,8 @@ export const MobileAdminCoupons = () => {
     <SafeAreaView style={s.root} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
-        {/* Header */}
-        <View style={s.header}>
-          <View style={s.headerLeft}>
-            <View style={s.logoCircle}><Text style={s.logoTxt}>C</Text></View>
-            <View>
-              <Text style={s.headerTitle}>Admin Panel</Text>
-              <Text style={s.headerSub}>Super Admin</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={s.avatarCircle}
-            onPress={() => nav.navigate('AdminProfile')}
-            activeOpacity={0.7}
-          >
-            <Text style={s.avatarTxt}>{userInitials(userName)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Nav */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.navScroll}
-          contentContainerStyle={s.navContent}
-        >
-          {NAV_ITEMS.map((item) => {
-            const active = item.key === 'AdminCoupons';
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[s.navTab, active && s.navTabActive]}
-                onPress={() => { if (!active) nav.navigate(item.key); }}
-              >
-                <item.icon size={16} color={active ? '#3b82f6' : 'rgba(255,255,255,0.7)'} strokeWidth={2} />
-                <Text style={[s.navLabel, active && s.navLabelActive]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* Shared admin header + section nav */}
+        <MobileAdminNav active="AdminCoupons" />
 
         <View style={s.body}>
           {/* Title + Create */}
