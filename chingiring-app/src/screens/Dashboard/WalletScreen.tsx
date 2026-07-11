@@ -368,9 +368,9 @@ export const WalletScreen = () => {
             <View style={styles.cardIconContainer}>
               <Text style={styles.cardIconText}>{'💳'}</Text>
             </View>
-            <Text style={styles.confirmedLabel}>Confirmed Balance</Text>
-            <Text style={styles.confirmedAmount}>{'\u20B9'}{wallet.confirmedCashback}</Text>
-            <Text style={styles.confirmedSubText}>Available to withdraw</Text>
+            <Text style={styles.confirmedLabel}>Available to Withdraw</Text>
+            <Text style={styles.confirmedAmount}>{'\u20B9'}{Math.floor((wallet.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
+            <Text style={styles.confirmedSubText}>{(wallet.coins ?? 0).toLocaleString('en-IN')} coins \u00B7 {COINS_PER_RUPEE} coins = \u20B91</Text>
             <TouchableOpacity style={styles.withdrawBtn} onPress={() => setShowWithdraw(true)}>
               <Text style={styles.withdrawBtnText}>Withdraw Funds</Text>
             </TouchableOpacity>
@@ -383,9 +383,9 @@ export const WalletScreen = () => {
                 <View style={styles.cardIconContainer}>
                   <Text style={styles.cardIconText}>{'🕐'}</Text>
                 </View>
-                <Text style={styles.cardLabel}>Pending</Text>
-                <Text style={styles.cardAmount}>{'\u20B9'}{wallet.pendingCashback}</Text>
-                <Text style={styles.cardSubText}>In lock period</Text>
+                <Text style={styles.cardLabel}>Pending Coins</Text>
+                <Text style={styles.cardAmount}>{(wallet.pendingCoins ?? 0).toLocaleString('en-IN')}</Text>
+                <Text style={styles.cardSubText}>In lock period \u00B7 \u2248 {'\u20B9'}{Math.floor((wallet.pendingCoins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
               </View>
 
               {/* Coins Card */}
@@ -393,8 +393,8 @@ export const WalletScreen = () => {
                 <View style={styles.cardIconContainer}>
                   <Text style={styles.cardIconText}>{'🪙'}</Text>
                 </View>
-                <Text style={styles.cardLabel}>Coins</Text>
-                <Text style={styles.cardAmount}>{wallet.coins}</Text>
+                <Text style={styles.cardLabel}>Total Coins</Text>
+                <Text style={styles.cardAmount}>{(wallet.coins ?? 0).toLocaleString('en-IN')}</Text>
                 <Text style={styles.cardSubText}>Reward points</Text>
               </View>
             </View>
@@ -403,7 +403,7 @@ export const WalletScreen = () => {
               <View style={styles.totalEarnedLeft}>
                 <Text style={styles.trendIcon}>{'📈'}</Text>
                 <Text style={styles.totalEarnedLabel}>Total Earned (Lifetime)</Text>
-                <Text style={styles.totalEarnedAmount}>{'$'}{wallet.lifetimeEarned}</Text>
+                <Text style={styles.totalEarnedAmount}>{'₹'}{(wallet.lifetimeEarned ?? 0).toLocaleString('en-IN')}</Text>
               </View>
               <TouchableOpacity>
                 <Text style={styles.allTimeLink}>All time {'>'}</Text>
