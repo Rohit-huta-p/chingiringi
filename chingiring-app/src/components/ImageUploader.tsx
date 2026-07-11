@@ -1,10 +1,14 @@
 import React, { useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Platform,
-  ActivityIndicator,
+  ActivityIndicator, Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Upload, X, Link2, AlertCircle } from 'lucide-react-native';
 import { Colors } from '../constants/theme';
+
+// Web File (browser picker) or an RN file descriptor from expo-image-picker.
+type CloudFile = File | { uri: string; name: string; type: string };
 
 // ─── Cloudinary config ──────────────────────────────────────────────────────
 // Pulled from .env at build time via EXPO_PUBLIC_ prefix. Setup steps live
@@ -52,7 +56,7 @@ export const ImageUploader: React.FC<Props> = ({
   const isConfigured = !!CLOUD_NAME && !!UPLOAD_PRESET;
 
   // ── Upload helper (Cloudinary unsigned preset) ─────────────────────────
-  const uploadToCloudinary = async (file: File): Promise<string> => {
+  const uploadToCloudinary = async (file: CloudFile): Promise<string> => {
     if (!isConfigured) {
       throw new Error(
         'Cloudinary is not configured. Set EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ' +
@@ -60,7 +64,7 @@ export const ImageUploader: React.FC<Props> = ({
       );
     }
     const fd = new FormData();
-    fd.append('file', file);
+    fd.append('file', file as any);
     fd.append('upload_preset', UPLOAD_PRESET);
     if (folder) fd.append('folder', folder);
 
@@ -72,6 +76,42 @@ export const ImageUploader: React.FC<Props> = ({
     const json = await res.json();
     if (!json.secure_url) throw new Error('Cloudinary returned no secure_url');
     return json.secure_url as string;
+  };
+
+  // ── Native photo picker (iOS / Android) → Cloudinary ───────────────────
+  const openNativePicker = async () => {
+    if (!isConfigured) {
+      Alert.alert('Upload unavailable', 'Cloudinary is not configured. Paste an image URL instead.');
+      setShowUrlInput(true);
+      return;
+    }
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo library access to upload an image.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const name = asset.fileName ?? uri.split('/').pop() ?? `image_${Date.now()}.jpg`;
+      const ext = (name.split('.').pop() ?? 'jpg').toLowerCase();
+      const type = asset.mimeType ?? `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      await handleFile({ uri, name, type });
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not open photo library');
+    }
+  };
+
+  // Web taps open the file picker; native taps open the photo library.
+  const handlePickPress = () => {
+    if (Platform.OS === 'web') openFilePicker();
+    else openNativePicker();
   };
 
   // ── Web file picker ────────────────────────────────────────────────────
@@ -94,7 +134,7 @@ export const ImageUploader: React.FC<Props> = ({
     fileInputRef.current.click();
   };
 
-  const handleFile = async (file: File) => {
+  const handleFile = async (file: CloudFile) => {
     setError(null);
     setUploading(true);
     try {
@@ -125,7 +165,7 @@ export const ImageUploader: React.FC<Props> = ({
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.replaceBtn}
-            onPress={Platform.OS === 'web' ? openFilePicker : () => setShowUrlInput(true)}
+            onPress={handlePickPress}
             disabled={disabled || uploading}
           >
             <Upload size={12} color="#fff" strokeWidth={2.5} />
@@ -135,7 +175,7 @@ export const ImageUploader: React.FC<Props> = ({
       ) : (
         <TouchableOpacity
           style={[styles.dropzone, uploading && styles.dropzoneBusy]}
-          onPress={Platform.OS === 'web' ? openFilePicker : () => setShowUrlInput(true)}
+          onPress={handlePickPress}
           disabled={disabled || uploading}
           activeOpacity={0.85}
         >
@@ -150,13 +190,9 @@ export const ImageUploader: React.FC<Props> = ({
                 <Upload size={20} color={Colors.primary} strokeWidth={2} />
               </View>
               <Text style={styles.dropzoneTitle}>
-                {Platform.OS === 'web' ? 'Click to upload an image' : 'Add image URL'}
+                {Platform.OS === 'web' ? 'Click to upload an image' : 'Tap to upload a photo'}
               </Text>
-              <Text style={styles.dropzoneHint}>
-                {Platform.OS === 'web'
-                  ? 'PNG, JPG, WEBP up to 10 MB'
-                  : 'Paste a URL — native upload coming soon'}
-              </Text>
+              <Text style={styles.dropzoneHint}>PNG, JPG, WEBP up to 10 MB</Text>
             </>
           )}
         </TouchableOpacity>
@@ -164,7 +200,7 @@ export const ImageUploader: React.FC<Props> = ({
 
       {/* "Or paste a URL" escape hatch — kept for both web (admin already has
           a hosted URL) and native (until expo-image-picker is wired). */}
-      {!showUrlInput && Platform.OS === 'web' && !uploading ? (
+      {!showUrlInput && !uploading ? (
         <TouchableOpacity
           style={styles.urlToggle}
           onPress={() => setShowUrlInput(true)}
@@ -186,14 +222,12 @@ export const ImageUploader: React.FC<Props> = ({
             autoCapitalize="none"
             autoCorrect={false}
           />
-          {Platform.OS === 'web' ? (
-            <TouchableOpacity
-              style={styles.urlCloseBtn}
-              onPress={() => setShowUrlInput(false)}
-            >
-              <X size={14} color={Colors.textSecondary} strokeWidth={2} />
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity
+            style={styles.urlCloseBtn}
+            onPress={() => setShowUrlInput(false)}
+          >
+            <X size={14} color={Colors.textSecondary} strokeWidth={2} />
+          </TouchableOpacity>
         </View>
       ) : null}
 
