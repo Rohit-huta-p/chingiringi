@@ -12,6 +12,7 @@ import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
 import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
+import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -47,6 +48,12 @@ export default function DesktopAdminDrawer() {
       <Drawer.Screen name="AdminInventory" component={AdminInventoryScreen} />
       <Drawer.Screen name="AdminBanners" component={AdminBannersScreen} />
       <Drawer.Screen name="AdminCoupons" component={AdminCouponsScreen} />
+      {/* Reachable from the top-bar profile badge; hidden from the sidebar. */}
+      <Drawer.Screen
+        name="AdminProfile"
+        component={AdminProfileScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
     </Drawer.Navigator>
   );
 }

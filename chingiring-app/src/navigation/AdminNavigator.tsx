@@ -19,7 +19,7 @@ import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
 import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
-import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
+import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 
 const isMobile = Platform.OS !== 'web';
 
@@ -51,7 +51,7 @@ function MobileAdminNavigator() {
       <Stack.Screen name="AdminBanners" component={isMobile ? MobileAdminBanners : AdminBannersScreen} options={{ headerShown: !isMobile, title: 'Banners' }} />
       <Stack.Screen name="AdminCoupons" component={isMobile ? MobileAdminCoupons : AdminCouponsScreen} options={{ headerShown: !isMobile, title: 'Coupons' }} />
       <Stack.Screen name="AdminCouponUsage" component={MobileAdminCouponUsage} options={{ headerShown: false, title: 'Coupon Usage' }} />
-      <Stack.Screen name="AdminProfile" component={MobileProfileScreen} options={{ headerShown: false, title: 'Profile' }} />
+      <Stack.Screen name="AdminProfile" component={AdminProfileScreen} options={{ headerShown: false, title: 'Profile' }} />
     </Stack.Navigator>
     </SafeAreaView>
   );

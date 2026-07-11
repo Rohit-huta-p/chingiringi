@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../constants/theme';
 import { useAuthStore } from '../store';
 
@@ -18,6 +19,7 @@ const ROUTE_TITLES: Record<string, string> = {
   AdminInventory:   'Inventory',
   AdminBanners:     'Banners',
   AdminCoupons:     'Coupons',
+  AdminProfile:     'Profile',
 };
 
 /**
@@ -28,12 +30,17 @@ const ROUTE_TITLES: Record<string, string> = {
  */
 export function AdminTopBar({ routeName }: { routeName: string }) {
   const user = useAuthStore((s) => s.user);
+  const navigation = useNavigation<any>();
 
   return (
     <View style={styles.bar}>
       <Text style={styles.title}>{ROUTE_TITLES[routeName] ?? 'Admin'}</Text>
 
-      <View style={styles.profile}>
+      <TouchableOpacity
+        style={styles.profile}
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('AdminProfile')}
+      >
         <View style={styles.info}>
           <Text style={styles.name}>Super Admin</Text>
           <Text style={styles.email}>{user?.email || 'admin@chingiringi.com'}</Text>
@@ -41,7 +48,7 @@ export function AdminTopBar({ routeName }: { routeName: string }) {
         <View style={styles.badge}>
           <Text style={styles.badgeText}>SA</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
