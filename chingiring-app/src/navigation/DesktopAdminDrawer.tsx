@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Colors } from '../constants/theme';
 import { AdminSidebar } from '../components/AdminSidebar';
+import { AdminTopBar } from '../components/AdminTopBar';
 import { AdminDashboardScreen } from '../screens/Admin/AdminDashboardScreen';
 import { createAdminPlaceholder } from '../screens/Admin/AdminPlaceholderScreen';
 import { AdminDealsScreen } from '../screens/Admin/AdminDealsScreen';
@@ -25,7 +26,8 @@ export default function DesktopAdminDrawer() {
       drawerContent={(props) => <AdminSidebar {...props} />}
       screenOptions={{
         drawerType: 'permanent',
-        headerShown: false,
+        headerShown: true,
+        header: ({ route }) => <AdminTopBar routeName={route.name} />,
         drawerStyle: {
           width: 250,
           backgroundColor: Colors.surface,

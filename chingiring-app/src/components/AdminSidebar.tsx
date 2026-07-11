@@ -32,7 +32,6 @@ const ADMIN_NAV = [
 
 export function AdminSidebar({ navigation, state }: any) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-  const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
   const activeRoute = state?.routes?.[state.index]?.name ?? 'AdminDashboard';
@@ -101,22 +100,12 @@ export function AdminSidebar({ navigation, state }: any) {
         })}
       </View>
 
-      {/* Logout */}
+      {/* Logout — sits at the bottom of the sidebar (profile moved to the
+          top-right top bar per Figma 257:3700). */}
       <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
         <LogOut size={18} color={Colors.danger} />
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
-
-      {/* Admin Profile */}
-      <View style={styles.profileSection}>
-        <View style={styles.adminBadge}>
-          <Text style={styles.adminBadgeText}>SA</Text>
-        </View>
-        <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>Super Admin</Text>
-          <Text style={styles.profileEmail}>{user?.email || 'admin@chingiringi.com'}</Text>
-        </View>
-      </View>
     </View>
   );
 }
@@ -173,24 +162,4 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
   },
   logoutText: { fontSize: 14, color: Colors.danger },
-
-  profileSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    gap: 10,
-  },
-  adminBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#3b82f6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  adminBadgeText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  profileInfo: { flex: 1 },
-  profileName: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  profileEmail: { fontSize: 11, color: Colors.textSecondary },
 });
