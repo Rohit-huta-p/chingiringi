@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, useWindowDimensions, Modal, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, CheckCircle2 } from 'lucide-react-native';
+import { X, CheckCircle2, Wallet as WalletIcon, Clock, Coins, TrendingUp, ArrowDownLeft, ArrowUpRight, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
@@ -365,13 +365,14 @@ export const WalletScreen = () => {
             <View pointerEvents="none" style={[styles.glob, styles.globBottomLeft]} />
 
             {/* Content */}
-            <View style={styles.cardIconContainer}>
-              <Text style={styles.cardIconText}>{'💳'}</Text>
+            <View style={[styles.iconChip, { backgroundColor: 'rgba(255,255,255,0.22)' }]}>
+              <WalletIcon size={22} color="#ffffff" strokeWidth={2} />
             </View>
             <Text style={styles.confirmedLabel}>Available to Withdraw</Text>
             <Text style={styles.confirmedAmount}>{'\u20B9'}{Math.floor((wallet.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
-            <Text style={styles.confirmedSubText}>{(wallet.coins ?? 0).toLocaleString('en-IN')} coins available {'\u00B7'} {COINS_PER_RUPEE} coins = {'\u20B9'}1</Text>
+           
             <TouchableOpacity style={styles.withdrawBtn} onPress={() => setShowWithdraw(true)}>
+              <ArrowDownToLine size={15} color="#3b82f6" strokeWidth={2.5} />
               <Text style={styles.withdrawBtnText}>Withdraw Funds</Text>
             </TouchableOpacity>
           </View>
@@ -380,8 +381,8 @@ export const WalletScreen = () => {
             <View style={[styles.cardsRow_Pending_Coins_Card, isMobile && { flexDirection: 'row' }]}>
               {/* Pending Card */}
               <View style={styles.balanceCard}>
-                <View style={styles.cardIconContainer}>
-                  <Text style={styles.cardIconText}>{'🕐'}</Text>
+                <View style={[styles.iconChip, { backgroundColor: '#fef3c7' }]}>
+                  <Clock size={20} color="#d97706" strokeWidth={2.2} />
                 </View>
                 <Text style={styles.cardLabel}>Pending Coins</Text>
                 <Text style={styles.cardAmount}>{(wallet.pendingCoins ?? 0).toLocaleString('en-IN')}</Text>
@@ -390,8 +391,8 @@ export const WalletScreen = () => {
 
               {/* Coins Card */}
               <View style={styles.balanceCard}>
-                <View style={styles.cardIconContainer}>
-                  <Text style={styles.cardIconText}>{'🪙'}</Text>
+                <View style={[styles.iconChip, { backgroundColor: '#ede9fe' }]}>
+                  <Coins size={20} color="#7c3aed" strokeWidth={2.2} />
                 </View>
                 <Text style={styles.cardLabel}>Total Coins</Text>
                 <Text style={styles.cardAmount}>{(wallet.coins ?? 0).toLocaleString('en-IN')}</Text>
@@ -401,12 +402,15 @@ export const WalletScreen = () => {
             {/* Total Earned Row */}
             <View style={styles.totalEarnedRow}>
               <View style={styles.totalEarnedLeft}>
-                <Text style={styles.trendIcon}>{'📈'}</Text>
+                <View style={[styles.iconChip, { backgroundColor: '#dcfce7', marginBottom: 0, width: 34, height: 34, borderRadius: 10 }]}>
+                  <TrendingUp size={17} color="#16a34a" strokeWidth={2.2} />
+                </View>
                 <Text style={styles.totalEarnedLabel}>Total Earned (Lifetime)</Text>
                 <Text style={styles.totalEarnedAmount}>{'₹'}{(wallet.lifetimeEarned ?? 0).toLocaleString('en-IN')}</Text>
               </View>
-              <TouchableOpacity>
-                <Text style={styles.allTimeLink}>All time {'>'}</Text>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                <Text style={styles.allTimeLink}>All time</Text>
+                <ChevronRight size={16} color={Colors.primary} strokeWidth={2.4} />
               </TouchableOpacity>
             </View>
           </View>
@@ -449,9 +453,9 @@ export const WalletScreen = () => {
                   styles.txIconContainer,
                   { backgroundColor: displayType === 'income' ? '#ecfdf5' : '#fef2f2' },
                 ]}>
-                  <Text style={styles.txIcon}>
-                    {displayType === 'income' ? '↓' : '↑'}
-                  </Text>
+                  {displayType === 'income'
+                    ? <ArrowDownLeft size={18} color={Colors.success} strokeWidth={2.4} />
+                    : <ArrowUpRight size={18} color={Colors.danger} strokeWidth={2.4} />}
                 </View>
                 <View style={styles.txInfo}>
                   <Text style={styles.txBrand}>{label}</Text>
@@ -584,6 +588,14 @@ const styles = StyleSheet.create({
   cardIconText: {
     fontSize: 24,
   },
+  iconChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
   confirmedLabel: {
     fontSize: 14,
     fontWeight: '600',
@@ -607,6 +619,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   withdrawBtnText: {
     fontSize: 14,
