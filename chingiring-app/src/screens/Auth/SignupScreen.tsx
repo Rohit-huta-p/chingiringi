@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '../../components/Input';

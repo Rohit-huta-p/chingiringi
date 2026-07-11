@@ -14,18 +14,29 @@ import Wallet from '../modules/wallet/walletModel.js';
  *   • A cron job every hour:  0 * * * *  node src/scripts/confirmExpiredLocks.js
  *   • A one-shot manual run:  npm run cron:confirm-locks
  *
+ * Testing aid:
+ *   • npm run cron:confirm-locks -- --force
+ *     Ignores the lock date and confirms ALL pending coin_credits right away,
+ *     so you can watch pendingCoins → coins without waiting out the 30-day
+ *     window. Never use --force in production.
+ *
  * Idempotent — never double-credits. Filters by status='pending' so once a
  * row flips to 'confirmed' it's out of scope on the next run.
  */
+const force = process.argv.includes('--force');
+
 async function run() {
   await connectDB();
 
   const now = new Date();
-  const expired = await Transaction.find({
+  const filter = {
     type: 'coin_credit',
     status: 'pending',
-    'metadata.lockExpiresAt': { $lte: now },
-  });
+    // --force skips the lock-date gate (testing only).
+    ...(force ? {} : { 'metadata.lockExpiresAt': { $lte: now } }),
+  };
+  if (force) console.log('⚠️  --force: confirming ALL pending coin credits regardless of lock date.');
+  const expired = await Transaction.find(filter);
 
   if (!expired.length) {
     console.log('No expired locks to confirm.');
