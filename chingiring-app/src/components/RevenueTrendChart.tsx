@@ -1,18 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
 import Svg, { Path, Line, Text as SvgText } from 'react-native-svg';
 
 // One point per day from GET /api/admin/dashboard → data.revenueTrend.
 export interface TrendPoint { label: string; revenue: number; conversions: number; }
 
-// Fixed viewBox → the SVG scales responsively to the card width via width="100%".
-const VB_W = 720;
+// Fixed height; width is measured from the container so the chart fills it
+// edge-to-edge (a fixed viewBox letterboxes on wide cards).
 const VB_H = 260;
 const PAD_L = 48;
 const PAD_R = 18;
 const PAD_T = 14;
 const PAD_B = 30;
-const CHART_W = VB_W - PAD_L - PAD_R;
 const CHART_H = VB_H - PAD_T - PAD_B;
 
 const REVENUE_COLOR = '#2563eb';
@@ -54,6 +53,12 @@ function smoothPath(pts: { x: number; y: number }[]): string {
 }
 
 export function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
+  const [width, setWidth] = React.useState(0);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w && Math.abs(w - width) > 1) setWidth(w);
+  };
+
   const pts = Array.isArray(data) ? data : [];
   const n = pts.length;
 
@@ -63,7 +68,8 @@ export function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
   const maxY = step * 4;
   const ticks = [0, 1, 2, 3, 4].map((i) => i * step);
 
-  const xFor = (i: number) => PAD_L + (n <= 1 ? CHART_W / 2 : (i / (n - 1)) * CHART_W);
+  const chartW = Math.max(0, width - PAD_L - PAD_R);
+  const xFor = (i: number) => PAD_L + (n <= 1 ? chartW / 2 : (i / (n - 1)) * chartW);
   const yFor = (v: number) => PAD_T + (1 - (v || 0) / maxY) * CHART_H;
 
   const revPts = pts.map((d, i) => ({ x: xFor(i), y: yFor(d.revenue) }));
@@ -73,7 +79,7 @@ export function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
   const hasData = rawMax > 0;
 
   return (
-    <View>
+    <View onLayout={onLayout}>
       <View style={s.legendRow}>
         <View style={s.legendItem}>
           <View style={[s.dot, { backgroundColor: REVENUE_COLOR }]} />
@@ -85,30 +91,32 @@ export function RevenueTrendChart({ data }: { data: TrendPoint[] }) {
         </View>
       </View>
 
-      <Svg width="100%" height={240} viewBox={`0 0 ${VB_W} ${VB_H}`}>
-        {ticks.map((t, i) => {
-          const y = yFor(t);
-          return (
-            <React.Fragment key={`g${i}`}>
-              <Line x1={PAD_L} y1={y} x2={VB_W - PAD_R} y2={y} stroke={GRID} strokeWidth={1} />
-              <SvgText x={PAD_L - 8} y={y + 3} fontSize={11} fill={AXIS_TXT} textAnchor="end">
-                {fmtK(t)}
+      {width > 0 && (
+        <Svg width={width} height={VB_H} viewBox={`0 0 ${width} ${VB_H}`}>
+          {ticks.map((t, i) => {
+            const y = yFor(t);
+            return (
+              <React.Fragment key={`g${i}`}>
+                <Line x1={PAD_L} y1={y} x2={width - PAD_R} y2={y} stroke={GRID} strokeWidth={1} />
+                <SvgText x={PAD_L - 8} y={y + 3} fontSize={11} fill={AXIS_TXT} textAnchor="end">
+                  {fmtK(t)}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+
+          {pts.map((d, i) =>
+            i % xEvery === 0 || i === n - 1 ? (
+              <SvgText key={`x${i}`} x={xFor(i)} y={VB_H - 10} fontSize={10} fill={AXIS_TXT} textAnchor="middle">
+                {d.label}
               </SvgText>
-            </React.Fragment>
-          );
-        })}
+            ) : null,
+          )}
 
-        {pts.map((d, i) =>
-          i % xEvery === 0 || i === n - 1 ? (
-            <SvgText key={`x${i}`} x={xFor(i)} y={VB_H - 10} fontSize={10} fill={AXIS_TXT} textAnchor="middle">
-              {d.label}
-            </SvgText>
-          ) : null,
-        )}
-
-        {n > 0 && <Path d={smoothPath(convPts)} stroke={CONVERSIONS_COLOR} strokeWidth={2} fill="none" />}
-        {n > 0 && <Path d={smoothPath(revPts)} stroke={REVENUE_COLOR} strokeWidth={2.5} fill="none" />}
-      </Svg>
+          {n > 0 && <Path d={smoothPath(convPts)} stroke={CONVERSIONS_COLOR} strokeWidth={2} fill="none" />}
+          {n > 0 && <Path d={smoothPath(revPts)} stroke={REVENUE_COLOR} strokeWidth={2.5} fill="none" />}
+        </Svg>
+      )}
 
       {!hasData && (
         <Text style={s.emptyNote}>
