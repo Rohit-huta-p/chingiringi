@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,6 @@ import {
   ArrowRight,
   Share2,
   Sparkles,
-  Bell,
   Sparkles as SparklesIcon,
   Zap as ZapIcon,
   Dumbbell,
@@ -264,9 +263,11 @@ function ProductGrid({
   containerWidth,
   cols = 6,
   onProductPress,
+  onSeeAll,
   newBadgeCols = [],
   stockLeftCols = [],
   products = [],
+  hasFilter = false,
 }: {
   title: string;
   count?: string;
@@ -274,9 +275,11 @@ function ProductGrid({
   containerWidth: number;
   cols?: number;
   onProductPress: (item: GridItem) => void;
+  onSeeAll?: () => void;
   newBadgeCols?: number[];
   stockLeftCols?: { col: number; left: number }[];
   products?: Product[];
+  hasFilter?: boolean;
 }) {
   const gap = 16;
   const cardW = (containerWidth - gap * (cols - 1)) / cols;
@@ -333,12 +336,14 @@ function ProductGrid({
             </View>
           ) : null}
         </View>
-        <TouchableOpacity style={s.seeAllBtn}>
+        <TouchableOpacity style={s.seeAllBtn} onPress={onSeeAll} activeOpacity={0.7}>
           <Text style={s.seeAllTxt}>See all</Text>
           <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
-      {rows.map((row, rIdx) => (
+      {hasFilter && products.length === 0 ? (
+        <Text style={s.gridEmpty}>No products match your search.</Text>
+      ) : rows.map((row, rIdx) => (
         <View
           key={rIdx}
           style={[s.productRow, { gap, marginBottom: rIdx < rows.length - 1 ? 16 : 0 }]}
@@ -590,20 +595,25 @@ function EarnCoinsBanner({
 function MoreToExploreSection({
   containerWidth,
   onPress,
+  onSeeAll,
   products = [],
+  hasFilter = false,
 }: {
   containerWidth: number;
   onPress: (item: GridItem) => void;
+  onSeeAll?: () => void;
   products?: Product[];
+  hasFilter?: boolean;
 }) {
   return (
     <ProductGrid
       title="More to Explore"
-      count="6 items"
       startIdx={15}
       containerWidth={containerWidth}
       cols={6}
       onProductPress={onPress}
+      onSeeAll={onSeeAll}
+      hasFilter={hasFilter}
       stockLeftCols={[{ col: 1, left: 12 }]}
       newBadgeCols={[3]}
       products={products}
@@ -733,6 +743,8 @@ function ShopByCategorySection({
 function TopNav({
   selectedCategory,
   onCategoryChange,
+  searchQuery,
+  onSearchChange,
   userName,
   userAvatarUrl,
   onProfilePress,
@@ -740,6 +752,8 @@ function TopNav({
 }: {
   selectedCategory: string;
   onCategoryChange: (c: string) => void;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
   userName?: string;
   userAvatarUrl?: string;
   onProfilePress: () => void;
@@ -748,7 +762,7 @@ function TopNav({
   return (
     <View style={s.topNav}>
       <View style={[s.topNavInner, { width }]}>
-        {/* Row 1: Search full-width + bell + avatar */}
+        {/* Row 1: Search full-width + avatar */}
         <View style={s.topNavRow}>
           <View style={s.navSearchBox}>
             <Search size={16} color="#94a3b8" />
@@ -756,11 +770,10 @@ function TopNav({
               placeholder="Search products, brands..."
               placeholderTextColor="#94a3b8"
               style={s.navSearchInput}
+              value={searchQuery}
+              onChangeText={onSearchChange}
             />
           </View>
-          <TouchableOpacity style={s.navIconBtn} activeOpacity={0.7}>
-            <Bell size={18} color={Colors.text} strokeWidth={2} />
-          </TouchableOpacity>
           <TouchableOpacity
             style={s.navAvatar}
             activeOpacity={0.7}
@@ -816,6 +829,8 @@ export const HomeScreen = () => {
   const userName = useAuthStore((st) => st.user?.name);
   const userAvatarUrl = useAuthStore((st) => st.user?.avatarUrl);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
 
   // Approx content area width after sidebar + padding
   const sidebarW = 250;
@@ -865,8 +880,23 @@ export const HomeScreen = () => {
   // Prefer featured for the featured-looking sections; fall back to all products.
   const featuredOrAll: Product[] = featuredProducts.length > 0 ? featuredProducts : products;
 
+  // ── Search + category filter (applied to every product grid) ──────────────
+  const hasFilter = selectedCategory !== 'All' || searchQuery.trim() !== '';
+  const matchesFilters = (p: Product) => {
+    const catOk =
+      selectedCategory === 'All' ||
+      (p.category ?? '').toLowerCase() === selectedCategory.toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
+    const searchOk =
+      !q ||
+      (p.name ?? '').toLowerCase().includes(q) ||
+      (p.description ?? '').toLowerCase().includes(q);
+    return catOk && searchOk;
+  };
+  const filteredProducts = hasFilter ? products.filter(matchesFilters) : products;
+  const filteredFeatured = hasFilter ? featuredOrAll.filter(matchesFilters) : featuredOrAll;
+
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
-  console.log("allBanners", allBanners);
   const bySlot = bucketBySlot(allBanners);
   const firstBannerFor = (slot: BannerSlot): BannerModel | null =>
     bySlot[slot]?.[0] ?? null;
@@ -891,19 +921,30 @@ export const HomeScreen = () => {
 
   const onCategoryPress = (name: string) => {
     setSelectedCategory(name);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  // "See all" on a section: focus that category and jump to the top so the
+  // filtered catalog is front-and-centre.
+  const handleSeeAll = (category: string) => {
+    setSelectedCategory(category);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   return (
     <View style={s.root}>
       <TopNav
         selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
+        onCategoryChange={onCategoryPress}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         userName={userName}
         userAvatarUrl={userAvatarUrl}
         onProfilePress={() => navigation.navigate('Profile')}
         width={contentW}
       />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -913,26 +954,29 @@ export const HomeScreen = () => {
 
           <ProductGrid
             title="All Products"
-            count={products.length ? `${products.length} items` : '6 items'}
+            count={filteredProducts.length ? `${filteredProducts.length} items` : undefined}
             startIdx={0}
             containerWidth={contentW}
             cols={6}
             onProductPress={onProductPress}
+            onSeeAll={() => handleSeeAll('All')}
+            hasFilter={hasFilter}
             stockLeftCols={[{ col: 1, left: 8 }]}
-            products={products}
+            products={filteredProducts}
           />
 
           <PromoStrip banner={firstBannerFor('flash-strip')} />
 
           <ProductGrid
             title="Top Electronics"
-            count="6 items"
             startIdx={0}
             containerWidth={contentW}
             cols={6}
             onProductPress={onProductPress}
+            onSeeAll={() => handleSeeAll('Electronics')}
+            hasFilter={hasFilter}
             newBadgeCols={[3, 5]}
-            products={featuredOrAll}
+            products={filteredFeatured}
           />
 
           <DualBanner
@@ -942,14 +986,15 @@ export const HomeScreen = () => {
 
           <ProductGrid
             title="New Arrivals"
-            count="6 items"
             startIdx={6}
             containerWidth={contentW}
             cols={6}
             onProductPress={onProductPress}
+            onSeeAll={() => handleSeeAll('All')}
+            hasFilter={hasFilter}
             newBadgeCols={[0, 1, 2, 3, 6]}
             stockLeftCols={[{ col: 5, left: 5 }]}
-            products={products}
+            products={filteredProducts}
           />
 
           <EarnCoinsBanner
@@ -960,7 +1005,9 @@ export const HomeScreen = () => {
           <MoreToExploreSection
             containerWidth={contentW}
             onPress={onProductPress}
-            products={products}
+            onSeeAll={() => handleSeeAll('All')}
+            hasFilter={hasFilter}
+            products={filteredProducts}
           />
 
           <ReferBanner
@@ -976,12 +1023,13 @@ export const HomeScreen = () => {
 
           <ProductGrid
             title="Top Electronics"
-            count="6 items"
             startIdx={3}
             containerWidth={contentW}
             cols={6}
             onProductPress={onProductPress}
-            products={featuredOrAll}
+            onSeeAll={() => handleSeeAll('Electronics')}
+            hasFilter={hasFilter}
+            products={filteredFeatured}
           />
         </View>
       </ScrollView>
@@ -1317,6 +1365,13 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontFamily: Fonts.semiBold,
     color: Colors.primary,
+  },
+  gridEmpty: {
+    fontSize: 14,
+    fontFamily: Fonts.medium,
+    color: '#94a3b8',
+    paddingVertical: 28,
+    textAlign: 'center',
   },
 
   // ── Product Card
