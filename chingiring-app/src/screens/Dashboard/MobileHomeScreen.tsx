@@ -186,10 +186,11 @@ export const MobileHomeScreen = () => {
     categoriesRes?.data?.categories ?? categoriesRes?.categories ?? [];
 
   // Horizontal-scroll category list (original behaviour)
-  const categories = useMemo(() => {
-    if (apiCategories.length > 0) return ['All', ...apiCategories.map((c) => c.name)];
-    return ['All', 'Fashion', 'Electronics', 'Home', 'Pharmacy'];
-  }, [apiCategories]);
+  // "All" + the real categories admin has added — no hardcoded fallback list.
+  const categories = useMemo(
+    () => ['All', ...apiCategories.filter((c) => c.isActive !== false).map((c) => c.name)],
+    [apiCategories],
+  );
 
   // Filter + search
   const filteredProducts = useMemo(() => {

@@ -19,11 +19,7 @@ import {
   Share2,
   Sparkles,
   Sparkles as SparklesIcon,
-  Zap as ZapIcon,
-  Dumbbell,
-  Home as HomeIcon,
-  Shirt,
-  Flower,
+  Tag,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
@@ -59,15 +55,6 @@ function priceFmt(n: number) {
 }
 
 // ─── Content ────────────────────────────────────────────────────────────────
-
-const NAV_CATEGORIES: { label: string; Icon: any; color: string }[] = [
-  { label: 'All', Icon: SparklesIcon, color: '#fff' },
-  { label: 'Electronics', Icon: ZapIcon, color: '#f59e0b' },
-  { label: 'Sports', Icon: Dumbbell, color: '#f97316' },
-  { label: 'Home', Icon: HomeIcon, color: '#ef4444' },
-  { label: 'Fashion', Icon: Shirt, color: '#10b981' },
-  { label: 'Beauty', Icon: Flower, color: '#ec4899' },
-];
 
 const PRODUCT_IMAGES = [
   'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=75',
@@ -685,6 +672,7 @@ function ShopByCategorySection({
 function TopNav({
   selectedCategory,
   onCategoryChange,
+  categories,
   searchQuery,
   onSearchChange,
   userName,
@@ -694,6 +682,7 @@ function TopNav({
 }: {
   selectedCategory: string;
   onCategoryChange: (c: string) => void;
+  categories: string[];
   searchQuery: string;
   onSearchChange: (q: string) => void;
   userName?: string;
@@ -734,10 +723,11 @@ function TopNav({
             )}
           </TouchableOpacity>
         </View>
-        {/* Row 2: Category chips with icons */}
+        {/* Row 2: Category chips — the real categories admin has added */}
         <View style={s.navChipsRow}>
-          {NAV_CATEGORIES.map(({ label, Icon, color }) => {
+          {categories.map((label) => {
             const active = label === selectedCategory;
+            const Icon = label === 'All' ? SparklesIcon : Tag;
             return (
               <TouchableOpacity
                 key={label}
@@ -745,12 +735,7 @@ function TopNav({
                 onPress={() => onCategoryChange(label)}
                 activeOpacity={0.7}
               >
-                <Icon
-                  size={14}
-                  color={active ? '#fff' : color}
-                  strokeWidth={2.5}
-                  fill={active ? '#fff' : 'transparent'}
-                />
+                <Icon size={14} color={active ? '#fff' : '#64748b'} strokeWidth={2.5} />
                 <Text style={[s.navChipTxt, active && s.navChipTxtActive]}>
                   {label}
                 </Text>
@@ -819,6 +804,14 @@ export const HomeScreen = () => {
     categoriesData?.categories ??
     categoriesData?.data ??
     [];
+
+  // Category filter chips built from the real categories admin has added
+  // ("All" + each active category name). No hardcoded list.
+  const categoryChips: string[] = [
+    'All',
+    ...categories.filter((c) => c.isActive !== false).map((c) => c.name),
+  ];
+
   // Prefer featured for the featured-looking sections; fall back to all products.
   const featuredOrAll: Product[] = featuredProducts.length > 0 ? featuredProducts : products;
 
@@ -878,6 +871,7 @@ export const HomeScreen = () => {
       <TopNav
         selectedCategory={selectedCategory}
         onCategoryChange={onCategoryPress}
+        categories={categoryChips}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         userName={userName}
