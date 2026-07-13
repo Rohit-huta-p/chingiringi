@@ -30,13 +30,9 @@ const FILTER_TABS = ['All', 'Cashback', 'Coins', 'Withdrawal'] as const;
 const FILTER_MAP: Record<string, string | undefined> = {
   All: undefined, Cashback: 'cashback', Coins: 'coin_credit', Withdrawal: 'withdrawal',
 };
-const FALLBACK_WALLET: Wallet = { _id: '', userId: '', confirmedCashback: 1250, pendingCashback: 450, coins: 840, lifetimeEarned: 1700 };
-const FALLBACK_TXN: Transaction[] = [
-  { _id: '1', userId: '', type: 'cashback', amount: 150, status: 'confirmed', description: 'Myntra', metadata: { brand: 'Myntra' }, createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { _id: '2', userId: '', type: 'cashback', amount: 300, status: 'confirmed', description: 'Amazon', metadata: { brand: 'Amazon' }, createdAt: new Date(Date.now() - 15 * 86400000).toISOString() },
-  { _id: '3', userId: '', type: 'withdrawal', amount: 500, status: 'completed', description: 'Withdrawal to UPI', createdAt: new Date(Date.now() - 20 * 86400000).toISOString() },
-  { _id: '4', userId: '', type: 'referral', amount: 50, status: 'confirmed', description: 'Referral bonus (User: RAHUL99)', createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
-];
+// Zero-state wallet used before the API responds — all zeros, never fake
+// balances (which masked failures and read as real money).
+const EMPTY_WALLET: Wallet = { _id: '', userId: '', confirmedCashback: 0, pendingCashback: 0, coins: 0, pendingCoins: 0, lifetimeEarned: 0 };
 
 function timeAgo(d: string): string {
   const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
@@ -584,8 +580,8 @@ export const MobileWalletScreen = () => {
     queryFn: () => walletAPI.getTransactions({ type: FILTER_MAP[filter], limit: 20 }),
   });
 
-  const w: Wallet = wRes?.data?.wallet ?? wRes?.data ?? FALLBACK_WALLET;
-  const txns: Transaction[] = tRes?.data?.transactions ?? tRes?.data ?? FALLBACK_TXN;
+  const w: Wallet = wRes?.data?.wallet ?? wRes?.data ?? EMPTY_WALLET;
+  const txns: Transaction[] = tRes?.data?.transactions ?? tRes?.data ?? [];
 
   if (wL) return <View style={[m.root, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#3b82f6" /></View>;
 
@@ -685,7 +681,13 @@ export const MobileWalletScreen = () => {
             ))}
           </ScrollView>
 
-          {tL ? <ActivityIndicator color="#3b82f6" style={{ marginTop: 20 }} /> : txns.map((tx) => (
+          {tL ? (
+            <ActivityIndicator color="#3b82f6" style={{ marginTop: 20 }} />
+          ) : txns.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, paddingVertical: 24 }}>
+              No transactions yet.
+            </Text>
+          ) : txns.map((tx) => (
             <TouchableOpacity key={tx._id} style={m.txRow} activeOpacity={0.7}>
               <View style={[m.txDot, { backgroundColor: dotColor(tx.type) }]} />
               <View style={m.txInfo}>

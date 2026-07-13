@@ -23,22 +23,17 @@ const FILTER_TYPE_MAP: Record<string, string | undefined> = {
   Withdrawals: 'withdrawal',
 };
 
-const FALLBACK_WALLET: Wallet = {
+// Zero-state wallet used before the API responds — all zeros, never fake
+// balances (which masked failures and read as real money).
+const EMPTY_WALLET: Wallet = {
   _id: '',
   userId: '',
-  confirmedCashback: 1250,
-  pendingCashback: 450,
-  coins: 840,
-  lifetimeEarned: 1700,
+  confirmedCashback: 0,
+  pendingCashback: 0,
+  coins: 0,
+  pendingCoins: 0,
+  lifetimeEarned: 0,
 };
-
-const FALLBACK_TRANSACTIONS: Transaction[] = [
-  { _id: '1', userId: '', type: 'cashback', amount: 150, status: 'confirmed', description: 'Myntra', metadata: { brand: 'Myntra' }, createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { _id: '2', userId: '', type: 'cashback', amount: 300, status: 'confirmed', description: 'Amazon', metadata: { brand: 'Amazon' }, createdAt: new Date(Date.now() - 15 * 86400000).toISOString() },
-  { _id: '3', userId: '', type: 'withdrawal', amount: 500, status: 'completed', description: 'Withdrawal to UPI', createdAt: new Date(Date.now() - 20 * 86400000).toISOString() },
-  { _id: '4', userId: '', type: 'referral', amount: 50, status: 'confirmed', description: 'Referral bonus (User: RAHUL99)', createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
-  { _id: '5', userId: '', type: 'bonus', amount: 100, status: 'confirmed', description: 'QR Scan Reward', createdAt: new Date(Date.now() - 1 * 86400000).toISOString() },
-];
 
 function formatTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -316,11 +311,11 @@ export const WalletScreen = () => {
     enabled: activeFilter !== 'All',
   });
 
-  const wallet: Wallet = summaryData?.data?.wallet ?? FALLBACK_WALLET;
+  const wallet: Wallet = summaryData?.data?.wallet ?? EMPTY_WALLET;
   const transactions: Transaction[] =
     activeFilter === 'All'
-      ? (summaryData?.data?.recentTransactions ?? FALLBACK_TRANSACTIONS)
-      : (filteredTxData?.data?.transactions ?? FALLBACK_TRANSACTIONS);
+      ? (summaryData?.data?.recentTransactions ?? [])
+      : (filteredTxData?.data?.transactions ?? []);
 
   const isLoadingTransactions = activeFilter === 'All' ? isSummaryLoading : isFilteredLoading;
 
@@ -442,6 +437,10 @@ export const WalletScreen = () => {
         {isLoadingTransactions ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        ) : transactions.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>No transactions yet.</Text>
           </View>
         ) : (
           transactions.map((tx) => {

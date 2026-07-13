@@ -92,14 +92,6 @@ const CATEGORY_IMAGES: Record<string, string> = {
   Accessories: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&q=75',
 };
 
-const SHOWCASE_CATEGORIES = [
-  { key: 'Men', label: 'Men' },
-  { key: 'Women', label: 'Women' },
-  { key: 'Kids', label: 'Kids' },
-  { key: 'Footwear', label: 'Footwear' },
-  { key: 'Accessories', label: 'Accessories' },
-];
-
 // ─── Buy Now button (gradient) ──────────────────────────────────────────────
 
 function BuyNowButton({ onPress }: { onPress?: () => void }) {
@@ -145,8 +137,8 @@ function ProductCard({
   price: number;
   oldPrice?: number;
   coins: number;
-  rating: number;
-  ratingCount: number;
+  rating?: number;
+  ratingCount?: number;
   badge?: { text: string; color: string };
   stockLeft?: number;
   isNew?: boolean;
@@ -183,11 +175,13 @@ function ProductCard({
         <Text style={s.productSub} numberOfLines={1}>
           {subtitle || brand}
         </Text>
-        <View style={s.ratingRow}>
-          <Star size={11} color="#f59e0b" fill="#f59e0b" strokeWidth={0} />
-          <Text style={s.ratingValue}>{rating.toFixed(1)}</Text>
-          <Text style={s.ratingCount}>({ratingCount.toLocaleString('en-IN')})</Text>
-        </View>
+        {rating != null && ratingCount != null ? (
+          <View style={s.ratingRow}>
+            <Star size={11} color="#f59e0b" fill="#f59e0b" strokeWidth={0} />
+            <Text style={s.ratingValue}>{rating.toFixed(1)}</Text>
+            <Text style={s.ratingCount}>({ratingCount.toLocaleString('en-IN')})</Text>
+          </View>
+        ) : null}
         <View style={s.priceRow}>
           <Text style={s.productPrice}>{priceFmt(price)}</Text>
           {oldPrice ? (
@@ -209,37 +203,6 @@ function ProductCard({
 }
 
 // ─── Product Grid Section ───────────────────────────────────────────────────
-
-const PRODUCT_DETAILS: {
-  title: string;
-  subtitle: string;
-  rating: number;
-  ratingCount: number;
-  price: number;
-  oldPrice: number;
-  coins: number;
-  discount: number;
-}[] = [
-    { title: 'Wireless Headphones', subtitle: 'Premium noise-cancelling', rating: 4.5, ratingCount: 128, price: 2999, oldPrice: 5999, coins: 15000, discount: 50 },
-    { title: 'Travel Backpack', subtitle: 'Durable waterproof backpack', rating: 4.7, ratingCount: 245, price: 1499, oldPrice: 2499, coins: 7500, discount: 40 },
-    { title: 'Yoga Mat Premium', subtitle: 'Extra thick non-slip yoga mat', rating: 4.6, ratingCount: 312, price: 899, oldPrice: 1499, coins: 4500, discount: 40 },
-    { title: 'Smart Watch', subtitle: 'Fitness tracking smartwatch', rating: 4.3, ratingCount: 89, price: 4999, oldPrice: 8999, coins: 25000, discount: 44 },
-    { title: 'Portable Speaker', subtitle: '360° surround sound, IPX7', rating: 4.4, ratingCount: 156, price: 1999, oldPrice: 3499, coins: 10000, discount: 43 },
-    { title: 'Stainless Water Bottle', subtitle: 'Double-wall insulated', rating: 4.8, ratingCount: 520, price: 599, oldPrice: 999, coins: 3000, discount: 40 },
-    { title: 'Running Shoes', subtitle: 'Lightweight breathable mesh', rating: 4.5, ratingCount: 203, price: 2499, oldPrice: 4499, coins: 12500, discount: 44 },
-    { title: 'Desk Lamp LED', subtitle: 'Eye-care dimmable USB lamp', rating: 4.2, ratingCount: 94, price: 799, oldPrice: 1299, coins: 4000, discount: 38 },
-    { title: 'White Sneakers', subtitle: 'Premium leather casual shoe', rating: 4.6, ratingCount: 317, price: 1799, oldPrice: 3299, coins: 9000, discount: 45 },
-    { title: 'Vitamin C Serum', subtitle: 'Brightening glow serum 30ml', rating: 4.7, ratingCount: 489, price: 649, oldPrice: 1299, coins: 3250, discount: 50 },
-    { title: 'Mech Keyboard', subtitle: 'TKL tactile switches, RGB', rating: 4.5, ratingCount: 156, price: 3499, oldPrice: 5999, coins: 17500, discount: 42 },
-    { title: 'Resistance Bands', subtitle: '5-level set with carry bag', rating: 4.4, ratingCount: 198, price: 549, oldPrice: 999, coins: 2750, discount: 45 },
-    { title: 'Air Purifier', subtitle: 'HEPA H13, covers 400 sq ft', rating: 4.4, ratingCount: 78, price: 5999, oldPrice: 9999, coins: 30000, discount: 40 },
-    { title: 'Laptop Sleeve 15in', subtitle: 'Water-resistant felt case', rating: 4.5, ratingCount: 145, price: 699, oldPrice: 1299, coins: 3500, discount: 46 },
-    { title: 'Gaming Earphones', subtitle: '7.1 surround, mic, RGB', rating: 4.2, ratingCount: 113, price: 1499, oldPrice: 2799, coins: 7500, discount: 46 },
-    { title: 'Protein Powder', subtitle: 'Whey isolate 2kg, 60 servings', rating: 4.3, ratingCount: 224, price: 1999, oldPrice: 3499, coins: 10000, discount: 43 },
-    { title: 'Aviator Sunglasses', subtitle: 'UV400 polarized lenses', rating: 4.5, ratingCount: 192, price: 899, oldPrice: 1599, coins: 4500, discount: 55 },
-    { title: 'Electric Toothbrush', subtitle: 'Sonic, 4 cleaning modes', rating: 4.6, ratingCount: 341, price: 1299, oldPrice: 2399, coins: 6500, discount: 46 },
-    { title: 'Luxury Perfume', subtitle: 'Eau de parfum 100ml', rating: 4.2, ratingCount: 112, price: 2199, oldPrice: 4499, coins: 11000, discount: 51 },
-  ];
 
 type GridItem = {
   title: string;
@@ -283,46 +246,18 @@ function ProductGrid({
 }) {
   const gap = 16;
   const cardW = (containerWidth - gap * (cols - 1)) / cols;
-  const templateSlots = cols * 2;
+  const limit = cols * 2;
 
-  // When the DB is empty (loading / API error) we still render a full grid of
-  // template tiles so the home doesn't look broken. When real products exist
-  // we cap rendering at products.length — otherwise a single product gets
-  // duplicated `templateSlots` times across every section (12 × ~5 sections
-  // = 60 identical cards). Each ProductGrid still respects `startIdx` so
-  // different sections show different products when there are enough.
-  const productsAvailable = products.length;
-  const totalCount = productsAvailable > 0
-    ? Math.min(productsAvailable, templateSlots)
-    : templateSlots;
-
-  const items = Array.from({ length: totalCount }, (_, i) => {
-    const tmplIdx = (startIdx + i) % PRODUCT_DETAILS.length;
-    const tmpl = PRODUCT_DETAILS[tmplIdx];
-    if (productsAvailable === 0) {
-      return {
-        ...tmpl,
-        _id: undefined as string | undefined,
-        productImage: undefined as string | undefined,
-        category: '' as string,
-        productStock: undefined as number | undefined,
-      };
-    }
-    const prodIdx = (startIdx + i) % productsAvailable;
-    const product = products[prodIdx];
-    return {
-      ...tmpl,
-      title: product.name || tmpl.title,
-      subtitle: product.description || product.category || tmpl.subtitle,
-      price: product.price ?? tmpl.price,
-      coins: product.coinsPrice ?? tmpl.coins,
-      _id: product._id,
-      productImage: product.imageUrl,
-      category: product.category || '',
-      productStock: product.stock,
-    };
-  });
-  const rows = chunk(items, cols);
+  // Real products only — no template/demo tiles. Each section shows a
+  // different window via startIdx so a small catalog doesn't repeat
+  // identically across sections.
+  const windowed: Product[] = products.length
+    ? Array.from(
+        { length: Math.min(products.length, limit) },
+        (_, i) => products[(startIdx + i) % products.length],
+      )
+    : [];
+  const rows = chunk(windowed, cols);
 
   return (
     <View style={s.section}>
@@ -341,43 +276,51 @@ function ProductGrid({
           <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
-      {hasFilter && products.length === 0 ? (
-        <Text style={s.gridEmpty}>No products match your search.</Text>
+      {windowed.length === 0 ? (
+        <Text style={s.gridEmpty}>
+          {hasFilter ? 'No products match your search.' : 'No products yet.'}
+        </Text>
       ) : rows.map((row, rIdx) => (
         <View
           key={rIdx}
           style={[s.productRow, { gap, marginBottom: rIdx < rows.length - 1 ? 16 : 0 }]}
         >
-          {row.map((item, idx) => {
+          {row.map((product, idx) => {
             const globalIdx = rIdx * cols + idx;
-            const image =
-              item.productImage || PRODUCT_IMAGES[globalIdx % PRODUCT_IMAGES.length];
+            const image = product.imageUrl || PRODUCT_IMAGES[globalIdx % PRODUCT_IMAGES.length];
             const isNew = newBadgeCols.includes(globalIdx);
-            const stockHint = stockLeftCols.find((s) => s.col === globalIdx);
+            const stockHint = stockLeftCols.find((sc) => sc.col === globalIdx);
             const stockLeft =
-              item.productStock != null && item.productStock > 0 && item.productStock <= 15
-                ? item.productStock
+              product.stock != null && product.stock > 0 && product.stock <= 15
+                ? product.stock
                 : stockHint?.left;
-            const discount = item.discount;
             return (
               <ProductCard
-                key={`${rIdx}-${idx}-${item._id ?? globalIdx}`}
+                key={product._id ?? globalIdx}
                 image={image}
-                brand={item.category || ''}
-                title={item.title}
-                subtitle={item.subtitle}
-                price={item.price}
-                oldPrice={item.oldPrice}
-                coins={item.coins}
-                rating={item.rating}
-                ratingCount={item.ratingCount}
-                badge={{
-                  text: `${discount}% OFF`,
-                  color: '#4784E2',
-                }}
+                brand={product.category || ''}
+                title={product.name}
+                subtitle={product.description || product.category}
+                price={product.price}
+                coins={product.coinsPrice}
                 isNew={isNew}
                 stockLeft={stockLeft}
-                onPress={() => onProductPress({ ...item, productImage: image })}
+                onPress={() =>
+                  onProductPress({
+                    _id: product._id,
+                    title: product.name,
+                    subtitle: product.description || product.category || '',
+                    price: product.price,
+                    oldPrice: 0,
+                    coins: product.coinsPrice,
+                    rating: 0,
+                    ratingCount: 0,
+                    discount: 0,
+                    productImage: image,
+                    category: product.category || '',
+                    productStock: product.stock,
+                  })
+                }
                 width={cardW}
               />
             );
@@ -677,20 +620,19 @@ function ShopByCategorySection({
   const rightW = containerWidth - bigW - gap;
   const smallW = Math.floor((rightW - gap * 3) / 4);
 
-  // Prefer live categories, fallback to hardcoded SHOWCASE_CATEGORIES.
+  // Real categories only — no hardcoded showcase.
   const liveCats = categories
     .filter((c) => c.isActive !== false)
     .slice(0, 5)
     .map((c) => ({ key: c.name, label: c.name, image: c.icon }));
-  const showcase =
-    liveCats.length >= 2
-      ? liveCats
-      : SHOWCASE_CATEGORIES.map((c) => ({ ...c, image: CATEGORY_IMAGES[c.key] }));
+
+  // Nothing real to show → hide the whole section rather than fake it.
+  if (liveCats.length === 0) return null;
 
   const imgFor = (c: { key: string; image?: string }) =>
     c.image || CATEGORY_IMAGES[c.key] || PRODUCT_IMAGES[0];
 
-  const [big, ...rest] = showcase;
+  const [big, ...rest] = liveCats;
 
   return (
     <View style={s.section}>
