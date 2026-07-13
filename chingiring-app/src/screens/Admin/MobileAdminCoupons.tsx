@@ -85,55 +85,6 @@ interface Coupon {
   isActive: boolean;
 }
 
-// ─── Fallback ───────────────────────────────────────────────────────
-
-const FALLBACK: Coupon[] = [
-  {
-    _id: '1',
-    code: 'WELCOME50',
-    description: '50% off on first order',
-    discountType: 'percent',
-    discountValue: 50,
-    maxDiscount: 500,
-    minOrderValue: 999,
-    usageLimit: 1000,
-    perUserLimit: 1,
-    usedCount: 342,
-    startDate: '2026-01-01',
-    expiresAt: '2026-12-31',
-    isActive: true,
-  },
-  {
-    _id: '2',
-    code: 'CASHBACK100',
-    description: 'Flat ₹100 cashback',
-    discountType: 'flat',
-    discountValue: 100,
-    minOrderValue: 499,
-    usageLimit: 500,
-    perUserLimit: 1,
-    usedCount: 500,
-    startDate: '2026-01-01',
-    expiresAt: '2026-06-30',
-    isActive: false,
-  },
-  {
-    _id: '3',
-    code: 'FESTIVE25',
-    description: 'Festive season special',
-    discountType: 'percent',
-    discountValue: 25,
-    maxDiscount: 250,
-    minOrderValue: 799,
-    usageLimit: 2000,
-    perUserLimit: 2,
-    usedCount: 1287,
-    startDate: '2025-09-01',
-    expiresAt: '2025-10-31',
-    isActive: true,
-  },
-];
-
 // ─── Helpers ────────────────────────────────────────────────────────
 
 const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : n.toLocaleString();
@@ -586,7 +537,7 @@ export const MobileAdminCoupons = () => {
     queryFn: () => adminAPI.getCoupons(),
   });
 
-  const coupons: Coupon[] = res?.data?.coupons ?? res?.coupons ?? res?.data ?? FALLBACK;
+  const coupons: Coupon[] = res?.data?.coupons ?? res?.coupons ?? res?.data ?? [];
 
   const openCreate = () => {
     setEditingCoupon(null);

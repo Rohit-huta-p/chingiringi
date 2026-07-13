@@ -119,33 +119,6 @@ const SLOT_FIELDS: Record<
   'inline-2':     { showImage: true,  showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: true },
 };
 
-// ─── Fallback (only if API returns empty) ───────────────────────────
-
-const FALLBACK: Banner[] = [
-  {
-    _id: 'f1',
-    title: 'Mega Sale — Up to 50% Off',
-    subtitle: 'Shop top brands and earn cashback',
-    imageUrl: '',
-    linkType: 'category',
-    linkValue: 'electronics',
-    slot: 'hero',
-    isActive: true,
-    sortOrder: 1,
-  },
-  {
-    _id: 'f2',
-    title: 'Refer & Earn ₹500',
-    subtitle: 'Invite friends and grow your wallet',
-    imageUrl: '',
-    linkType: 'url',
-    linkValue: '/referral',
-    slot: 'refer-earn',
-    isActive: true,
-    sortOrder: 2,
-  },
-];
-
 const LINK_LABEL: Record<BannerLinkType, string> = {
   deal: 'Deal',
   category: 'Category',
@@ -773,7 +746,7 @@ export const MobileAdminBanners = () => {
   });
 
   const rawBanners: Banner[] =
-    res?.data?.banners ?? res?.banners ?? res?.data ?? FALLBACK;
+    res?.data?.banners ?? res?.banners ?? res?.data ?? [];
   const banners: Banner[] = withDerivedSlot(rawBanners);
 
   const openCreate = () => {

@@ -64,14 +64,6 @@ interface WithdrawalRequest {
   status: 'pending' | 'completed' | 'processing' | 'rejected';
 }
 
-// ─── Fallback data ──────────────────────────────────────────────────
-
-const FALLBACK: WithdrawalRequest[] = [
-  { _id: '1', userName: 'Rahul Sharma', userId: 'u1', amount: 1500, method: 'UPI', paymentDetails: 'rahul@paytm', requestedAt: '2026-04-03', status: 'pending' },
-  { _id: '2', userName: 'Priya Patel', userId: 'u2', amount: 2500, method: 'Bank', paymentDetails: '1234567890 / IFSC: SBIN0001234', requestedAt: '2026-04-01', txnId: 'TXN-2826040212345', status: 'completed' },
-  { _id: '3', userName: 'Amit Kumar', userId: 'u3', amount: 800, method: 'UPI', paymentDetails: 'amit@phonepe', requestedAt: '2026-04-02', status: 'processing' },
-];
-
 // ─── Status helpers ─────────────────────────────────────────────────
 
 function statusColor(s: string): string {
@@ -179,7 +171,7 @@ export const MobileAdminWithdrawals = () => {
   const [search, setSearch] = useState('');
 
   // TODO: Replace with actual admin withdrawal API when available
-  const withdrawals: WithdrawalRequest[] = FALLBACK;
+  const withdrawals: WithdrawalRequest[] = [];
   const isLoading = false;
 
   const filtered = useMemo(() => {

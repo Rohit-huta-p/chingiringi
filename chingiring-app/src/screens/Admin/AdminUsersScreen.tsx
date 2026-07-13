@@ -35,44 +35,6 @@ interface AdminUser {
   };
 }
 
-// ─── Fallback (3 rows matching Figma) ───────────────────────────────────────
-
-const FALLBACK: AdminUser[] = [
-  {
-    _id: 'u1',
-    name: 'Rahul Sharma',
-    email: 'rahul@example.com',
-    phone: '9876543210',
-    status: 'active',
-    createdAt: '2023-01-15',
-    lastLoginAt: '2026-04-04',
-    wallet: { confirmedCashback: 1250, pendingCashback: 450, coins: 5600 },
-    stats: { orders: 45, referrals: 12 },
-  },
-  {
-    _id: 'u2',
-    name: 'Priya Patel',
-    email: 'priya@example.com',
-    phone: '9876543211',
-    status: 'active',
-    createdAt: '2023-02-20',
-    lastLoginAt: '2026-04-03',
-    wallet: { confirmedCashback: 980, pendingCashback: 320, coins: 4200 },
-    stats: { orders: 38, referrals: 8 },
-  },
-  {
-    _id: 'u3',
-    name: 'Spam User',
-    email: 'spam@example.com',
-    phone: '1111111111',
-    status: 'blocked',
-    createdAt: '2026-04-01',
-    lastLoginAt: '2026-04-01',
-    wallet: { confirmedCashback: 0, pendingCashback: 0, coins: 0 },
-    stats: { orders: 0, referrals: 0 },
-  },
-];
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = ['#2563eb', '#7c3aed', '#64748b', '#16a34a', '#ea580c', '#0891b2'];
@@ -255,14 +217,14 @@ export function AdminUsersScreen() {
           search: search.trim() || undefined,
         });
       } catch {
-        return { data: { users: FALLBACK, total: FALLBACK.length } };
+        return { data: { users: [], total: 0 } };
       }
     },
     staleTime: 30_000,
   });
 
   const users: AdminUser[] =
-    data?.data?.users ?? data?.users ?? data?.data ?? FALLBACK;
+    data?.data?.users ?? data?.users ?? data?.data ?? [];
 
   const statusMutation = useMutation({
     mutationFn: (payload: { id: string; action: 'block' | 'unblock' }) =>

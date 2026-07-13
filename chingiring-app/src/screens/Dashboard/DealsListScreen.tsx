@@ -77,14 +77,6 @@ function pickFallbackImage(seed: string): string {
 
 // ─── Top Nav ────────────────────────────────────────────────────────────────
 
-const HEADER_CATEGORIES: { label: string; emoji: string }[] = [
-  { label: 'All', emoji: '+' },
-  { label: 'Fashion', emoji: '👗' },
-  { label: 'Electronics', emoji: '⚡' },
-  { label: 'Home', emoji: '🏠' },
-  { label: 'Pharmacy', emoji: '•' },
-];
-
 // Maps live category names → emoji. The backend stores `icon` as a lucide
 // name (e.g. "shirt", "utensils"); rendering those as text looks broken,
 // so we map common categories to emoji and fall back to a dot.
@@ -560,7 +552,7 @@ export const DealsListScreen = () => {
   // Build category chip list. Prefer live API names, fall back to PRD-spec
   // categories from the design (Fashion, Electronics, Home, Pharmacy).
   const categoryChips = useMemo(() => {
-    if (apiCategories.length === 0) return HEADER_CATEGORIES;
+    if (apiCategories.length === 0) return [{ label: 'All', emoji: '+' }];
     const live = apiCategories
       .filter((c) => c.isActive !== false)
       .slice(0, 6)

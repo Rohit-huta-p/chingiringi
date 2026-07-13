@@ -33,51 +33,6 @@ interface Coupon {
   isActive: boolean;
 }
 
-// ─── Fallback ───────────────────────────────────────────────────────────────
-
-const FALLBACK: Coupon[] = [
-  {
-    _id: 'f1',
-    code: 'WELCOME100',
-    description: 'Welcome discount for new users',
-    discountType: 'flat',
-    discountValue: 100,
-    minOrderValue: 500,
-    usageLimit: 1000,
-    perUserLimit: 1,
-    usedCount: 456,
-    expiresAt: '2026-12-31',
-    isActive: true,
-  },
-  {
-    _id: 'f2',
-    code: 'SAVE20',
-    description: 'Get 20% off on all orders',
-    discountType: 'percent',
-    discountValue: 20,
-    maxDiscount: 500,
-    minOrderValue: 1000,
-    usageLimit: 500,
-    perUserLimit: 1,
-    usedCount: 234,
-    expiresAt: '2026-06-30',
-    isActive: true,
-  },
-  {
-    _id: 'f3',
-    code: 'EXPIRED50',
-    description: 'Expired holiday promo',
-    discountType: 'flat',
-    discountValue: 50,
-    minOrderValue: 300,
-    usageLimit: 100,
-    perUserLimit: 1,
-    usedCount: 100,
-    expiresAt: '2026-03-31',
-    isActive: false,
-  },
-];
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getStatus(c: Coupon): CouponStatus {
@@ -519,7 +474,7 @@ export function AdminCouponsScreen() {
       try {
         return await adminAPI.getCoupons();
       } catch {
-        return { coupons: FALLBACK };
+        return { coupons: [] };
       }
     },
     staleTime: 60_000,
@@ -528,7 +483,7 @@ export function AdminCouponsScreen() {
   const coupons: Coupon[] = useMemo(() => {
     const raw = (res as any)?.data?.coupons ?? (res as any)?.coupons ?? (res as any)?.data;
     if (Array.isArray(raw) && raw.length > 0) return raw;
-    return FALLBACK;
+    return [];
   }, [res]);
 
   const filtered = useMemo(() => {
