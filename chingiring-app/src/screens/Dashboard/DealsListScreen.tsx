@@ -186,11 +186,13 @@ function FeaturedHeroCard({
   deal?: Deal | null;
   onPress?: () => void;
 }) {
-  const cashback = deal ? formatCashback(deal).replace(' back', ' cashback') : 'Up to 20% cashback';
-  const titleSuffix = deal?.category?.name
+  // No fake hero — render nothing when there's no real deal to feature.
+  if (!deal) return null;
+  const cashback = formatCashback(deal).replace(' back', ' cashback');
+  const titleSuffix = deal.category?.name
     ? `on ${deal.category.name.toLowerCase()} brands`
-    : 'on fashion brands';
-  const ctaLabel = deal?.category?.name ? `Explore ${deal.category.name}` : 'Explore Fashion';
+    : 'on top brands';
+  const ctaLabel = deal.category?.name ? `Explore ${deal.category.name}` : 'Explore deals';
 
   // Deep dark fashion-cable image (matches design vibe)
   const heroImage =
@@ -278,15 +280,13 @@ function PromoImageCard({
   deal?: Deal | null;
   onPress?: () => void;
 }) {
+  // No fake promo — render nothing without a real deal.
+  if (!deal) return null;
   const image =
-    deal?.imageUrl ||
+    deal.imageUrl ||
     'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=900&q=80';
-  const title = deal?.brand
-    ? `${deal.category?.name || 'Featured'} Sale`
-    : 'Electronics Sale';
-  const subtitle = deal
-    ? `Up to ${formatCashback(deal).replace(' back', ' cashback')}`
-    : 'Up to 15% cashback';
+  const title = `${deal.category?.name || deal.brand || 'Featured'} Sale`;
+  const subtitle = `Up to ${formatCashback(deal).replace(' back', ' cashback')}`;
 
   return (
     <TouchableOpacity activeOpacity={0.95} onPress={onPress} style={s.promoCard}>
@@ -668,8 +668,8 @@ export const DealsListScreen = () => {
         refreshControl={<RefreshControl {...refresh} />}
       >
         <View style={[s.body, { width: contentW + (isMobile ? 32 : 64) }]}>
-          {/* ── Hero Row ─────────────────────────────────────────────────── */}
-          {isCompact ? (
+          {/* ── Hero Row (hidden entirely when there are no deals) ───────── */}
+          {allDeals.length === 0 ? null : isCompact ? (
             <View style={{ gap }}>
               <FeaturedHeroCard deal={heroDeal} onPress={() => heroDeal && onDealPress(heroDeal)} />
               <View style={[s.heroRightStack, { gap }]}>
@@ -734,8 +734,14 @@ export const DealsListScreen = () => {
             />
             {filteredDeals.length === 0 ? (
               <View style={s.emptyBox}>
-                <Text style={s.emptyTitle}>No deals match your filter</Text>
-                <Text style={s.emptySub}>Try clearing the search or pick a different category</Text>
+                <Text style={s.emptyTitle}>
+                  {allDeals.length === 0 ? 'No deals yet' : 'No deals match your filter'}
+                </Text>
+                <Text style={s.emptySub}>
+                  {allDeals.length === 0
+                    ? 'Deals you add will appear here.'
+                    : 'Try clearing the search or pick a different category'}
+                </Text>
               </View>
             ) : (
               <View style={[s.grid, { gap }]}>
