@@ -30,45 +30,6 @@ interface WithdrawalRequest {
   status: WithdrawalStatus;
 }
 
-// ─── Fallback data (backend admin endpoint not yet implemented) ──────────────
-
-const FALLBACK: WithdrawalRequest[] = [
-  {
-    _id: '1',
-    userName: 'Rahul Sharma',
-    userId: 'u1',
-    amount: 1500,
-    method: 'UPI',
-    paymentDetails: 'rahul@paytm',
-    requestedAt: '2026-04-03',
-    status: 'pending',
-  },
-  {
-    _id: '2',
-    userName: 'Priya Patel',
-    userId: 'u2',
-    amount: 2500,
-    method: 'Bank',
-    paymentDetails: '1234567890',
-    accountNumber: '1234567890',
-    ifsc: 'SBIN0001234',
-    requestedAt: '2026-04-01',
-    completedAt: '2026-04-02',
-    txnId: 'TXN-2026040212345',
-    status: 'completed',
-  },
-  {
-    _id: '3',
-    userName: 'Amit Kumar',
-    userId: 'u3',
-    amount: 800,
-    method: 'UPI',
-    paymentDetails: 'amit@phonepe',
-    requestedAt: '2026-04-02',
-    status: 'processing',
-  },
-];
-
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<
@@ -171,7 +132,7 @@ export function AdminWithdrawalsScreen() {
   const [statusFilter, setStatusFilter] = useState<'all' | WithdrawalStatus>('all');
   const queryClient = useQueryClient();
 
-  // Use adminAPI.getWithdrawals when backend ships; for now fall back to mock.
+  // Use adminAPI.getWithdrawals when backend ships; until then show empty.
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'withdrawals', statusFilter],
     queryFn: async () => {
@@ -179,15 +140,15 @@ export function AdminWithdrawalsScreen() {
         const fn = (adminAPI as any).getWithdrawals;
         if (typeof fn === 'function') return await fn({ status: statusFilter });
       } catch {
-        /* fall through to mock */
+        /* fall through to empty */
       }
-      return { data: { withdrawals: FALLBACK } };
+      return { data: { withdrawals: [] } };
     },
     staleTime: 30_000,
   });
 
   const withdrawals: WithdrawalRequest[] =
-    data?.data?.withdrawals ?? data?.withdrawals ?? data?.data ?? FALLBACK;
+    data?.data?.withdrawals ?? data?.withdrawals ?? data?.data ?? [];
 
   const actionMutation = useMutation({
     mutationFn: async (payload: {

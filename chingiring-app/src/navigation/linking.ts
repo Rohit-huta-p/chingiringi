@@ -40,7 +40,6 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       // ── Admin (AdminNavigator — mounted when user.role === 'admin') ────
       AdminDashboard:   'admin',
       AdminDeals:       'admin/deals',
-      AdminConversions: 'admin/conversions',
       AdminWalletOps:   'admin/wallet-ops',
       AdminWithdrawals: 'admin/withdrawals',
       AdminUsers:       'admin/users',
@@ -74,6 +73,7 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       OfflineStores:      'offline-stores',
       Notifications:      'notifications',
       Settings:           'settings',
+      About:              'about',
       Profile:            'profile',
       EditProfile:        'profile/edit',
       MyAddress:          'addresses',

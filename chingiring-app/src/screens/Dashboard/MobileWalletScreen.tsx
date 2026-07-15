@@ -30,13 +30,9 @@ const FILTER_TABS = ['All', 'Cashback', 'Coins', 'Withdrawal'] as const;
 const FILTER_MAP: Record<string, string | undefined> = {
   All: undefined, Cashback: 'cashback', Coins: 'coin_credit', Withdrawal: 'withdrawal',
 };
-const FALLBACK_WALLET: Wallet = { _id: '', userId: '', confirmedCashback: 1250, pendingCashback: 450, coins: 840, lifetimeEarned: 1700 };
-const FALLBACK_TXN: Transaction[] = [
-  { _id: '1', userId: '', type: 'cashback', amount: 150, status: 'confirmed', description: 'Myntra', metadata: { brand: 'Myntra' }, createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { _id: '2', userId: '', type: 'cashback', amount: 300, status: 'confirmed', description: 'Amazon', metadata: { brand: 'Amazon' }, createdAt: new Date(Date.now() - 15 * 86400000).toISOString() },
-  { _id: '3', userId: '', type: 'withdrawal', amount: 500, status: 'completed', description: 'Withdrawal to UPI', createdAt: new Date(Date.now() - 20 * 86400000).toISOString() },
-  { _id: '4', userId: '', type: 'referral', amount: 50, status: 'confirmed', description: 'Referral bonus (User: RAHUL99)', createdAt: new Date(Date.now() - 5 * 86400000).toISOString() },
-];
+// Zero-state wallet used before the API responds — all zeros, never fake
+// balances (which masked failures and read as real money).
+const EMPTY_WALLET: Wallet = { _id: '', userId: '', confirmedCashback: 0, pendingCashback: 0, coins: 0, pendingCoins: 0, lifetimeEarned: 0 };
 
 function timeAgo(d: string): string {
   const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
@@ -584,8 +580,8 @@ export const MobileWalletScreen = () => {
     queryFn: () => walletAPI.getTransactions({ type: FILTER_MAP[filter], limit: 20 }),
   });
 
-  const w: Wallet = wRes?.data?.wallet ?? wRes?.data ?? FALLBACK_WALLET;
-  const txns: Transaction[] = tRes?.data?.transactions ?? tRes?.data ?? FALLBACK_TXN;
+  const w: Wallet = wRes?.data?.wallet ?? wRes?.data ?? EMPTY_WALLET;
+  const txns: Transaction[] = tRes?.data?.transactions ?? tRes?.data ?? [];
 
   if (wL) return <View style={[m.root, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#3b82f6" /></View>;
 
@@ -645,21 +641,31 @@ export const MobileWalletScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* ── STATS (Pending + Coins) ─────────────────── */}
+        {/* ── STATS (Coins available + Pending coins) ─────
+            Coin-economy: imported rewards land in pendingCoins (locked for
+            the return window), then move to coins (withdrawable) once the
+            lock expires. Both surfaced so users see rewards immediately. */}
         <View style={m.statsRow}>
-          <View style={m.statCard}>
-            <View style={m.statLabelRow}>
-              <View style={m.statDot}><Clock size={12} color="#94a3b8" strokeWidth={2} /></View>
-              <Text style={m.statLabel}>Pending</Text>
-            </View>
-            <Text style={m.statVal}>₹{w.pendingCashback}</Text>
-          </View>
           <View style={m.statCard}>
             <View style={m.statLabelRow}>
               <View style={m.statDot}><Text style={{ fontSize: 12 }}>🪙</Text></View>
               <Text style={m.statLabel}>Coins</Text>
             </View>
-            <Text style={m.statVal}>{w.coins}</Text>
+            <Text style={m.statVal}>{w.coins ?? 0}</Text>
+          </View>
+          <View style={m.statCard}>
+            <View style={m.statLabelRow}>
+              <View style={m.statDot}><Clock size={12} color="#d97706" strokeWidth={2} /></View>
+              <Text style={m.statLabel}>Pending Coins</Text>
+            </View>
+            <Text style={[m.statVal, { color: '#d97706' }]}>{w.pendingCoins ?? 0}</Text>
+          </View>
+          <View style={m.statCard}>
+            <View style={m.statLabelRow}>
+              <View style={m.statDot}><Clock size={12} color="#94a3b8" strokeWidth={2} /></View>
+              <Text style={m.statLabel}>Pending ₹</Text>
+            </View>
+            <Text style={m.statVal}>₹{w.pendingCashback ?? 0}</Text>
           </View>
         </View>
 
@@ -675,7 +681,13 @@ export const MobileWalletScreen = () => {
             ))}
           </ScrollView>
 
-          {tL ? <ActivityIndicator color="#3b82f6" style={{ marginTop: 20 }} /> : txns.map((tx) => (
+          {tL ? (
+            <ActivityIndicator color="#3b82f6" style={{ marginTop: 20 }} />
+          ) : txns.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, paddingVertical: 24 }}>
+              No transactions yet.
+            </Text>
+          ) : txns.map((tx) => (
             <TouchableOpacity key={tx._id} style={m.txRow} activeOpacity={0.7}>
               <View style={[m.txDot, { backgroundColor: dotColor(tx.type) }]} />
               <View style={m.txInfo}>
@@ -771,15 +783,15 @@ const m = StyleSheet.create({
   historyTxt: { textAlign: 'center', fontSize: 13, fontWeight: '600', color: '#3b82f6', textDecorationStyle: 'dashed' },
 
   // Stats
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginTop: 16, marginBottom: 20 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginTop: 16, marginBottom: 20 },
   statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 16,
+    flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 13,
     shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 1,
   },
-  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  statDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
-  statLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '500' },
-  statVal: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
+  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  statDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  statLabel: { fontSize: 11, color: '#94a3b8', fontWeight: '500', flexShrink: 1 },
+  statVal: { fontSize: 20, fontWeight: '800', color: '#1e293b' },
 
   // Activity
   activity: { paddingHorizontal: 20 },

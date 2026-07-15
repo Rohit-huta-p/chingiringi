@@ -1,12 +1,24 @@
 import AdminSettings from './adminSettingsModel.js';
 
+// Never leak the raw Razorpay secret to the client. Return a masked hint plus
+// a boolean so the UI can show "Connected" without ever holding the secret.
+function presentSettings(doc) {
+  const s = doc.toObject ? doc.toObject() : { ...doc };
+  const secret = s.razorpayKeySecret || '';
+  s.razorpayConfigured = !!(s.razorpayKeyId && secret);
+  s.razorpayKeySecretMasked = secret ? `••••••••${secret.slice(-4)}` : '';
+  delete s.razorpayKeySecret;
+  return s;
+}
+
 /**
  * GET /api/admin/settings
  * Returns the singleton config doc. Creates it with defaults if missing.
+ * The Razorpay secret is masked — see presentSettings.
  */
 export const getSettings = async (req, res) => {
   const settings = await AdminSettings.get();
-  res.json({ status: 'success', data: { settings } });
+  res.json({ status: 'success', data: { settings: presentSettings(settings) } });
 };
 
 /**
@@ -20,9 +32,20 @@ export const updateSettings = async (req, res) => {
     'defaultLockDays',
     'cuelinksPublisherId',
     'amazonAssociateTag',
+    'razorpayKeyId',
+    'razorpayAccountNumber',
+    'razorpayEnabled',
   ];
   const updates = {};
   for (const k of ALLOWED) if (req.body[k] !== undefined) updates[k] = req.body[k];
+
+  // The secret is write-only and optional: only overwrite it when a non-empty
+  // value is sent, so re-saving the form without re-typing the secret keeps
+  // the stored one. Sending an explicit empty string via razorpayKeySecret
+  // won't clear it — use a dedicated clear flow if that's ever needed.
+  if (typeof req.body.razorpayKeySecret === 'string' && req.body.razorpayKeySecret.trim()) {
+    updates.razorpayKeySecret = req.body.razorpayKeySecret.trim();
+  }
 
   if (updates.passThroughPercent !== undefined) {
     const n = Number(updates.passThroughPercent);
@@ -54,5 +77,5 @@ export const updateSettings = async (req, res) => {
     { $set: updates },
     { new: true, upsert: true },
   );
-  res.json({ status: 'success', data: { settings } });
+  res.json({ status: 'success', data: { settings: presentSettings(settings) } });
 };

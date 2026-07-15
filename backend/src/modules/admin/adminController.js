@@ -1,42 +1,113 @@
 import User from '../users/userModel.js';
 import Deal from '../deals/dealModel.js';
 import Wallet from '../wallet/walletModel.js';
+import Transaction from '../transactions/transactionModel.js';
+import ClickEvent from '../clicks/clickModel.js';
 
+// Every number here is aggregated live from the DB — no seed/mock fallbacks.
+// A fresh install reads as all-zeros, which is correct, not broken.
 export const getDashboardStats = async (req, res) => {
-  const [totalUsers, activeUsers, totalDeals, wallets] = await Promise.all([
-    User.countDocuments(),
-    User.countDocuments({ lastLoginAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }),
-    Deal.countDocuments(),
-    Wallet.find({}).lean(),
-  ]);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  // Aggregate wallet stats
-  let totalCoinsIssued = 0;
-  let totalCoinsRedeemed = 0;
-  let totalCashbackIssued = 0;
+  const [totalUsers, activeUsers, totalDeals, totalClicks, conversions, wallets] =
+    await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ lastLoginAt: { $gte: thirtyDaysAgo } }),
+      Deal.countDocuments(),
+      ClickEvent.countDocuments(),
+      Transaction.countDocuments({ type: 'coin_credit' }), // credited purchases
+      Wallet.find({}).lean(),
+    ]);
 
+  // Current holdings, summed from real wallet fields.
+  let coinsCirculating = 0; // coins + pendingCoins held across all wallets
+  let cashbackIssued = 0;   // confirmed + pending ₹ cashback (legacy pool)
   for (const w of wallets) {
-    totalCoinsIssued += w.coinsEarned || 0;
-    totalCoinsRedeemed += w.coinsSpent || 0;
-    totalCashbackIssued += w.totalCashback || 0;
+    coinsCirculating += (w.coins || 0) + (w.pendingCoins || 0);
+    cashbackIssued   += (w.confirmedCashback || 0) + (w.pendingCashback || 0);
+  }
+
+  // Coins issued vs redeemed straight from the transaction ledger.
+  const [creditAgg, debitAgg] = await Promise.all([
+    Transaction.aggregate([
+      { $match: { type: 'coin_credit' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
+    Transaction.aggregate([
+      { $match: { type: 'coin_debit' } },
+      { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } },
+    ]),
+  ]);
+  const coinsIssued = creditAgg[0]?.total || 0;
+  const coinsRedeemed = debitAgg[0]?.total || 0;
+
+  // Top deals by real click volume (only ones that have any clicks).
+  const topDealsRaw = await Deal.find().sort({ clickCount: -1 }).limit(5).lean();
+  const topDeals = topDealsRaw
+    .filter((d) => (d.clickCount || 0) > 0)
+    .map((d) => ({ brand: d.brand, title: d.title, revenue: 0, orders: d.clickCount || 0 }));
+
+  // Top earners by lifetime earnings (excludes zero-earners).
+  const topWallets = await Wallet.find()
+    .sort({ lifetimeEarned: -1 })
+    .limit(5)
+    .populate('userId', 'name email')
+    .lean();
+  const topUsers = topWallets
+    .filter((w) => w.userId && (w.lifetimeEarned || 0) > 0)
+    .map((w) => ({ name: w.userId.name, email: w.userId.email, earned: w.lifetimeEarned || 0, orders: 0 }));
+
+  // ── Revenue trend: last 30 days, one point per day (UTC) ──────────────────
+  // revenue     = merchant commission we earned that day (metadata.commissionPaid)
+  // conversions = number of credited purchases that day
+  const DAYS = 30;
+  const startDay = new Date();
+  startDay.setUTCHours(0, 0, 0, 0);
+  startDay.setUTCDate(startDay.getUTCDate() - (DAYS - 1));
+
+  const trendAgg = await Transaction.aggregate([
+    { $match: { type: 'coin_credit', createdAt: { $gte: startDay } } },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+        revenue: { $sum: { $ifNull: ['$metadata.commissionPaid', 0] } },
+        conversions: { $sum: 1 },
+      },
+    },
+  ]);
+  const byDay = new Map(trendAgg.map((r) => [r._id, r]));
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const pad2 = (x) => String(x).padStart(2, '0');
+  const revenueTrend = [];
+  for (let i = 0; i < DAYS; i++) {
+    const dt = new Date(startDay);
+    dt.setUTCDate(startDay.getUTCDate() + i);
+    const key = `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+    const rec = byDay.get(key);
+    revenueTrend.push({
+      label: `${MONTHS[dt.getUTCMonth()]} ${dt.getUTCDate()}`,
+      revenue: rec?.revenue || 0,
+      conversions: rec?.conversions || 0,
+    });
   }
 
   res.json({
     status: 'success',
     data: {
       stats: {
-        totalClicks: 45280, // TODO: implement click tracking aggregation
-        conversions: 3456,  // TODO: implement conversion tracking
-        cashbackIssued: totalCashbackIssued || 245700,
-        activeUsers: activeUsers || 8920,
+        totalClicks,
+        conversions,
+        cashbackIssued,
+        activeUsers,
       },
       coinsEconomy: {
-        issued: totalCoinsIssued || 1245000,
-        redeemed: totalCoinsRedeemed || 856000,
-        circulation: (totalCoinsIssued - totalCoinsRedeemed) || 389000,
+        issued: coinsIssued,
+        redeemed: coinsRedeemed,
+        circulation: coinsCirculating,
       },
-      topDeals: [], // TODO: aggregate from click/conversion data
-      topUsers: [], // TODO: aggregate from transaction data
+      topDeals,
+      topUsers,
+      revenueTrend,
       totalUsers,
       totalDeals,
     },

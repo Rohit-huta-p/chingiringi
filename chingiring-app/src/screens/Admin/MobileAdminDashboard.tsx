@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   Tag,
   CreditCard,
+  Wallet,
   Package,
   Image as ImageIcon,
  Ticket,
@@ -29,6 +30,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { adminAPI } from '../../api/admin';
 import { useAuthStore } from '../../store';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
+import { RevenueTrendChart } from '../../components/RevenueTrendChart';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -46,24 +49,13 @@ const fmt = (n: number) => {
 };
 const cur = (n: number) => (n >= 100_000 ? `₹${(n / 1_000).toFixed(1)}K` : `₹${n.toLocaleString()}`);
 
-// Fallback
+// Empty-state fallback used only if the request fails — real zeros, never mock
+// numbers (which would read as fake activity on a fresh install).
 const FB = {
-  totalClicks: 45280, conversions: 3456, cashbackIssued: 245700, activeUsers: 8920,
-  coinsIssued: 1245000, coinsRedeemed: 856000, coinsCirculating: 389000,
-  topDeals: [
-    { brand: 'Myntra', title: 'Myntra Fashion Sale', revenue: 12450, orders: 420 },
-    { brand: 'Amazon', title: 'Amazon Electronics', revenue: 18900, orders: 380 },
-    { brand: 'Flipkart', title: 'Flipkart Big Billion Days', revenue: 15600, orders: 340 },
-    { brand: 'Zomato', title: 'Zomato Gold', revenue: 8900, orders: 290 },
-    { brand: 'Swiggy', title: 'Swiggy Super', revenue: 7800, orders: 250 },
-  ],
-  topUsers: [
-    { name: 'Rahul Sharma', email: 'rahul@example.com', earned: 12450, orders: 45 },
-    { name: 'Priya Patel', email: 'priya@example.com', earned: 9800, orders: 38 },
-    { name: 'Amit Kumar', email: 'amit@example.com', earned: 8900, orders: 32 },
-    { name: 'Sneha Gupta', email: 'sneha@example.com', earned: 7650, orders: 28 },
-    { name: 'Vikram Singh', email: 'vikram@example.com', earned: 6780, orders: 25 },
-  ],
+  totalClicks: 0, conversions: 0, cashbackIssued: 0, activeUsers: 0,
+  coinsIssued: 0, coinsRedeemed: 0, coinsCirculating: 0,
+  topDeals: [] as Array<{ brand: string; title: string; revenue: number; orders: number }>,
+  topUsers: [] as Array<{ name: string; email: string; earned: number; orders: number }>,
 };
 
 // ─── Nav Tabs ───────────────────────────────────────────────────────
@@ -71,6 +63,7 @@ const FB = {
 const NAV_ITEMS = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'AdminDeals', label: 'Deals', icon: Tag },
+  { key: 'AdminWalletOps', label: 'Wallet Ops', icon: Wallet },
   { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
   { key: 'AdminUsers', label: 'Users', icon: Users },
   { key: 'AdminAllProducts', label: 'Products', icon: Package },
@@ -137,8 +130,10 @@ export const MobileAdminDashboard = () => {
 
   const d = res?.data ?? res ?? FB;
   const stats = d.stats ?? d;
+  const economy = d.coinsEconomy ?? {};
   const topDeals = d.topDeals ?? FB.topDeals;
   const topUsers = d.topUsers ?? FB.topUsers;
+  const revenueTrend = d.revenueTrend ?? [];
 
   if (isLoading) {
     return <View style={[s.root, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#3b82f6" /></View>;
@@ -148,47 +143,15 @@ export const MobileAdminDashboard = () => {
     <SafeAreaView style={s.root} edges={['top', 'bottom']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
-        {/* ── Header ──────────────────────────────────── */}
-        <View style={s.header}>
-          <View style={s.headerLeft}>
-            <View style={s.logoCircle}><Text style={s.logoTxt}>C</Text></View>
-            <View>
-              <Text style={s.headerTitle}>Admin Panel</Text>
-              <Text style={s.headerSub}>Super Admin</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={s.avatarCircle}
-            onPress={() => nav.navigate('AdminProfile')}
-            activeOpacity={0.7}
-          >
-            <Text style={s.avatarTxt}>{userInitials(userName)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Nav tabs (horizontal scroll) ─────────────── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.navScroll} contentContainerStyle={s.navContent}>
-          {NAV_ITEMS.map((item) => {
-            const active = item.key === 'AdminDashboard';
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[s.navTab, active && s.navTabActive]}
-                onPress={() => { if (!active) nav.navigate(item.key); }}
-              >
-                <item.icon size={16} color={active ? '#3b82f6' : '#94a3b8'} strokeWidth={2} />
-                <Text style={[s.navLabel, active && s.navLabelActive]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* ── Shared admin header + section nav ────────── */}
+        <MobileAdminNav active="AdminDashboard" />
 
         {/* ── Stats 2×2 grid ──────────────────────────── */}
         <View style={s.statsGrid}>
-          <StatCard icon={MousePointerClick} iconBg="#6366f1" value={fmt(stats.totalClicks ?? 45280)} label="Total Clicks" change={`+12.5%`} />
-          <StatCard icon={CheckCircle} iconBg="#22c55e" value={fmt(stats.conversions ?? 3456)} label="Conversions" change={`+8.2%`} />
-          <StatCard icon={DollarSign} iconBg="#22c55e" value={cur(stats.cashbackIssued ?? 245700)} label="Cashback Issued" change={`+15.3%`} />
-          <StatCard icon={Users} iconBg="#f97316" value={fmt(stats.activeUsers ?? 8920)} label="Active Users" change={`+6.7%`} />
+          <StatCard icon={MousePointerClick} iconBg="#6366f1" value={fmt(stats.totalClicks ?? 0)} label="Total Clicks" change="" />
+          <StatCard icon={CheckCircle} iconBg="#22c55e" value={fmt(stats.conversions ?? 0)} label="Conversions" change="" />
+          <StatCard icon={DollarSign} iconBg="#22c55e" value={cur(stats.cashbackIssued ?? 0)} label="Cashback Issued" change="" />
+          <StatCard icon={Users} iconBg="#f97316" value={fmt(stats.activeUsers ?? 0)} label="Active Users" change="" />
         </View>
 
         {/* ── Coins Economy ───────────────────────────── */}
@@ -198,43 +161,19 @@ export const MobileAdminDashboard = () => {
             <Text style={s.sectionTitle}>Coins Economy</Text>
           </View>
           <View style={s.coinsRow}>
-            <CoinsPill label="Issued" value={fmt(stats.coinsIssued ?? 1245000)} color="#3b82f6" />
-            <CoinsPill label="Redeemed" value={fmt(stats.coinsRedeemed ?? 856000)} color="#8b5cf6" />
-            <CoinsPill label="Circulating" value={fmt(stats.coinsCirculating ?? 389000)} color="#22c55e" />
+            <CoinsPill label="Issued" value={fmt(economy.issued ?? 0)} color="#3b82f6" />
+            <CoinsPill label="Redeemed" value={fmt(economy.redeemed ?? 0)} color="#8b5cf6" />
+            <CoinsPill label="Circulating" value={fmt(economy.circulation ?? 0)} color="#22c55e" />
           </View>
         </View>
 
-        {/* ── Revenue Trend (line chart + gradient) ──── */}
+        {/* ── Revenue Trend (real daily line chart) ──── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <TrendingUp size={16} color="#1e293b" strokeWidth={2} />
             <Text style={s.sectionTitle}>Revenue Trend (30 Days)</Text>
           </View>
-          {/* Y-axis labels */}
-          <View style={s.chartWrap}>
-            <View style={s.yAxis}>
-              {['1600', '1200', '800', '400', '0'].map((l) => (
-                <Text key={l} style={s.yLabel}>{l}</Text>
-              ))}
-            </View>
-            {/* Simple bar chart (SVG disabled for Expo Go compat) */}
-            <View style={s.chartArea}>
-              <View style={s.chartBars}>
-                {[60, 80, 45, 90, 70, 85, 55].map((h, i) => (
-                  <View key={i} style={s.chartBarCol}>
-                    <View style={[s.chartBarFill, { height: `${h}%` }]} />
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-          {/* X-axis labels */}
-          <View style={s.xAxis}>
-            <Text style={s.xLabel}>Mar 7</Text>
-            <Text style={s.xLabel}>Mar 15</Text>
-            <Text style={s.xLabel}>Mar 23</Text>
-            <Text style={s.xLabel}>Mar 31</Text>
-          </View>
+          <RevenueTrendChart data={revenueTrend} />
         </View>
 
         {/* ── Top Performing Deals ─────────────────────── */}

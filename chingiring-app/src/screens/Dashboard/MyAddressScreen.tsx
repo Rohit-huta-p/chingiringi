@@ -17,29 +17,6 @@ interface Address {
   line2: string;
 }
 
-const FALLBACK_ADDRESSES: Address[] = [
-  {
-    id: '1',
-    type: 'home',
-    label: 'Home',
-    isDefault: true,
-    name: 'Dev Chavan',
-    phone: '9876543210',
-    line1: '301, Sunrise Apartments, MG Road',
-    line2: 'Mumbai, Maharashtra - 400001',
-  },
-  {
-    id: '2',
-    type: 'work',
-    label: 'Work',
-    isDefault: false,
-    name: 'Dev Chavan',
-    phone: '9876543210',
-    line1: 'Tech Park, Block B, 5th Floor',
-    line2: 'Mumbai, Maharashtra - 400051',
-  },
-];
-
 const AddressCard = ({
   address,
   onDelete,
@@ -151,7 +128,7 @@ export const MyAddressScreen = () => {
     navigation.navigate('AddEditAddress' as never);
   };
 
-  // Map API data to the local Address shape, fall back to hardcoded data
+  // Map API data to the local Address shape; empty when there are none.
   const addresses: Address[] = addressData?.data?.addresses
     ? addressData.data.addresses.map((a: any) => ({
         id: a._id,
@@ -163,7 +140,7 @@ export const MyAddressScreen = () => {
         line1: a.addressLine1,
         line2: `${a.city}, ${a.state} - ${a.pincode}`,
       }))
-    : FALLBACK_ADDRESSES;
+    : [];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : 24 }]}>
@@ -180,15 +157,19 @@ export const MyAddressScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {addresses.map((address) => (
-        <AddressCard
-          key={address.id}
-          address={address}
-          onDelete={handleDelete}
-          onSetDefault={handleSetDefault}
-          onEdit={handleEdit}
-        />
-      ))}
+      {addresses.length === 0 ? (
+        <Text style={styles.emptyText}>No addresses yet</Text>
+      ) : (
+        addresses.map((address) => (
+          <AddressCard
+            key={address.id}
+            address={address}
+            onDelete={handleDelete}
+            onSetDefault={handleSetDefault}
+            onEdit={handleEdit}
+          />
+        ))
+      )}
     </ScrollView>
   );
 };
@@ -200,6 +181,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 60,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: Colors.textSecondary,
+    fontSize: 14,
+    marginTop: 40,
   },
   header: {
     flexDirection: 'row',

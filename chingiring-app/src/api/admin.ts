@@ -201,6 +201,10 @@ export const adminAPI = {
     defaultLockDays?: number;
     cuelinksPublisherId?: string;
     amazonAssociateTag?: string;
+    razorpayKeyId?: string;
+    razorpayKeySecret?: string;
+    razorpayAccountNumber?: string;
+    razorpayEnabled?: boolean;
   }) => {
     const response = await apiClient.patch('/api/admin/settings', data);
     return response.data;

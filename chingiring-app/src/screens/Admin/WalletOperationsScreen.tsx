@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert, Platform, useWindowDimensions, Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -10,8 +11,12 @@ import {
   ArrowDownToLine, RefreshCw, Trash2, Plus, Minus, Ban, ShieldCheck,
   CalendarDays, FileText, Sliders, Save,
 } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
+
+const isNative = Platform.OS !== 'web';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -55,50 +60,134 @@ interface ParsedRow {
   rawIndex: number;
 }
 
+// ─── Native prompt modal (window.prompt doesn't exist on iOS/Android) ─────
+
+function useNativePrompt() {
+  const [state, setState] = useState<{
+    visible: boolean;
+    title: string;
+    placeholder: string;
+    value: string;
+    onSubmit: (val: string) => void;
+  }>({ visible: false, title: '', placeholder: '', value: '', onSubmit: () => {} });
+
+  const prompt = useCallback((title: string, placeholder?: string): Promise<string | null> => {
+    if (!isNative) {
+      const val = window.prompt(title);
+      return Promise.resolve(val);
+    }
+    return new Promise((resolve) => {
+      setState({
+        visible: true,
+        title,
+        placeholder: placeholder || '',
+        value: '',
+        onSubmit: (v) => {
+          setState((p) => ({ ...p, visible: false }));
+          resolve(v || null);
+        },
+      });
+    });
+  }, []);
+
+  const dismiss = useCallback(() => {
+    state.onSubmit('');
+    setState((p) => ({ ...p, visible: false }));
+  }, [state.onSubmit]);
+
+  const modal = state.visible ? (
+    <Modal transparent animationType="fade" visible>
+      <KeyboardAvoidingView
+        style={s.promptOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={s.promptCard}>
+          <Text style={s.promptTitle}>{state.title}</Text>
+          <TextInput
+            style={s.promptInput}
+            value={state.value}
+            onChangeText={(v) => setState((p) => ({ ...p, value: v }))}
+            placeholder={state.placeholder}
+            placeholderTextColor="#94a3b8"
+            keyboardType="default"
+            autoFocus
+          />
+          <View style={s.promptBtns}>
+            <TouchableOpacity style={s.promptCancelBtn} onPress={dismiss}>
+              <Text style={s.promptCancelTxt}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.promptSubmitBtn}
+              onPress={() => state.onSubmit(state.value)}
+            >
+              <Text style={s.promptSubmitTxt}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  ) : null;
+
+  return { prompt, modal };
+}
+
 // ─── Main screen ───────────────────────────────────────────────────────────
 
 export function WalletOperationsScreen() {
   const [tab, setTab] = useState<Tab>('queue');
 
-  return (
-    <View style={s.root}>
-      <View style={s.header}>
-        <Text style={s.title}>Wallet Operations</Text>
-        <Text style={s.subtitle}>
-          One workspace for crediting cashback from merchant reports, approving payouts,
-          and drilling into any user's wallet history.
-        </Text>
-      </View>
+  const TABS: { key: Tab; icon: React.ComponentType<any>; label: string; shortLabel: string }[] = [
+    { key: 'queue',    icon: Inbox,          label: 'Pending Queue', shortLabel: 'Queue' },
+    { key: 'reports',  icon: FileSpreadsheet, label: 'Reports Inbox', shortLabel: 'Reports' },
+    { key: 'user',     icon: UserSearch,     label: 'User Wallet',   shortLabel: 'Users' },
+    { key: 'settings', icon: Sliders,        label: 'Settings',      shortLabel: 'Settings' },
+  ];
 
-      {/* Tab bar */}
+  const Root: any = isNative ? SafeAreaView : View;
+  const rootProps = isNative ? { edges: ['top'] as const } : {};
+
+  return (
+    <Root style={s.root} {...rootProps}>
+      {isNative ? (
+        /* Same blue admin header + section nav as every other admin screen,
+           so Wallet Ops stops being the odd screen with no nav bar. */
+        <MobileAdminNav active="AdminWalletOps" />
+      ) : (
+        <View style={s.header}>
+          <Text style={s.title}>Wallet Operations</Text>
+          <Text style={s.subtitle}>
+            One workspace for crediting cashback from merchant reports, approving payouts,
+            and drilling into any user's wallet history.
+          </Text>
+        </View>
+      )}
+
+      {/* Sub-tab bar — plain flex row (a horizontal ScrollView would expand
+          vertically and clip labels / center in empty space). */}
       <View style={s.tabBar}>
-        <TabBtn icon={Inbox}          label="Pending Queue" active={tab === 'queue'}    onPress={() => setTab('queue')} />
-        <TabBtn icon={FileSpreadsheet} label="Reports Inbox" active={tab === 'reports'}  onPress={() => setTab('reports')} />
-        <TabBtn icon={UserSearch}     label="User Wallet"   active={tab === 'user'}     onPress={() => setTab('user')} />
-        <TabBtn icon={Sliders}        label="Settings"      active={tab === 'settings'} onPress={() => setTab('settings')} />
+        {TABS.map((t) => (
+          <TouchableOpacity
+            key={t.key}
+            style={[s.tabBtn, tab === t.key && s.tabBtnActive]}
+            onPress={() => setTab(t.key)}
+            activeOpacity={0.7}
+          >
+            <t.icon size={isNative ? 17 : 15} color={tab === t.key ? Colors.primary : '#64748b'} strokeWidth={2.2} />
+            <Text
+              style={[s.tabBtnTxt, tab === t.key && s.tabBtnTxtActive]}
+              numberOfLines={1}
+            >
+              {isNative ? t.shortLabel : t.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {tab === 'queue'    && <PendingQueueTab onJumpToUser={(id) => setTab('user')} />}
       {tab === 'reports'  && <ReportsInboxTab />}
       {tab === 'user'     && <UserWalletTab />}
       {tab === 'settings' && <SettingsTab />}
-    </View>
-  );
-}
-
-function TabBtn({
-  icon: Icon, label, active, onPress,
-}: {
-  icon: React.ComponentType<any>;
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={[s.tabBtn, active && s.tabBtnActive]} onPress={onPress} activeOpacity={0.7}>
-      <Icon size={15} color={active ? Colors.primary : '#64748b'} strokeWidth={2.2} />
-      <Text style={[s.tabBtnTxt, active && s.tabBtnTxtActive]}>{label}</Text>
-    </TouchableOpacity>
+    </Root>
   );
 }
 
@@ -493,50 +582,95 @@ function ReportsInboxTab() {
             />
           </View>
 
-          <View style={s.tableCard}>
-            <View style={s.previewHeader}>
-              <Text style={[s.previewCell, { flex: 1.4 }]}>Order ID</Text>
-              <Text style={[s.previewCell, { flex: 2.2 }]}>Subid</Text>
-              <Text style={[s.previewCell, { flex: 1 }]}>Amount</Text>
-              <Text style={[s.previewCell, { flex: 1 }]}>Comm ₹</Text>
-              <Text style={[s.previewCell, { flex: 1 }]}>≈ Coins</Text>
-              <Text style={[s.previewCell, { flex: 1 }]}>Status</Text>
-              <Text style={[s.previewCell, { flex: 0.8 }]}>Match</Text>
-            </View>
-            {parsedRows.slice(0, 20).map((r) => {
-              const willMatch = r.subid?.startsWith('cr_') && !r.subid.includes('anon_');
-              return (
-                <View key={r.rawIndex} style={s.previewRow}>
-                  <Text style={[s.previewCellTxt, { flex: 1.4 }]} numberOfLines={1}>{r.orderId}</Text>
-                  <Text style={[s.previewCellTxt, { flex: 2.2, color: willMatch ? '#0f172a' : '#94a3b8' }]} numberOfLines={1}>
-                    {r.subid || '—'}
-                  </Text>
-                  <Text style={[s.previewCellTxt, { flex: 1 }]}>₹{r.amount.toLocaleString('en-IN')}</Text>
-                  <Text style={[s.previewCellTxt, { flex: 1, color: '#64748b' }]}>
-                    ₹{r.commission.toLocaleString('en-IN')}
-                  </Text>
-                  <Text style={[s.previewCellTxt, { flex: 1, color: '#7c3aed', fontWeight: '700' }]}>
-                    {Math.round(r.commission * passThroughPercent * coinsPerRupee).toLocaleString('en-IN')}
-                  </Text>
-                  <Text style={[s.previewCellTxt, { flex: 1 }]}>{r.status}</Text>
-                  <View style={{ flex: 0.8 }}>
-                    {willMatch ? (
-                      <View style={[s.matchPill, { backgroundColor: '#dcfce7' }]}>
-                        <Text style={[s.matchPillTxt, { color: '#16a34a' }]}>subid</Text>
+          {isNative ? (
+            /* Mobile: card layout per row */
+            <View style={{ gap: 10 }}>
+              {parsedRows.slice(0, 20).map((r) => {
+                const willMatch = r.subid?.startsWith('cr_') && !r.subid.includes('anon_');
+                return (
+                  <View key={r.rawIndex} style={s.mobilePreviewCard}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.text }} numberOfLines={1}>{r.orderId}</Text>
+                      {willMatch ? (
+                        <View style={[s.matchPill, { backgroundColor: '#dcfce7' }]}>
+                          <Text style={[s.matchPillTxt, { color: '#16a34a' }]}>subid ✓</Text>
+                        </View>
+                      ) : (
+                        <View style={[s.matchPill, { backgroundColor: '#fef3c7' }]}>
+                          <Text style={[s.matchPillTxt, { color: '#d97706' }]}>unmatched</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+                      <View>
+                        <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>AMOUNT</Text>
+                        <Text style={{ fontSize: 13, color: Colors.text, marginTop: 2 }}>₹{r.amount.toLocaleString('en-IN')}</Text>
                       </View>
-                    ) : (
-                      <View style={[s.matchPill, { backgroundColor: '#fef3c7' }]}>
-                        <Text style={[s.matchPillTxt, { color: '#d97706' }]}>unmatched</Text>
+                      <View>
+                        <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>COMM</Text>
+                        <Text style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>₹{r.commission.toLocaleString('en-IN')}</Text>
                       </View>
-                    )}
+                      <View>
+                        <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>≈ COINS</Text>
+                        <Text style={{ fontSize: 13, color: '#7c3aed', fontWeight: '700', marginTop: 2 }}>
+                          {Math.round(r.commission * passThroughPercent * coinsPerRupee).toLocaleString('en-IN')}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              );
-            })}
-            {parsedRows.length > 20 ? (
-              <Text style={s.previewMore}>… and {parsedRows.length - 20} more rows.</Text>
-            ) : null}
-          </View>
+                );
+              })}
+              {parsedRows.length > 20 ? (
+                <Text style={s.previewMore}>… and {parsedRows.length - 20} more rows.</Text>
+              ) : null}
+            </View>
+          ) : (
+            /* Desktop: table layout */
+            <View style={s.tableCard}>
+              <View style={s.previewHeader}>
+                <Text style={[s.previewCell, { flex: 1.4 }]}>Order ID</Text>
+                <Text style={[s.previewCell, { flex: 2.2 }]}>Subid</Text>
+                <Text style={[s.previewCell, { flex: 1 }]}>Amount</Text>
+                <Text style={[s.previewCell, { flex: 1 }]}>Comm ₹</Text>
+                <Text style={[s.previewCell, { flex: 1 }]}>≈ Coins</Text>
+                <Text style={[s.previewCell, { flex: 1 }]}>Status</Text>
+                <Text style={[s.previewCell, { flex: 0.8 }]}>Match</Text>
+              </View>
+              {parsedRows.slice(0, 20).map((r) => {
+                const willMatch = r.subid?.startsWith('cr_') && !r.subid.includes('anon_');
+                return (
+                  <View key={r.rawIndex} style={s.previewRow}>
+                    <Text style={[s.previewCellTxt, { flex: 1.4 }]} numberOfLines={1}>{r.orderId}</Text>
+                    <Text style={[s.previewCellTxt, { flex: 2.2, color: willMatch ? '#0f172a' : '#94a3b8' }]} numberOfLines={1}>
+                      {r.subid || '—'}
+                    </Text>
+                    <Text style={[s.previewCellTxt, { flex: 1 }]}>₹{r.amount.toLocaleString('en-IN')}</Text>
+                    <Text style={[s.previewCellTxt, { flex: 1, color: '#64748b' }]}>
+                      ₹{r.commission.toLocaleString('en-IN')}
+                    </Text>
+                    <Text style={[s.previewCellTxt, { flex: 1, color: '#7c3aed', fontWeight: '700' }]}>
+                      {Math.round(r.commission * passThroughPercent * coinsPerRupee).toLocaleString('en-IN')}
+                    </Text>
+                    <Text style={[s.previewCellTxt, { flex: 1 }]}>{r.status}</Text>
+                    <View style={{ flex: 0.8 }}>
+                      {willMatch ? (
+                        <View style={[s.matchPill, { backgroundColor: '#dcfce7' }]}>
+                          <Text style={[s.matchPillTxt, { color: '#16a34a' }]}>subid</Text>
+                        </View>
+                      ) : (
+                        <View style={[s.matchPill, { backgroundColor: '#fef3c7' }]}>
+                          <Text style={[s.matchPillTxt, { color: '#d97706' }]}>unmatched</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+              {parsedRows.length > 20 ? (
+                <Text style={s.previewMore}>… and {parsedRows.length - 20} more rows.</Text>
+              ) : null}
+            </View>
+          )}
 
           <TouchableOpacity
             style={[s.importBtn, importMutation.isPending && { opacity: 0.6 }]}
@@ -623,6 +757,8 @@ function SummaryStat({ label, value, tint }: { label: string; value: string; tin
 function UserWalletTab() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 700;
 
   const searchQuery = useQuery({
     queryKey: ['admin', 'users', 'search', search],
@@ -630,6 +766,64 @@ function UserWalletTab() {
     enabled: search.length >= 2,
   });
   const searchResults: TimelineUser[] = searchQuery.data?.data?.users ?? [];
+
+  if (isNarrow && selectedId) {
+    return (
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, backgroundColor: '#f1f5f9' }}
+          onPress={() => setSelectedId(null)}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primary }}>← Back to search</Text>
+        </TouchableOpacity>
+        <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+          <UserTimelineDetail userId={selectedId} />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (isNarrow) {
+    return (
+      <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+        <View style={[s.searchRow, { marginBottom: 12 }]}>
+          <Search size={16} color="#94a3b8" strokeWidth={2} />
+          <TextInput
+            style={s.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Name, phone, email…"
+            placeholderTextColor="#94a3b8"
+          />
+        </View>
+
+        {search.length < 2 ? (
+          <View style={s.emptyHint}>
+            <Text style={s.emptyTxt}>Type 2+ characters to search.</Text>
+          </View>
+        ) : searchQuery.isLoading ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginTop: 24 }} />
+        ) : searchResults.length === 0 ? (
+          <View style={s.emptyHint}>
+            <Text style={s.emptyTxt}>No users match "{search}".</Text>
+          </View>
+        ) : (
+          searchResults.map((u) => (
+            <TouchableOpacity
+              key={u._id}
+              style={[s.searchResult, selectedId === u._id && s.searchResultActive]}
+              onPress={() => setSelectedId(u._id)}
+            >
+              <Text style={s.searchResultName} numberOfLines={1}>{u.name}</Text>
+              <Text style={s.searchResultMeta} numberOfLines={1}>
+                {u.phone || u.email || '—'}
+              </Text>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
+    );
+  }
 
   return (
     <View style={{ flex: 1, flexDirection: 'row' }}>
@@ -693,6 +887,7 @@ function UserWalletTab() {
 
 function UserTimelineDetail({ userId }: { userId: string }) {
   const qc = useQueryClient();
+  const nativePrompt = useNativePrompt();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['admin', 'user-timeline', userId],
     queryFn: () => adminAPI.getUserTimeline(userId, { limit: 60 }),
@@ -702,7 +897,6 @@ function UserTimelineDetail({ userId }: { userId: string }) {
   const wallet: TimelineWallet | null = data?.data?.wallet || null;
   const events: TimelineEvent[] = data?.data?.events || [];
 
-  // Pending withdrawal — first one from the events list, surfaced at the top.
   const pendingWithdrawal = events.find(
     (e) => e.kind === 'transaction' && e.data.type === 'withdrawal' && e.data.status === 'pending',
   );
@@ -726,24 +920,23 @@ function UserTimelineDetail({ userId }: { userId: string }) {
     },
   });
 
-  // Coins are the primary currency in this economy. The ₹ adjust buttons
-  // stay around for one-off goodwill credits (refunds, support tickets) but
-  // they're labelled honestly so admin never confuses them with coin actions.
-  const promptAdjust = (
+  const promptAdjust = async (
     type: 'credit' | 'debit',
     currency: 'cashback' | 'coins',
   ) => {
-    if (Platform.OS !== 'web') return;
     const noun = currency === 'coins' ? 'coins' : '₹';
-    const amountStr = window.prompt(`${type === 'credit' ? 'Credit' : 'Debit'} how many ${noun}?`);
+    const amountStr = await nativePrompt.prompt(
+      `${type === 'credit' ? 'Credit' : 'Debit'} how many ${noun}?`,
+      'Enter amount',
+    );
     if (!amountStr) return;
     const amount = Number(amountStr);
     if (!amount || amount <= 0) {
       Alert.alert('Invalid', 'Enter a positive number.');
       return;
     }
-    const note = window.prompt('Reason (optional)') || undefined;
-    adjustMutation.mutate({ type, amount, currency, note });
+    const note = await nativePrompt.prompt('Reason (optional)');
+    adjustMutation.mutate({ type, amount, currency, note: note || undefined });
   };
 
   const handleCreditCoins  = () => promptAdjust('credit', 'coins');
@@ -823,12 +1016,12 @@ function UserTimelineDetail({ userId }: { userId: string }) {
               </Text>
             </View>
           </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
             <TouchableOpacity
               style={[s.actBtn, { backgroundColor: '#dcfce7' }]}
-              onPress={() => {
-                const txnId = Platform.OS === 'web' ? window.prompt('Paste UPI/bank TXN id (optional)') || undefined : undefined;
-                withdrawalActionMutation.mutate({ id: pendingWithdrawal.data._id, action: 'complete', txnId });
+              onPress={async () => {
+                const txnId = await nativePrompt.prompt('Paste UPI/bank TXN id (optional)');
+                withdrawalActionMutation.mutate({ id: pendingWithdrawal.data._id, action: 'complete', txnId: txnId || undefined });
               }}
             >
               <Text style={[s.actBtnTxt, { color: '#16a34a' }]}>Approve & Pay</Text>
@@ -854,6 +1047,7 @@ function UserTimelineDetail({ userId }: { userId: string }) {
           ))
         )}
       </View>
+      {nativePrompt.modal}
     </ScrollView>
   );
 }
@@ -1140,22 +1334,25 @@ const s = StyleSheet.create({
 
   tabBar: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: Spacing.lg,
+    gap: isNative ? 0 : 8,
+    paddingHorizontal: isNative ? 0 : Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    backgroundColor: isNative ? '#fff' : 'transparent',
   },
   tabBtn: {
+    flex: isNative ? 1 : undefined,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    justifyContent: 'center',
+    gap: isNative ? 5 : 8,
+    paddingVertical: isNative ? 13 : 12,
+    paddingHorizontal: isNative ? 4 : 14,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
   tabBtnActive: { borderBottomColor: Colors.primary },
-  tabBtnTxt: { fontSize: 14, fontWeight: '600', color: '#64748b' },
+  tabBtnTxt: { fontSize: isNative ? 12.5 : 14, fontWeight: '600', color: '#64748b' },
   tabBtnTxtActive: { color: Colors.primary },
 
   // Common
@@ -1206,9 +1403,10 @@ const s = StyleSheet.create({
 
   // ── Queue tab
   queueHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  queueCountsRow: { flexDirection: 'row', gap: 14, marginTop: 12, marginBottom: 8 },
+  queueCountsRow: { flexDirection: 'row', gap: 14, marginTop: 12, marginBottom: 8, flexWrap: 'wrap' },
   countCard: {
     flex: 1,
+    minWidth: 140,
     backgroundColor: '#fff',
     borderRadius: 14,
     padding: 18,
@@ -1273,9 +1471,10 @@ const s = StyleSheet.create({
   },
   errorTxt: { fontSize: 12, color: '#dc2626', flex: 1 },
 
-  summaryGrid: { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 14 },
+  summaryGrid: { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 14, flexWrap: 'wrap' },
   summaryStat: {
     flex: 1,
+    minWidth: isNative ? '45%' as any : 100,
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 14,
@@ -1313,11 +1512,11 @@ const s = StyleSheet.create({
   matchPillTxt: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
 
   importBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary,
     paddingVertical: 14, paddingHorizontal: 20,
     borderRadius: 10,
-    alignSelf: 'flex-start',
+    alignSelf: isNative ? 'stretch' : 'flex-start',
     marginTop: 12,
   },
   importBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
@@ -1382,17 +1581,18 @@ const s = StyleSheet.create({
   },
   smallActBtnTxt: { fontSize: 12, fontWeight: '600', color: '#64748b' },
 
-  walletStats: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  walletStats: { flexDirection: 'row', gap: 10, marginTop: 16, flexWrap: 'wrap' },
   walletStatBox: {
     flex: 1,
+    minWidth: 120,
     backgroundColor: '#F5F8FF',
     borderRadius: 10,
     padding: 12,
   },
   walletStatLabel: { fontSize: 10, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' },
-  walletStatValue: { fontSize: 20, fontWeight: '800', marginTop: 4 },
+  walletStatValue: { fontSize: isNative ? 16 : 20, fontWeight: '800', marginTop: 4 },
 
-  userCardBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  userCardBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap' },
   actBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
@@ -1404,6 +1604,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 12,
     backgroundColor: '#fef3c7',
     borderRadius: 12,
@@ -1447,8 +1648,8 @@ const s = StyleSheet.create({
   statusChipTxt: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
 
   // Settings tab
-  settingsRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
-  settingsField: { flex: 1, minWidth: 200 },
+  settingsRow: { flexDirection: isNative ? 'column' : 'row', gap: 14, flexWrap: 'wrap' } as any,
+  settingsField: { flex: isNative ? undefined : 1, minWidth: isNative ? undefined : 200 },
   settingsInput: {
     marginTop: 8,
     borderWidth: 1,
@@ -1472,6 +1673,68 @@ const s = StyleSheet.create({
   },
   livePreviewLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.4 },
   livePreviewLine:  { fontSize: 13, color: '#0f172a' },
+
+  // Mobile preview card (Reports Inbox)
+  mobilePreviewCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+  },
+
+  // Native prompt modal
+  promptOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  promptCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 340,
+  },
+  promptTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 14,
+  },
+  promptInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#F5F8FF',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#0f172a',
+    minHeight: 46,
+  },
+  promptBtns: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
+  },
+  promptCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  promptCancelTxt: { fontSize: 14, fontWeight: '600', color: '#64748b' },
+  promptSubmitBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+  },
+  promptSubmitTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
 });
 
 export default WalletOperationsScreen;

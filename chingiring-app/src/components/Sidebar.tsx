@@ -147,14 +147,14 @@ export const Sidebar: React.FC<DrawerContentComponentProps> = (props) => {
           <View style={styles.avatarContainer}>
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarText}>
-                {(user?.name || 'D')[0].toUpperCase()}
+                {(user?.name || 'Guest')[0].toUpperCase()}
               </Text>
             </View>
           </View>
           {!isSidebarCollapsed && (
             <View style={styles.profileInfo}>
               <Text style={styles.profileName} numberOfLines={1}>
-                {user?.name || 'Dev Chavan'}
+                {user?.name || 'Guest'}
               </Text>
               <Text style={styles.profileBalance}>{'\u20B9'}{walletBalance}</Text>
             </View>

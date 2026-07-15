@@ -62,6 +62,7 @@ import {
 } from '../../api/banners';
 import { Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -117,33 +118,6 @@ const SLOT_FIELDS: Record<
   'inline-1':     { showImage: true,  showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: true },
   'inline-2':     { showImage: true,  showOverlayImage: false, showGradient: true,  showBadges: true,  showCta: true,  showSubtitle: true },
 };
-
-// ─── Fallback (only if API returns empty) ───────────────────────────
-
-const FALLBACK: Banner[] = [
-  {
-    _id: 'f1',
-    title: 'Mega Sale — Up to 50% Off',
-    subtitle: 'Shop top brands and earn cashback',
-    imageUrl: '',
-    linkType: 'category',
-    linkValue: 'electronics',
-    slot: 'hero',
-    isActive: true,
-    sortOrder: 1,
-  },
-  {
-    _id: 'f2',
-    title: 'Refer & Earn ₹500',
-    subtitle: 'Invite friends and grow your wallet',
-    imageUrl: '',
-    linkType: 'url',
-    linkValue: '/referral',
-    slot: 'refer-earn',
-    isActive: true,
-    sortOrder: 2,
-  },
-];
 
 const LINK_LABEL: Record<BannerLinkType, string> = {
   deal: 'Deal',
@@ -772,7 +746,7 @@ export const MobileAdminBanners = () => {
   });
 
   const rawBanners: Banner[] =
-    res?.data?.banners ?? res?.banners ?? res?.data ?? FALLBACK;
+    res?.data?.banners ?? res?.banners ?? res?.data ?? [];
   const banners: Banner[] = withDerivedSlot(rawBanners);
 
   const openCreate = () => {
@@ -880,53 +854,8 @@ export const MobileAdminBanners = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        {/* Header */}
-        <View style={s.header}>
-          <View style={s.headerLeft}>
-            <View style={s.logoCircle}>
-              <Text style={s.logoTxt}>C</Text>
-            </View>
-            <View>
-              <Text style={s.headerTitle}>Admin Panel</Text>
-              <Text style={s.headerSub}>Super Admin</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={s.avatarCircle}
-            onPress={() => nav.navigate('AdminProfile')}
-            activeOpacity={0.7}
-          >
-            <Text style={s.avatarTxt}>{userInitials(userName)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Nav */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.navScroll}
-          contentContainerStyle={s.navContent}
-        >
-          {NAV_ITEMS.map((item) => {
-            const active = item.key === 'AdminBanners';
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[s.navTab, active && s.navTabActive]}
-                onPress={() => {
-                  if (!active) nav.navigate(item.key);
-                }}
-              >
-                <item.icon
-                  size={16}
-                  color={active ? '#3b82f6' : 'rgba(255,255,255,0.7)'}
-                  strokeWidth={2}
-                />
-                <Text style={[s.navLabel, active && s.navLabelActive]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* Shared admin header + section nav */}
+        <MobileAdminNav active="AdminBanners" />
 
         <View style={s.body}>
           {/* Title + Add */}

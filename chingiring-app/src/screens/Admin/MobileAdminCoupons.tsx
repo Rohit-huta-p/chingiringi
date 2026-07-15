@@ -43,6 +43,7 @@ import { useNavigation } from '@react-navigation/native';
 import { adminAPI } from '../../api/admin';
 import { Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -83,55 +84,6 @@ interface Coupon {
   expiresAt: string;
   isActive: boolean;
 }
-
-// ─── Fallback ───────────────────────────────────────────────────────
-
-const FALLBACK: Coupon[] = [
-  {
-    _id: '1',
-    code: 'WELCOME50',
-    description: '50% off on first order',
-    discountType: 'percent',
-    discountValue: 50,
-    maxDiscount: 500,
-    minOrderValue: 999,
-    usageLimit: 1000,
-    perUserLimit: 1,
-    usedCount: 342,
-    startDate: '2026-01-01',
-    expiresAt: '2026-12-31',
-    isActive: true,
-  },
-  {
-    _id: '2',
-    code: 'CASHBACK100',
-    description: 'Flat ₹100 cashback',
-    discountType: 'flat',
-    discountValue: 100,
-    minOrderValue: 499,
-    usageLimit: 500,
-    perUserLimit: 1,
-    usedCount: 500,
-    startDate: '2026-01-01',
-    expiresAt: '2026-06-30',
-    isActive: false,
-  },
-  {
-    _id: '3',
-    code: 'FESTIVE25',
-    description: 'Festive season special',
-    discountType: 'percent',
-    discountValue: 25,
-    maxDiscount: 250,
-    minOrderValue: 799,
-    usageLimit: 2000,
-    perUserLimit: 2,
-    usedCount: 1287,
-    startDate: '2025-09-01',
-    expiresAt: '2025-10-31',
-    isActive: true,
-  },
-];
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -585,7 +537,7 @@ export const MobileAdminCoupons = () => {
     queryFn: () => adminAPI.getCoupons(),
   });
 
-  const coupons: Coupon[] = res?.data?.coupons ?? res?.coupons ?? res?.data ?? FALLBACK;
+  const coupons: Coupon[] = res?.data?.coupons ?? res?.coupons ?? res?.data ?? [];
 
   const openCreate = () => {
     setEditingCoupon(null);
@@ -674,45 +626,8 @@ export const MobileAdminCoupons = () => {
     <SafeAreaView style={s.root} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
-        {/* Header */}
-        <View style={s.header}>
-          <View style={s.headerLeft}>
-            <View style={s.logoCircle}><Text style={s.logoTxt}>C</Text></View>
-            <View>
-              <Text style={s.headerTitle}>Admin Panel</Text>
-              <Text style={s.headerSub}>Super Admin</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={s.avatarCircle}
-            onPress={() => nav.navigate('AdminProfile')}
-            activeOpacity={0.7}
-          >
-            <Text style={s.avatarTxt}>{userInitials(userName)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Nav */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.navScroll}
-          contentContainerStyle={s.navContent}
-        >
-          {NAV_ITEMS.map((item) => {
-            const active = item.key === 'AdminCoupons';
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[s.navTab, active && s.navTabActive]}
-                onPress={() => { if (!active) nav.navigate(item.key); }}
-              >
-                <item.icon size={16} color={active ? '#3b82f6' : 'rgba(255,255,255,0.7)'} strokeWidth={2} />
-                <Text style={[s.navLabel, active && s.navLabelActive]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* Shared admin header + section nav */}
+        <MobileAdminNav active="AdminCoupons" />
 
         <View style={s.body}>
           {/* Title + Create */}

@@ -37,36 +37,6 @@ const SLOT_VISUALS: Record<BannerSlot, { Icon: any; preview: [string, string] }>
   BANNER_SLOTS.map((slot) => [slot, { Icon: SLOT_ICONS[slot], preview: SLOT_GRADIENTS[slot] }]),
 ) as Record<BannerSlot, { Icon: any; preview: [string, string] }>;
 
-// ─── Fallback (backend-empty safety net) ────────────────────────────────────
-
-const FALLBACK: Banner[] = [
-  {
-    _id: 'f1',
-    title: 'Summer Sale - Fashion',
-    subtitle: 'Up to 50% off on fashion brands',
-    imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800',
-    linkType: 'category',
-    linkValue: 'fashion',
-    slot: 'hero',
-    isActive: true,
-    sortOrder: 1,
-    startsAt: '2026-04-01',
-    expiresAt: '2026-04-30',
-  },
-  {
-    _id: 'f2',
-    title: 'Electronics Mega Deal',
-    subtitle: 'Top gadgets with exclusive cashback',
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800',
-    linkType: 'deal',
-    linkValue: 'electronics-mega',
-    slot: 'inline-1',
-    isActive: true,
-    sortOrder: 2,
-    startsAt: '2026-04-01',
-  },
-];
-
 // ─── Link Type Pill ─────────────────────────────────────────────────────────
 
 function LinkTypePill({ type }: { type: BannerLinkType }) {
@@ -416,7 +386,7 @@ export function AdminBannersScreen() {
       try {
         return await adminAPI.getBanners();
       } catch {
-        return { banners: FALLBACK };
+        return { banners: [] };
       }
     },
     staleTime: 60_000,
@@ -428,7 +398,7 @@ export function AdminBannersScreen() {
       (data as any)?.banners ??
       (data as any)?.data ??
       (Array.isArray(data) ? (data as any) : []);
-    const list = Array.isArray(raw) && raw.length > 0 ? raw : FALLBACK;
+    const list = Array.isArray(raw) && raw.length > 0 ? raw : [];
     return withDerivedSlot(list);
   }, [data]);
 

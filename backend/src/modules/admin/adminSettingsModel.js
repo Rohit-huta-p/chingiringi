@@ -25,6 +25,15 @@ const adminSettingsSchema = new mongoose.Schema(
 
     cuelinksPublisherId: { type: String, default: '', trim: true },
     amazonAssociateTag:  { type: String, default: '', trim: true },
+
+    // ── RazorpayX payouts (config + status only for now) ──────────────────
+    // Keys are stored here so the admin can manage them from the profile
+    // screen; the actual payout API wiring comes later. The secret is never
+    // returned to the client verbatim — the controller masks it.
+    razorpayKeyId:         { type: String, default: '', trim: true },
+    razorpayKeySecret:     { type: String, default: '', trim: true },
+    razorpayAccountNumber: { type: String, default: '', trim: true }, // RazorpayX payout account
+    razorpayEnabled:       { type: Boolean, default: false },
   },
   { timestamps: true },
 );

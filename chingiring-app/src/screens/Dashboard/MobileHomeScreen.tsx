@@ -12,7 +12,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, Star, Coins } from 'lucide-react-native';
+import { Search, Coins } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -47,24 +47,6 @@ const CATEGORY_ICONS: Record<string, string> = {
   Fashion: '👗', Electronics: '📱', Home: '🏠',
   Pharmacy: '💊', Travel: '✈️', Food: '🍔', All: '🔥',
 };
-
-const PRODUCT_FALLBACK_IMAGES = [
-  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=75',
-  'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=500&q=75',
-  'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500&q=75',
-  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=75',
-  'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=500&q=75',
-  'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=500&q=75',
-];
-
-const FALLBACK_PRODUCTS: Product[] = [
-  { _id: 'p1', name: 'Wireless Headphones', description: 'Premium noise-cancelling headphones with 30hr battery', category: 'Electronics', price: 2999,  coinsPrice: 15000, imageUrl: PRODUCT_FALLBACK_IMAGES[0], stock: 50, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
-  { _id: 'p2', name: 'Smart Watch',         description: 'Fitness tracking smartwatch with heart rate monitor', category: 'Electronics', price: 4999,  coinsPrice: 25000, imageUrl: PRODUCT_FALLBACK_IMAGES[1], stock: 30, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
-  { _id: 'p3', name: 'Travel Backpack',     description: 'Durable waterproof backpack',                          category: 'Fashion',     price: 1499,  coinsPrice: 7500,  imageUrl: PRODUCT_FALLBACK_IMAGES[2], stock: 8,  sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
-  { _id: 'p4', name: 'Portable Speaker',    description: '360° surround sound, IPX7 waterproof, 12hr battery',   category: 'Electronics', price: 1899,  coinsPrice: 9500,  imageUrl: PRODUCT_FALLBACK_IMAGES[3], stock: 20, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
-  { _id: 'p5', name: 'Cotton T-Shirt',      description: 'Premium organic cotton blend',                         category: 'Fashion',     price: 599,   coinsPrice: 3000,  imageUrl: PRODUCT_FALLBACK_IMAGES[4], stock: 100, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
-  { _id: 'p6', name: 'Leather Wallet',      description: 'Slim bifold genuine leather wallet',                   category: 'Fashion',     price: 899,   coinsPrice: 4500,  imageUrl: PRODUCT_FALLBACK_IMAGES[5], stock: 40, sold: 0, isActive: true, isFeatured: false, createdAt: '', updatedAt: '' },
-];
 
 // ─── Promo Banner (Supersonic SALE style) ───────────────────────────────────
 
@@ -129,9 +111,7 @@ function ProductCard({ product, onPress }: { product: Product; onPress: () => vo
   const { width } = useWindowDimensions();
   const cardW = (width - 16 * 2 - 12) / 2;
 
-  const discountPercent = 50;
-  const originalPrice   = Math.round(product.price * (100 / (100 - discountPercent)));
-  const lowStock        = product.stock > 0 && product.stock <= 10;
+  const lowStock = product.stock > 0 && product.stock <= 10;
 
   return (
     <TouchableOpacity style={[st.card, { width: cardW }]} onPress={onPress} activeOpacity={0.85}>
@@ -143,9 +123,6 @@ function ProductCard({ product, onPress }: { product: Product; onPress: () => vo
             <Text style={st.cardImageLetter}>{product.name?.[0] ?? '?'}</Text>
           </View>
         )}
-        <View style={st.discountBadge}>
-          <Text style={st.discountBadgeText}>{discountPercent}% OFF</Text>
-        </View>
         {lowStock && (
           <View style={st.stockBadge}>
             <Text style={st.stockBadgeText}>{product.stock} left</Text>
@@ -157,15 +134,8 @@ function ProductCard({ product, onPress }: { product: Product; onPress: () => vo
         <Text style={st.cardTitle} numberOfLines={1}>{product.name}</Text>
         <Text style={st.cardDesc}  numberOfLines={2}>{product.description}</Text>
 
-        <View style={st.cardRatingRow}>
-          <Star size={11} color="#f59e0b" fill="#f59e0b" />
-          <Text style={st.cardRating}>4.5</Text>
-          <Text style={st.cardReviewCount}>(128)</Text>
-        </View>
-
         <View style={st.cardPriceRow}>
           <Text style={st.cardPrice}>{priceFmt(product.price)}</Text>
-          <Text style={st.cardPriceStrike}>{priceFmt(originalPrice)}</Text>
         </View>
 
         <View style={st.coinsPill}>
@@ -209,17 +179,18 @@ export const MobileHomeScreen = () => {
 
   // Normalise responses
   const allProducts: Product[] =
-    productsRes?.data?.products ?? productsRes?.products ?? FALLBACK_PRODUCTS;
+    productsRes?.data?.products ?? productsRes?.products ?? [];
   const banners: Banner[] =
     bannersRes?.data?.banners ?? [];
   const apiCategories: Category[] =
     categoriesRes?.data?.categories ?? categoriesRes?.categories ?? [];
 
   // Horizontal-scroll category list (original behaviour)
-  const categories = useMemo(() => {
-    if (apiCategories.length > 0) return ['All', ...apiCategories.map((c) => c.name)];
-    return ['All', 'Fashion', 'Electronics', 'Home', 'Pharmacy'];
-  }, [apiCategories]);
+  // "All" + the real categories admin has added — no hardcoded fallback list.
+  const categories = useMemo(
+    () => ['All', ...apiCategories.filter((c) => c.isActive !== false).map((c) => c.name)],
+    [apiCategories],
+  );
 
   // Filter + search
   const filteredProducts = useMemo(() => {
