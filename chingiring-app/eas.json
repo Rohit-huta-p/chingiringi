@@ -11,7 +11,9 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://chingiringi-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://chingiringi-backend.onrender.com",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dxdeiyj8w",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "chingi_uploads"
       },
       "android": {
         "buildType": "apk"
@@ -20,7 +22,9 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://chingiringi-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://chingiringi-backend.onrender.com",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dxdeiyj8w",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "chingi_uploads"
       },
       "android": {
         "buildType": "app-bundle"
