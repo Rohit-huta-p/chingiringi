@@ -73,6 +73,7 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       OfflineStores:      'offline-stores',
       Notifications:      'notifications',
       Settings:           'settings',
+      About:              'about',
       Profile:            'profile',
       EditProfile:        'profile/edit',
       MyAddress:          'addresses',

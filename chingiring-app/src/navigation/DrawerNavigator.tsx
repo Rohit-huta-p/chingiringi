@@ -28,6 +28,8 @@ import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen'
 import { MobileReferenceScreen } from '../screens/Dashboard/MobileReferenceScreen';
 import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
+import { AboutScreen } from '../screens/Dashboard/AboutScreen';
+import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 
 const isMobile = Platform.OS !== 'web';
 
@@ -320,6 +322,7 @@ function MobileNavigator() {
         <Stack.Screen name="TransactionHistory" component={isMobile ? MobileTransactionHistoryScreen : TransactionHistoryScreen} />
         <Stack.Screen name="ProductDetail" component={isMobile ? MobileProductDetailScreen : ProductDetailScreen} />
         <Stack.Screen name="Settings" component={isMobile ? MobileSettingsScreen : SettingsScreen} />
+        <Stack.Screen name="About" component={isMobile ? MobileAboutScreen : AboutScreen} />
       </Stack.Navigator>
     </SafeAreaView>
   );

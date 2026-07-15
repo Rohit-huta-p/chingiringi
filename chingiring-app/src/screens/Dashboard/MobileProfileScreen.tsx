@@ -267,6 +267,7 @@ export const MobileProfileScreen = () => {
             iconBg="#eff6ff"
             title="About"
             subtitle="Our story, mission & values"
+            onPress={() => nav.navigate('About')}
           />
           <QuickAction
             icon={HelpCircle}

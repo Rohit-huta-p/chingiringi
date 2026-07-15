@@ -14,22 +14,6 @@ import { Colors } from '../../constants/theme';
 import { profileAPI } from '../../api/profile';
 import { walletAPI } from '../../api/wallet';
 
-// ─── Static fallbacks ───────────────────────────────────────────────────────
-
-const FALLBACK_PROFILE = {
-  name: 'Dev Chavan',
-  memberSince: '2024',
-  email: 'dev.chavan@email.com',
-  phone: '+91 98765 43210',
-  location: 'Mumbai, India',
-};
-
-const FALLBACK_WALLET = {
-  confirmedCashback: 1250,
-  pendingCashback: 450,
-  coins: 840,
-};
-
 // Quick action items
 const QUICK_ACTIONS: Array<{
   label: string;
@@ -70,21 +54,25 @@ export const ProfileScreen = () => {
   });
 
   const user = profileData?.data?.user;
-  const wallet = walletSummary?.data?.wallet ?? FALLBACK_WALLET;
+  const wallet = walletSummary?.data?.wallet ?? {
+    confirmedCashback: 0,
+    pendingCashback: 0,
+    coins: 0,
+  };
 
   const profile = user
     ? {
-        name: user.name || FALLBACK_PROFILE.name,
+        name: user.name || '',
         memberSince: user.createdAt
           ? new Date(user.createdAt).getFullYear().toString()
-          : FALLBACK_PROFILE.memberSince,
-        email: user.email || FALLBACK_PROFILE.email,
-        phone: user.phone || FALLBACK_PROFILE.phone,
-        location: FALLBACK_PROFILE.location,
-        referralCode: user.referralCode || 'DEV500',
+          : '',
+        email: user.email || '',
+        phone: user.phone || '',
+        location: '',
+        referralCode: user.referralCode || '',
         avatarUrl: user.avatarUrl || '',
       }
-    : { ...FALLBACK_PROFILE, referralCode: 'DEV500', avatarUrl: '' };
+    : { name: '', memberSince: '', email: '', phone: '', location: '', referralCode: '', avatarUrl: '' };
 
   const referralTxns: any[] = referralTxData?.data?.transactions ?? [];
   const totalReferred = referralTxns.length;
@@ -128,18 +116,24 @@ export const ProfileScreen = () => {
 
             {/* Info rows */}
             <View style={s.infoCol}>
-              <View style={s.infoRow}>
-                <Mail size={14} color="#94a3b8" strokeWidth={2} />
-                <Text style={s.infoText}>{profile.email}</Text>
-              </View>
-              <View style={s.infoRow}>
-                <Phone size={14} color="#94a3b8" strokeWidth={2} />
-                <Text style={s.infoText}>{profile.phone}</Text>
-              </View>
-              <View style={s.infoRow}>
-                <MapPin size={14} color="#94a3b8" strokeWidth={2} />
-                <Text style={s.infoText}>{profile.location}</Text>
-              </View>
+              {profile.email ? (
+                <View style={s.infoRow}>
+                  <Mail size={14} color="#94a3b8" strokeWidth={2} />
+                  <Text style={s.infoText}>{profile.email}</Text>
+                </View>
+              ) : null}
+              {profile.phone ? (
+                <View style={s.infoRow}>
+                  <Phone size={14} color="#94a3b8" strokeWidth={2} />
+                  <Text style={s.infoText}>{profile.phone}</Text>
+                </View>
+              ) : null}
+              {profile.location ? (
+                <View style={s.infoRow}>
+                  <MapPin size={14} color="#94a3b8" strokeWidth={2} />
+                  <Text style={s.infoText}>{profile.location}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Edit Profile button */}
@@ -250,11 +244,11 @@ export const ProfileScreen = () => {
             <View style={s.referralStatsRow}>
               <View style={s.referralStat}>
                 <Text style={s.referralStatLabel}>Total Referred</Text>
-                <Text style={s.referralStatValue}>{totalReferred || 12}</Text>
+                <Text style={s.referralStatValue}>{totalReferred}</Text>
               </View>
               <View style={s.referralStat}>
                 <Text style={s.referralStatLabel}>Earnings</Text>
-                <Text style={s.referralStatValue}>₹{referralEarnings || 600}</Text>
+                <Text style={s.referralStatValue}>₹{referralEarnings}</Text>
               </View>
               <View style={s.referralStat}>
                 <Text style={s.referralStatLabel}>Your Code</Text>
@@ -281,7 +275,12 @@ export const ProfileScreen = () => {
             {LEGAL_ITEMS.map((row, ri) => (
               <View key={ri} style={s.legalRow}>
                 {row.map((label) => (
-                  <TouchableOpacity key={label} style={s.legalCell} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    key={label}
+                    style={s.legalCell}
+                    activeOpacity={0.7}
+                    onPress={() => label === 'About' && navigation.navigate('About')}
+                  >
                     <Text style={s.legalLabel}>{label}</Text>
                     <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
                   </TouchableOpacity>
