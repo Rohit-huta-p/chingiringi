@@ -10,6 +10,7 @@ import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import { categoriesAPI } from '../../api/deals';
 import { ImageUploader } from '../../components/ImageUploader';
+import { CategoryPicker } from '../../components/CategoryPicker';
 
 // ─── Add/Edit Deal Modal ────────────────────────────────────────────────────
 
@@ -22,10 +23,20 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
   const queryClient = useQueryClient();
   const isEdit = !!deal;
 
+  // Authoritative category list, shared with <CategoryPicker> (same query key)
+  // so a category created inside the picker is here when we resolve name → id.
+  const { data: catData } = useQuery({
+    queryKey: ['admin', 'categories'],
+    queryFn: () => adminAPI.getCategories(),
+  });
+  const adminCategories: any[] = catData?.data?.categories ?? [];
+
   const [form, setForm] = useState({
     title: deal?.title || '',
     brand: deal?.brand || '',
-    category: deal?.category?._id || deal?.category || '',
+    // Deal.category is an ObjectId ref, but CategoryPicker works in names; we
+    // hold the NAME here and resolve back to the id on submit.
+    category: deal?.category?.name || '',
     cashbackType: deal?.cashbackType || 'percentage',
     cashbackPercent: deal?.cashbackPercent?.toString() || '',
     flatCashback: deal?.flatCashback?.toString() || '',
@@ -41,7 +52,6 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
     isTrending: deal?.isTrending || false,
     viaCuelinks: deal?.viaCuelinks || false,
   });
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const mutation = useMutation({
     mutationFn: async (data: any) => {
@@ -57,11 +67,33 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
     },
   });
 
-  const handleSubmit = () => {
+  // Resolve the picked category NAME back to its _id (Deal.category is a ref).
+  // Falls back to a fresh fetch in case the category was just created in the
+  // picker and isn't in the cached list yet.
+  const resolveCategoryId = async (): Promise<string | undefined> => {
+    const name = form.category?.trim();
+    if (!name) return undefined;
+    let id = adminCategories.find((c: any) => c.name === name)?._id;
+    if (!id) {
+      try {
+        const fresh = await adminAPI.getCategories();
+        const list = fresh?.data?.categories ?? [];
+        id = list.find((c: any) => c.name === name)?._id;
+      } catch { /* leave undefined */ }
+    }
+    return id;
+  };
+
+  const handleSubmit = async () => {
     const needsCashbackPercent = form.cashbackType === 'percentage' && !form.cashbackPercent;
     const needsFlatCashback = form.cashbackType === 'flat' && !form.flatCashback;
     if (!form.title || !form.brand || needsCashbackPercent || needsFlatCashback || !form.affiliateUrl || !form.expiresAt) {
       Alert.alert('Validation', 'Please fill all required fields');
+      return;
+    }
+    const categoryId = await resolveCategoryId();
+    if (form.category && !categoryId) {
+      Alert.alert('Category', 'Could not resolve that category. Reopen the picker and select it again.');
       return;
     }
     mutation.mutate({
@@ -72,7 +104,7 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
       lockPeriodDays: parseInt(form.lockPeriodDays) || 30,
       coinsReward: form.coinsReward ? parseInt(form.coinsReward, 10) : 0,
       tags: form.tags ? form.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
-      category: form.category || undefined,
+      category: categoryId,
     });
   };
 
@@ -115,43 +147,14 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
               </View>
               <View style={styles.fieldHalf}>
                 <Text style={styles.fieldLabel}>Category</Text>
-                <TouchableOpacity
-                  style={styles.input}
-                  onPress={() => setShowCategoryPicker(!showCategoryPicker)}
-                >
-                  <Text style={{ fontSize: 14, color: form.category ? Colors.text : '#94a3b8' }}>
-                    {form.category
-                      ? categories.find((c: any) => c._id === form.category)?.name || 'Select category'
-                      : 'Select category'}
-                  </Text>
-                </TouchableOpacity>
-                {showCategoryPicker && categories.length > 0 && (
-                  <View style={styles.dropdown}>
-                    <TouchableOpacity
-                      style={styles.dropdownItem}
-                      onPress={() => { setForm({ ...form, category: '' }); setShowCategoryPicker(false); }}
-                    >
-                      <Text style={[styles.dropdownText, { color: '#94a3b8' }]}>None</Text>
-                    </TouchableOpacity>
-                    {categories.map((cat: any) => (
-                      <TouchableOpacity
-                        key={cat._id}
-                        style={[
-                          styles.dropdownItem,
-                          form.category === cat._id && styles.dropdownItemActive,
-                        ]}
-                        onPress={() => { setForm({ ...form, category: cat._id }); setShowCategoryPicker(false); }}
-                      >
-                        <Text style={[
-                          styles.dropdownText,
-                          form.category === cat._id && { color: Colors.primary, fontWeight: '600' },
-                        ]}>
-                          {cat.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
+                {/* Same inline picker as the Product form — search, create on
+                    the fly, rename, delete. Emits the category name; resolved
+                    to the Deal's ObjectId on submit. */}
+                <CategoryPicker
+                  value={form.category}
+                  onChange={(name) => setForm({ ...form, category: name })}
+                  disabled={mutation.isPending}
+                />
               </View>
             </View>
 
