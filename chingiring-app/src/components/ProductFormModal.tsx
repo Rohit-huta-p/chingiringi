@@ -26,6 +26,7 @@ export interface ProductFormValues {
   price: number;
   coinsPrice: number;
   imageUrl: string;
+  affiliateUrl: string;
   stock: number;
 }
 
@@ -113,13 +114,14 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     setSubmit(true);
     try {
       await onSubmit({
-        name:        form.name.trim(),
-        description: form.description.trim(),
-        category:    form.category.trim(),
-        price:       priceN,
-        coinsPrice:  coinsN,
-        imageUrl:    form.imageUrl.trim(),
-        stock:       stockN,
+        name:         form.name.trim(),
+        description:  form.description.trim(),
+        category:     form.category.trim(),
+        price:        priceN,
+        coinsPrice:   coinsN,
+        imageUrl:     form.imageUrl.trim(),
+        affiliateUrl: form.affiliateUrl.trim(),
+        stock:        stockN,
       });
       onClose();
     } finally {
@@ -210,6 +212,21 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                 onChangeText={(v) => update('description', v)}
                 multiline
                 textAlignVertical="top"
+              />
+            </Field>
+
+            {/* Product Link — optional buy / affiliate URL. When set, the
+                product's "Buy Now" opens it (subid-tracked, like deals). */}
+            <Field label="Product Link">
+              <TextInput
+                style={[st.input, !!form.affiliateUrl && st.inputFocus]}
+                placeholder="https://amazon.in/... (optional — leave blank for display-only)"
+                placeholderTextColor="#94a3b8"
+                value={form.affiliateUrl}
+                onChangeText={(v) => update('affiliateUrl', v)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
               />
             </Field>
 
@@ -314,13 +331,14 @@ function Field({
 
 function buildInitial(p?: ProductFormSeed | null) {
   return {
-    name:        p?.name        ?? '',
-    description: p?.description ?? '',
-    category:    p?.category    ?? '',
-    price:       p?.price        != null ? String(p.price)       : '',
-    coinsPrice:  p?.coinsPrice   != null ? String(p.coinsPrice)  : '',
-    imageUrl:    p?.imageUrl    ?? '',
-    stock:       p?.stock        != null ? String(p.stock)        : '',
+    name:         p?.name         ?? '',
+    description:  p?.description  ?? '',
+    category:     p?.category     ?? '',
+    price:        p?.price         != null ? String(p.price)       : '',
+    coinsPrice:   p?.coinsPrice    != null ? String(p.coinsPrice)  : '',
+    imageUrl:     p?.imageUrl     ?? '',
+    affiliateUrl: p?.affiliateUrl ?? '',
+    stock:        p?.stock         != null ? String(p.stock)        : '',
   };
 }
 

@@ -1,5 +1,6 @@
 import ClickEvent from './clickModel.js';
 import Deal from '../deals/dealModel.js';
+import Product from '../products/productModel.js';
 import AdminSettings from '../admin/adminSettingsModel.js';
 import { detectMerchant, appendSubid, ensureAmazonTag, wrapCuelinks } from './subidBuilder.js';
 
@@ -43,10 +44,19 @@ export const logClick = async (req, res) => {
       throw new Error('Deal not found');
     }
     originalUrl = dealDoc.affiliateUrl;
+  } else if (productId && !originalUrl) {
+    // Product-mode click: resolve the buy link from the product itself so the
+    // client can't spoof the destination. Same subid rewriting applies below.
+    const productDoc = await Product.findById(productId).select('affiliateUrl').lean();
+    if (!productDoc) {
+      res.status(404);
+      throw new Error('Product not found');
+    }
+    originalUrl = productDoc.affiliateUrl;
   }
   if (!originalUrl) {
     res.status(400);
-    throw new Error('Either dealId or url is required');
+    throw new Error('Either dealId, productId, or url is required');
   }
 
   // Load coin-economy + merchant credentials. Used for URL wrapping below.
