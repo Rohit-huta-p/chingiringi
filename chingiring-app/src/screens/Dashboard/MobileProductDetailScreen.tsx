@@ -260,16 +260,38 @@ export const MobileProductDetailScreen = () => {
     fetchedProductResponse?.data;
 
   if (isProductMode) {
+    // Product "Shop Now": open the product's buy link (subid-tracked, same as
+    // deals) when present; otherwise the product is display-only.
+    const handleBuyProduct = async () => {
+      const url = productForView?.affiliateUrl;
+      if (!url) {
+        Alert.alert(
+          'Coming soon',
+          'This product is display-only — no buy link has been added yet.',
+        );
+        return;
+      }
+      try {
+        let openUrl = url;
+        const pid = productForView?._id || productId;
+        if (pid && pid !== 'sample') {
+          try {
+            const { redirectUrl } = await clicksAPI.log({ productId: pid, source: 'product_detail' });
+            if (redirectUrl) openUrl = redirectUrl;
+          } catch {
+            /* fall through to the raw url */
+          }
+        }
+        await Linking.openURL(openUrl);
+      } catch {
+        Alert.alert('Error', 'Could not open the link.');
+      }
+    };
     return (
       <ProductDetailMobile
         product={productForView}
         onBack={() => navigation.goBack()}
-        onShopNow={() => {
-          Alert.alert(
-            'Coming soon',
-            'Product checkout is not wired up yet — you reached the detail screen successfully!',
-          );
-        }}
+        onShopNow={handleBuyProduct}
       />
     );
   }

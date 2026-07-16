@@ -31,6 +31,14 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Outbound buy / affiliate link. Optional — a product with no URL is
+    // display-only and its "Buy Now" shows a "coming soon" message. When set,
+    // "Buy Now" logs a click (subid-rewritten, same as deals) and opens it.
+    affiliateUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     stock: {
       type: Number,
       default: 0,

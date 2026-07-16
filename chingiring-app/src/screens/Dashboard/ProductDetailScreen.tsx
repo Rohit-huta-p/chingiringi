@@ -204,6 +204,34 @@ export const ProductDetailScreen = () => {
     }
   };
 
+  // Product-mode "Buy Now". If the product has a link, log a click (subid-
+  // rewritten, same as deals) and open it. Otherwise it's display-only.
+  const handleBuyProduct = async () => {
+    const url = product?.affiliateUrl;
+    if (!url) {
+      Alert.alert(
+        'Coming soon',
+        'This product is display-only \u2014 no buy link has been added yet.'
+      );
+      return;
+    }
+    try {
+      let openUrl = url;
+      const pid = product?._id || productId;
+      if (pid && pid !== 'sample') {
+        try {
+          const { redirectUrl } = await clicksAPI.log({ productId: pid, source: 'product_detail_web' });
+          if (redirectUrl) openUrl = redirectUrl;
+        } catch {
+          /* fall through to the raw url */
+        }
+      }
+      await Linking.openURL(openUrl);
+    } catch {
+      Alert.alert('Error', 'Could not open the link. Please try again.');
+    }
+  };
+
   // \u2500\u2500 Deal-mode bindings (used when navigation passes deal/dealId) \u2500\u2500
   const title = deal?.title || deal?.description || 'Flat 50% Off on Top Brands';
   const brand = deal?.brand || 'Myntra';
@@ -444,13 +472,16 @@ export const ProductDetailScreen = () => {
 
       {/* CTA */}
       <Button
-        title={productStock === 0 ? 'Notify Me When Available' : 'Buy Now ↗'}
+        title={
+          productStock === 0
+            ? 'Notify Me When Available'
+            : product?.affiliateUrl
+              ? 'Buy Now ↗'
+              : 'Buy Now'
+        }
         onPress={() => {
           if (productStock === 0) return;
-          Alert.alert(
-            'Coming soon',
-            'Checkout flow is not wired up yet — you reached the product detail screen successfully!'
-          );
+          handleBuyProduct();
         }}
         style={styles.ctaButton}
       />
