@@ -48,6 +48,33 @@ export const getProfile = async (req, res) => {
   });
 };
 
+// @desc    Update notification preferences
+// @route   PATCH /api/profile/notification-prefs
+// @access  Private
+export const updateNotificationPrefs = async (req, res) => {
+  const allowedFields = ['cashback', 'withdrawals', 'push'];
+  const updates = {};
+
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      updates[`notificationPrefs.${field}`] = req.body[field];
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400);
+    throw new Error('No valid fields to update');
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: updates },
+    { new: true, runValidators: true }
+  ).select('-passwordHash -refreshTokens');
+
+  res.status(200).json({ status: 'success', data: { user } });
+};
+
 // @desc    Delete user account
 // @route   DELETE /api/profile
 // @access  Private
