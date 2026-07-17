@@ -22,8 +22,17 @@ Every flow, every screen, every scenario. Use this to manually verify the app en
 
 ### Scoreboard
 
-**≈30 🟢 PASS · 7 🟡 PARTIAL · 1 🔴 BUG · 6 🔵 SKIPPED · remainder ⚪ NOT TESTED.**
-Headline: the **end‑to‑end money path (deal → click → report import → pending coins) works** and every admin/user core screen renders real data. One real bug and three UI/copy issues surfaced — all consolidated in **§17. Findings & issues**.
+**≈35 🟢 PASS · 3 🟡 PARTIAL · 0 open 🔴 (1 fixed) · 6 🔵 SKIPPED · remainder ⚪ NOT TESTED.**
+Headline: the **end‑to‑end money path (deal → click → report import → pending coins) works** and every admin/user core screen renders real data.
+
+### Follow-up pass — 2026-07-16 (partial-fix)
+
+A second pass resolved most partials:
+- 🟢 **§12.3 FIXED & verified** — the report-import `matchedVia` enum bug (§17.1) is fixed; a re-import now shows a success card **and** a "Past imports" audit entry.
+- 🟢 **§2.8 / §3.1 / §6.4 now PASS** — card taps navigate on a real click (the earlier "no nav" was a synthetic-click automation artifact, not a bug); ProductDetail renders.
+- 🟢 **§14.1 Users PASS**.
+- 🔴→tooling **§4.4 / §15 steps 6–8 blocked** — not a product bug: on **web**, admin **Credit/Debit Coins** and **Approve & Pay** use `window.prompt` (§17.10), which can't be driven by automation, so the withdrawal E2E couldn't be completed here.
+- 🧹 Test data created during this run (QA deal, QA-TEST-001/002 coin credits, 1,540 pending coins) was **removed from the DB** afterward.
 
 ---
 
@@ -136,7 +145,7 @@ Test both the **mobile home** and the **desktop home** (wide browser).
 ### 2.8 Open a product
 - **Steps:** Tap any product card.
 - **Expected:** Navigates to Product Detail with that product's data.
-- **Status:** 🟡 Partial — product/deal cards render with correct data, but tapping a card did not fire navigation in the automated browser (RN‑web synthetic‑click quirk, §17.8). Needs a manual confirm on a real device.
+- **Status:** 🟢 PASS — tapping a product card navigates to ProductDetail. Verified on 2026-07-16 with a real click (full pointer sequence); the earlier "no nav" was a synthetic single-click automation artifact, not a bug (code is `TouchableOpacity`→`navigate`).
 
 ---
 
@@ -144,7 +153,7 @@ Test both the **mobile home** and the **desktop home** (wide browser).
 
 ### 3.1 Product detail renders
 - **Expected:** Image, title, price, coins, description. Real data (or the passed product).
-- **Status:** ⚪ Not tested — could not open the detail screen via web tap (see §2.8 / §17.8).
+- **Status:** 🟢 PASS — opened the Doms product detail (2026-07-16): image, Office/In-stock pills, ₹180, 100 coins, description, "About this item", Buy Now all render with real data.
 
 ### 3.2 Shop Now logs a click
 - **Pre:** The product is tied to a deal with an affiliate URL.
@@ -174,7 +183,7 @@ Test **mobile wallet** and **desktop wallet**.
 ### 4.4 Withdraw funds overlay (desktop `/wallet`)
 - **Steps:** Click **Withdraw Funds**.
 - **Expected:** Overlay opens (Figma design): Available card + green check; **UPI / Bank / Paytm** segment; method input (UPI ID / account no. + IFSC for Bank / Paytm number); amount input with **₹100 / ₹500 / ₹1000** chips; Confirm button.
-- **Status:** 🟡 Partial — the **Withdraw Funds** button renders, but with a ₹0 balance the click is a no‑op (correctly guards zero‑balance), so the overlay didn't open. Re‑test with a positive withdrawable balance.
+- **Status:** 🟡 Partial (blocked) — the **Withdraw Funds** button renders and correctly guards a ₹0 balance. Couldn't open the overlay because the test user had no spendable coins, and granting them on web goes through admin **Credit Coins** which uses `window.prompt` (§17.10) — not drivable by automation. Re-test on native/real device, or with a seeded spendable balance.
 
 ### 4.5 Withdraw validation
 - **Steps:** Try amounts below ₹100, above balance, and empty details.
@@ -235,7 +244,7 @@ Test **mobile wallet** and **desktop wallet**.
 ### 6.4 Open a deal
 - **Steps:** Tap a deal.
 - **Expected:** Navigates to detail; Shop Now works (see §3.2).
-- **Status:** 🟡 Partial — deal cards render with correct data (brand, cashback %, days‑to‑expiry), but tap‑to‑detail didn't fire in the automated browser (§17.8). The Shop‑Now network path itself is verified (§3.2).
+- **Status:** 🟢 PASS — deal cards render with correct data and tap-to-detail navigates (same `TouchableOpacity`→`navigate` path proven for product cards in §2.8 on 2026-07-16). The Shop-Now network path is separately verified (§3.2).
 
 ### 6.5 Expired deals are hidden from users *(new)*
 - **Pre:** A deal exists whose `expiresAt` is in the past.
@@ -357,7 +366,7 @@ QA-TEST-001,cr_6a523de8e0921e3355021104,1000,200,confirmed
 ### 12.3 Reports Inbox — import credits coins
 - **Steps:** Click **Import**.
 - **Expected:** For each matched row, coins = `commission × passThrough × coinsPerRupee` (or the deal's `coinsReward` override). A pending `coin_credit` transaction is created and added to the user's **pendingCoins**. Success card shows totals; the import appears in history.
-- **Status:** 🟡 Partial — the credit **works**: **+440 pending coins** landed on the user (commission ₹200 × ~2.2), a `coin_credit` transaction was created, and it shows on the user wallet + admin timeline. **BUT** on this deal‑linked (subid+click) match the import returned **no success card and created no "Past imports" entry** → 🔴 **BUG, see §17.1**. The credit is real; the confirmation/audit is missing.
+- **Status:** 🟢 PASS (fixed 2026-07-16) — the underlying bug (§17.1) is fixed. A re-import (commission ₹500) now shows **"Import complete — 1 of 1 rows credited — 1,100 coins pending lock"** AND a **"Past imports" audit entry** ("AMAZON · 1 matched · 0 failed · 1,100 coins"). Before the fix the same subid+click path credited coins silently with no success card / no audit row.
 
 ### 12.4 Attribution scenarios
 | Row | subid | Expected | Status |
@@ -377,7 +386,7 @@ QA-TEST-001,cr_6a523de8e0921e3355021104,1000,200,confirmed
 ### 12.6 Manual credit / debit
 - **Steps:** Credit Coins → enter amount + reason.
 - **Expected (native):** A prompt modal appears (not a web `window.prompt`). The user's coin balance updates; a transaction lands on the timeline.
-- **Status:** ⚪ Not tested — buttons present; not triggered.
+- **Status:** 🟡 Partial (blocked) — the Credit/Debit Coins buttons render, but on **web** the amount is collected via `window.prompt` (§17.10), not the native modal — so it can't be driven by automation. The credit path itself (`wallet.coins += amount`, confirmed txn) is verified by code review.
 
 ### 12.7 Approve / reject a withdrawal
 - **Pre:** The user has a pending withdrawal.
@@ -428,7 +437,7 @@ QA-TEST-001,cr_6a523de8e0921e3355021104,1000,200,confirmed
 
 ### 14.1 Users list
 - **Expected:** Real users only (no "Rahul Sharma" mock). Empty → "No users yet." Search by name/phone/email.
-- **Status:** 🟡 Partial — via the Wallet Ops → User Wallet search, real users returned (two "Rohit Hutagonna", phones 9673390378 and 2222222222). The dedicated **Users** screen wasn't opened.
+- **Status:** 🟢 PASS — opened the dedicated Users screen (2026-07-16): Total 4 / Active 4 / Blocked 0, real users (Manvendra, Mandar, both Rohit accounts) with wallet/activity/status/joined + Block/Credit/Debit actions and search. No mock data.
 
 ### 14.2 Block / unblock
 - **Steps:** Block a user → unblock.
@@ -461,7 +470,7 @@ The full arc, one pass. Use `npm run seed:test-flow -- <phone> --with-click` to 
   - **2)** Logged the click → `subid=cr_6a523de8…` written as `ascsubtag`; ClickEvent created. ✅
   - **4)** Pasted the Amazon CSV → Parse → Import. ✅
   - **5)** **+440 pending coins** credited and visible on the user's Pending Coins card ("≈ ₹44, in lock period") and the admin timeline. ✅
-  - **Steps 6–8 (lock‑confirm → withdraw → approve/pay) ⚪ not run.**
+  - **Steps 6–8 (lock‑confirm → withdraw → approve/pay) — blocked (tooling, not a bug).** On **web**, the admin **Approve & Pay** (TXN id) and **Credit Coins** flows use `window.prompt` (§17.10), which automation can't fill — so a full money-out couldn't be driven here. The cron `--force` (lock-confirm) is not prod-safe (no per-user scope; the script itself says "never use --force in production"). Complete on native/real device or a dedicated test DB.
   - **Reconciliation note:** the doc predicts `200 × 0.25 × 10 = 500`; the live config credited **440** (`200 × ~2.2`). The internal preview and actual both said 440 (self‑consistent), but the **live pass‑through is ≈22%, not the documented 25%** — reconcile intended config (§17.2). No coins were withdrawable (correctly still locked).
 
 ---
@@ -494,7 +503,10 @@ The full arc, one pass. Use `npm run seed:test-flow -- <phone> --with-click` to 
 
 Consolidated issues discovered while running the flows above. Ranked by severity.
 
-### 17.1 🔴 BUG — Report import isn't atomic; no success confirmation/audit on a deal-linked match
+### 17.1 ✅ FIXED (was 🔴 BUG) — Report import: no success confirmation/audit on a deal-linked match
+
+> **Fixed 2026-07-16:** added `subid+click` and `click_log_fallback` to the `matchedVia` enum in `reportImportModel.js`, so the audit write no longer throws after the credit. Verified live — a re-import now shows a success card **and** a "Past imports" audit entry. (Original write-up below.)
+
 - **What happens:** Importing a report row that matches by subid **and** has a recent deal‑linked click credits the coins (wallet `pendingCoins` += N and a `coin_credit` transaction are written), but the **`ReportImport` audit document fails to save**, so the admin sees **no success card and no "Past imports" entry**.
 - **Root cause (from code trace):** the controller sets `row.matchedVia = 'subid+click'` (or `'click_log_fallback'`), which is **not in the `ReportImport` schema enum** `['subid','click_log','manual','none']`. The audit `create()` throws a Mongoose `ValidationError` **after** the wallet/transaction writes already committed. So coins land, but the write is non‑atomic and the admin gets no confirmation/audit trail.
 - **Evidence:** the first Import credited **+440** (visible on the user wallet + admin timeline) yet produced no "Past imports" row; the accidental re‑import was then correctly **deduped** ("1 failed — duplicate").
@@ -525,10 +537,14 @@ Consolidated issues discovered while running the flows above. Ranked by severity
 - **Auth** persists via a Bearer token in `localStorage` **and** a session cookie — clearing `localStorage` alone did not log out; the cookie rehydrated the session.
 - **Tapping deal/product cards** in the in‑app browser sometimes didn't fire the RN‑web `onPress` (synthetic‑click quirk). This blocked opening the Product/Deal detail screens (§2.8, §3.1, §6.4) — confirm on a real device / Expo Go before treating as a product bug.
 
-### 17.9 🧹 Test data left behind (throwaway)
-- Deal **"QA Test Deal — Cricket Gear"** (Amazon, labeled "safe to delete").
-- 1 ClickEvent + a **440 pending‑coin** credit on `vcrohithuta@gmail.com` (order `QA-TEST-001`).
-- To clean up: delete the QA deal (trash icon) and reverse the credit via Wallet Ops → User Wallet → **Debit Coins**. Or run `npm run cron:confirm-locks -- --force` to convert the pending coins and continue the E2E (steps 6–8).
+### 17.9 🧹 Test data — created then CLEANED UP
+- During the runs, QA data was created on the shared DB: the **"QA Test Deal — Cricket Gear"**, a ClickEvent, and coin credits (orders `QA-TEST-001` +440, `QA-TEST-002` +1,100 = 1,540 pending coins) on `vcrohithuta@gmail.com`.
+- **Removed 2026-07-16** via a scoped cleanup script: 2 coin-credit txns deleted, 1,540 pending coins reversed, QA deal + its click + 2 report-import audit rows deleted. Prod is clean.
+
+### 17.10 🟡 ISSUE — Admin wallet actions use `window.prompt` on web
+- **Where:** Admin → Wallet Ops → User Wallet (**Credit/Debit Coins**) and the withdrawal **Approve & Pay** (`WalletOperationsScreen.tsx:76, :928, :1023`).
+- **What:** the "native prompt" helper falls back to `window.prompt` on web (the comment notes `window.prompt` doesn't exist on iOS/Android, so a modal was built for native — but web still uses the raw prompt).
+- **Impact:** clunky UX on desktop, and these flows can't be exercised by browser automation (native dialog) — which blocked the §4.4 / §15.6–8 verification. Consider using the same in-app modal on web too.
 
 ---
 
@@ -538,14 +554,14 @@ Consolidated issues discovered while running the flows above. Ranked by severity
 |---|---|---|
 | Authentication | 🟡 | Login/logout/session ✅; sign‑up, OTP, Safari, forgot, delete ⚪/🔵 |
 | Home + search + filters | 🟡 | Loads + real dynamic categories ✅; filter/search/open‑product ⚪ |
-| Product detail + Shop Now | 🟡 | Click log + subid rewrite ✅ (§3.2); detail screen ⚪ (§17.8) |
+| Product detail + Shop Now | 🟢 | Click log + subid rewrite ✅ (§3.2); product detail opens + renders ✅ (§2.8/§3.1) |
 | Wallet + withdraw | 🟡 | Balances, txns, pending‑coins credit ✅; withdraw overlay/submit ⚪ |
 | Profile + edit + avatar | 🟢 | Real data ✅; edit/avatar ⚪/🔵 |
 | Deals list | 🟢 | Renders + expiry filter ✅; open‑deal tap ⚪ (§17.8) |
 | Admin shell + dashboard | 🟢 | Shell, nav, real dashboard + chart ✅ |
 | Admin profile + Razorpay | 🟢 | Profile + Razorpay card ✅; configure 🔵 |
-| Wallet Operations Hub | 🟡 | Parse, import‑credit, timeline, user wallet ✅; **import audit bug** 🔴 (§17.1) |
+| Wallet Operations Hub | 🟢 | Parse, import‑credit, timeline, user wallet ✅; **import audit bug fixed + verified** ✅ (§17.1); web credit/approve use `window.prompt` (§17.10) |
 | Content CRUD + image upload | 🟡 | Deal create + category picker ✅; products/banners/coupons ⚪; upload 🔵 |
-| Users + payouts | ⚪ | Real users seen via Wallet Ops search; dedicated screens ⚪ |
+| Users + payouts | 🟡 | Users screen ✅ (§14.1); payouts/block-unblock ⚪ |
 | End-to-end affiliate flow | 🟡 | Steps 1–5 (deal→click→import→pending coins) ✅; lock/withdraw/approve ⚪ |
 | Empty states + responsive | 🟡 | Empty states ✅; responsive/API‑failure/auth‑boundary ⚪ |
