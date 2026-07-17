@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,14 @@ import {
   Alert,
   useWindowDimensions,
 } from 'react-native';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Colors, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { Card } from '../../components/Card';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { profileAPI } from '../../api/profile';
+import { notificationsAPI } from '../../api/notifications';
+import { registerForPush, unregisterForPush } from '../../lib/push';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -99,11 +101,38 @@ export const SettingsScreen = () => {
   const isMobile = width < 768;
   const { logout } = useAuthStore();
 
+  const { data: profileData } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => profileAPI.getProfile(),
+  });
+  const prefs = profileData?.data?.user?.notificationPrefs;
+
   // Notification toggle states
   const [cashbackUpdates, setCashbackUpdates] = useState(true);
   const [dealAlerts, setDealAlerts] = useState(true);
   const [referralUpdates, setReferralUpdates] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
+  const [withdrawalUpdates, setWithdrawalUpdates] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(true);
+
+  useEffect(() => {
+    if (prefs) {
+      setCashbackUpdates(prefs.cashback !== false);
+      setWithdrawalUpdates(prefs.withdrawals !== false);
+      setPushEnabled(prefs.push !== false);
+    }
+  }, [prefs]);
+
+  const savePref = (patch: { cashback?: boolean; withdrawals?: boolean; push?: boolean }) => {
+    notificationsAPI.updatePrefs(patch).catch((e: any) => console.warn('updatePrefs failed:', e?.message));
+  };
+  const onToggleCashback = (v: boolean) => { setCashbackUpdates(v); savePref({ cashback: v }); };
+  const onToggleWithdrawals = (v: boolean) => { setWithdrawalUpdates(v); savePref({ withdrawals: v }); };
+  const onTogglePush = (v: boolean) => {
+    setPushEnabled(v);
+    savePref({ push: v });
+    if (v) registerForPush(); else unregisterForPush();
+  };
 
   // Modal states
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
@@ -151,7 +180,21 @@ export const SettingsScreen = () => {
             title="Cashback Updates"
             subtitle="Get notified when cashback is confirmed"
             value={cashbackUpdates}
-            onValueChange={setCashbackUpdates}
+            onValueChange={onToggleCashback}
+          />
+          <View style={styles.divider} />
+          <ToggleItem
+            title="Withdrawal Updates"
+            subtitle="When a withdrawal is submitted, paid, or rejected"
+            value={withdrawalUpdates}
+            onValueChange={onToggleWithdrawals}
+          />
+          <View style={styles.divider} />
+          <ToggleItem
+            title="Push Notifications"
+            subtitle="Get alerts on your device"
+            value={pushEnabled}
+            onValueChange={onTogglePush}
           />
           <View style={styles.divider} />
           <ToggleItem
