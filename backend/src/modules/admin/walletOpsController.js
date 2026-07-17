@@ -6,6 +6,7 @@ import ClickEvent from '../clicks/clickModel.js';
 import Deal from '../deals/dealModel.js';
 import ReportImport from './reportImportModel.js';
 import AdminSettings from './adminSettingsModel.js';
+import { notify } from '../notifications/notificationService.js';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Coin economy — configurable via AdminSettings singleton.
@@ -390,6 +391,16 @@ export const updateWithdrawal = async (req, res) => {
     await wallet.save();
   }
 
+  if (nextStatus === 'completed') {
+    try {
+      await notify({ userId: tx.userId, type: 'withdrawal_paid', data: { amount: Math.abs(tx.amount), method: tx.metadata?.method || 'UPI' } });
+    } catch (e) { /* best-effort */ }
+  } else if (nextStatus === 'rejected') {
+    try {
+      await notify({ userId: tx.userId, type: 'withdrawal_rejected', data: { amount: Math.abs(tx.amount) } });
+    } catch (e) { /* best-effort */ }
+  }
+
   res.json({ status: 'success', data: { transaction: tx } });
 };
 
@@ -604,6 +615,10 @@ export const importReport = async (req, res) => {
       },
       { upsert: true },
     );
+
+    try {
+      await notify({ userId, type: 'coins_credited', data: { coins: coinsToCredit, orderId: row.orderId } });
+    } catch (e) { /* best-effort: a notification failure must never break the credit */ }
 
     row.matchedUserId = userId;
     row.matchedVia = matchedByFallback

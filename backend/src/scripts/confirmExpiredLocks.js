@@ -4,6 +4,7 @@ dotenv.config();
 import connectDB from '../config/db.js';
 import Transaction from '../modules/transactions/transactionModel.js';
 import Wallet from '../modules/wallet/walletModel.js';
+import { notify } from '../modules/notifications/notificationService.js';
 
 /**
  * Confirmation job — flips lock-expired pending coin_credit transactions
@@ -65,6 +66,10 @@ async function run() {
       { userId },
       { $inc: { pendingCoins: -amt, coins: amt, lifetimeEarned: amt } },
     );
+
+    try {
+      await notify({ userId, type: 'coins_unlocked', data: { coins: amt } });
+    } catch (e) { console.warn(`notify(coins_unlocked) failed for ${userId}:`, e?.message); }
   }
 
   console.log(`Confirmed ${confirmedCount} transactions across ${perUser.size} users.`);

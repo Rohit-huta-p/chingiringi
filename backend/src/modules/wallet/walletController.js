@@ -1,6 +1,7 @@
 import Wallet from './walletModel.js';
 import Transaction from '../transactions/transactionModel.js';
 import AdminSettings from '../admin/adminSettingsModel.js';
+import { notify } from '../notifications/notificationService.js';
 
 // @desc    Get current user's wallet
 // @route   GET /api/wallet
@@ -177,6 +178,10 @@ export const requestWithdrawal = async (req, res) => {
       requestedAt: new Date(),
     },
   });
+
+  try {
+    await notify({ userId: req.user._id, type: 'withdrawal_submitted', data: { amount: rupees } });
+  } catch (e) { /* best-effort */ }
 
   res.status(201).json({
     status: 'success',
