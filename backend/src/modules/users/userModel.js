@@ -69,6 +69,12 @@ const userSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+    pushTokens: [{ token: String, platform: String, updatedAt: Date }],
+    notificationPrefs: {
+      cashback: { type: Boolean, default: true },
+      withdrawals: { type: Boolean, default: true },
+      push: { type: Boolean, default: true },
+    },
   },
   {
     timestamps: true,
