@@ -40,6 +40,13 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   const [query, setQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  // When a delete is blocked because the category is in use, we switch the
+  // sheet into a "reassign" mode instead of a dead-end error.
+  const [reassignFor, setReassignFor] = useState<Category | null>(null);
+  const [reassignCounts, setReassignCounts] = useState<{ products: number; deals: number }>({
+    products: 0,
+    deals: 0,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'categories'],
@@ -90,14 +97,31 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => adminAPI.deleteCategory(id),
-    onSuccess: (_res, id) => {
-      const deleted = categories.find((c) => c._id === id);
+    mutationFn: ({ id, reassignTo }: { id: string; reassignTo?: string }) =>
+      adminAPI.deleteCategory(id, reassignTo),
+    onSuccess: (_res, vars) => {
+      const deleted = categories.find((c) => c._id === vars.id);
       invalidate();
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'deals'] });
       // If the deleted one was selected, clear the value.
       if (deleted && deleted.name === value) onChange('');
+      setReassignFor(null);
     },
-    onError: (e: any) => Alert.alert('Could not delete', e?.response?.data?.message || e?.message || 'Try again'),
+    onError: (e: any, vars) => {
+      // Blocked because the category is in use → switch to reassign mode
+      // instead of a dead-end error.
+      if (e?.response?.data?.code === 'CATEGORY_IN_USE') {
+        const cat = categories.find((c) => c._id === vars.id) ?? null;
+        setReassignCounts({
+          products: e.response.data.data?.products ?? 0,
+          deals: e.response.data.data?.deals ?? 0,
+        });
+        setReassignFor(cat);
+        return;
+      }
+      Alert.alert('Could not delete', e?.response?.data?.message || e?.message || 'Try again');
+    },
   });
 
   const startEdit = (cat: Category) => {
@@ -118,21 +142,17 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   };
 
   const confirmDelete = (cat: Category) => {
-    const go = () => deleteMutation.mutate(cat._id);
+    // Attempt a plain delete. If the category is in use, the backend replies
+    // 409 and onError flips the sheet into reassign mode.
+    const go = () => deleteMutation.mutate({ id: cat._id });
     if (Platform.OS === 'web') {
-      if (window.confirm(`Delete category "${cat.name}"? Products in this category will keep the label as plain text.`)) {
-        go();
-      }
+      if (window.confirm(`Delete category "${cat.name}"?`)) go();
       return;
     }
-    Alert.alert(
-      `Delete "${cat.name}"?`,
-      'Products in this category will keep the label as plain text.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: go },
-      ],
-    );
+    Alert.alert(`Delete "${cat.name}"?`, undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: go },
+    ]);
   };
 
   const selectExisting = (cat: Category) => {
@@ -151,7 +171,10 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
     <>
       <TouchableOpacity
         style={[st.trigger, disabled && { opacity: 0.6 }]}
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          setReassignFor(null);
+          setOpen(true);
+        }}
         disabled={disabled}
         activeOpacity={0.7}
       >
@@ -194,6 +217,53 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
 
             {/* List */}
             <ScrollView style={st.list} keyboardShouldPersistTaps="handled">
+              {/* Reassign mode — shown when a delete is blocked by references. */}
+              {reassignFor && (
+                <View style={st.reassignPanel}>
+                  <Text style={st.reassignTitle}>"{reassignFor.name}" is in use</Text>
+                  <Text style={st.reassignSub}>
+                    {reassignCounts.products} product{reassignCounts.products === 1 ? '' : 's'} and{' '}
+                    {reassignCounts.deals} deal{reassignCounts.deals === 1 ? '' : 's'} use it. Move them to
+                    another category, then it'll be deleted.
+                  </Text>
+                  {deleteMutation.isPending ? (
+                    <View style={st.center}>
+                      <ActivityIndicator color="#4784E2" />
+                    </View>
+                  ) : (
+                    <>
+                      {categories
+                        .filter((c) => c._id !== reassignFor._id)
+                        .map((c) => (
+                          <TouchableOpacity
+                            key={c._id}
+                            style={st.reassignOption}
+                            activeOpacity={0.7}
+                            onPress={() => deleteMutation.mutate({ id: reassignFor._id, reassignTo: c._id })}
+                          >
+                            <Text style={st.reassignOptionText}>Move to "{c.name}"</Text>
+                          </TouchableOpacity>
+                        ))}
+                      {reassignCounts.deals === 0 && (
+                        <TouchableOpacity
+                          style={[st.reassignOption, st.reassignOptionMuted]}
+                          activeOpacity={0.7}
+                          onPress={() => deleteMutation.mutate({ id: reassignFor._id, reassignTo: '' })}
+                        >
+                          <Text style={[st.reassignOptionText, { color: '#64748b' }]}>
+                            Remove label (uncategorised)
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity style={st.reassignCancel} activeOpacity={0.7} onPress={() => setReassignFor(null)}>
+                        <Text style={st.reassignCancelText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              )}
+
+              {!reassignFor && (<>
               {isLoading && (
                 <View style={st.center}>
                   <ActivityIndicator color="#4784E2" />
@@ -209,7 +279,7 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
                 const isSelected = cat.name === value;
                 const isBusy =
                   (updateMutation.isPending && updateMutation.variables?.id === cat._id) ||
-                  (deleteMutation.isPending && deleteMutation.variables === cat._id);
+                  (deleteMutation.isPending && deleteMutation.variables?.id === cat._id);
 
                 if (isEditing) {
                   return (
@@ -297,6 +367,7 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
                   </Text>
                 </TouchableOpacity>
               )}
+              </>)}
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -469,6 +540,52 @@ const st = StyleSheet.create({
   createText: {
     fontSize: 14,
     color: '#0f172a',
+  },
+
+  // Reassign mode
+  reassignPanel: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  reassignTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  reassignSub: {
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  reassignOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#eff6ff',
+    marginBottom: 8,
+  },
+  reassignOptionMuted: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+  },
+  reassignOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1d4ed8',
+  },
+  reassignCancel: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  reassignCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
   },
 });
 
