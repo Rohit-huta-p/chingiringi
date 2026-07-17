@@ -68,7 +68,7 @@ async function run() {
     );
 
     try {
-      await notify({ userId, type: 'coins_unlocked', data: { coins: amt } });
+      await notify({ userId, type: 'coins_unlocked', data: { coins: amt } }, { awaitPush: true });
     } catch (e) { console.warn(`notify(coins_unlocked) failed for ${userId}:`, e?.message); }
   }
 

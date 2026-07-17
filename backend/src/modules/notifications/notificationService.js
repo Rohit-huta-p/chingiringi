@@ -23,8 +23,15 @@ const CATEGORY = {
  * Push delivery is fire-and-forget: it never rejects/throws back to the
  * caller, so a down Expo API or a bad token can't block the trigger site
  * (e.g. a wallet credit) that called notify().
+ *
+ * `awaitPush` (default false): on the long-lived server, push is fire-and-forget
+ * so it adds no request latency. Short-lived scripts (e.g. the confirm-locks
+ * cron, which calls process.exit() right after its loop) must pass
+ * `awaitPush: true` — otherwise process.exit() kills the in-flight Expo POST
+ * before it's sent and the push is silently dropped. Awaiting is safe: the push
+ * promise is `.catch()`-guarded, so it can never throw back into the caller.
  */
-export async function notify({ userId, type, data }) {
+export async function notify({ userId, type, data }, { awaitPush = false } = {}) {
   const user = await User.findById(userId).select('pushTokens notificationPrefs').lean();
   if (!user) return null;
 
@@ -35,7 +42,8 @@ export async function notify({ userId, type, data }) {
   const notif = await Notification.create({ userId, type, title, body, data });
 
   if (prefs.push !== false && user.pushTokens?.length) {
-    sendPush(user, { title, body, data }).catch(() => {});
+    const pushed = sendPush(user, { title, body, data }).catch(() => {});
+    if (awaitPush) await pushed;
   }
 
   return notif;
