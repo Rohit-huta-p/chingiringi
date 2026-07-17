@@ -7,6 +7,7 @@ import { Colors, Spacing } from '../constants/theme';
 import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store';
 import { walletAPI } from '../api/wallet';
+import { useUnreadCount } from '../hooks/useUnreadCount';
 
 const NavItem = ({
   label,
@@ -14,22 +15,31 @@ const NavItem = ({
   isActive,
   onPress,
   isCollapsed,
+  badgeCount,
 }: {
   label: string;
   icon: React.ComponentType<any>;
   isActive: boolean;
   onPress: () => void;
   isCollapsed?: boolean;
+  badgeCount?: number;
 }) => (
   <TouchableOpacity
     style={[styles.navItem, isActive && styles.navItemActive, isCollapsed && styles.navItemCollapsed]}
     onPress={onPress}
   >
-    <Icon
-      size={20}
-      color={isActive ? Colors.primary : Colors.textSecondary}
-      strokeWidth={isActive ? 2.5 : 2}
-    />
+    <View style={styles.iconWrapper}>
+      <Icon
+        size={20}
+        color={isActive ? Colors.primary : Colors.textSecondary}
+        strokeWidth={isActive ? 2.5 : 2}
+      />
+      {!!badgeCount && badgeCount > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : String(badgeCount)}</Text>
+        </View>
+      )}
+    </View>
     {!isCollapsed && (
       <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{label}</Text>
     )}
@@ -41,6 +51,7 @@ export const Sidebar: React.FC<DrawerContentComponentProps> = (props) => {
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unreadCount = useUnreadCount();
 
   const { data: walletData } = useQuery({
     queryKey: ['wallet'],
@@ -130,6 +141,7 @@ export const Sidebar: React.FC<DrawerContentComponentProps> = (props) => {
           isActive={currentRouteName === 'Notifications'}
           onPress={() => navigateTo('Notifications')}
           isCollapsed={isSidebarCollapsed}
+          badgeCount={unreadCount}
         />
         <NavItem
           label="Settings"
@@ -241,6 +253,26 @@ const styles = StyleSheet.create({
   },
   navItemActive: {
     backgroundColor: Colors.primaryLight,
+  },
+  iconWrapper: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    backgroundColor: Colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: Colors.textWhite,
+    fontSize: 10,
+    fontWeight: '700',
   },
   navLabel: {
     fontSize: 15,

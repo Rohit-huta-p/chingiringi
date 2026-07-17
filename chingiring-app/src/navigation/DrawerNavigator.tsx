@@ -7,6 +7,7 @@ import { Home, Wallet, Users, Bell, Settings, PlaySquare, Store, User } from 'lu
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts, Gradient } from '../constants/theme';
 import { useAuthStore } from '../store';
+import { useUnreadCount } from '../hooks/useUnreadCount';
 import { SettingsScreen } from '../screens/Dashboard/SettingsScreen';
 import { HomeScreen } from '../screens/Dashboard/HomeScreen';
 import { MobileHomeScreen } from '../screens/Dashboard/MobileHomeScreen';
@@ -135,6 +136,8 @@ const WEB_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
 };
 
 function BottomTabNavigator() {
+  const unreadCount = useUnreadCount();
+
   if (isMobile) {
     // Tab order matters — Home is centre tab so the raised pill sits in the
     // middle of the bar. Refer moved out to a stack route (still reachable
@@ -177,7 +180,14 @@ function BottomTabNavigator() {
       <Tab.Screen name="Homee" component={HomeScreen} options={{ tabBarLabel: 'Homeee' }} />
       <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: 'Wallet' }} />
       <Tab.Screen name="Referrals" component={ReferScreen} options={{ tabBarLabel: 'Referrals' }} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarLabel: 'Alerts' }} />
+      <Tab.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          tabBarLabel: 'Alerts',
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : undefined,
+        }}
+      />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: 'Settings' }} />
     </Tab.Navigator>
   );
