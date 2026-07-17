@@ -6,15 +6,18 @@ Focused extract from the [Manual Test Plan](Manual_Test_Plan.md) — **only the 
 
 | Group | Count | Meaning |
 |---|---|---|
-| 🔴 **Bugs & issues** | 1 bug + 4 issues | Something is broken or wrong — needs a code/copy fix |
-| 🟡 **Partial** | 7 | Works but only partly exercised — needs follow-up verification |
+| 🔴 **Bugs & issues** | ~~1 bug~~ **fixed** + 4 issues (+1 new) | Something is broken or wrong — needs a code/copy fix |
+| 🟡 **Partial** | ~~7~~ → **3 left** | Works but only partly exercised — needs follow-up verification |
 | 🔵 **Skipped** | 6 | Deliberately not run this pass (destructive, mutates config, or not drivable in the in-app browser) |
+
+> **Update — 2026-07-16 (fixes applied):** The one 🔴 bug (§1.1) is **fixed & verified**. Four partials resolved to PASS (**§2.8 open product, §3.1 detail, §6.4 open deal, §14.1 Users**). Remaining partials: **§4.4 withdraw overlay** and **§15 steps 6–8** (blocked by `window.prompt` on web — see new item 1.6) plus **§8.2 About**. QA test data created during testing was cleaned up afterward.
 
 ---
 
 ## 1. 🔴 Bugs & issues
 
-### 1.1 🔴 BUG — Report import isn't atomic; no success confirmation/audit on a deal-linked match
+### 1.1 ✅ FIXED (was 🔴 BUG) — Report import: no success confirmation/audit on a deal-linked match
+- **Fixed & verified 2026-07-16:** added `subid+click` and `click_log_fallback` to the `matchedVia` enum in `reportImportModel.js`. A re-import now shows a success card **and** a "Past imports" audit entry. Ready to deploy (prod still has the bug until pushed).
 - **Where:** Admin → Wallet Ops → Reports Inbox → Import *(plan §12.3 / §17.1)*
 - **What happens:** Importing a report row that matches by subid **and** has a recent deal-linked click **credits the coins** (wallet `pendingCoins += N` and a `coin_credit` transaction are written), but the **`ReportImport` audit document fails to save** — so the admin sees **no success card and no "Past imports" entry**.
 - **Root cause (code trace):** the controller sets `row.matchedVia = 'subid+click'` (or `'click_log_fallback'`), which is **not in the schema enum** `['subid','click_log','manual','none']` (`backend/src/modules/admin/reportImportModel.js` ~line 24). `ReportImport.create()` throws a Mongoose `ValidationError` **after** the wallet/transaction writes already committed (`walletOpsController.js`, sets `matchedVia` ~:609–611, creates the audit ~:622).
@@ -42,9 +45,16 @@ Focused extract from the [Manual Test Plan](Manual_Test_Plan.md) — **only the 
 - **What:** the "Headphone" deal expired **15/07/2026** (a day before the run), so it's correctly hidden from users but still shows to admin.
 - **Fix:** bump its expiry if it should remain visible (not a code bug — stale data).
 
+### 1.6 🟡 ISSUE (new) — Admin wallet actions use `window.prompt` on web
+- **Where:** Admin → Wallet Ops → **Credit/Debit Coins** and withdrawal **Approve & Pay** (`WalletOperationsScreen.tsx:76, :928, :1023`).
+- **What:** the "native prompt" helper falls back to `window.prompt` on web (a proper modal exists only for iOS/Android).
+- **Impact:** clunky desktop UX, and these flows can't be driven by automation — which **blocked the §4.4 / §15 steps 6–8 verification**. Consider reusing the in-app modal on web.
+
 ---
 
 ## 2. 🟡 Partial — works, but only partly verified
+
+> **Resolved 2026-07-16:** §2.8, §3.1, §6.4, §12.3, §14.1 → **PASS** (see the striked rows). **Left:** §4.4, §15 steps 6–8 (blocked by §1.6), and §8.2 About.
 
 | # | Case | ✅ Verified this run | ⏳ Left to verify |
 |---|---|---|---|
@@ -73,8 +83,8 @@ Focused extract from the [Manual Test Plan](Manual_Test_Plan.md) — **only the 
 
 ## Suggested priority
 
-1. **Fix Bug 1.1** (import atomicity / `matchedVia` enum) — it silently breaks the admin audit trail for the core money path.
+1. ✅ **Bug 1.1 fixed** — **deploy it** (prod still has the `matchedVia` enum bug until this pushes).
 2. **Reconcile the coin formula (1.2)** — three sources disagree; pick the source of truth and align copy + config + docs.
-3. Polish the two display issues (1.3, 1.4) — small, user-visible.
-4. Verify the 🟡 partials on a real device / with balances (esp. §15 steps 6–8 and the card-tap navigation).
-5. Run the 🔵 skipped set manually where they matter (OTP, Safari, uploads).
+3. **Move web wallet actions off `window.prompt` (1.6)** — unblocks §4.4 / §15 steps 6–8 and improves desktop UX.
+4. Polish the two display issues (1.3, 1.4) — small, user-visible.
+5. Complete §4.4 / §15 steps 6–8 on native / real device (or after 1.6), and run the 🔵 skipped set (OTP, Safari, uploads).

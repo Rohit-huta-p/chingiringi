@@ -21,7 +21,11 @@ const rowResultSchema = new mongoose.Schema(
     commission:   Number,
     status:       String,                                // merchant's status, e.g. 'confirmed'
     matchedUserId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    matchedVia:      { type: String, enum: ['subid', 'click_log', 'manual', 'none'] },
+    // 'subid'             — subid-only match
+    // 'subid+click'       — subid match corroborated by a recent deal-linked click
+    // 'click_log'         — matched via click log
+    // 'click_log_fallback'— no subid; matched to the sole recent clicker (48h)
+    matchedVia:      { type: String, enum: ['subid', 'subid+click', 'click_log', 'click_log_fallback', 'manual', 'none'] },
     matchConfidence: Number,                             // 0-100; 100 = subid exact
     transactionId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' },
     error:           String,                             // if row failed to import
