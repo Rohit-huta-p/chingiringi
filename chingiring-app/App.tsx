@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/store';
+import { configureNotificationHandler, addNotificationResponseListener, registerForPush } from './src/lib/push';
 import { View, Text } from 'react-native';
 import { useFonts } from 'expo-font';
 import { SplashAnimation } from './src/components/SplashAnimation';
@@ -33,7 +34,7 @@ const queryClient = new QueryClient({
 // (React Native doesn't auto-select font weight variants from a family name)
 
 export default function App() {
-  const { isReady, hydrate } = useAuthStore();
+  const { isReady, hydrate, isAuthenticated, user } = useAuthStore();
   const [splashDone, setSplashDone] = useState(false);
 
   const [fontsLoaded] = useFonts({
@@ -47,6 +48,18 @@ export default function App() {
   useEffect(() => {
     hydrate();
   }, []);
+
+  useEffect(() => {
+    configureNotificationHandler();
+    const sub = addNotificationResponseListener();
+    return () => sub?.remove();
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.notificationPrefs?.push !== false) {
+      registerForPush();
+    }
+  }, [isAuthenticated]);
 
   // Apply Outfit as the default font for every Text in the app.
   // Each screen uses Fonts.bold / Fonts.semiBold from theme.ts for heavier weights.
