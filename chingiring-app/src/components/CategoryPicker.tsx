@@ -110,13 +110,13 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
     },
     onError: (e: any, vars) => {
       // Blocked because the category is in use → switch to reassign mode
-      // instead of a dead-end error.
-      if (e?.response?.data?.code === 'CATEGORY_IN_USE') {
+      // instead of a dead-end error. Read code/data from either the raw
+      // axios response or the flattened fields our api client attaches.
+      const code = e?.response?.data?.code ?? e?.code;
+      const info = e?.response?.data?.data ?? e?.data;
+      if (code === 'CATEGORY_IN_USE') {
         const cat = categories.find((c) => c._id === vars.id) ?? null;
-        setReassignCounts({
-          products: e.response.data.data?.products ?? 0,
-          deals: e.response.data.data?.deals ?? 0,
-        });
+        setReassignCounts({ products: info?.products ?? 0, deals: info?.deals ?? 0 });
         setReassignFor(cat);
         return;
       }
