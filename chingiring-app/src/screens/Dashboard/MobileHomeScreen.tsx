@@ -185,12 +185,19 @@ export const MobileHomeScreen = () => {
   const apiCategories: Category[] =
     categoriesRes?.data?.categories ?? categoriesRes?.categories ?? [];
 
-  // Horizontal-scroll category list (original behaviour)
-  // "All" + the real categories admin has added — no hardcoded fallback list.
-  const categories = useMemo(
-    () => ['All', ...apiCategories.filter((c) => c.isActive !== false).map((c) => c.name)],
-    [apiCategories],
-  );
+  // Horizontal-scroll category list: "All" + only the categories that
+  // actually have at least one product. Empty categories are hidden.
+  const categories = useMemo(() => {
+    const withProducts = new Set(
+      allProducts.map((p) => (p.category ?? '').trim().toLowerCase()).filter(Boolean),
+    );
+    return [
+      'All',
+      ...apiCategories
+        .filter((c) => c.isActive !== false && withProducts.has(c.name.trim().toLowerCase()))
+        .map((c) => c.name),
+    ];
+  }, [apiCategories, allProducts]);
 
   // Filter + search
   const filteredProducts = useMemo(() => {

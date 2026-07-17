@@ -771,13 +771,6 @@ export const HomeScreen = () => {
     staleTime: 60_000,
   });
 
-  // Featured products (server-side filtered)
-  const { data: featuredData } = useQuery({
-    queryKey: ['products', 'featured'],
-    queryFn: () => productsAPI.getFeaturedProducts(),
-    staleTime: 60_000,
-  });
-
   // Active categories for Shop-by-Category and nav chips
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
@@ -797,23 +790,29 @@ export const HomeScreen = () => {
   // { data: { products } }, { products }, { data: Product[] }, raw array).
   const products: Product[] =
     productsData?.data?.products ?? productsData?.products ?? productsData?.data ?? [];
-  const featuredProducts: Product[] =
-    featuredData?.data?.products ?? featuredData?.products ?? featuredData?.data ?? [];
   const categories: Category[] =
     categoriesData?.data?.categories ??
     categoriesData?.categories ??
     categoriesData?.data ??
     [];
 
-  // Category filter chips built from the real categories admin has added
-  // ("All" + each active category name). No hardcoded list.
-  const categoryChips: string[] = [
-    'All',
-    ...categories.filter((c) => c.isActive !== false).map((c) => c.name),
-  ];
+  // Categories that actually have ≥1 product. Empty categories are hidden
+  // from the user — no chip, no per-category section, no "Shop by category" tile.
+  const productCategorySet = new Set(
+    products.map((p) => (p.category ?? '').trim().toLowerCase()).filter(Boolean),
+  );
+  const activeCategories: Category[] = categories.filter(
+    (c) => c.isActive !== false && productCategorySet.has(c.name.trim().toLowerCase()),
+  );
 
-  // Prefer featured for the featured-looking sections; fall back to all products.
-  const featuredOrAll: Product[] = featuredProducts.length > 0 ? featuredProducts : products;
+  // Category filter chips: "All" + only the categories that have products.
+  const categoryChips: string[] = ['All', ...activeCategories.map((c) => c.name)];
+
+  // Products belonging to a specific category — for the per-category sections.
+  const productsInCategory = (name: string) =>
+    products.filter(
+      (p) => (p.category ?? '').trim().toLowerCase() === name.trim().toLowerCase(),
+    );
 
   // ── Search + category filter (applied to every product grid) ──────────────
   const hasFilter = selectedCategory !== 'All' || searchQuery.trim() !== '';
@@ -829,7 +828,6 @@ export const HomeScreen = () => {
     return catOk && searchOk;
   };
   const filteredProducts = hasFilter ? products.filter(matchesFilters) : products;
-  const filteredFeatured = hasFilter ? featuredOrAll.filter(matchesFilters) : featuredOrAll;
 
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
   const bySlot = bucketBySlot(allBanners);
@@ -903,17 +901,29 @@ export const HomeScreen = () => {
 
           <PromoStrip banner={firstBannerFor('flash-strip')} />
 
-          <ProductGrid
-            title="Top Electronics"
-            startIdx={0}
-            containerWidth={contentW}
-            cols={6}
-            onProductPress={onProductPress}
-            onSeeAll={() => handleSeeAll('Electronics')}
-            hasFilter={hasFilter}
-            newBadgeCols={[3, 5]}
-            products={filteredFeatured}
-          />
+          {/* Per-category sections — one row per category that has products, so
+              a product only ever appears under its own category (never a
+              mislabelled "Electronics" row). Shown on the unfiltered home;
+              when a chip filter is active, "All Products" already narrows. */}
+          {!hasFilter &&
+            activeCategories.map((cat) => {
+              const catProducts = productsInCategory(cat.name);
+              if (catProducts.length === 0) return null;
+              return (
+                <ProductGrid
+                  key={(cat as any)._id ?? cat.name}
+                  title={cat.name}
+                  count={`${catProducts.length} item${catProducts.length === 1 ? '' : 's'}`}
+                  startIdx={0}
+                  containerWidth={contentW}
+                  cols={6}
+                  onProductPress={onProductPress}
+                  onSeeAll={() => handleSeeAll(cat.name)}
+                  hasFilter={false}
+                  products={catProducts}
+                />
+              );
+            })}
 
           <DualBanner
             left={firstBannerFor('dual-left')}
@@ -954,18 +964,7 @@ export const HomeScreen = () => {
           <ShopByCategorySection
             containerWidth={contentW}
             onPress={onCategoryPress}
-            categories={categories}
-          />
-
-          <ProductGrid
-            title="Top Electronics"
-            startIdx={3}
-            containerWidth={contentW}
-            cols={6}
-            onProductPress={onProductPress}
-            onSeeAll={() => handleSeeAll('Electronics')}
-            hasFilter={hasFilter}
-            products={filteredFeatured}
+            categories={activeCategories}
           />
         </View>
       </ScrollView>
