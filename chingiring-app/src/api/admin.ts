@@ -119,8 +119,13 @@ export const adminAPI = {
     const response = await apiClient.put(`/api/categories/${id}`, data);
     return response.data;
   },
-  deleteCategory: async (id: string) => {
-    const response = await apiClient.delete(`/api/categories/${id}`);
+  // reassignTo: omit to attempt a plain delete (409 if the category is in use);
+  // pass a target category id (or '' for uncategorised) to move its
+  // products/deals first, then delete.
+  deleteCategory: async (id: string, reassignTo?: string) => {
+    const response = await apiClient.delete(`/api/categories/${id}`, {
+      params: reassignTo !== undefined ? { reassignTo } : undefined,
+    });
     return response.data;
   },
 

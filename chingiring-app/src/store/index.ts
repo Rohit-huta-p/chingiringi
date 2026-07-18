@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { authAPI } from '../api/auth';
 import { clearTokens, getCachedUser, setCachedUser, hasStoredAccessToken, isNative } from '../api/client';
+import { unregisterForPush } from '../lib/push';
+import type { NotificationPrefs } from '../api/notifications';
 
 export interface UserType {
   id: string;
@@ -11,6 +13,7 @@ export interface UserType {
   role?: string;
   referralCode?: string;
   avatarUrl?: string;
+  notificationPrefs?: NotificationPrefs;
 }
 
 interface AuthState {
@@ -75,6 +78,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (err: any) {
       console.warn('Backend logout failed', err.message);
     }
+    // Unregister the push token while the auth token is still present (the
+    // DELETE call needs it) — best-effort, cannot throw into logout.
+    await unregisterForPush();
     // Clear stored tokens + cached user (native) and purge state
     await clearTokens();
     set({ isAuthenticated: false, user: null });

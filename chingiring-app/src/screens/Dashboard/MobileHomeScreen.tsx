@@ -12,7 +12,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, Coins } from 'lucide-react-native';
+import { Search, Coins, ChevronRight } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -21,6 +21,12 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner, resolveBannerGradient } from '../../api/banners';
+import { ProductControlsBar } from '../../components/ProductControlsBar';
+import {
+  applyProductControls,
+  DEFAULT_CONTROLS,
+  isControlsActive,
+} from '../../utils/productFilters';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -33,12 +39,6 @@ function greeting(): string {
 
 function priceFmt(n: number): string {
   return `₹${n.toLocaleString('en-IN')}`;
-}
-
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
 }
 
 // ─── Category emoji icons (legacy horizontal-scroll row) ────────────────────
@@ -161,6 +161,7 @@ export const MobileHomeScreen = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [controls, setControls] = useState(DEFAULT_CONTROLS);
 
   // Data fetching
   const { data: productsRes, isLoading: productsLoading } = useQuery({
@@ -185,12 +186,19 @@ export const MobileHomeScreen = () => {
   const apiCategories: Category[] =
     categoriesRes?.data?.categories ?? categoriesRes?.categories ?? [];
 
-  // Horizontal-scroll category list (original behaviour)
-  // "All" + the real categories admin has added — no hardcoded fallback list.
-  const categories = useMemo(
-    () => ['All', ...apiCategories.filter((c) => c.isActive !== false).map((c) => c.name)],
-    [apiCategories],
-  );
+  // Horizontal-scroll category list: "All" + only the categories that
+  // actually have at least one product. Empty categories are hidden.
+  const categories = useMemo(() => {
+    const withProducts = new Set(
+      allProducts.map((p) => (p.category ?? '').trim().toLowerCase()).filter(Boolean),
+    );
+    return [
+      'All',
+      ...apiCategories
+        .filter((c) => c.isActive !== false && withProducts.has(c.name.trim().toLowerCase()))
+        .map((c) => c.name),
+    ];
+  }, [apiCategories, allProducts]);
 
   // Filter + search
   const filteredProducts = useMemo(() => {
@@ -205,21 +213,19 @@ export const MobileHomeScreen = () => {
     return p;
   }, [allProducts, selectedCategory, searchQuery]);
 
-  // Build repeating sections: banner → 4 products → banner → 4 products → ...
-  const sections = useMemo(() => {
-    type Section =
-      | { type: 'banner'; data?: Banner; index: number }
-      | { type: 'products'; data: Product[] };
+  // A category chip, search, sort, or a price/coins filter is active → show
+  // ONLY the matching products, with none of the interleaved promo banners or
+  // per-category sections.
+  const isFiltering = selectedCategory !== 'All' || searchQuery.trim() !== '';
+  const isListing = isFiltering || isControlsActive(controls);
+  const listingProducts = applyProductControls(filteredProducts, controls);
 
-    const result: Section[] = [];
-    const productChunks = filteredProducts.length > 0 ? chunkArray(filteredProducts, 4) : [[]];
-
-    for (let i = 0; i < productChunks.length; i++) {
-      result.push({ type: 'banner',   data: banners[i % Math.max(banners.length, 1)], index: i });
-      result.push({ type: 'products', data: productChunks[i] });
-    }
-    return result;
-  }, [filteredProducts, banners]);
+  // Unfiltered home groups products under one section per category, each with a
+  // "See all" that opens the full category page — mirrors the web home.
+  const categoryNames = useMemo(
+    () => categories.filter((c) => c !== 'All'),
+    [categories],
+  );
 
   const handleProductPress = (p: Product) => {
     navigation.navigate('ProductDetail', { productId: p._id, product: p });
@@ -300,50 +306,81 @@ export const MobileHomeScreen = () => {
                 onChangeText={setSearchQuery}
               />
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={st.categoryIconsRow}
-              contentContainerStyle={st.categoryIconsContent}
-            >
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={st.categoryIconItem}
-                  onPress={() => setSelectedCategory(cat)}
-                >
-                  <View style={[st.categoryIconCircle, selectedCategory === cat && st.categoryIconCircleActive]}>
-                    <Text style={st.categoryEmoji}>{CATEGORY_ICONS[cat] || '🛒'}</Text>
-                  </View>
-                  <Text style={[st.categoryIconLabel, selectedCategory === cat && st.categoryIconLabelActive]}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={st.catRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={[st.categoryIconsRow, { flex: 1, marginTop: 0, marginBottom: 0 }]}
+                contentContainerStyle={st.categoryIconsContent}
+              >
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={st.categoryIconItem}
+                    onPress={() => setSelectedCategory(cat)}
+                  >
+                    <View style={[st.categoryIconCircle, selectedCategory === cat && st.categoryIconCircleActive]}>
+                      <Text style={st.categoryEmoji}>{CATEGORY_ICONS[cat] || '🛒'}</Text>
+                    </View>
+                    <Text style={[st.categoryIconLabel, selectedCategory === cat && st.categoryIconLabelActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <ProductControlsBar state={controls} onChange={setControls} compact />
+            </View>
           </View>
         </View>
       </View>
 
-      {/* ── Repeating: banner → product grid ────────────────────────── */}
-      {sections.map((section, idx) => {
-        if (section.type === 'banner') {
-          return <PromoBanner key={`b-${idx}`} banner={section.data} />;
-        }
-        if (section.data.length === 0) {
-          return (
-            <View key={`empty-${idx}`} style={st.empty}>
-              <Text style={st.emptyTitle}>No products found</Text>
-              <Text style={st.emptySub}>Try a different category or search term</Text>
-            </View>
-          );
-        }
-        return (
-          <View key={`g-${idx}`} style={st.grid}>
-            {section.data.map((p) => (
+      {/* ── Listing: ONLY the matching products, nothing else ───────── */}
+      {isListing ? (
+        listingProducts.length === 0 ? (
+          <View style={st.empty}>
+            <Text style={st.emptyTitle}>No products found</Text>
+            <Text style={st.emptySub}>Try a different category, search, or filter</Text>
+          </View>
+        ) : (
+          <View style={st.grid}>
+            {listingProducts.map((p) => (
               <ProductCard key={p._id} product={p} onPress={() => handleProductPress(p)} />
             ))}
           </View>
-        );
-      })}
+        )
+      ) : (
+        /* ── Unfiltered: one section per category, each with "See all" ── */
+        <>
+          {banners[0] ? <PromoBanner banner={banners[0]} /> : null}
+          {categoryNames.map((cat, i) => {
+            const catProducts = allProducts.filter(
+              (p) => (p.category ?? '').trim().toLowerCase() === cat.trim().toLowerCase(),
+            );
+            if (catProducts.length === 0) return null;
+            return (
+              <View key={cat}>
+                <View style={st.sectionHead}>
+                  <Text style={st.sectionHeadTitle}>{cat}</Text>
+                  <TouchableOpacity
+                    style={st.seeAllBtn}
+                    onPress={() => navigation.navigate('CategoryProducts', { category: cat })}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={st.seeAllTxt}>See all</Text>
+                    <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
+                  </TouchableOpacity>
+                </View>
+                <View style={st.grid}>
+                  {catProducts.slice(0, 4).map((p) => (
+                    <ProductCard key={p._id} product={p} onPress={() => handleProductPress(p)} />
+                  ))}
+                </View>
+                {i % 2 === 1 && banners.length > 0 ? (
+                  <PromoBanner banner={banners[(i + 1) % banners.length]} />
+                ) : null}
+              </View>
+            );
+          })}
+        </>
+      )}
 
       <View style={{ height: 110 }} />
     </ScrollView>
@@ -356,6 +393,31 @@ const st = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F8FF',
+  },
+
+  // ── Per-category section header (unfiltered home) ────────────────────────
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 2,
+  },
+  sectionHeadTitle: {
+    fontSize: 17,
+    fontFamily: Fonts.extraBold,
+    color: Colors.text,
+  },
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  seeAllTxt: {
+    fontSize: 13,
+    fontFamily: Fonts.semiBold,
+    color: Colors.primary,
   },
 
   // ── Header (original) ────────────────────────────────────────────────────
@@ -473,6 +535,7 @@ const st = StyleSheet.create({
     color: Colors.text,
     height: 40,
   },
+  catRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 6 },
   categoryIconsRow: { marginTop: 14, marginBottom: 6 },
   categoryIconsContent: { paddingHorizontal: 4 },
   categoryIconItem: { alignItems: 'center', marginRight: 20 },

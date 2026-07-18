@@ -52,16 +52,39 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       AdminProfile:     'admin/profile',
 
       // ── User: mobile shape (Stack > MainTabs > tabs) ───────────────────
-      // Tab screens share names with the desktop drawer screens declared
-      // below (Home, Wallet, Profile, Refer). Declaring them in BOTH places
-      // makes RN's linking resolver throw "pattern resolves to two screens".
-      // On native we don't need URL routing anyway, so we leave MainTabs
-      // path-less here and let users navigate via `navigation.navigate(...)`.
+      // Every tab gets its own path *nested under an `app/` prefix* (e.g.
+      // `/app/wallet`). This is what lets the browser Back button return to
+      // the correct tab.
+      //
+      // Why the prefix — and why the tabs can't just be path-less:
+      //   The desktop drawer declares Home/Wallet/Referrals/… FLAT at the top
+      //   level (`/home`, `/wallet`). Previously the tabs had no paths, so on
+      //   the Wallet tab `getPathFromState` fell back to the flat `Wallet`
+      //   entry and produced `/wallet`. Pressing Back then ran
+      //   `getStateFromPath('/wallet')`, which resolves to a TOP-LEVEL `Wallet`
+      //   route — a screen the mobile Stack navigator doesn't have (Wallet is
+      //   only a tab). React Navigation drops the unknown route and falls back
+      //   to the stack's initial route → Home. That was the "Back always goes
+      //   Home" bug. Nesting the tabs under `app/…` keeps their paths distinct
+      //   from the flat desktop paths, so each URL resolves unambiguously to
+      //   the tab that owns it.
+      //
+      // Both tab sets are listed: the web set (Home/Wallet/Referrals/
+      // Notifications/Settings) and the native set (Videos/Stores/Home/Wallet/
+      // Profile). Names absent from the mounted navigator are silently ignored,
+      // and each nested path (`app/…`) is distinct from the flat desktop path,
+      // so the resolver never sees two screens claiming the same pattern.
       MainTabs: {
-        path: '',
+        path: 'app',
         screens: {
-          // No paths — tab screens are reachable on web through their
-          // top-level entries below (desktop drawer mounts them flat).
+          Home:          '',            // home tab (web + native) → /app
+          Videos:        'videos',
+          Stores:        'stores',
+          Wallet:        'wallet',
+          Referrals:     'referrals',
+          Notifications: 'notifications',
+          Settings:      'settings',
+          Profile:       'profile',
         },
       },
 
@@ -93,6 +116,7 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
           productId: (id: string) => id,
         },
       } as any,
+      CategoryProducts: 'category/:category',
     },
   },
 };

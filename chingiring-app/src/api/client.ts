@@ -149,8 +149,17 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Reject with a real Error (so `.message` works everywhere) but keep the
+    // structured response so callers can branch on status / code / data
+    // (e.g. a 409 CATEGORY_IN_USE that drives a reassignment UI). Before, we
+    // dropped `error.response` entirely and only the message survived.
     const errorMessage = error.response?.data?.message || error.message;
-    return Promise.reject(new Error(errorMessage));
+    const wrapped: any = new Error(errorMessage);
+    wrapped.response = error.response;
+    wrapped.status = error.response?.status;
+    wrapped.code = error.response?.data?.code;
+    wrapped.data = error.response?.data?.data;
+    return Promise.reject(wrapped);
   }
 );
 

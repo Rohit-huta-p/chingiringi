@@ -21,6 +21,7 @@ import adminRoutes from './modules/admin/adminRoutes.js';
 import couponRoutes from './modules/coupons/couponRoutes.js';
 import productRoutes from './modules/products/productRoutes.js';
 import clickRoutes from './modules/clicks/clickRoutes.js';
+import notificationRoutes from './modules/notifications/notificationRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -49,6 +50,7 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 const allowedOrigins = [
   'http://localhost:8081',
   'http://localhost:8082',
+  'http://localhost:8083',
   'http://localhost:8001',
   'http://localhost:8000',
   'http://192.168.1.55:8081',
@@ -89,6 +91,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/clicks', clickRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Unhandled routes
 app.all('*', notFound);

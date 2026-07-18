@@ -7,6 +7,7 @@ import { Home, Wallet, Users, Bell, Settings, PlaySquare, Store, User } from 'lu
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts, Gradient } from '../constants/theme';
 import { useAuthStore } from '../store';
+import { useUnreadCount } from '../hooks/useUnreadCount';
 import { SettingsScreen } from '../screens/Dashboard/SettingsScreen';
 import { HomeScreen } from '../screens/Dashboard/HomeScreen';
 import { MobileHomeScreen } from '../screens/Dashboard/MobileHomeScreen';
@@ -23,6 +24,7 @@ import { TransactionHistoryScreen } from '../screens/Dashboard/TransactionHistor
 import { MobileTransactionHistoryScreen } from '../screens/Dashboard/MobileTransactionHistoryScreen';
 import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
 import { MobileProductDetailScreen } from '../screens/Dashboard/MobileProductDetailScreen';
+import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
 import { MobileReferenceScreen } from '../screens/Dashboard/MobileReferenceScreen';
@@ -135,6 +137,8 @@ const WEB_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
 };
 
 function BottomTabNavigator() {
+  const unreadCount = useUnreadCount();
+
   if (isMobile) {
     // Tab order matters — Home is centre tab so the raised pill sits in the
     // middle of the bar. Refer moved out to a stack route (still reachable
@@ -142,6 +146,9 @@ function BottomTabNavigator() {
     return (
       <Tab.Navigator
         initialRouteName="Home"
+        // `history` → in-app / hardware back returns to the previously-visited
+        // tab instead of the first tab (RN default is `firstRoute`).
+        backBehavior="history"
         tabBar={(props) => <MobileTabBar {...props} />}
         screenOptions={{ headerShown: false }}
       >
@@ -157,6 +164,7 @@ function BottomTabNavigator() {
   return (
     <Tab.Navigator
       initialRouteName="Home"
+      backBehavior="history"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ color, size }) => {
@@ -174,10 +182,17 @@ function BottomTabNavigator() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' as const, marginTop: 2 },
       })}
     >
-      <Tab.Screen name="Homee" component={HomeScreen} options={{ tabBarLabel: 'Homeee' }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: 'Wallet' }} />
       <Tab.Screen name="Referrals" component={ReferScreen} options={{ tabBarLabel: 'Referrals' }} />
-      <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ tabBarLabel: 'Alerts' }} />
+      <Tab.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          tabBarLabel: 'Alerts',
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : undefined,
+        }}
+      />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: 'Settings' }} />
     </Tab.Navigator>
   );
@@ -321,6 +336,7 @@ function MobileNavigator() {
         <Stack.Screen name="AddEditAddress" component={AddEditAddressScreen} />
         <Stack.Screen name="TransactionHistory" component={isMobile ? MobileTransactionHistoryScreen : TransactionHistoryScreen} />
         <Stack.Screen name="ProductDetail" component={isMobile ? MobileProductDetailScreen : ProductDetailScreen} />
+        <Stack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
         <Stack.Screen name="Settings" component={isMobile ? MobileSettingsScreen : SettingsScreen} />
         <Stack.Screen name="About" component={isMobile ? MobileAboutScreen : AboutScreen} />
       </Stack.Navigator>

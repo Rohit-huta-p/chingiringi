@@ -34,6 +34,13 @@ import {
   bucketBySlot,
   resolveBannerGradient,
 } from '../../api/banners';
+import { ProductControlsBar } from '../../components/ProductControlsBar';
+import {
+  applyProductControls,
+  DEFAULT_CONTROLS,
+  isControlsActive,
+  ProductControlsState,
+} from '../../utils/productFilters';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -679,6 +686,8 @@ function TopNav({
   userAvatarUrl,
   onProfilePress,
   width,
+  controls,
+  onControlsChange,
 }: {
   selectedCategory: string;
   onCategoryChange: (c: string) => void;
@@ -689,6 +698,8 @@ function TopNav({
   userAvatarUrl?: string;
   onProfilePress: () => void;
   width: number;
+  controls: ProductControlsState;
+  onControlsChange: (next: ProductControlsState) => void;
 }) {
   return (
     <View style={s.topNav}>
@@ -723,25 +734,28 @@ function TopNav({
             )}
           </TouchableOpacity>
         </View>
-        {/* Row 2: Category chips — the real categories admin has added */}
+        {/* Row 2: Category chips + Sort/Filter controls on the same line */}
         <View style={s.navChipsRow}>
-          {categories.map((label) => {
-            const active = label === selectedCategory;
-            const Icon = label === 'All' ? SparklesIcon : Tag;
-            return (
-              <TouchableOpacity
-                key={label}
-                style={[s.navChip, active && s.navChipActive]}
-                onPress={() => onCategoryChange(label)}
-                activeOpacity={0.7}
-              >
-                <Icon size={14} color={active ? '#fff' : '#64748b'} strokeWidth={2.5} />
-                <Text style={[s.navChipTxt, active && s.navChipTxtActive]}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          <View style={s.navChips}>
+            {categories.map((label) => {
+              const active = label === selectedCategory;
+              const Icon = label === 'All' ? SparklesIcon : Tag;
+              return (
+                <TouchableOpacity
+                  key={label}
+                  style={[s.navChip, active && s.navChipActive]}
+                  onPress={() => onCategoryChange(label)}
+                  activeOpacity={0.7}
+                >
+                  <Icon size={14} color={active ? '#fff' : '#64748b'} strokeWidth={2.5} />
+                  <Text style={[s.navChipTxt, active && s.navChipTxtActive]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <ProductControlsBar state={controls} onChange={onControlsChange} />
         </View>
       </View>
     </View>
@@ -757,6 +771,7 @@ export const HomeScreen = () => {
   const userAvatarUrl = useAuthStore((st) => st.user?.avatarUrl);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [controls, setControls] = useState(DEFAULT_CONTROLS);
   const scrollRef = useRef<ScrollView>(null);
 
   // Approx content area width after sidebar + padding
@@ -768,13 +783,6 @@ export const HomeScreen = () => {
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['products'],
     queryFn: () => productsAPI.getProducts({ limit: 24 }),
-    staleTime: 60_000,
-  });
-
-  // Featured products (server-side filtered)
-  const { data: featuredData } = useQuery({
-    queryKey: ['products', 'featured'],
-    queryFn: () => productsAPI.getFeaturedProducts(),
     staleTime: 60_000,
   });
 
@@ -797,26 +805,37 @@ export const HomeScreen = () => {
   // { data: { products } }, { products }, { data: Product[] }, raw array).
   const products: Product[] =
     productsData?.data?.products ?? productsData?.products ?? productsData?.data ?? [];
-  const featuredProducts: Product[] =
-    featuredData?.data?.products ?? featuredData?.products ?? featuredData?.data ?? [];
   const categories: Category[] =
     categoriesData?.data?.categories ??
     categoriesData?.categories ??
     categoriesData?.data ??
     [];
 
-  // Category filter chips built from the real categories admin has added
-  // ("All" + each active category name). No hardcoded list.
-  const categoryChips: string[] = [
-    'All',
-    ...categories.filter((c) => c.isActive !== false).map((c) => c.name),
-  ];
+  // Categories that actually have ≥1 product. Empty categories are hidden
+  // from the user — no chip, no per-category section, no "Shop by category" tile.
+  const productCategorySet = new Set(
+    products.map((p) => (p.category ?? '').trim().toLowerCase()).filter(Boolean),
+  );
+  const activeCategories: Category[] = categories.filter(
+    (c) => c.isActive !== false && productCategorySet.has(c.name.trim().toLowerCase()),
+  );
 
-  // Prefer featured for the featured-looking sections; fall back to all products.
-  const featuredOrAll: Product[] = featuredProducts.length > 0 ? featuredProducts : products;
+  // Category filter chips: "All" + only the categories that have products.
+  const categoryChips: string[] = ['All', ...activeCategories.map((c) => c.name)];
+
+  // Products belonging to a specific category — for the per-category sections.
+  const productsInCategory = (name: string) =>
+    products.filter(
+      (p) => (p.category ?? '').trim().toLowerCase() === name.trim().toLowerCase(),
+    );
 
   // ── Search + category filter (applied to every product grid) ──────────────
   const hasFilter = selectedCategory !== 'All' || searchQuery.trim() !== '';
+  // A category chip is active → the "All Products" grid title shows its name.
+  const categoryActive = selectedCategory !== 'All';
+  // Any active control (category, search, sort, or a price/coins filter)
+  // collapses the curated home into a single flat listing grid.
+  const isListing = hasFilter || isControlsActive(controls);
   const matchesFilters = (p: Product) => {
     const catOk =
       selectedCategory === 'All' ||
@@ -829,7 +848,9 @@ export const HomeScreen = () => {
     return catOk && searchOk;
   };
   const filteredProducts = hasFilter ? products.filter(matchesFilters) : products;
-  const filteredFeatured = hasFilter ? featuredOrAll.filter(matchesFilters) : featuredOrAll;
+  // The flat listing grid: category/search-narrowed set, then sort + range
+  // filters applied. A no-op when every control sits at its default.
+  const listingProducts = applyProductControls(filteredProducts, controls);
 
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
   const bySlot = bucketBySlot(allBanners);
@@ -859,11 +880,10 @@ export const HomeScreen = () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
-  // "See all" on a section: focus that category and jump to the top so the
-  // filtered catalog is front-and-centre.
-  const handleSeeAll = (category: string) => {
-    setSelectedCategory(category);
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  // "See all" on a section → push the dedicated category catalogue page,
+  // filtered to that category ('All' for the whole-catalogue sections).
+  const goToCategory = (category: string) => {
+    navigation.navigate('CategoryProducts', { category });
   };
 
   return (
@@ -878,6 +898,8 @@ export const HomeScreen = () => {
         userAvatarUrl={userAvatarUrl}
         onProfilePress={() => navigation.navigate('Profile')}
         width={contentW}
+        controls={controls}
+        onControlsChange={setControls}
       />
       <ScrollView
         ref={scrollRef}
@@ -886,87 +908,95 @@ export const HomeScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={[s.body, { maxWidth: contentW + 64, width: '100%' }]}>
-          <HeroBanner banner={firstBannerFor('hero')} />
+          {!isListing && <HeroBanner banner={firstBannerFor('hero')} />}
 
           <ProductGrid
-            title="All Products"
-            count={filteredProducts.length ? `${filteredProducts.length} items` : undefined}
+            title={categoryActive ? selectedCategory : 'All Products'}
+            count={listingProducts.length ? `${listingProducts.length} items` : undefined}
             startIdx={0}
             containerWidth={contentW}
             cols={6}
             onProductPress={onProductPress}
-            onSeeAll={() => handleSeeAll('All')}
+            onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
             hasFilter={hasFilter}
             stockLeftCols={[{ col: 1, left: 8 }]}
-            products={filteredProducts}
+            products={listingProducts}
           />
 
-          <PromoStrip banner={firstBannerFor('flash-strip')} />
+          {/* Everything below "All Products" is the rich curated home. Any
+              active control (category, search, sort, or a price/coins filter)
+              collapses it so the page shows ONLY the flat listing grid. */}
+          {!isListing && (
+            <>
+              <PromoStrip banner={firstBannerFor('flash-strip')} />
 
-          <ProductGrid
-            title="Top Electronics"
-            startIdx={0}
-            containerWidth={contentW}
-            cols={6}
-            onProductPress={onProductPress}
-            onSeeAll={() => handleSeeAll('Electronics')}
-            hasFilter={hasFilter}
-            newBadgeCols={[3, 5]}
-            products={filteredFeatured}
-          />
+              {/* Per-category sections — one row per category that has products,
+                  so a product only ever appears under its own category (never a
+                  mislabelled "Electronics" row). Hidden while a search filter is
+                  active; "All Products" already narrows then. */}
+              {!hasFilter &&
+                activeCategories.map((cat) => {
+                  const catProducts = productsInCategory(cat.name);
+                  if (catProducts.length === 0) return null;
+                  return (
+                    <ProductGrid
+                      key={(cat as any)._id ?? cat.name}
+                      title={cat.name}
+                      count={`${catProducts.length} item${catProducts.length === 1 ? '' : 's'}`}
+                      startIdx={0}
+                      containerWidth={contentW}
+                      cols={6}
+                      onProductPress={onProductPress}
+                      onSeeAll={() => goToCategory(cat.name)}
+                      hasFilter={false}
+                      products={catProducts}
+                    />
+                  );
+                })}
 
-          <DualBanner
-            left={firstBannerFor('dual-left')}
-            right={firstBannerFor('dual-right')}
-          />
+              <DualBanner
+                left={firstBannerFor('dual-left')}
+                right={firstBannerFor('dual-right')}
+              />
 
-          <ProductGrid
-            title="New Arrivals"
-            startIdx={6}
-            containerWidth={contentW}
-            cols={6}
-            onProductPress={onProductPress}
-            onSeeAll={() => handleSeeAll('All')}
-            hasFilter={hasFilter}
-            newBadgeCols={[0, 1, 2, 3, 6]}
-            stockLeftCols={[{ col: 5, left: 5 }]}
-            products={filteredProducts}
-          />
+              <ProductGrid
+                title="New Arrivals"
+                startIdx={6}
+                containerWidth={contentW}
+                cols={6}
+                onProductPress={onProductPress}
+                onSeeAll={() => goToCategory('All')}
+                hasFilter={hasFilter}
+                newBadgeCols={[0, 1, 2, 3, 6]}
+                stockLeftCols={[{ col: 5, left: 5 }]}
+                products={filteredProducts}
+              />
 
-          <EarnCoinsBanner
-            banner={firstBannerFor('earn-coins')}
-            onPress={() => navigation.navigate('Wallet')}
-          />
+              <EarnCoinsBanner
+                banner={firstBannerFor('earn-coins')}
+                onPress={() => navigation.navigate('Wallet')}
+              />
 
-          <MoreToExploreSection
-            containerWidth={contentW}
-            onPress={onProductPress}
-            onSeeAll={() => handleSeeAll('All')}
-            hasFilter={hasFilter}
-            products={filteredProducts}
-          />
+              <MoreToExploreSection
+                containerWidth={contentW}
+                onPress={onProductPress}
+                onSeeAll={() => goToCategory('All')}
+                hasFilter={hasFilter}
+                products={filteredProducts}
+              />
 
-          <ReferBanner
-            banner={firstBannerFor('refer-earn')}
-            onPress={() => navigation.navigate('Referrals')}
-          />
+              <ReferBanner
+                banner={firstBannerFor('refer-earn')}
+                onPress={() => navigation.navigate('Referrals')}
+              />
 
-          <ShopByCategorySection
-            containerWidth={contentW}
-            onPress={onCategoryPress}
-            categories={categories}
-          />
-
-          <ProductGrid
-            title="Top Electronics"
-            startIdx={3}
-            containerWidth={contentW}
-            cols={6}
-            onProductPress={onProductPress}
-            onSeeAll={() => handleSeeAll('Electronics')}
-            hasFilter={hasFilter}
-            products={filteredFeatured}
-          />
+              <ShopByCategorySection
+                containerWidth={contentW}
+                onPress={onCategoryPress}
+                categories={activeCategories}
+              />
+            </>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -1106,6 +1136,13 @@ const s = StyleSheet.create({
     gap: 12,
   },
   navChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  navChips: {
+    flex: 1,
     flexDirection: 'row',
     gap: 8,
     flexWrap: 'wrap',

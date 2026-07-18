@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Modal, Dimensions, ActivityIndicator, Alert, Platform,
@@ -31,27 +31,37 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
   });
   const adminCategories: any[] = catData?.data?.categories ?? [];
 
-  const [form, setForm] = useState({
-    title: deal?.title || '',
-    brand: deal?.brand || '',
-    // Deal.category is an ObjectId ref, but CategoryPicker works in names; we
-    // hold the NAME here and resolve back to the id on submit.
-    category: deal?.category?.name || '',
-    cashbackType: deal?.cashbackType || 'percentage',
-    cashbackPercent: deal?.cashbackPercent?.toString() || '',
-    flatCashback: deal?.flatCashback?.toString() || '',
-    expiresAt: deal?.expiresAt ? new Date(deal.expiresAt).toISOString().split('T')[0] : '',
-    affiliateUrl: deal?.affiliateUrl || '',
-    description: deal?.description || '',
-    imageUrl: deal?.imageUrl || '',
-    lockPeriodDays: deal?.lockPeriodDays?.toString() || '30',
-    coinsReward: deal?.coinsReward?.toString() || '',
-    tags: deal?.tags?.join(', ') || '',
-    termsAndConditions: deal?.termsAndConditions || '',
-    isFeatured: deal?.isFeatured || false,
-    isTrending: deal?.isTrending || false,
-    viaCuelinks: deal?.viaCuelinks || false,
+  // Deal.category is an ObjectId ref, but CategoryPicker works in names; we
+  // hold the NAME here and resolve back to the id on submit.
+  const buildInitial = (d: any) => ({
+    title: d?.title || '',
+    brand: d?.brand || '',
+    category: d?.category?.name || '',
+    cashbackType: d?.cashbackType || 'percentage',
+    cashbackPercent: d?.cashbackPercent?.toString() || '',
+    flatCashback: d?.flatCashback?.toString() || '',
+    expiresAt: d?.expiresAt ? new Date(d.expiresAt).toISOString().split('T')[0] : '',
+    affiliateUrl: d?.affiliateUrl || '',
+    description: d?.description || '',
+    imageUrl: d?.imageUrl || '',
+    lockPeriodDays: d?.lockPeriodDays?.toString() || '30',
+    coinsReward: d?.coinsReward?.toString() || '',
+    tags: d?.tags?.join(', ') || '',
+    termsAndConditions: d?.termsAndConditions || '',
+    isFeatured: d?.isFeatured || false,
+    isTrending: d?.isTrending || false,
+    viaCuelinks: d?.viaCuelinks || false,
   });
+
+  const [form, setForm] = useState(() => buildInitial(deal));
+
+  // useState reads its initialiser only once. The modal stays mounted and is
+  // reused (visible + deal just change), so without this the form keeps its
+  // stale values — clicking "Edit" would show an empty/old form. Re-sync from
+  // the deal prop whenever the modal opens or the target deal changes.
+  useEffect(() => {
+    if (visible) setForm(buildInitial(deal));
+  }, [visible, deal]);
 
   const mutation = useMutation({
     mutationFn: async (data: any) => {

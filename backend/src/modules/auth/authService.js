@@ -2,7 +2,6 @@ import User from '../users/userModel.js';
 import Wallet from '../wallet/walletModel.js';
 import OTP from '../otp/otpModel.js';
 import bcrypt from 'bcrypt';
-import crypto from 'crypto';
 
 export const createUser = async (userData) => {
   // Check if user exists

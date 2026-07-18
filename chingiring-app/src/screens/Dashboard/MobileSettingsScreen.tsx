@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,9 +27,11 @@ import {
   ScrollText,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../store';
 import { profileAPI } from '../../api/profile';
+import { notificationsAPI } from '../../api/notifications';
+import { registerForPush, unregisterForPush } from '../../lib/push';
 import { Fonts, Colors } from '../../constants/theme';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { DeleteAccountModal } from '../../components/DeleteAccountModal';
@@ -96,11 +98,38 @@ export const MobileSettingsScreen = () => {
   const user = useAuthStore((s) => s.user);
   const refresh = usePullToRefresh();
 
+  const { data: profileData } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => profileAPI.getProfile(),
+  });
+  const prefs = profileData?.data?.user?.notificationPrefs;
+
   // ── Notification states
   const [cashback, setCashback] = useState(true);
   const [deals, setDeals] = useState(true);
   const [referral, setReferral] = useState(false);
   const [email, setEmail] = useState(true);
+  const [withdrawals, setWithdrawals] = useState(true);
+  const [push, setPush] = useState(true);
+
+  useEffect(() => {
+    if (prefs) {
+      setCashback(prefs.cashback !== false);
+      setWithdrawals(prefs.withdrawals !== false);
+      setPush(prefs.push !== false);
+    }
+  }, [prefs]);
+
+  const savePref = (patch: { cashback?: boolean; withdrawals?: boolean; push?: boolean }) => {
+    notificationsAPI.updatePrefs(patch).catch((e: any) => console.warn('updatePrefs failed:', e?.message));
+  };
+  const onToggleCashback = (v: boolean) => { setCashback(v); savePref({ cashback: v }); };
+  const onToggleWithdrawals = (v: boolean) => { setWithdrawals(v); savePref({ withdrawals: v }); };
+  const onTogglePush = (v: boolean) => {
+    setPush(v);
+    savePref({ push: v });
+    if (v) registerForPush(); else unregisterForPush();
+  };
 
   // ── Delete account
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -179,7 +208,21 @@ export const MobileSettingsScreen = () => {
               label="Cashback Updates"
               subtitle="Get notified when cashback is confirmed"
               value={cashback}
-              onToggle={setCashback}
+              onToggle={onToggleCashback}
+            />
+            <View style={s.divider} />
+            <ToggleRow
+              label="Withdrawal Updates"
+              subtitle="When a withdrawal is submitted, paid, or rejected"
+              value={withdrawals}
+              onToggle={onToggleWithdrawals}
+            />
+            <View style={s.divider} />
+            <ToggleRow
+              label="Push Notifications"
+              subtitle="Get alerts on your device"
+              value={push}
+              onToggle={onTogglePush}
             />
             <View style={s.divider} />
             <ToggleRow

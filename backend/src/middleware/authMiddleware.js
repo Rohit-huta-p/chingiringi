@@ -46,7 +46,7 @@ export const protect = async (req, res, next) => {
       next();
     } catch (error) {
       res.status(401);
-      throw new Error('Not authorized, token failed');
+      throw new Error('Not authorized, token failed', { cause: error });
     }
   } else {
     res.status(401);

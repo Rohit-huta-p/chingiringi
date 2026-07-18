@@ -1,4 +1,9 @@
 import Category from './categoryModel.js';
+import Product from '../products/productModel.js';
+import Deal from '../deals/dealModel.js';
+
+// Escape a user-supplied string for safe use inside a RegExp.
+const escapeRegex = (s = '') => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // @desc    Get all categories
 // @route   GET /api/categories
@@ -69,12 +74,66 @@ export const updateCategory = async (req, res) => {
 // @route   DELETE /api/categories/:id
 // @access  Private/Admin
 export const deleteCategory = async (req, res) => {
-  const category = await Category.findByIdAndDelete(req.params.id);
-
+  const category = await Category.findById(req.params.id);
   if (!category) {
     res.status(404);
     throw new Error('Category not found');
   }
 
+  // How many things reference this category? Products link by free-text name
+  // (case-insensitive), deals link by ObjectId.
+  const nameRe = new RegExp(`^${escapeRegex(category.name)}$`, 'i');
+  const [productCount, dealCount] = await Promise.all([
+    Product.countDocuments({ category: nameRe }),
+    Deal.countDocuments({ category: category._id }),
+  ]);
+  const inUse = productCount + dealCount > 0;
+
+  // reassignTo: undefined → block if in use | '' → uncategorised | <id> → target
+  const { reassignTo } = req.query;
+
+  // In use and the caller hasn't said what to do → block with the counts so
+  // the UI can prompt for reassignment (prevents orphaned products / dangling
+  // deal refs).
+  if (inUse && reassignTo === undefined) {
+    return res.status(409).json({
+      status: 'error',
+      code: 'CATEGORY_IN_USE',
+      message: `"${category.name}" is used by ${productCount} product${productCount === 1 ? '' : 's'} and ${dealCount} deal${dealCount === 1 ? '' : 's'}. Reassign them before deleting.`,
+      data: { products: productCount, deals: dealCount },
+    });
+  }
+
+  // Reassign references, then delete.
+  if (inUse) {
+    let targetName = ''; // products (string) — '' means uncategorised
+    let targetId = null; // deals (ObjectId) — required, so must resolve to a real category
+    if (reassignTo) {
+      if (String(reassignTo) === String(category._id)) {
+        res.status(400);
+        throw new Error('Cannot reassign to the category being deleted');
+      }
+      const target = await Category.findById(reassignTo);
+      if (!target) {
+        res.status(400);
+        throw new Error('Reassignment target category not found');
+      }
+      targetName = target.name;
+      targetId = target._id;
+    }
+    // Deals must keep a category (schema-required) — refuse to orphan them.
+    if (dealCount > 0 && !targetId) {
+      res.status(400);
+      throw new Error(`Pick a category to move the ${dealCount} deal${dealCount === 1 ? '' : 's'} to — deals must have a category.`);
+    }
+    if (productCount > 0) {
+      await Product.updateMany({ category: nameRe }, { $set: { category: targetName } });
+    }
+    if (dealCount > 0) {
+      await Deal.updateMany({ category: category._id }, { $set: { category: targetId } });
+    }
+  }
+
+  await Category.findByIdAndDelete(category._id);
   res.status(200).json({ status: 'success', message: 'Category deleted' });
 };

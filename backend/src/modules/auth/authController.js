@@ -160,7 +160,7 @@ export const refresh = async (req, res) => {
     });
   } catch (error) {
     res.status(401);
-    throw new Error('Not authorized, refresh token failed');
+    throw new Error('Not authorized, refresh token failed', { cause: error });
   }
 };
 

@@ -23,6 +23,11 @@ export default function DesktopAdminDrawer() {
   return (
     <Drawer.Navigator
       initialRouteName="AdminDashboard"
+      // `history` so the browser Back/Forward buttons move through visited admin
+      // screens instead of collapsing to the dashboard. (Drawer defaults to
+      // `firstRoute`, which makes web sibling navigation replace the URL — see
+      // DesktopDrawerNavigator for the full explanation.)
+      backBehavior="history"
       drawerContent={(props) => <AdminSidebar {...props} />}
       screenOptions={{
         drawerType: 'permanent',
