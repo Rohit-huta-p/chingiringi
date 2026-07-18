@@ -31,6 +31,14 @@ export function buildTemplate(type, data) {
         title: 'Withdrawal rejected',
         body: `Your ₹${data.amount} withdrawal was rejected. Your coins were not debited.`,
       };
+    case 'wallet_credited':
+      return {
+        title: 'Balance added 🎉',
+        body:
+          data.currency === 'coins'
+            ? `${data.amount} coins have been added to your wallet.`
+            : `₹${data.amount} has been added to your wallet.`,
+      };
     default:
       throw new Error(`Unknown notification type: ${type}`);
   }

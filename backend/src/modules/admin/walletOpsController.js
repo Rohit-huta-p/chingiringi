@@ -3,7 +3,6 @@ import User from '../users/userModel.js';
 import Wallet from '../wallet/walletModel.js';
 import Transaction from '../transactions/transactionModel.js';
 import ClickEvent from '../clicks/clickModel.js';
-import Deal from '../deals/dealModel.js';
 import ReportImport from './reportImportModel.js';
 import AdminSettings from './adminSettingsModel.js';
 import { notify } from '../notifications/notificationService.js';
@@ -226,6 +225,13 @@ export const adjustUserWallet = async (req, res) => {
     },
   });
 
+  // Notify the user of an admin credit (best-effort; debits stay silent).
+  if (type === 'credit') {
+    try {
+      await notify({ userId: id, type: 'wallet_credited', data: { amount: amt, currency } });
+    } catch (e) { /* best-effort: a notification failure must never break the adjustment */ }
+  }
+
   res.json({
     status: 'success',
     data: { wallet, transaction },
@@ -316,7 +322,7 @@ export const getWithdrawals = async (req, res) => {
     userEmail: r.userId?.email,
     amount: Math.abs(r.amount), // ₹ the admin pays out
     coinsRedeemed: r.metadata?.coinsRedeemed ?? null, // coins the user spent
-    coinRate: r.metadata?.coinRate ?? COINS_PER_RUPEE_REDEEM, // rate locked at request time
+    coinRate: r.metadata?.coinRate ?? null, // rate locked at request time (null for legacy rows without it)
     method: r.metadata?.method || 'UPI',
     paymentDetails: r.metadata?.paymentDetails || '',
     accountNumber: r.metadata?.accountNumber,
@@ -556,7 +562,7 @@ export const importReport = async (req, res) => {
     // If we can trace the row back to a specific deal via the click log AND
     // that deal has coinsReward > 0, we use the flat reward instead. Only
     // for admin-configured promotional deals.
-    let coinsToCredit = 0;
+    let coinsToCredit;
     let coinsSource = 'formula';
     let matchedDealId = null;
 

@@ -84,7 +84,10 @@ export const NotificationsScreen = () => {
       ) : (
         <View style={styles.list}>
           {notifications.map((item) => {
-            const isCoins = item.type === 'coins_credited' || item.type === 'coins_unlocked';
+            const isCoins =
+              item.type === 'coins_credited' ||
+              item.type === 'coins_unlocked' ||
+              item.type === 'wallet_credited';
             const Icon = isCoins ? Coins : ArrowDownToLine;
             return (
               <TouchableOpacity

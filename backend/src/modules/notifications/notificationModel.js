@@ -12,6 +12,7 @@ const notificationSchema = new mongoose.Schema(
       enum: [
         'coins_credited',
         'coins_unlocked',
+        'wallet_credited',
         'withdrawal_submitted',
         'withdrawal_paid',
         'withdrawal_rejected',

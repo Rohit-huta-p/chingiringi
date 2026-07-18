@@ -9,6 +9,7 @@ const expo = new Expo();
 const CATEGORY = {
   coins_credited: 'cashback',
   coins_unlocked: 'cashback',
+  wallet_credited: 'cashback',
   withdrawal_submitted: 'withdrawals',
   withdrawal_paid: 'withdrawals',
   withdrawal_rejected: 'withdrawals',
