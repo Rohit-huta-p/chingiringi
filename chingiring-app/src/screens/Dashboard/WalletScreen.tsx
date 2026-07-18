@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, useWindowDimensions, Modal, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Modal, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, CheckCircle2, Wallet as WalletIcon, Clock, Coins, TrendingUp, ArrowDownLeft, ArrowUpRight, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
-import { useAuthStore } from '../../store';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 
 // Coins→₹ conversion. Mirrors AdminSettings.coinsPerRupee default (10);
@@ -288,7 +287,6 @@ const m = StyleSheet.create({
 export const WalletScreen = () => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
-  const { user } = useAuthStore();
   const [activeFilter, setActiveFilter] = useState<string>('All');
   const [showWithdraw, setShowWithdraw] = useState(false);
 
@@ -326,16 +324,6 @@ export const WalletScreen = () => {
         <View>
           <Text style={styles.overviewLabel}>OVERVIEW</Text>
           <Text style={styles.headerTitle}>My Wallet</Text>
-        </View>
-        <View style={[styles.headerRight, isMobile && { alignSelf: 'flex-start' }]}>
-          <View style={[styles.userInfo, isMobile && { alignItems: 'flex-start' }]}>
-            <Text style={styles.userName}>{user?.name || 'Dev Chavan'}</Text>
-            <Text style={styles.userRole}>Member</Text>
-          </View>
-          <Image
-            source={{ uri: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' }}
-            style={styles.avatar}
-          />
         </View>
       </View>
 
@@ -512,29 +500,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: Colors.text,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  userInfo: {
-    alignItems: 'flex-end',
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  userRole: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
   },
   cardsRow: {
     flexDirection: 'row',
