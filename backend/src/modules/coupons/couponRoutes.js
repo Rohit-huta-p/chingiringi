@@ -9,7 +9,6 @@ import {
   applyCoupon,
 } from './couponController.js';
 import { protect } from '../../middleware/authMiddleware.js';
-import { admin } from '../../middleware/adminMiddleware.js';
 
 // ─── Admin router (mounted at /api/admin/coupons) ──────────────────
 // protect + admin are applied at the parent mount in adminRoutes.js
