@@ -130,6 +130,19 @@ export const CategoryProductsScreen = () => {
           <ArrowLeft size={20} color={Colors.text} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
+        {products.length > 0 && (
+          <View style={s.headerSearch}>
+            <Search size={16} color={Colors.textSecondary} />
+            <TextInput
+              style={s.headerSearchInput}
+              placeholder="Search..."
+              placeholderTextColor="#94a3b8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+            />
+          </View>
+        )}
         <ProductControlsBar state={controls} onChange={setControls} compact={isNarrow} />
       </View>
 
@@ -142,47 +155,30 @@ export const CategoryProductsScreen = () => {
           <Text style={s.emptyTitle}>No products found</Text>
           <Text style={s.emptySub}>There are no products in this category yet.</Text>
         </View>
+      ) : shown.length === 0 ? (
+        <View style={s.centre}>
+          <Text style={s.emptyTitle}>No matches</Text>
+          <Text style={s.emptySub}>Nothing matches your search or filters.</Text>
+        </View>
       ) : (
-        <>
-          <View style={s.searchWrap}>
-            <View style={s.searchBox}>
-              <Search size={18} color={Colors.textSecondary} />
-              <TextInput
-                style={s.searchInput}
-                placeholder="Search products, brands..."
-                placeholderTextColor="#94a3b8"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                returnKeyType="search"
+        <ScrollView
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={s.count}>
+            {shown.length} {shown.length === 1 ? 'item' : 'items'}
+          </Text>
+          <View style={[s.grid, { gap: GAP }]}>
+            {shown.map((p) => (
+              <ProductCard
+                key={p._id}
+                product={p}
+                width={cardW}
+                onPress={() => handleProductPress(p)}
               />
-            </View>
+            ))}
           </View>
-          {shown.length === 0 ? (
-            <View style={s.centre}>
-              <Text style={s.emptyTitle}>No matches</Text>
-              <Text style={s.emptySub}>Nothing matches your search or filters.</Text>
-            </View>
-          ) : (
-            <ScrollView
-              contentContainerStyle={s.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={s.count}>
-                {shown.length} {shown.length === 1 ? 'item' : 'items'}
-              </Text>
-              <View style={[s.grid, { gap: GAP }]}>
-                {shown.map((p) => (
-                  <ProductCard
-                    key={p._id}
-                    product={p}
-                    width={cardW}
-                    onPress={() => handleProductPress(p)}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          )}
-        </>
+        </ScrollView>
       )}
     </View>
   );
@@ -196,6 +192,7 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: Colors.surface,
@@ -211,33 +208,26 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    flex: 1,
-    marginHorizontal: 12,
+    flexShrink: 1,
     fontSize: 18,
     fontFamily: Fonts.extraBold,
     color: Colors.text,
   },
 
-  searchWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: Colors.background,
-  },
-  searchBox: {
+  headerSearch: {
+    flex: 1,
+    minWidth: 90,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
+    gap: 6,
+    backgroundColor: Colors.background,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: 12,
-    height: 44,
-    maxWidth: 1200,
-    width: '100%',
-    alignSelf: 'center',
+    paddingHorizontal: 10,
+    height: 38,
   },
-  searchInput: {
+  headerSearchInput: {
     flex: 1,
     fontSize: 14,
     fontFamily: Fonts.regular,
