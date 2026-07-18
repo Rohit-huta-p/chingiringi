@@ -13,6 +13,7 @@ import { MyAddressScreen } from '../screens/Dashboard/MyAddressScreen';
 import { AddEditAddressScreen } from '../screens/Dashboard/AddEditAddressScreen';
 import { TransactionHistoryScreen } from '../screens/Dashboard/TransactionHistoryScreen';
 import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
+import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 import { AboutScreen } from '../screens/Dashboard/AboutScreen';
@@ -26,6 +27,14 @@ export default function DesktopDrawerNavigator() {
   return (
     <Drawer.Navigator
       initialRouteName="Home"
+      // Without this the drawer defaults to `firstRoute`: navigating between
+      // sibling screens (e.g. Profile → EditProfile) keeps the router's history
+      // length constant, so React Navigation's web integration REPLACES the URL
+      // instead of pushing it. The browser Back button then skips the previous
+      // screen and jumps straight to Home. `history` accumulates visited routes
+      // so each navigation pushes a real history entry → Back/Forward is
+      // historical. (No effect on native, where there's no browser history.)
+      backBehavior="history"
       drawerContent={(props) => <Sidebar {...props} />}
       screenOptions={{
         drawerType: 'permanent',
@@ -52,6 +61,7 @@ export default function DesktopDrawerNavigator() {
       <Drawer.Screen name="AddEditAddress" component={AddEditAddressScreen} />
       <Drawer.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
       <Drawer.Screen name="ProductDetail" component={ProductDetailScreen} />
+      <Drawer.Screen name="CategoryProducts" component={CategoryProductsScreen} />
     </Drawer.Navigator>
   );
 }
