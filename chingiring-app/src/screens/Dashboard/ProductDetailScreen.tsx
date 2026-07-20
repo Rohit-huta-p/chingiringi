@@ -168,20 +168,22 @@ export const ProductDetailScreen = () => {
     enabled: !!dealId && !passedDeal,
   });
 
-  // In product mode, fetch the live product when we only got an id.
-  // Skip for "sample"/missing ids — those came from template fallback rows
-  // (no real DB entry), so we just render the passed product object.
+  // Always fetch the live product when we have a real id — even if a product
+  // object was passed. The Home grid passes a stripped item (no affiliateUrl,
+  // among other fields), so trusting it alone made every grid-opened product
+  // look link-less. Skip only for "sample"/missing ids (template rows).
   const { data: fetchedProductResponse } = useQuery({
     queryKey: ['product', productId],
     queryFn: () => productsAPI.getProduct(productId),
-    enabled: !!productId && !passedProduct && productId !== 'sample',
+    enabled: !!productId && productId !== 'sample',
   });
 
   const deal = passedDeal || fetchedDealResponse?.data?.deal || fetchedDealResponse?.data;
-  const product =
-    passedProduct ||
-    fetchedProductResponse?.data?.product ||
-    fetchedProductResponse?.data;
+  const fetchedProduct =
+    fetchedProductResponse?.data?.product || fetchedProductResponse?.data;
+  // Prefer the complete fetched product; fall back to the passed object so the
+  // screen still paints instantly while the fetch is in flight.
+  const product = fetchedProduct || passedProduct;
 
   const handleShopNow = async () => {
     const url = deal?.affiliateUrl;
@@ -477,8 +479,11 @@ export const ProductDetailScreen = () => {
             ? 'Notify Me When Available'
             : product?.affiliateUrl
               ? 'Buy Now ↗'
-              : 'Buy Now'
+              : 'Currently unavailable'
         }
+        // No affiliate link → nothing to open. Disable the CTA so it reads as
+        // unavailable instead of silently no-opping (Alert is a no-op on web).
+        disabled={productStock !== 0 && !product?.affiliateUrl}
         onPress={() => {
           if (productStock === 0) return;
           handleBuyProduct();

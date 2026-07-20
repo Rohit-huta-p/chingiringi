@@ -252,12 +252,14 @@ export const MobileProductDetailScreen = () => {
   const { data: fetchedProductResponse } = useQuery({
     queryKey: ['product', productId],
     queryFn: () => productsAPI.getProduct(productId),
-    enabled: isProductMode && !!productId && !passedProduct && productId !== 'sample',
+    enabled: isProductMode && !!productId && productId !== 'sample',
   });
+  // Prefer the complete fetched product (has affiliateUrl etc.); fall back to
+  // the passed object for instant paint while the fetch is in flight.
   const productForView =
-    passedProduct ||
     fetchedProductResponse?.data?.product ||
-    fetchedProductResponse?.data;
+    fetchedProductResponse?.data ||
+    passedProduct;
 
   if (isProductMode) {
     // Product "Shop Now": open the product's buy link (subid-tracked, same as
