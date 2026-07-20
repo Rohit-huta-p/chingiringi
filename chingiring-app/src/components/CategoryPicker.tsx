@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ScrollView,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert, Platform, Image,
 } from 'react-native';
 import { ChevronDown, Plus, Pencil, Trash2, Check, X, Search } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminAPI } from '../api/admin';
+import { ImageUploader } from './ImageUploader';
 
 /**
  * Inline category picker. Replaces the standalone admin Categories screen.
@@ -26,6 +27,7 @@ interface Category {
   _id: string;
   name: string;
   slug: string;
+  imageUrl?: string;
 }
 
 interface Props {
@@ -40,6 +42,7 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   const [query, setQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [editingImage, setEditingImage] = useState('');
   // When a delete is blocked because the category is in use, we switch the
   // sheet into a "reassign" mode instead of a dead-end error.
   const [reassignFor, setReassignFor] = useState<Category | null>(null);
@@ -82,7 +85,8 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => adminAPI.updateCategory(id, { name }),
+    mutationFn: ({ id, name, imageUrl }: { id: string; name: string; imageUrl?: string }) =>
+      adminAPI.updateCategory(id, { name, imageUrl }),
     onSuccess: (res, vars) => {
       invalidate();
       const newName = res?.data?.category?.name ?? vars.name;
@@ -92,6 +96,7 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
       if (old && old === value) onChange(newName);
       setEditingId(null);
       setEditingName('');
+      setEditingImage('');
     },
     onError: (e: any) => Alert.alert('Could not update', e?.response?.data?.message || e?.message || 'Try again'),
   });
@@ -127,18 +132,21 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   const startEdit = (cat: Category) => {
     setEditingId(cat._id);
     setEditingName(cat.name);
+    setEditingImage(cat.imageUrl ?? '');
   };
   const cancelEdit = () => {
     setEditingId(null);
     setEditingName('');
+    setEditingImage('');
   };
   const saveEdit = () => {
     if (!editingId) return;
     const name = editingName.trim();
     if (!name) return cancelEdit();
-    const original = categories.find((c) => c._id === editingId)?.name;
-    if (name === original) return cancelEdit();
-    updateMutation.mutate({ id: editingId, name });
+    const cat = categories.find((c) => c._id === editingId);
+    // Nothing changed (name AND image identical) → just close.
+    if (name === cat?.name && editingImage === (cat?.imageUrl ?? '')) return cancelEdit();
+    updateMutation.mutate({ id: editingId, name, imageUrl: editingImage });
   };
 
   const confirmDelete = (cat: Category) => {
@@ -283,30 +291,38 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
 
                 if (isEditing) {
                   return (
-                    <View key={cat._id} style={st.rowEditing}>
+                    <View key={cat._id} style={st.editForm}>
                       <TextInput
                         style={st.editInput}
                         value={editingName}
                         onChangeText={setEditingName}
                         autoFocus
                         autoCapitalize="words"
-                        onSubmitEditing={saveEdit}
+                        placeholder="Category name"
+                        placeholderTextColor="#94a3b8"
                       />
-                      <TouchableOpacity
-                        style={[st.iconBtn, { backgroundColor: '#dcfce7' }]}
-                        onPress={saveEdit}
-                        disabled={updateMutation.isPending}
-                      >
-                        {updateMutation.isPending
-                          ? <ActivityIndicator size="small" color="#16a34a" />
-                          : <Check size={14} color="#16a34a" strokeWidth={2.4} />}
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[st.iconBtn, { backgroundColor: '#f1f5f9' }]}
-                        onPress={cancelEdit}
-                      >
-                        <X size={14} color="#64748b" strokeWidth={2.4} />
-                      </TouchableOpacity>
+                      <View style={st.editImageWrap}>
+                        <ImageUploader
+                          value={editingImage}
+                          onChange={setEditingImage}
+                          label="Category image"
+                          folder="categories"
+                        />
+                      </View>
+                      <View style={st.editActions}>
+                        <TouchableOpacity style={st.editCancelBtn} onPress={cancelEdit}>
+                          <Text style={st.editCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={st.editSaveBtn}
+                          onPress={saveEdit}
+                          disabled={updateMutation.isPending}
+                        >
+                          {updateMutation.isPending
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <Text style={st.editSaveText}>Save</Text>}
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   );
                 }
@@ -319,6 +335,13 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
                       activeOpacity={0.65}
                       disabled={isBusy}
                     >
+                      <View style={st.rowThumb}>
+                        {cat.imageUrl ? (
+                          <Image source={{ uri: cat.imageUrl }} style={st.rowThumbImg} resizeMode="cover" />
+                        ) : (
+                          <Text style={st.rowThumbEmpty}>🛒</Text>
+                        )}
+                      </View>
                       {isSelected && <Check size={14} color="#4784E2" strokeWidth={2.4} />}
                       <Text style={[st.rowText, isSelected && { color: '#4784E2', fontWeight: '700' }]}>
                         {cat.name}
@@ -587,6 +610,38 @@ const st = StyleSheet.create({
     fontWeight: '600',
     color: '#64748b',
   },
+
+  // Row thumbnail
+  rowThumb: {
+    width: 34, height: 34, borderRadius: 8,
+    backgroundColor: '#f1f5f9', overflow: 'hidden',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  rowThumbImg: { width: '100%', height: '100%' },
+  rowThumbEmpty: { fontSize: 16 },
+
+  // Edit form (name + image)
+  editForm: {
+    paddingHorizontal: 8, paddingVertical: 8,
+    borderRadius: 10, backgroundColor: '#f8fafc',
+    borderWidth: 1, borderColor: '#e2e8f0',
+    marginVertical: 2, gap: 10,
+  },
+  editImageWrap: { marginTop: 2 },
+  editActions: {
+    flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 2,
+  },
+  editCancelBtn: {
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 8, backgroundColor: '#f1f5f9',
+  },
+  editCancelText: { fontSize: 13, fontWeight: '700', color: '#64748b' },
+  editSaveBtn: {
+    paddingHorizontal: 20, paddingVertical: 9,
+    borderRadius: 8, backgroundColor: '#4784E2',
+    minWidth: 72, alignItems: 'center',
+  },
+  editSaveText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 });
 
 export default CategoryPicker;

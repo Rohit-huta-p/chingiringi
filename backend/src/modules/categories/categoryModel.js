@@ -18,6 +18,13 @@ const categorySchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Category tile image (Cloudinary URL from the admin ImageUploader).
+    // Used by the home category tiles/chips; empty falls back to an emoji.
+    imageUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     isActive: {
       type: Boolean,
       default: true,
