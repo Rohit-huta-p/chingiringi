@@ -426,6 +426,8 @@ export function AdminBannersScreen() {
       invalidateAll();
       setShowForm(false); setEditBanner(null);
     },
+    onError: (e: any) =>
+      Alert.alert('Could not create banner', e?.response?.data?.message || e?.message || 'Please try again.'),
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, draft }: { id: string; draft: BannerDraft }) =>
@@ -434,6 +436,8 @@ export function AdminBannersScreen() {
       invalidateAll();
       setShowForm(false); setEditBanner(null);
     },
+    onError: (e: any) =>
+      Alert.alert('Could not update banner', e?.response?.data?.message || e?.message || 'Please try again.'),
   });
 
   const handleSave = (draft: BannerDraft) => {

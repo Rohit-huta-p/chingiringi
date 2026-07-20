@@ -72,12 +72,13 @@ const storeSchema = new mongoose.Schema(
 );
 
 // Derive slug + GeoJSON point from name/lat/lng before saving.
-storeSchema.pre('save', function preSave(next) {
+// Sync pre-save hook — no `next` (same modern pattern as bannerModel; a
+// `function(next)` form throws "next is not a function" under this Mongoose version).
+storeSchema.pre('save', function preSave() {
   if (this.isModified('name') || !this.slug) this.slug = slugify(this.name);
   if (typeof this.lat === 'number' && typeof this.lng === 'number') {
     this.location = { type: 'Point', coordinates: [this.lng, this.lat] };
   }
-  next();
 });
 
 storeSchema.index({ category: 1 });
