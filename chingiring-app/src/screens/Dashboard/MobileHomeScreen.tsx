@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  useWindowDimensions,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, Coins, ChevronRight } from 'lucide-react-native';
+import { Search, Coins, ChevronRight, ChevronDown } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -21,6 +21,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner, resolveBannerGradient } from '../../api/banners';
+import { walletAPI } from '../../api/wallet';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import {
   applyProductControls,
@@ -32,46 +33,42 @@ import {
 
 function greeting(): string {
   const h = new Date().getHours();
-  if (h < 12) return 'Good Morning!';
-  if (h < 17) return 'Good Afternoon!';
-  return 'Good Evening!';
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
 function priceFmt(n: number): string {
   return `₹${n.toLocaleString('en-IN')}`;
 }
 
-// ─── Category emoji icons (legacy horizontal-scroll row) ────────────────────
-
-const CATEGORY_ICONS: Record<string, string> = {
-  Fashion: '👗', Electronics: '📱', Home: '🏠',
-  Pharmacy: '💊', Travel: '✈️', Food: '🍔', All: '🔥',
+// Emoji stand-ins for the category chips (real category images can replace these
+// once products/categories carry an imageUrl). Keyed case-insensitively.
+const CATEGORY_EMOJI: Record<string, string> = {
+  all: '🛍️', fashion: '👗', electronics: '📱', home: '🏠', grocery: '🛒',
+  beauty: '💄', pharmacy: '💊', travel: '✈️', food: '🍔', snacks: '🍿',
+  dairy: '🥛', fruits: '🥬', household: '🧻', kitchen: '🍳', office: '🗂️',
+  fresh: '🥬', sweets: '🍫', drinks: '🥤', toys: '🧸',
 };
+function emojiFor(cat: string): string {
+  return CATEGORY_EMOJI[cat.trim().toLowerCase()] ?? '🛒';
+}
 
-// ─── Promo Banner (Supersonic SALE style) ───────────────────────────────────
+// ─── Promo banner (renders admin banners) ───────────────────────────────────
 
 function PromoBanner({ banner }: { banner?: Banner }) {
-  // When admin uploaded an image, render IT — that's what they edited in the
-  // banner form and what desktop already shows. Falling back to the gradient
-  // placeholder caused "I uploaded BIG SALE, mobile shows orange ribbon" bug.
   const imageUrl = banner?.imageUrl;
-  const title    = banner?.title    ?? 'Supersonic SALE';
+  const title    = banner?.title    ?? 'Shop and earn coins';
   const subtitle = banner?.subtitle ?? '';
   const ctaLabel = banner?.ctaLabel;
-  // Colour priority: admin's explicit gradientColors > slot default > brand fallback.
-  // Used only when no imageUrl is set.
   const colors   = banner
     ? resolveBannerGradient(banner)
-    : (['#1f4ed4', '#4784E2'] as [string, string]);
+    : (['#4784E2', '#2E6BD0'] as [string, string]);
 
   return (
     <TouchableOpacity style={st.banner} activeOpacity={0.92}>
       {imageUrl ? (
-        <Image
-          source={{ uri: imageUrl }}
-          style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
       ) : (
         <>
           <LinearGradient
@@ -80,85 +77,70 @@ function PromoBanner({ banner }: { banner?: Banner }) {
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          <View style={st.bannerBlobLeft} />
           <View style={st.bannerBlobRight} />
-
           <View style={st.bannerContent}>
             <Text style={st.bannerTitle}>{title}</Text>
-            {subtitle ? (
-              <View style={st.bannerSubChip}>
-                <Text style={st.bannerSubChipText}>⚡ {subtitle}</Text>
-              </View>
+            {subtitle ? <Text style={st.bannerSub}>{subtitle}</Text> : null}
+            {ctaLabel ? (
+              <View style={st.bannerCta}><Text style={st.bannerCtaText}>{ctaLabel}</Text></View>
             ) : null}
           </View>
-
-          {ctaLabel ? (
-            <View style={st.bannerFeeRow}>
-              <View style={st.bannerFeeChip}>
-                <Text style={st.bannerFeeChipMain}>{ctaLabel}</Text>
-              </View>
-            </View>
-          ) : null}
         </>
       )}
     </TouchableOpacity>
   );
 }
 
-// ─── Product Card (2-col) ───────────────────────────────────────────────────
+// ─── Product card (Zepto-style) ─────────────────────────────────────────────
+// Real data only: image, price, coins earned, ADD. No fabricated MRP/rating.
 
-function ProductCard({ product, onPress }: { product: Product; onPress: () => void }) {
-  const { width } = useWindowDimensions();
-  const cardW = (width - 16 * 2 - 12) / 2;
-
-  const lowStock = product.stock > 0 && product.stock <= 10;
-
+function ProductCard({
+  product,
+  width,
+  onPress,
+}: {
+  product: Product;
+  width: number;
+  onPress: () => void;
+}) {
   return (
-    <TouchableOpacity style={[st.card, { width: cardW }]} onPress={onPress} activeOpacity={0.85}>
-      <View style={st.cardImageBox}>
+    <TouchableOpacity style={[st.card, { width }]} onPress={onPress} activeOpacity={0.85}>
+      <View style={st.thumb}>
         {product.imageUrl ? (
           <Image source={{ uri: product.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
         ) : (
-          <View style={[StyleSheet.absoluteFillObject, st.cardImageFallback]}>
-            <Text style={st.cardImageLetter}>{product.name?.[0] ?? '?'}</Text>
+          <View style={[StyleSheet.absoluteFillObject, st.thumbFallback]}>
+            <Text style={st.thumbLetter}>{product.name?.[0]?.toUpperCase() ?? '?'}</Text>
           </View>
         )}
-        {lowStock && (
-          <View style={st.stockBadge}>
-            <Text style={st.stockBadgeText}>{product.stock} left</Text>
-          </View>
-        )}
+        {product.isFeatured ? (
+          <View style={st.flag}><Text style={st.flagText}>Bestseller</Text></View>
+        ) : null}
+        <TouchableOpacity style={st.add} onPress={onPress} activeOpacity={0.8}>
+          <Text style={st.addText}>ADD</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={st.cardBody}>
-        <Text style={st.cardTitle} numberOfLines={1}>{product.name}</Text>
-        <Text style={st.cardDesc}  numberOfLines={2}>{product.description}</Text>
-
-        <View style={st.cardPriceRow}>
-          <Text style={st.cardPrice}>{priceFmt(product.price)}</Text>
-        </View>
-
-        <View style={st.coinsPill}>
-          <Coins size={11} color={Colors.primary} />
-          <Text style={st.coinsPillText}>{product.coinsPrice.toLocaleString('en-IN')} coins</Text>
-        </View>
-
-        <View style={st.buyBtn}>
-          <Text style={st.buyBtnText}>Buy Now</Text>
-        </View>
+      <View style={st.pricePill}><Text style={st.pricePillText}>{priceFmt(product.price)}</Text></View>
+      <Text style={st.name} numberOfLines={2}>{product.name}</Text>
+      {product.category ? <Text style={st.qty} numberOfLines={1}>{product.category}</Text> : null}
+      <View style={st.earn}>
+        <Coins size={11} color="#a86b06" />
+        <Text style={st.earnText}>Earn {product.coinsPrice.toLocaleString('en-IN')}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-// ─── Main Screen ────────────────────────────────────────────────────────────
+// ─── Main screen ────────────────────────────────────────────────────────────
 
 export const MobileHomeScreen = () => {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
   const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const refresh = usePullToRefresh();
 
-  const [activeTab, setActiveTab] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [controls, setControls] = useState(DEFAULT_CONTROLS);
@@ -169,13 +151,17 @@ export const MobileHomeScreen = () => {
     queryFn: () => productsAPI.getProducts({ limit: 24 }),
   });
   const { data: bannersRes } = useQuery({
-    // Same key as desktop HomeScreen so admin mutations invalidate both surfaces.
     queryKey: ['banners'],
     queryFn: () => bannersAPI.getActiveBanners(),
   });
   const { data: categoriesRes } = useQuery({
     queryKey: ['categories'],
     queryFn: () => categoriesAPI.getCategories(),
+  });
+  const { data: walletRes } = useQuery({
+    queryKey: ['wallet'],
+    queryFn: () => walletAPI.getWallet(),
+    enabled: isAuthenticated,
   });
 
   // Normalise responses
@@ -185,9 +171,10 @@ export const MobileHomeScreen = () => {
     bannersRes?.data?.banners ?? [];
   const apiCategories: Category[] =
     categoriesRes?.data?.categories ?? categoriesRes?.categories ?? [];
+  const coinBalance: number =
+    walletRes?.data?.wallet?.coins ?? walletRes?.data?.coins ?? 0;
 
-  // Horizontal-scroll category list: "All" + only the categories that
-  // actually have at least one product. Empty categories are hidden.
+  // Category chips: "All" + only categories that actually have a product.
   const categories = useMemo(() => {
     const withProducts = new Set(
       allProducts.map((p) => (p.category ?? '').trim().toLowerCase()).filter(Boolean),
@@ -199,6 +186,13 @@ export const MobileHomeScreen = () => {
         .map((c) => c.name),
     ];
   }, [apiCategories, allProducts]);
+
+  // Real category tile images (admin-uploaded), keyed by name. Empty → emoji.
+  const categoryImageByName = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of apiCategories) if (c.imageUrl) m[c.name] = c.imageUrl;
+    return m;
+  }, [apiCategories]);
 
   // Filter + search
   const filteredProducts = useMemo(() => {
@@ -213,15 +207,10 @@ export const MobileHomeScreen = () => {
     return p;
   }, [allProducts, selectedCategory, searchQuery]);
 
-  // A category chip, search, sort, or a price/coins filter is active → show
-  // ONLY the matching products, with none of the interleaved promo banners or
-  // per-category sections.
   const isFiltering = selectedCategory !== 'All' || searchQuery.trim() !== '';
   const isListing = isFiltering || isControlsActive(controls);
   const listingProducts = applyProductControls(filteredProducts, controls);
 
-  // Unfiltered home groups products under one section per category, each with a
-  // "See all" that opens the full category page — mirrors the web home.
   const categoryNames = useMemo(
     () => categories.filter((c) => c !== 'All'),
     [categories],
@@ -230,6 +219,9 @@ export const MobileHomeScreen = () => {
   const handleProductPress = (p: Product) => {
     navigation.navigate('ProductDetail', { productId: p._id, product: p });
   };
+
+  const RAIL_CARD_W = 150;
+  const GRID_CARD_W = Math.floor((width - 16 * 2 - 12) / 2); // responsive 2-col, always fits
 
   if (productsLoading) {
     return (
@@ -245,94 +237,77 @@ export const MobileHomeScreen = () => {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl {...refresh} />}
     >
-
-      {/* ── Blue Header ───────────────────────────────────────────── */}
-      <View style={st.headerBg}>
-        {/* Greeting row */}
-        <View style={st.greetingRow}>
-          <View>
-            <Text style={st.greetingText}>{greeting()}</Text>
-            <Text style={st.userName}>{user?.name || 'User'}</Text>
+      {/* ── Header (light-blue) ─────────────────────────────────────── */}
+      <LinearGradient colors={['#E9F4FF', '#DCEBFF']} style={st.header}>
+        <View style={st.hrow}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={st.greet}>{greeting()}</Text>
+            <TouchableOpacity style={st.locRow} activeOpacity={0.7}>
+              <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
+              <ChevronDown size={14} color="#1e293b" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <View style={st.avatarCircle}>
-              {user?.avatarUrl ? (
-                <Image source={{ uri: user.avatarUrl }} style={st.avatarImg} resizeMode="cover" />
-              ) : (
-                <Text style={st.avatarInitial}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
-              )}
-            </View>
+          <View style={st.coins}>
+            <Coins size={13} color="#a86b06" />
+            <Text style={st.coinsText}>{coinBalance.toLocaleString('en-IN')}</Text>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={st.avatar} activeOpacity={0.8}>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={st.avatarImg} resizeMode="cover" />
+            ) : (
+              <Text style={st.avatarInitial}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
+            )}
           </TouchableOpacity>
         </View>
 
-        {/* Tabs + Search + Categories */}
-        <View style={st.tabSearchWrapper}>
-          {/* Tabs row */}
-          <View style={st.tabsRow}>
-            {['Products', 'Deals', 'Festivals', 'Season'].map((label, i) => {
-              const isActive = i === activeTab;
+        <View style={st.searchRow}>
+          <View style={st.searchBar}>
+            <Search size={18} color={Colors.primary} />
+            <TextInput
+              style={st.searchInput}
+              placeholder='Search products'
+              placeholderTextColor="#9ca3af"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+          <TouchableOpacity style={st.shortcut} onPress={() => navigation.navigate('Wallet')} activeOpacity={0.85}>
+            <Coins size={16} color="#a86b06" />
+            <Text style={st.shortcutText}>Coins</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={st.chipsRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ flex: 1 }}
+            contentContainerStyle={st.chipsContent}
+          >
+            {categories.map((cat) => {
+              const on = selectedCategory === cat;
               return (
-                <TouchableOpacity
-                  key={label}
-                  onPress={() => setActiveTab(i)}
-                  style={isActive ? st.headerTabActive : st.headerTab}
-                  activeOpacity={0.8}
-                >
-                  {isActive && (
-                    <View style={st.curveLeft}>
-                      <View style={[st.curveInner, { right: 0, backgroundColor: Colors.primaryLight }]} />
-                    </View>
-                  )}
-                  <Text style={[st.headerTabText, isActive && st.headerTabTextActive]}>{label}</Text>
-                  {isActive && (
-                    <View style={st.curveRight}>
-                      <View style={[st.curveInner, { left: 0, backgroundColor: Colors.primaryLight }]} />
-                    </View>
-                  )}
+                <TouchableOpacity key={cat} style={st.chip} onPress={() => setSelectedCategory(cat)} activeOpacity={0.8}>
+                  <View style={[st.chipIcon, on && st.chipIconOn]}>
+                    {categoryImageByName[cat] ? (
+                      <Image source={{ uri: categoryImageByName[cat] }} style={st.chipImg} resizeMode="cover" />
+                    ) : (
+                      <Text style={st.chipEmoji}>{emojiFor(cat)}</Text>
+                    )}
+                  </View>
+                  <Text style={[st.chipLabel, on && st.chipLabelOn]} numberOfLines={1}>{cat}</Text>
+                  {on ? <View style={st.chipUnderline} /> : null}
                 </TouchableOpacity>
               );
             })}
-          </View>
-
-          {/* Blue panel: search + categories */}
-          <View style={st.bluePanel}>
-            <View style={st.searchBar}>
-              <Search size={18} color={Colors.textSecondary} />
-              <TextInput
-                style={st.searchInput}
-                placeholder='Search by "Face Wash"'
-                placeholderTextColor="#9ca3af"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-            <View style={st.catRow}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={[st.categoryIconsRow, { flex: 1, marginTop: 0, marginBottom: 0 }]}
-                contentContainerStyle={st.categoryIconsContent}
-              >
-                {categories.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={st.categoryIconItem}
-                    onPress={() => setSelectedCategory(cat)}
-                  >
-                    <View style={[st.categoryIconCircle, selectedCategory === cat && st.categoryIconCircleActive]}>
-                      <Text style={st.categoryEmoji}>{CATEGORY_ICONS[cat] || '🛒'}</Text>
-                    </View>
-                    <Text style={[st.categoryIconLabel, selectedCategory === cat && st.categoryIconLabelActive]}>{cat}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <ProductControlsBar state={controls} onChange={setControls} compact />
-            </View>
+          </ScrollView>
+          <View style={st.controlsWrap}>
+            <ProductControlsBar state={controls} onChange={setControls} compact />
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* ── Listing: ONLY the matching products, nothing else ───────── */}
+      {/* ── Listing: only matching products ──────────────────────────── */}
       {isListing ? (
         listingProducts.length === 0 ? (
           <View style={st.empty}>
@@ -342,12 +317,12 @@ export const MobileHomeScreen = () => {
         ) : (
           <View style={st.grid}>
             {listingProducts.map((p) => (
-              <ProductCard key={p._id} product={p} onPress={() => handleProductPress(p)} />
+              <ProductCard key={p._id} product={p} width={GRID_CARD_W} onPress={() => handleProductPress(p)} />
             ))}
           </View>
         )
       ) : (
-        /* ── Unfiltered: one section per category, each with "See all" ── */
+        /* ── Unfiltered home: promo + a horizontal rail per category ──── */
         <>
           {banners[0] ? <PromoBanner banner={banners[0]} /> : null}
           {categoryNames.map((cat, i) => {
@@ -356,23 +331,23 @@ export const MobileHomeScreen = () => {
             );
             if (catProducts.length === 0) return null;
             return (
-              <View key={cat}>
-                <View style={st.sectionHead}>
-                  <Text style={st.sectionHeadTitle}>{cat}</Text>
+              <View key={cat} style={st.sec}>
+                <View style={st.secHead}>
+                  <Text style={st.secTitle}>{cat}</Text>
                   <TouchableOpacity
-                    style={st.seeAllBtn}
+                    style={st.seeAll}
                     onPress={() => navigation.navigate('CategoryProducts', { category: cat })}
                     activeOpacity={0.7}
                   >
-                    <Text style={st.seeAllTxt}>See all</Text>
+                    <Text style={st.seeAllText}>See all</Text>
                     <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
                   </TouchableOpacity>
                 </View>
-                <View style={st.grid}>
-                  {catProducts.slice(0, 4).map((p) => (
-                    <ProductCard key={p._id} product={p} onPress={() => handleProductPress(p)} />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rail}>
+                  {catProducts.slice(0, 10).map((p) => (
+                    <ProductCard key={p._id} product={p} width={RAIL_CARD_W} onPress={() => handleProductPress(p)} />
                   ))}
-                </View>
+                </ScrollView>
                 {i % 2 === 1 && banners.length > 0 ? (
                   <PromoBanner banner={banners[(i + 1) % banners.length]} />
                 ) : null}
@@ -390,400 +365,133 @@ export const MobileHomeScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F8FF',
-  },
+  container: { flex: 1, backgroundColor: '#F5F8FF' },
 
-  // ── Per-category section header (unfiltered home) ────────────────────────
-  sectionHead: {
+  // Header
+  header: {
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+  },
+  hrow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
     paddingHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 2,
   },
-  sectionHeadTitle: {
-    fontSize: 17,
-    fontFamily: Fonts.extraBold,
-    color: Colors.text,
+  greet: { fontSize: 12.5, fontFamily: Fonts.regular, color: '#475569' },
+  locRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
+  locText: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#1e293b', maxWidth: 180 },
+  coins: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#fdf3e0', borderWidth: 1, borderColor: '#f6e2b8',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
   },
-  seeAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  seeAllTxt: {
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: Colors.primary,
-  },
-
-  // ── Header (original) ────────────────────────────────────────────────────
-  headerBg: {
-    backgroundColor: Colors.primaryLight,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    paddingTop: 8,
-  },
-  greetingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 20,
-  },
-  greetingText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-  },
-  userName: {
-    color: '#fff',
-    fontSize: 20,
-    fontFamily: Fonts.extraBold,
-  },
-  avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+  coinsText: { fontSize: 12.5, fontFamily: Fonts.extraBold, color: '#a86b06' },
+  avatar: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#c9ddf7',
+    justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-  avatarInitial: {
-    fontSize: 16,
-    fontFamily: Fonts.extraBold,
-    color: '#fff',
-  },
-  tabSearchWrapper: { marginTop: 4 },
-  tabsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    marginBottom: 8,
-    alignItems: 'flex-end',
-    justifyContent: 'space-evenly',
-  },
-  headerTab: {
-    position: 'relative',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    overflow: 'visible',
-    backgroundColor: Colors.background,
-  },
-  headerTabActive: {
-    position: 'relative',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    paddingBottom: 18,
-    marginBottom: -8,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    marginRight: 2,
-    overflow: 'visible',
-    backgroundColor: Colors.primary,
-    zIndex: 2,
-  },
-  headerTabText: {
-    color: Colors.text,
-    fontSize: 14,
-    fontFamily: Fonts.bold,
-  },
-  headerTabTextActive: {
-    color: '#fff',
-    fontFamily: Fonts.extraBold,
-  },
-  curveLeft: {
-    position: 'absolute', bottom: 0, left: -12,
-    width: 12, height: 12, backgroundColor: Colors.primary, overflow: 'hidden', zIndex: 1,
-  },
-  curveRight: {
-    position: 'absolute', bottom: 0, right: -12,
-    width: 12, height: 12, backgroundColor: Colors.primary, overflow: 'hidden', zIndex: 1,
-  },
-  curveInner: {
-    position: 'absolute', bottom: 0,
-    width: 24, height: 24, borderRadius: 12,
-  },
-  bluePanel: {
-    backgroundColor: Colors.primary,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 14,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f2f5',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 2,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    color: Colors.text,
-    height: 40,
-  },
-  catRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 6 },
-  categoryIconsRow: { marginTop: 14, marginBottom: 6 },
-  categoryIconsContent: { paddingHorizontal: 4 },
-  categoryIconItem: { alignItems: 'center', marginRight: 20 },
-  categoryIconCircle: {
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 4, padding: 10, borderRadius: 30,
-  },
-  categoryIconCircleActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  categoryEmoji: { fontSize: 18 },
-  categoryIconLabel: {
-    fontSize: 11, fontFamily: Fonts.medium, color: 'rgba(255,255,255,0.85)',
-  },
-  categoryIconLabelActive: { color: '#fff', fontFamily: Fonts.bold },
+  avatarInitial: { fontSize: 15, fontFamily: Fonts.extraBold, color: Colors.primary },
 
-  // ── Banner ───────────────────────────────────────────────────────────────
-  banner: {
-    height: 160,
-    marginHorizontal: 0,
-    overflow: 'hidden',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+  searchRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 12 },
+  searchBar: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9,
+    backgroundColor: '#fff', borderRadius: 13, paddingHorizontal: 13, height: 44,
   },
-  bannerBlobLeft: {
-    position: 'absolute',
-    top: -30,
-    left: -30,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  searchInput: { flex: 1, fontSize: 14, fontFamily: Fonts.regular, color: Colors.text, height: 44 },
+  shortcut: {
+    width: 74, backgroundColor: '#fff', borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center', gap: 2,
+  },
+  shortcutText: { fontSize: 10.5, fontFamily: Fonts.bold, color: '#4a5568' },
+
+  chipsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 13, paddingRight: 10 },
+  controlsWrap: { paddingBottom: 8, paddingLeft: 4 },
+  chipsContent: { paddingHorizontal: 14, alignItems: 'flex-end', gap: 18 },
+  chip: { alignItems: 'center', paddingBottom: 8 },
+  chipIcon: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 5,
+  },
+  chipIconOn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#bcd8fb' },
+  chipEmoji: { fontSize: 22 },
+  chipImg: { width: '100%', height: '100%', borderRadius: 14 },
+  chipLabel: { fontSize: 11, fontFamily: Fonts.medium, color: '#475569', maxWidth: 64, textAlign: 'center' },
+  chipLabelOn: { color: '#2E6BD0', fontFamily: Fonts.bold },
+  chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 5 },
+
+  // Promo banner
+  banner: {
+    height: 150, marginHorizontal: 16, marginTop: 16, borderRadius: 18,
+    overflow: 'hidden', justifyContent: 'center', paddingHorizontal: 18,
   },
   bannerBlobRight: {
-    position: 'absolute',
-    bottom: -40,
-    right: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    position: 'absolute', bottom: -40, right: -30,
+    width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  bannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  bannerContent: { maxWidth: '72%' },
+  bannerTitle: { color: '#fff', fontSize: 22, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
+  bannerSub: { color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontFamily: Fonts.medium, marginTop: 6 },
+  bannerCta: {
+    alignSelf: 'flex-start', marginTop: 12, backgroundColor: '#fff',
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9,
   },
-  bannerTitle: {
-    color: '#fff',
-    fontSize: 26,
-    fontFamily: Fonts.extraBold,
-    letterSpacing: 0.5,
-  },
-  bannerSubChip: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  bannerSubChipText: {
-    color: '#fff',
-    fontSize: 11,
-    fontFamily: Fonts.bold,
-  },
-  bannerFeeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  bannerFeeChip: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  bannerFeeChipMain: {
-    color: '#fff',
-    fontSize: 12,
-    fontFamily: Fonts.extraBold,
-  },
-  bannerFeeText: {
-    color: Colors.text,
-    fontSize: 10,
-    fontFamily: Fonts.semiBold,
-  },
+  bannerCtaText: { color: Colors.primary, fontSize: 12.5, fontFamily: Fonts.extraBold },
 
-  // ── Product Grid ─────────────────────────────────────────────────────────
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 4,
-    gap: 12,
+  // Section
+  sec: { marginTop: 6 },
+  secHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, marginTop: 18, marginBottom: 2,
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginBottom: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  cardImageBox: {
-    height: 148,
-    backgroundColor: '#0f172a',
-    position: 'relative',
-  },
-  cardImageFallback: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1e293b',
-  },
-  cardImageLetter: {
-    fontSize: 32,
-    fontFamily: Fonts.extraBold,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  discountBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: Colors.primaryLight10,
-    borderColor: Colors.primary,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  discountBadgeText: {
-    color: Colors.primary,
-    fontSize: 10,
-    fontFamily: Fonts.extraBold,
-  },
-  stockBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  stockBadgeText: {
-    color: '#92400e',
-    fontSize: 10,
-    fontFamily: Fonts.bold,
-  },
-  cardBody: {
-    padding: 10,
-  },
-  cardTitle: {
-    fontSize: 13,
-    fontFamily: Fonts.bold,
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  cardDesc: {
-    fontSize: 11,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-    lineHeight: 14,
-    minHeight: 28,
-    marginBottom: 4,
-  },
-  cardRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
-  },
-  cardRating: {
-    fontSize: 11,
-    fontFamily: Fonts.bold,
-    color: Colors.text,
-  },
-  cardReviewCount: {
-    fontSize: 10,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-  },
-  cardPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    marginBottom: 6,
-  },
-  cardPrice: {
-    fontSize: 14,
-    fontFamily: Fonts.extraBold,
-    color: Colors.text,
-  },
-  cardPriceStrike: {
-    fontSize: 11,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-    textDecorationLine: 'line-through',
-  },
-  coinsPill: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primaryLight10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  coinsPillText: {
-    fontSize: 10,
-    fontFamily: Fonts.bold,
-    color: Colors.primary,
-  },
-  buyBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  buyBtnText: {
-    color: '#fff',
-    fontSize: 12,
-    fontFamily: Fonts.bold,
-  },
+  secTitle: { fontSize: 17, fontFamily: Fonts.extraBold, color: Colors.text },
+  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  seeAllText: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.primary },
+  rail: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, gap: 12 },
 
-  // ── Empty state ──────────────────────────────────────────────────────────
-  empty: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+  // Grid (listing mode)
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+
+  // Product card
+  card: { backgroundColor: 'transparent' },
+  thumb: {
+    height: 132, borderRadius: 13, backgroundColor: '#f4f7fc',
+    borderWidth: 1, borderColor: '#eef2f7', position: 'relative', overflow: 'visible',
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.semiBold,
-    color: '#94a3b8',
-    marginBottom: 4,
+  thumbFallback: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#eef2f7', borderRadius: 13 },
+  thumbLetter: { fontSize: 34, fontFamily: Fonts.extraBold, color: '#b8c4d6' },
+  flag: {
+    position: 'absolute', left: 0, top: 9, backgroundColor: '#fdeede',
+    paddingHorizontal: 7, paddingVertical: 2, borderTopRightRadius: 6, borderBottomRightRadius: 6,
   },
-  emptySub: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: '#cbd5e1',
-    textAlign: 'center',
+  flagText: { fontSize: 9, fontFamily: Fonts.extraBold, color: '#a15a1e', textTransform: 'uppercase', letterSpacing: 0.4 },
+  add: {
+    position: 'absolute', right: 8, bottom: -13,
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: Colors.primary, borderRadius: 10,
+    paddingHorizontal: 16, paddingVertical: 6,
+    shadowColor: Colors.primary, shadowOpacity: 0.15, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, elevation: 2,
   },
+  addText: { fontSize: 12.5, fontFamily: Fonts.extraBold, color: Colors.primary, letterSpacing: 0.5 },
+  pricePill: {
+    alignSelf: 'flex-start', marginTop: 20,
+    backgroundColor: Colors.success, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  pricePillText: { color: '#fff', fontSize: 12.5, fontFamily: Fonts.extraBold },
+  name: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: '#28303c', marginTop: 6, lineHeight: 16, minHeight: 32 },
+  qty: { fontSize: 11.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+  earn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginTop: 7,
+    backgroundColor: '#fdf3e0', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5,
+  },
+  earnText: { fontSize: 10.5, fontFamily: Fonts.extraBold, color: '#a86b06' },
+
+  // Empty
+  empty: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 16, fontFamily: Fonts.semiBold, color: '#94a3b8', marginBottom: 4 },
+  emptySub: { fontSize: 13, fontFamily: Fonts.regular, color: '#cbd5e1', textAlign: 'center' },
 });
