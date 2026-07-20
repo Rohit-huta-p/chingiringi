@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { Colors } from '../constants/theme';
-import type { Store } from '../data/offlineStores';
+import type { Store } from '../api/stores';
 
 type Props = {
   store: Store;
