@@ -22,6 +22,7 @@ import couponRoutes from './modules/coupons/couponRoutes.js';
 import productRoutes from './modules/products/productRoutes.js';
 import clickRoutes from './modules/clicks/clickRoutes.js';
 import notificationRoutes from './modules/notifications/notificationRoutes.js';
+import storeRoutes from './modules/stores/storeRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -92,6 +93,7 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/clicks', clickRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/stores', storeRoutes);
 
 // Unhandled routes
 app.all('*', notFound);

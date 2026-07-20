@@ -15,6 +15,7 @@ import { getSettings, updateSettings } from './adminSettingsController.js';
 import { couponAdminRouter } from '../coupons/couponRoutes.js';
 import { getAdminBanners } from '../banners/bannerController.js';
 import { getAllProductsAdmin } from '../products/productController.js';
+import { getAllStoresAdmin } from '../stores/storeController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
 
@@ -27,6 +28,7 @@ router.get('/dashboard', getDashboardStats);
 router.get('/users', getUsers);
 router.get('/deals', getAllDeals);
 router.get('/products', getAllProductsAdmin);
+router.get('/stores', getAllStoresAdmin);
 
 // Banners (admin — returns all including inactive)
 router.get('/banners', getAdminBanners);
