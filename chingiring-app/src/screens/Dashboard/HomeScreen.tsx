@@ -547,7 +547,7 @@ function MoreToExploreSection({
       title="More to Explore"
       startIdx={15}
       containerWidth={containerWidth}
-      cols={6}
+      cols={containerWidth < 520 ? 2 : 6}
       onProductPress={onPress}
       onSeeAll={onSeeAll}
       hasFilter={hasFilter}
@@ -774,10 +774,16 @@ export const HomeScreen = () => {
   const [controls, setControls] = useState(DEFAULT_CONTROLS);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Approx content area width after sidebar + padding
-  const sidebarW = 250;
-  const horizPad = 32 * 2;
-  const contentW = Math.max(900, width - sidebarW - horizPad);
+  // Content width adapts to the viewport. Wide desktop has a 250px left sidebar;
+  // narrow / mobile-view has none (bottom-tab layout), so don't force a 900px
+  // floor — that overflowed the viewport and pushed the header off-screen.
+  const isNarrow = width < 820;
+  const sidebarW = isNarrow ? 0 : 250;
+  const horizPad = isNarrow ? 24 : 32 * 2;
+  const contentW = isNarrow
+    ? width - horizPad
+    : Math.max(900, width - sidebarW - horizPad);
+  const gridCols = isNarrow ? 2 : 6;
 
   // Fetch all products (paginated from server, default page size)
   const { data: productsData, isLoading: productsLoading } = useQuery({
@@ -915,7 +921,7 @@ export const HomeScreen = () => {
             count={listingProducts.length ? `${listingProducts.length} items` : undefined}
             startIdx={0}
             containerWidth={contentW}
-            cols={6}
+            cols={gridCols}
             onProductPress={onProductPress}
             onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
             hasFilter={hasFilter}
@@ -945,7 +951,7 @@ export const HomeScreen = () => {
                       count={`${catProducts.length} item${catProducts.length === 1 ? '' : 's'}`}
                       startIdx={0}
                       containerWidth={contentW}
-                      cols={6}
+                      cols={gridCols}
                       onProductPress={onProductPress}
                       onSeeAll={() => goToCategory(cat.name)}
                       hasFilter={false}
@@ -963,7 +969,7 @@ export const HomeScreen = () => {
                 title="New Arrivals"
                 startIdx={6}
                 containerWidth={contentW}
-                cols={6}
+                cols={gridCols}
                 onProductPress={onProductPress}
                 onSeeAll={() => goToCategory('All')}
                 hasFilter={hasFilter}
