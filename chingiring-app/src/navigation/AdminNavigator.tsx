@@ -8,12 +8,14 @@ import { MobileAdminDashboard } from '../screens/Admin/MobileAdminDashboard';
 import { MobileAdminDeals } from '../screens/Admin/MobileAdminDeals';
 import { MobileAdminWithdrawals } from '../screens/Admin/MobileAdminWithdrawals';
 import { MobileAdminProducts } from '../screens/Admin/MobileAdminProducts';
+import { MobileAdminStores } from '../screens/Admin/MobileAdminStores';
 import { MobileAdminBanners } from '../screens/Admin/MobileAdminBanners';
 import { MobileAdminCoupons } from '../screens/Admin/MobileAdminCoupons';
 import { MobileAdminCouponUsage } from '../screens/Admin/MobileAdminCouponUsage';
 import { createAdminPlaceholder } from '../screens/Admin/AdminPlaceholderScreen';
 import { AdminDealsScreen } from '../screens/Admin/AdminDealsScreen';
 import { AdminProductsScreen } from '../screens/Admin/AdminProductsScreen';
+import { AdminStoresScreen } from '../screens/Admin/AdminStoresScreen';
 import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen';
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
@@ -44,6 +46,7 @@ function MobileAdminNavigator() {
       <Stack.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
       <Stack.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
+      <Stack.Screen name="AdminStores" component={isMobile ? MobileAdminStores : AdminStoresScreen} options={{ headerShown: !isMobile, title: 'Offline Stores' }} />
       <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
       <Stack.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />
       <Stack.Screen name="AdminBanners" component={isMobile ? MobileAdminBanners : AdminBannersScreen} options={{ headerShown: !isMobile, title: 'Banners' }} />

@@ -44,6 +44,7 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       AdminWithdrawals: 'admin/withdrawals',
       AdminUsers:       'admin/users',
       AdminAllProducts: 'admin/products',
+      AdminStores:      'admin/stores',
       AdminOrders:      'admin/orders',
       AdminInventory:   'admin/inventory',
       AdminBanners:     'admin/banners',

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import {
-  LayoutDashboard, Wallet, Users, Package,
+  LayoutDashboard, Wallet, Users, Package, Store,
   Grid3X3, ClipboardList, Warehouse, Image as ImageIcon, Ticket,
   LogOut, ChevronDown, ChevronUp, X, Coins,
 } from 'lucide-react-native';
@@ -25,6 +25,7 @@ const ADMIN_NAV = [
       { key: 'AdminInventory', label: 'Inventory' },
     ],
   },
+  { key: 'AdminStores', label: 'Offline Stores', icon: Store },
   { key: 'AdminBanners', label: 'Banners', icon: ImageIcon },
   { key: 'AdminCoupons', label: 'Coupons', icon: Ticket },
 ];
