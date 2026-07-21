@@ -27,9 +27,17 @@ const productSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Primary/cover image. Kept as the single source every card surface reads
+    // (home grid, category grid, admin lists). Always mirrors images[0].
     imageUrl: {
       type: String,
       default: '',
+    },
+    // Full image gallery (cover first). Additive — imageUrl above stays the
+    // cover for backward compatibility with every surface reading .imageUrl.
+    images: {
+      type: [String],
+      default: [],
     },
     // Outbound buy / affiliate link. Optional — a product with no URL is
     // display-only and its "Buy Now" shows a "coming soon" message. When set,

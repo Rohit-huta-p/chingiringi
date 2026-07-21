@@ -8,14 +8,19 @@ import {
   Image,
   Linking,
   Alert,
+  Share,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import {
   ArrowLeft, Share2, Clock, Percent, Lock, CheckCircle, Star, PencilLine,
-  Minus, Plus, Truck, RefreshCcw, ShieldCheck, Award,
+  Minus, Plus, Award,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { reviewsAPI, toUiReview } from '../../api/reviews';
+import { WriteReviewModal } from '../../components/WriteReviewModal';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
@@ -92,48 +97,120 @@ const PLACEHOLDER_REVIEWS: Review[] = [
 function ProductDetailMobile({
   product,
   onBack,
+  onShare,
   onShopNow,
+  reviews,
+  reviewCount,
+  averageRating,
+  onWriteReview,
 }: {
   product: any;
   onBack: () => void;
+  onShare: () => void;
   onShopNow: () => void;
+  reviews: any[];
+  reviewCount: number;
+  averageRating: number;
+  onWriteReview: () => void;
 }) {
+  const { width: winW } = useWindowDimensions();
   const [quantity, setQuantity] = React.useState(1);
+  const [imgIndex, setImgIndex] = React.useState(0);
 
   const name        = product?.name ?? 'Product';
-  const description = product?.description ?? '';
   const imageUrl    = product?.imageUrl;
+  // Gallery, cover first. Falls back to the single imageUrl for products
+  // created before multi-image, and to [] when there's no image at all.
+  const gallery: string[] =
+    product?.images?.length ? product.images : (imageUrl ? [imageUrl] : []);
   const price       = Number(product?.price ?? 0);
   const coinsPrice  = Number(product?.coinsPrice ?? 0);
   const stock       = Number(product?.stock ?? 0);
   const sold        = Number(product?.sold ?? 0);
+  const category    = String(product?.category ?? '').trim();
+  const description = String(product?.description ?? '').trim();
+
+  // Hero pages are inset by the 16px heroBox margin on each side.
+  const pageW = Math.max(1, winW - 32);
 
   const fmtPrice = (n: number) => `₹${(n * quantity).toLocaleString('en-IN')}`;
+
+  // Stock availability badge — green (in stock) / amber (low) / red (out).
+  const stockBadge =
+    stock <= 0
+      ? { label: 'Out of stock', fg: '#b91c1c', bg: '#fef2f2', dot: '#ef4444' }
+      : stock <= 5
+      ? { label: `Only ${stock} left`, fg: '#b45309', bg: '#fffbeb', dot: '#f59e0b' }
+      : { label: 'In stock', fg: '#15803d', bg: '#f0fdf4', dot: '#22c55e' };
 
   return (
     <View style={pStyles.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* ── Hero image with back button ─────────────────────── */}
+        {/* ── Hero carousel with back + share ─────────────────── */}
         <View style={pStyles.heroBox}>
-          {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={pStyles.heroImg} resizeMode="cover" />
+          {gallery.length > 0 ? (
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={gallery.length > 1}
+              onMomentumScrollEnd={(e) =>
+                setImgIndex(Math.round(e.nativeEvent.contentOffset.x / pageW))
+              }
+            >
+              {gallery.map((uri, i) => (
+                <Image
+                  key={`${uri}-${i}`}
+                  source={{ uri }}
+                  style={{ width: pageW, height: '100%' }}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
           ) : (
             <View style={pStyles.heroPlaceholder}>
               <Text style={pStyles.heroPlaceholderLetter}>{name[0] ?? '?'}</Text>
             </View>
           )}
+
           <TouchableOpacity style={pStyles.backBtn} onPress={onBack}>
             <ArrowLeft size={20} color={Colors.text} strokeWidth={2} />
           </TouchableOpacity>
+
+          <TouchableOpacity style={pStyles.shareBtn} onPress={onShare}>
+            <Share2 size={18} color={Colors.text} strokeWidth={2} />
+          </TouchableOpacity>
+
+          {gallery.length > 1 ? (
+            <View style={pStyles.dots}>
+              {gallery.map((_, i) => (
+                <View key={i} style={[pStyles.dot, i === imgIndex && pStyles.dotActive]} />
+              ))}
+            </View>
+          ) : null}
         </View>
 
         <View style={pStyles.body}>
-          {/* Rating row — backend has no rating field yet. Hidden until schema adds it.
-              TODO(schema): show <Star/> 4.5 · 128 reviews when product.rating exists. */}
-
           <Text style={pStyles.title} numberOfLines={2}>{name}</Text>
-          {description ? (
-            <Text style={pStyles.description} numberOfLines={3}>{description}</Text>
+
+          {/* Rating summary (from reviews averageRating) + category chip */}
+          {(averageRating > 0 && reviewCount > 0) || category ? (
+            <View style={pStyles.metaRow}>
+              {averageRating > 0 && reviewCount > 0 ? (
+                <View style={pStyles.ratingPill}>
+                  <Star size={13} color="#f59e0b" fill="#f59e0b" strokeWidth={2} />
+                  <Text style={pStyles.ratingValue}>{averageRating.toFixed(1)}</Text>
+                  <Text style={pStyles.ratingCount}>
+                    · {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                  </Text>
+                </View>
+              ) : null}
+              {category ? (
+                <View style={pStyles.categoryChip}>
+                  <Text style={pStyles.categoryChipText}>{category}</Text>
+                </View>
+              ) : null}
+            </View>
           ) : null}
 
           {/* Price + quantity stepper */}
@@ -161,45 +238,15 @@ function ProductDetailMobile({
             </View>
           </View>
 
-          {/* Color picker — no variants field on Product model. Hidden.
-              TODO(schema): render color swatches when product.variants exists. */}
-
-          {/* 3-card stat row: stock | sold | coins */}
-          <View style={pStyles.statsRow}>
-            <View style={pStyles.statCard}>
-              <Text style={pStyles.statLabel}>STOCK</Text>
-              <Text style={pStyles.statValue}>{stock} units</Text>
+          {/* Availability badge + social proof */}
+          <View style={pStyles.availRow}>
+            <View style={[pStyles.stockBadge, { backgroundColor: stockBadge.bg }]}>
+              <View style={[pStyles.stockDot, { backgroundColor: stockBadge.dot }]} />
+              <Text style={[pStyles.stockText, { color: stockBadge.fg }]}>{stockBadge.label}</Text>
             </View>
-            <View style={pStyles.statCard}>
-              <Text style={pStyles.statLabel}>SOLD</Text>
-              <Text style={pStyles.statValue}>{sold}+</Text>
-            </View>
-            <View style={pStyles.statCard}>
-              <Text style={pStyles.statLabel}>COINS</Text>
-              <Text style={pStyles.statValue}>{coinsPrice.toLocaleString('en-IN')}</Text>
-            </View>
-          </View>
-
-          {/* Static promise badges — no backend data needed */}
-          <View style={pStyles.promiseRow}>
-            <View style={pStyles.promiseItem}>
-              <View style={pStyles.promiseIcon}>
-                <Truck size={16} color={Colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={pStyles.promiseLabel}>Free Delivery</Text>
-            </View>
-            <View style={pStyles.promiseItem}>
-              <View style={pStyles.promiseIcon}>
-                <RefreshCcw size={16} color={Colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={pStyles.promiseLabel}>Easy Returns</Text>
-            </View>
-            <View style={pStyles.promiseItem}>
-              <View style={pStyles.promiseIcon}>
-                <ShieldCheck size={16} color={Colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={pStyles.promiseLabel}>Secure Pay</Text>
-            </View>
+            {sold > 0 ? (
+              <Text style={pStyles.soldText}>🔥 {sold.toLocaleString('en-IN')}+ bought</Text>
+            ) : null}
           </View>
 
           {/* Loyalty Reward card — derived from coinsPrice */}
@@ -216,6 +263,68 @@ function ProductDetailMobile({
               </View>
             </View>
           ) : null}
+
+          {/* About this item — renders the description product mode previously
+              dropped. Hidden when the product has no description. */}
+          {description ? (
+            <View style={pStyles.aboutSection}>
+              <Text style={pStyles.aboutHeader}>About this item</Text>
+              <Text style={pStyles.aboutText}>{description}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* ── Reviews ─────────────────────────────────────── */}
+        <View style={styles.reviewsSection}>
+          <View style={styles.reviewsHeader}>
+            <Text style={styles.reviewsTitle}>
+              Reviews <Text style={styles.reviewsCount}>({reviewCount})</Text>
+            </Text>
+            <TouchableOpacity style={styles.writeReviewBtn} activeOpacity={0.85} onPress={onWriteReview}>
+              <PencilLine size={14} color={Colors.primary} strokeWidth={2.2} />
+              <Text style={styles.writeReviewText}>Write Review</Text>
+            </TouchableOpacity>
+          </View>
+
+          {reviews.length === 0 ? (
+            <Text style={{ color: Colors.textSecondary, fontSize: 13, paddingHorizontal: 16, paddingBottom: 8 }}>
+              No reviews yet. Be the first to write one!
+            </Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.reviewsScroll}
+            >
+              {reviews.map((r) => (
+                <View key={r._id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <View style={[styles.reviewAvatar, { backgroundColor: r.initialBg }]}>
+                      <Text style={styles.reviewAvatarText}>{r.initial}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reviewAuthor} numberOfLines={1}>{r.author}</Text>
+                      <View style={styles.reviewStars}>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            size={11}
+                            color="#f59e0b"
+                            fill={i < r.rating ? '#f59e0b' : 'transparent'}
+                            strokeWidth={2}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                  <Text style={styles.reviewBody} numberOfLines={4}>{r.body}</Text>
+                  {r.daysAgo != null ? (
+                    <Text style={styles.reviewMeta}>{r.daysAgo}d ago</Text>
+                  ) : null}
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
       </ScrollView>
 
@@ -261,7 +370,50 @@ export const MobileProductDetailScreen = () => {
     fetchedProductResponse?.data ||
     passedProduct;
 
+  // Reviews — real data from the API (product mode only).
+  const reviewProductId = productForView?._id || productId;
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+  const queryClient = useQueryClient();
+  const { data: reviewsRes } = useQuery({
+    queryKey: ['reviews', reviewProductId],
+    queryFn: () => reviewsAPI.getProductReviews(reviewProductId),
+    enabled: !!reviewProductId && reviewProductId !== 'sample',
+  });
+  const reviews = (reviewsRes?.data?.reviews ?? []).map(toUiReview);
+  const reviewCount = reviewsRes?.data?.count ?? reviews.length;
+  const averageRating = Number(reviewsRes?.data?.averageRating ?? 0);
+  const submitReview = async (rating: number, text: string) => {
+    await reviewsAPI.createReview(reviewProductId, { rating, text });
+    queryClient.invalidateQueries({ queryKey: ['reviews', reviewProductId] });
+    setReviewOpen(false);
+  };
+
   if (isProductMode) {
+    // Share the product — native share sheet; web falls back to the Web Share
+    // API, then clipboard. Includes the buy link when the product has one.
+    const handleShareProduct = async () => {
+      const shareTitle = productForView?.name || 'Check out this product';
+      const shareUrl = productForView?.affiliateUrl || '';
+      const message = shareUrl ? `${shareTitle}\n${shareUrl}` : shareTitle;
+      try {
+        if (Platform.OS === 'web') {
+          const nav: any = (globalThis as any).navigator;
+          if (nav?.share) {
+            await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined });
+            return;
+          }
+          if (nav?.clipboard?.writeText) {
+            await nav.clipboard.writeText(message);
+            Alert.alert('Link copied', 'Product link copied to your clipboard.');
+            return;
+          }
+        }
+        await Share.share({ message, title: shareTitle });
+      } catch {
+        /* user dismissed the share sheet, or sharing is unsupported */
+      }
+    };
+
     // Product "Shop Now": open the product's buy link (subid-tracked, same as
     // deals) when present; otherwise the product is display-only.
     const handleBuyProduct = async () => {
@@ -290,11 +442,23 @@ export const MobileProductDetailScreen = () => {
       }
     };
     return (
-      <ProductDetailMobile
-        product={productForView}
-        onBack={() => navigation.goBack()}
-        onShopNow={handleBuyProduct}
-      />
+      <>
+        <ProductDetailMobile
+          product={productForView}
+          onBack={() => navigation.goBack()}
+          onShare={handleShareProduct}
+          onShopNow={handleBuyProduct}
+          reviews={reviews}
+          reviewCount={reviewCount}
+          averageRating={averageRating}
+          onWriteReview={() => setReviewOpen(true)}
+        />
+        <WriteReviewModal
+          visible={reviewOpen}
+          onClose={() => setReviewOpen(false)}
+          onSubmit={submitReview}
+        />
+      </>
     );
   }
 
@@ -873,6 +1037,65 @@ const pStyles = StyleSheet.create({
   },
   loyaltyTitle: { fontSize: 12, fontWeight: '700', color: '#92400e', marginBottom: 2 },
   loyaltyAmount: { fontSize: 15, fontWeight: '800', color: '#92400e' },
+
+  // Share button (mirrors the back button)
+  shareBtn: {
+    position: 'absolute', top: 12, right: 12,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
+    elevation: 3,
+  },
+
+  // Carousel dots
+  dots: {
+    position: 'absolute', bottom: 10, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'center', gap: 6,
+  },
+  dot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+  },
+  dotActive: { width: 18, backgroundColor: '#fff' },
+
+  // Rating + category meta row
+  metaRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: 14, flexWrap: 'wrap',
+  },
+  ratingPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#fffbeb', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderColor: '#fde68a',
+  },
+  ratingValue: { fontSize: 13, fontWeight: '800', color: '#b45309' },
+  ratingCount: { fontSize: 12, fontWeight: '600', color: '#a16207' },
+  categoryChip: {
+    backgroundColor: '#eff6ff', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: '#dbeafe',
+  },
+  categoryChipText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+
+  // Availability + social proof
+  availRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginBottom: 16, flexWrap: 'wrap',
+  },
+  stockBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+  },
+  stockDot: { width: 7, height: 7, borderRadius: 4 },
+  stockText: { fontSize: 12, fontWeight: '700' },
+  soldText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+
+  // About this item
+  aboutSection: { marginTop: 18 },
+  aboutHeader: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  aboutText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21 },
 
   // Sticky CTA
   ctaBar: {

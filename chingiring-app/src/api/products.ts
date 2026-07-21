@@ -7,7 +7,8 @@ export interface Product {
   category: string;
   price: number;
   coinsPrice: number;
-  imageUrl: string;
+  imageUrl: string;    // cover image (mirrors images[0])
+  images?: string[];   // full gallery, cover first
   stock: number;
   sold: number;
   isActive: boolean;

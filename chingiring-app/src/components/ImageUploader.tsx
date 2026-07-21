@@ -1,24 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Platform,
-  ActivityIndicator, Alert,
+  ActivityIndicator,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { Upload, X, Link2, AlertCircle } from 'lucide-react-native';
 import { Colors } from '../constants/theme';
-
-// Web File (browser picker) or an RN file descriptor from expo-image-picker.
-type CloudFile = File | { uri: string; name: string; type: string };
-
-// ─── Cloudinary config ──────────────────────────────────────────────────────
-// Pulled from .env at build time via EXPO_PUBLIC_ prefix. Setup steps live
-// in the project's .env file.
-
-const CLOUD_NAME    = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ?? '';
-const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? '';
-const UPLOAD_URL    = CLOUD_NAME
-  ? `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`
-  : '';
+import { useImageUpload } from './useImageUpload';
 
 interface Props {
   /** Current image URL (passed in by the parent form). */
@@ -34,118 +21,20 @@ interface Props {
 }
 
 /**
- * Shared image picker → Cloudinary uploader → URL string.
- *
- * Web: opens a native file picker (no extra deps).
- * Native: falls back to a plain text URL input — `expo-image-picker` is not
- *         yet installed. Drop-in when added: replace the native branch with
- *         `ImagePicker.launchImageLibraryAsync()` and feed the resulting
- *         `uri` into uploadFile().
- *
- * On migrating to AWS S3 later: swap uploadToCloudinary() for an S3 signed
- * PUT. The component API (`value` / `onChange`) stays the same.
+ * Single-image picker → Cloudinary → URL string. Picker + upload logic lives
+ * in the shared `useImageUpload` hook (also powers MultiImageUploader), so
+ * behaviour stays identical across both. The `value` / `onChange` API is
+ * unchanged — all existing consumers keep working.
  */
 export const ImageUploader: React.FC<Props> = ({
   value, onChange, label, folder, disabled,
 }) => {
-  const [uploading, setUploading] = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { uploading, error, isConfigured, pick } = useImageUpload(folder);
 
-  const isConfigured = !!CLOUD_NAME && !!UPLOAD_PRESET;
-
-  // ── Upload helper (Cloudinary unsigned preset) ─────────────────────────
-  const uploadToCloudinary = async (file: CloudFile): Promise<string> => {
-    if (!isConfigured) {
-      throw new Error(
-        'Cloudinary is not configured. Set EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ' +
-        'and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env.',
-      );
-    }
-    const fd = new FormData();
-    fd.append('file', file as any);
-    fd.append('upload_preset', UPLOAD_PRESET);
-    if (folder) fd.append('folder', folder);
-
-    const res = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Cloudinary upload failed (${res.status}): ${text.slice(0, 120)}`);
-    }
-    const json = await res.json();
-    if (!json.secure_url) throw new Error('Cloudinary returned no secure_url');
-    return json.secure_url as string;
-  };
-
-  // ── Native photo picker (iOS / Android) → Cloudinary ───────────────────
-  const openNativePicker = async () => {
-    if (!isConfigured) {
-      Alert.alert('Upload unavailable', 'Cloudinary is not configured. Paste an image URL instead.');
-      setShowUrlInput(true);
-      return;
-    }
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow photo library access to upload an image.');
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        quality: 0.85,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-
-      const asset = result.assets[0];
-      const uri = asset.uri;
-      const name = asset.fileName ?? uri.split('/').pop() ?? `image_${Date.now()}.jpg`;
-      const ext = (name.split('.').pop() ?? 'jpg').toLowerCase();
-      const type = asset.mimeType ?? `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-      await handleFile({ uri, name, type });
-    } catch (e: any) {
-      setError(e?.message ?? 'Could not open photo library');
-    }
-  };
-
-  // Web taps open the file picker; native taps open the photo library.
-  const handlePickPress = () => {
-    if (Platform.OS === 'web') openFilePicker();
-    else openNativePicker();
-  };
-
-  // ── Web file picker ────────────────────────────────────────────────────
-  const openFilePicker = () => {
-    if (Platform.OS !== 'web') return;
-    if (!fileInputRef.current) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.style.display = 'none';
-      input.addEventListener('change', async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (!file) return;
-        await handleFile(file);
-      });
-      document.body.appendChild(input);
-      fileInputRef.current = input;
-    }
-    fileInputRef.current.value = ''; // allow re-selecting same file
-    fileInputRef.current.click();
-  };
-
-  const handleFile = async (file: CloudFile) => {
-    setError(null);
-    setUploading(true);
-    try {
-      const url = await uploadToCloudinary(file);
-      onChange(url);
-    } catch (e: any) {
-      setError(e?.message ?? 'Upload failed');
-    } finally {
-      setUploading(false);
-    }
-  };
+  // Web taps open the file picker; native taps open the photo library. Either
+  // way the uploaded URL replaces the current value.
+  const handlePickPress = () => pick((url) => onChange(url));
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
