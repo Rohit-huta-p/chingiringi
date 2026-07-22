@@ -109,14 +109,17 @@ const bannerSchema = new mongoose.Schema(
 // Keep the slot and legacy position loosely in sync. If a caller only set `slot`
 // we derive a sensible legacy `position` so old clients querying by position
 // keep receiving data.
-bannerSchema.pre('save', function (next) {
-  if (this.slot && (!this.position || this.position === 'hero' && this.slot !== 'hero')) {
+// Synchronous pre-save hook — no `next` callback. The previous `function(next)`
+// form threw "next is not a function" (Mongoose isn't passing a next here), which
+// made every Banner.create() fail. A sync hook with no `next` param is the
+// modern, robust pattern: Mongoose continues once it returns.
+bannerSchema.pre('save', function () {
+  if (this.slot && (!this.position || (this.position === 'hero' && this.slot !== 'hero'))) {
     if (this.slot === 'hero') this.position = 'hero';
     else if (this.slot.startsWith('dual-')) this.position = 'inline';
     else if (this.slot.startsWith('inline-')) this.position = 'inline';
     else this.position = 'inline';
   }
-  next();
 });
 
 bannerSchema.index({ isActive: 1, slot: 1, sortOrder: 1 });

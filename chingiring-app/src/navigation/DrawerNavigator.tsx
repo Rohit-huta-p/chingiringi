@@ -33,7 +33,11 @@ import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 import { AboutScreen } from '../screens/Dashboard/AboutScreen';
 import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 
-const isMobile = Platform.OS !== 'web';
+// `isMobile` is derived from the viewport width inside each navigator component
+// below (not a static const), so the WEB app switches to the mobile screens at
+// the sm breakpoint — narrow desktop / mobile-view gets the exact mobile UI.
+const MOBILE_BREAKPOINT = 768;
+const computeIsMobile = (width: number) => Platform.OS !== 'web' || width < MOBILE_BREAKPOINT;
 
 // Lazy-load the desktop drawer navigator so react-native-reanimated
 // is never imported on mobile (Expo Go doesn't bundle the right native version)
@@ -138,6 +142,8 @@ const WEB_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
 
 function BottomTabNavigator() {
   const unreadCount = useUnreadCount();
+  const { width } = useWindowDimensions();
+  const isMobile = computeIsMobile(width);
 
   if (isMobile) {
     // Tab order matters — Home is centre tab so the raised pill sits in the
@@ -326,6 +332,8 @@ const tabStyles = StyleSheet.create({
 // ─── Mobile: Root Stack wrapping Bottom Tabs + detail screens ────────────────
 
 function MobileNavigator() {
+  const { width } = useWindowDimensions();
+  const isMobile = computeIsMobile(width);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.primaryLight }} edges={['top', 'left', 'right']}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -358,8 +366,9 @@ export default function ResponsiveNavigator() {
   const { width } = useWindowDimensions();
 
   // On native platforms (iOS/Android), always use mobile navigator
-  // to avoid loading react-native-reanimated which causes TurboModule errors in Expo Go
-  if (Platform.OS !== 'web' || width < 768) {
+  // to avoid loading react-native-reanimated which causes TurboModule errors in Expo Go.
+  // On web, switch to the mobile navigator below the sm breakpoint.
+  if (computeIsMobile(width)) {
     return <MobileNavigator />;
   }
 

@@ -28,6 +28,8 @@ export interface Category {
   name: string;
   slug: string;
   icon: string;
+  /** Optional category tile image (Cloudinary URL). Falls back to an emoji when empty. */
+  imageUrl?: string;
   isActive: boolean;
   sortOrder: number;
   /** Admin-toggled — hide this category from the user Deals page. Default true. */

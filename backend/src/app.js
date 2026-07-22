@@ -20,8 +20,10 @@ import addressRoutes from './modules/addresses/addressRoutes.js';
 import adminRoutes from './modules/admin/adminRoutes.js';
 import couponRoutes from './modules/coupons/couponRoutes.js';
 import productRoutes from './modules/products/productRoutes.js';
+import reviewRoutes from './modules/reviews/reviewRoutes.js';
 import clickRoutes from './modules/clicks/clickRoutes.js';
 import notificationRoutes from './modules/notifications/notificationRoutes.js';
+import storeRoutes from './modules/stores/storeRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -90,8 +92,10 @@ app.use('/api/addresses', addressRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/products', reviewRoutes);
 app.use('/api/clicks', clickRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/stores', storeRoutes);
 
 // Unhandled routes
 app.all('*', notFound);

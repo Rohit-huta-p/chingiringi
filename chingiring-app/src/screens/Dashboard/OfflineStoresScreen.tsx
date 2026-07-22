@@ -8,13 +8,14 @@ import {
   Pressable,
   useWindowDimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Search,
   MapPin,
   Map as MapIcon,
   List,
-  Coins,
+  Tag,
   Star,
   Navigation,
   Clock,
@@ -23,18 +24,20 @@ import {
   Plus,
   Minus,
 } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Colors, Fonts } from '../../constants/theme';
 import { StoreMap } from '../../components/StoreMap';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { useAuthStore } from '../../store';
+import { storesAPI, type Store } from '../../api/stores';
+import { haversineKm } from '../../utils/geo';
 import {
-  MOCK_STORES,
+  BENGALURU_CENTER,
   STORE_CATEGORIES,
-  type Store,
   type StoreCategory,
 } from '../../data/offlineStores';
 
-type SortKey = 'near' | 'coins' | 'rating';
+type SortKey = 'near' | 'discount' | 'rating';
 type ViewMode = 'list' | 'map';
 
 const PRIMARY = Colors.primary;
@@ -50,8 +53,21 @@ export const OfflineStoresScreen: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('map');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const { data, isLoading } = useQuery({
+    queryKey: ['stores'],
+    queryFn: () => storesAPI.list({ limit: 50 }),
+  });
+
+  const stores: Store[] = useMemo(() => {
+    const list = (data?.data?.stores ?? []) as Store[];
+    return list.map((s) => ({
+      ...s,
+      distanceKm: haversineKm(BENGALURU_CENTER, { lat: s.lat, lng: s.lng }),
+    }));
+  }, [data]);
+
   const filtered = useMemo(() => {
-    let list = [...MOCK_STORES];
+    let list = [...stores];
     if (activeCategory !== 'All') {
       list = list.filter((s) => s.category === activeCategory);
     }
@@ -64,11 +80,11 @@ export const OfflineStoresScreen: React.FC = () => {
           s.address.toLowerCase().includes(q),
       );
     }
-    if (sort === 'near') list.sort((a, b) => a.distanceKm - b.distanceKm);
-    if (sort === 'coins') list.sort((a, b) => b.coins - a.coins);
+    if (sort === 'near') list.sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+    if (sort === 'discount') list.sort((a, b) => b.userDiscountPercent - a.userDiscountPercent);
     if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
     return list;
-  }, [search, activeCategory, sort]);
+  }, [stores, search, activeCategory, sort]);
 
   const openCount = filtered.filter((s) => s.isOpen).length;
   const showMap = !isNarrow || viewMode === 'map';
@@ -146,9 +162,9 @@ export const OfflineStoresScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.sortGroup}
             >
-              <SortPill label="Near"   icon={Navigation} active={sort === 'near'}   onPress={() => setSort('near')} />
-              <SortPill label="Coins"  icon={Coins}      active={sort === 'coins'}  onPress={() => setSort('coins')} />
-              <SortPill label="Rating" icon={Star}       active={sort === 'rating'} onPress={() => setSort('rating')} />
+              <SortPill label="Near"     icon={Navigation} active={sort === 'near'}     onPress={() => setSort('near')} />
+              <SortPill label="Discount" icon={Tag}        active={sort === 'discount'} onPress={() => setSort('discount')} />
+              <SortPill label="Rating"   icon={Star}       active={sort === 'rating'}   onPress={() => setSort('rating')} />
             </ScrollView>
           </View>
         </>
@@ -194,7 +210,7 @@ export const OfflineStoresScreen: React.FC = () => {
 
             <View style={styles.sortGroup}>
               <SortPill label="Near" icon={Navigation} active={sort === 'near'} onPress={() => setSort('near')} />
-              <SortPill label="Coins" icon={Coins} active={sort === 'coins'} onPress={() => setSort('coins')} />
+              <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
               <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
             </View>
 
@@ -298,15 +314,19 @@ export const OfflineStoresScreen: React.FC = () => {
           >
             {filtered.map((s) => (
               <StoreCard
-                key={s.id}
+                key={s._id}
                 store={s}
-                isSelected={s.id === selectedId}
-                onPress={() => setSelectedId(s.id)}
+                isSelected={s._id === selectedId}
+                onPress={() => setSelectedId(s._id)}
               />
             ))}
             {filtered.length === 0 && (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No stores match your filters.</Text>
+                {isLoading ? (
+                  <ActivityIndicator color={Colors.primary} />
+                ) : (
+                  <Text style={styles.emptyText}>No stores match your filters.</Text>
+                )}
               </View>
             )}
           </ScrollView>
@@ -391,15 +411,15 @@ const StoreCard: React.FC<{
       <View style={styles.storeImage}>
         {/* coin badge top-left */}
         <View style={styles.coinBadge}>
-          <Coins size={11} color="#fff" />
-          <Text style={styles.coinBadgeText}>{store.coins} Coins</Text>
+          <Tag size={11} color="#fff" />
+          <Text style={styles.coinBadgeText}>{store.userDiscountPercent}% OFF</Text>
         </View>
         {/* open/closed badge top-right */}
         <View style={[styles.statusBadge, !store.isOpen && styles.statusBadgeClosed]}>
           <Text style={styles.statusBadgeText}>{store.isOpen ? 'Open' : 'Closed'}</Text>
         </View>
         {/* hottest badge */}
-        {store.isHottest && (
+        {store.isFeatured && (
           <View style={styles.hotBadge}>
             <Text style={styles.hotBadgeText}>Hottest</Text>
           </View>
@@ -429,7 +449,7 @@ const StoreCard: React.FC<{
           <View style={styles.metaItem}>
             <Star size={12} color="#F59E0B" fill="#F59E0B" />
             <Text style={styles.metaText}>
-              {store.rating} <Text style={styles.metaMuted}>({store.reviews})</Text>
+              {store.rating} <Text style={styles.metaMuted}>({store.reviewsCount})</Text>
             </Text>
           </View>
           <View style={styles.metaItem}>

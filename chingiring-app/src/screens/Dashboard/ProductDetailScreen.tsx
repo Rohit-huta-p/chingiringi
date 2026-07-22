@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Linking, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Linking, Alert, Platform, Share } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { reviewsAPI, toUiReview, UiReview } from '../../api/reviews';
+import { WriteReviewModal } from '../../components/WriteReviewModal';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -11,9 +13,9 @@ import { clicksAPI } from '../../api/clicks';
 
 const SIZES = ['30', '32', '34', '36'];
 
-// ─── Reviews (placeholder — backend reviews API not yet built) ─────────────
-// Mirrors PLACEHOLDER_REVIEWS in MobileProductDetailScreen so both surfaces
-// show the same sample data until `backend/src/modules/reviews/` ships.
+// ─── Reviews ───────────────────────────────────────────────────────────────
+// Real reviews come from GET /api/products/:id/reviews (src/api/reviews.ts).
+// This Review shape is what ReviewCard renders; toUiReview() maps the API rows.
 
 interface Review {
   _id: string;
@@ -26,42 +28,6 @@ interface Review {
   productThumb?: string;
   daysAgo?: number;
 }
-
-const PLACEHOLDER_REVIEWS: Review[] = [
-  {
-    _id: 'r1',
-    author: 'Rajiv Kumar',
-    initial: 'R',
-    initialBg: '#fde68a',
-    rating: 5,
-    title: 'Excellent sound quality!',
-    body: 'These headphones are amazing! The noise cancellation works perfectly and the battery life is incredible.',
-    productThumb: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=160&q=70',
-    daysAgo: 2,
-  },
-  {
-    _id: 'r2',
-    author: 'Priya Sharma',
-    initial: 'P',
-    initialBg: '#bfdbfe',
-    rating: 4,
-    title: 'Good but slightly heavy',
-    body: "Great sound and build quality, but it's a bit heavy. Still, the comfort makes up for it. Worth the price.",
-    productThumb: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=160&q=70',
-    daysAgo: 5,
-  },
-  {
-    _id: 'r3',
-    author: 'Amit Patel',
-    initial: 'A',
-    initialBg: '#fecaca',
-    rating: 5,
-    title: 'Best purchase this year',
-    body: 'Absolutely love these! Comfortable, great sound, perfect for daily use. I highly recommended.',
-    productThumb: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=160&q=70',
-    daysAgo: 9,
-  },
-];
 
 function StarRow({ rating, size = 12 }: { rating: number; size?: number }) {
   return (
@@ -161,6 +127,7 @@ export const ProductDetailScreen = () => {
   const productId = route.params?.productId;
   const isProductMode = !!(passedProduct || productId);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [activeImg, setActiveImg] = useState(0);
 
   const { data: fetchedDealResponse } = useQuery({
     queryKey: ['deal', dealId],
@@ -168,20 +135,41 @@ export const ProductDetailScreen = () => {
     enabled: !!dealId && !passedDeal,
   });
 
-  // In product mode, fetch the live product when we only got an id.
-  // Skip for "sample"/missing ids — those came from template fallback rows
-  // (no real DB entry), so we just render the passed product object.
+  // Always fetch the live product when we have a real id — even if a product
+  // object was passed. The Home grid passes a stripped item (no affiliateUrl,
+  // among other fields), so trusting it alone made every grid-opened product
+  // look link-less. Skip only for "sample"/missing ids (template rows).
   const { data: fetchedProductResponse } = useQuery({
     queryKey: ['product', productId],
     queryFn: () => productsAPI.getProduct(productId),
-    enabled: !!productId && !passedProduct && productId !== 'sample',
+    enabled: !!productId && productId !== 'sample',
   });
 
   const deal = passedDeal || fetchedDealResponse?.data?.deal || fetchedDealResponse?.data;
-  const product =
-    passedProduct ||
-    fetchedProductResponse?.data?.product ||
-    fetchedProductResponse?.data;
+  const fetchedProduct =
+    fetchedProductResponse?.data?.product || fetchedProductResponse?.data;
+  // Prefer the complete fetched product; fall back to the passed object so the
+  // screen still paints instantly while the fetch is in flight.
+  const product = fetchedProduct || passedProduct;
+  const targetProductId = product?._id || productId;
+
+  // Reviews — real data from the API (replaces the old placeholder list).
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: reviewsRes } = useQuery({
+    queryKey: ['reviews', targetProductId],
+    queryFn: () => reviewsAPI.getProductReviews(targetProductId),
+    enabled: !!targetProductId && targetProductId !== 'sample',
+  });
+  const reviews: UiReview[] = (reviewsRes?.data?.reviews ?? []).map(toUiReview);
+  const reviewCount = reviewsRes?.data?.count ?? reviews.length;
+  const averageRating = Number(reviewsRes?.data?.averageRating ?? 0);
+
+  const submitReview = async (rating: number, text: string) => {
+    await reviewsAPI.createReview(targetProductId, { rating, text });
+    queryClient.invalidateQueries({ queryKey: ['reviews', targetProductId] });
+    setReviewOpen(false);
+  };
 
   const handleShopNow = async () => {
     const url = deal?.affiliateUrl;
@@ -232,6 +220,33 @@ export const ProductDetailScreen = () => {
     }
   };
 
+  // Share the current item \u2014 native share sheet; web falls back to the Web
+  // Share API, then clipboard. Works for both product and deal modes.
+  const handleShare = async () => {
+    const shareTitle = isProductMode
+      ? (product?.title || product?.name || 'Check out this product')
+      : (deal?.title || deal?.description || 'Check out this deal');
+    const shareUrl = (isProductMode ? product?.affiliateUrl : deal?.affiliateUrl) || '';
+    const message = shareUrl ? `${shareTitle}\n${shareUrl}` : shareTitle;
+    try {
+      if (Platform.OS === 'web') {
+        const nav: any = (globalThis as any).navigator;
+        if (nav?.share) {
+          await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined });
+          return;
+        }
+        if (nav?.clipboard?.writeText) {
+          await nav.clipboard.writeText(message);
+          Alert.alert('Link copied', 'Link copied to your clipboard.');
+          return;
+        }
+      }
+      await Share.share({ message, title: shareTitle });
+    } catch {
+      /* user dismissed the share sheet, or sharing is unsupported */
+    }
+  };
+
   // \u2500\u2500 Deal-mode bindings (used when navigation passes deal/dealId) \u2500\u2500
   const title = deal?.title || deal?.description || 'Flat 50% Off on Top Brands';
   const brand = deal?.brand || 'Myntra';
@@ -265,6 +280,8 @@ export const ProductDetailScreen = () => {
   const productRating = product?.rating;
   const productRatingCount = product?.ratingCount;
   const productDiscount = product?.discount;
+  const productSold = product?.sold ?? 0;
+  const productImages: string[] = Array.isArray(product?.images) ? product.images : [];
   const stockLabel =
     productStock == null
       ? 'In stock'
@@ -276,13 +293,35 @@ export const ProductDetailScreen = () => {
 
   const priceFmt = (n: number) => `\u20B9${(n || 0).toLocaleString('en-IN')}`;
 
-  // Image + identity used by the shared image panel.
-  const imageUrl = isProductMode ? productImage : dealImageUrl;
+  // Image + identity used by the shared image panel. Product mode supports a
+  // multi-image gallery (cover first); the thumbnail strip swaps activeImg.
+  const productGallery: string[] = productImages.length
+    ? productImages
+    : (productImage ? [productImage] : []);
+  const activeProductImage = productGallery[activeImg] ?? productImage;
+  const imageUrl = isProductMode ? activeProductImage : dealImageUrl;
   const overlayPrimary = isProductMode ? productName : brand;
   const overlaySecondary = isProductMode
     ? productCategory || 'Product'
     : categoryName;
   const overlayLabel = isProductMode ? 'Available at' : 'Shop at';
+
+  // Thumbnail strip for the product gallery (shown only when >1 image).
+  const thumbStrip =
+    isProductMode && productGallery.length > 1 ? (
+      <View style={styles.thumbStrip}>
+        {productGallery.map((uri, i) => (
+          <TouchableOpacity
+            key={`${uri}-${i}`}
+            style={[styles.thumbItem, i === activeImg && styles.thumbItemActive]}
+            onPress={() => setActiveImg(i)}
+            activeOpacity={0.8}
+          >
+            <Image source={{ uri }} style={styles.thumbImg} resizeMode="cover" />
+          </TouchableOpacity>
+        ))}
+      </View>
+    ) : null;
 
   // ─── Image Panel ──────────────────────────────────────────────────────
   const imagePanel = isDesktop ? (
@@ -302,10 +341,11 @@ export const ProductDetailScreen = () => {
         >
           <Text style={styles.backButtonText}>{'‹'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.shareButton} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.shareButton} activeOpacity={0.7} onPress={handleShare}>
           <Text style={styles.shareButtonText}>{'↗'}</Text>
         </TouchableOpacity>
       </View>
+      {thumbStrip}
       <View style={styles.desktopBrandCard}>
         <Text style={styles.desktopBrandLabel}>{overlayLabel}</Text>
         <Text style={styles.desktopBrandName}>{overlayPrimary}</Text>
@@ -332,7 +372,7 @@ export const ProductDetailScreen = () => {
       </TouchableOpacity>
 
       {/* Share button */}
-      <TouchableOpacity style={styles.shareButton} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.shareButton} activeOpacity={0.7} onPress={handleShare}>
         <Text style={styles.shareButtonText}>{'\u2197'}</Text>
       </TouchableOpacity>
 
@@ -378,10 +418,25 @@ export const ProductDetailScreen = () => {
         </View>
       </View>
 
-      {/* Title + description */}
+      {/* Title */}
       <Text style={styles.productTitle}>{productName}</Text>
-      {productDescription ? (
-        <Text style={styles.productSubtitle}>{productDescription}</Text>
+
+      {/* Rating (real, from reviews) + sold social proof */}
+      {(averageRating > 0 && reviewCount > 0) || productSold > 0 ? (
+        <View style={styles.metaRow}>
+          {averageRating > 0 && reviewCount > 0 ? (
+            <View style={styles.ratingPill}>
+              <Text style={styles.ratingStar}>{'★'}</Text>
+              <Text style={styles.ratingValue}>{averageRating.toFixed(1)}</Text>
+              <Text style={styles.ratingCount}>
+                · {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+              </Text>
+            </View>
+          ) : null}
+          {productSold > 0 ? (
+            <Text style={styles.soldText}>🔥 {productSold.toLocaleString('en-IN')}+ bought</Text>
+          ) : null}
+        </View>
       ) : null}
 
       {/* Stat cards: Price (with old price) + Coins reward */}
@@ -477,8 +532,11 @@ export const ProductDetailScreen = () => {
             ? 'Notify Me When Available'
             : product?.affiliateUrl
               ? 'Buy Now ↗'
-              : 'Buy Now'
+              : 'Currently unavailable'
         }
+        // No affiliate link → nothing to open. Disable the CTA so it reads as
+        // unavailable instead of silently no-opping (Alert is a no-op on web).
+        disabled={productStock !== 0 && !product?.affiliateUrl}
         onPress={() => {
           if (productStock === 0) return;
           handleBuyProduct();
@@ -497,16 +555,16 @@ export const ProductDetailScreen = () => {
     <View style={[styles.reviewsSection, isDesktop && styles.reviewsSectionDesktop]}>
       <View style={styles.reviewsHeader}>
         <Text style={styles.reviewsTitle}>
-          Reviews <Text style={styles.reviewsCount}>({PLACEHOLDER_REVIEWS.length})</Text>
+          Reviews <Text style={styles.reviewsCount}>({reviewCount})</Text>
         </Text>
-        <TouchableOpacity style={styles.writeReviewBtn} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.writeReviewBtn} activeOpacity={0.85} onPress={() => setReviewOpen(true)}>
           <Text style={styles.writeReviewText}>{'✎'}  Write Review</Text>
         </TouchableOpacity>
       </View>
 
       {isDesktop ? (
         <View style={styles.reviewsGrid}>
-          {PLACEHOLDER_REVIEWS.map((r) => (
+          {reviews.map((r) => (
             <ReviewCard key={r._id} review={r} desktop />
           ))}
         </View>
@@ -516,11 +574,17 @@ export const ProductDetailScreen = () => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.reviewsScroll}
         >
-          {PLACEHOLDER_REVIEWS.map((r) => (
+          {reviews.map((r) => (
             <ReviewCard key={r._id} review={r} />
           ))}
         </ScrollView>
       )}
+
+      <WriteReviewModal
+        visible={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        onSubmit={submitReview}
+      />
     </View>
   );
 
@@ -619,7 +683,7 @@ export const ProductDetailScreen = () => {
           </View>
           <Text style={styles.termsTitle}>Terms & Conditions</Text>
         </View>
-        {terms.map((term, index) => (
+        {terms.map((term: string, index: number) => (
           <View key={index} style={styles.termRow}>
             <View style={styles.termCheckCircle}>
               <Text style={styles.termCheckText}>{'\u2713'}</Text>
@@ -862,6 +926,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.7)',
   },
+
+  // ─── Gallery thumbnails ─────────────────────────────────────────────
+  thumbStrip: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  thumbItem: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: '#e8ecf0',
+  },
+  thumbItemActive: {
+    borderColor: Colors.primary,
+  },
+  thumbImg: {
+    width: '100%',
+    height: '100%',
+  },
+
+  // ─── Rating + sold meta row ─────────────────────────────────────────
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+    marginTop: -14,
+    flexWrap: 'wrap',
+  },
+  ratingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fffbeb',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  ratingStar: { fontSize: 13, color: '#f59e0b' },
+  ratingValue: { fontSize: 13, fontWeight: '800', color: '#b45309' },
+  ratingCount: { fontSize: 12, fontWeight: '600', color: '#a16207' },
+  soldText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
 
   // ─── Details Panel ──────────────────────────────────────────────────
   detailsScroll: {

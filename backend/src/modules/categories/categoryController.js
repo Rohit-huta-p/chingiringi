@@ -34,11 +34,12 @@ export const getCategory = async (req, res) => {
 // @route   POST /api/categories
 // @access  Private/Admin
 export const createCategory = async (req, res) => {
-  const { name, icon, sortOrder, showOnDealsPage, dealsPageSortOrder } = req.body;
+  const { name, icon, imageUrl, sortOrder, showOnDealsPage, dealsPageSortOrder } = req.body;
   const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
   const category = await Category.create({
     name, slug, icon, sortOrder,
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
     // showOnDealsPage defaults true in schema — only override when caller
     // explicitly sends a value (admin form). Same for dealsPageSortOrder.
     ...(showOnDealsPage !== undefined ? { showOnDealsPage } : {}),

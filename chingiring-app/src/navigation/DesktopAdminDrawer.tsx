@@ -7,6 +7,7 @@ import { AdminDashboardScreen } from '../screens/Admin/AdminDashboardScreen';
 import { createAdminPlaceholder } from '../screens/Admin/AdminPlaceholderScreen';
 import { AdminDealsScreen } from '../screens/Admin/AdminDealsScreen';
 import { AdminProductsScreen } from '../screens/Admin/AdminProductsScreen';
+import { AdminStoresScreen } from '../screens/Admin/AdminStoresScreen';
 import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen';
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
@@ -47,6 +48,7 @@ export default function DesktopAdminDrawer() {
       <Drawer.Screen name="AdminWithdrawals" component={AdminWithdrawalsScreen} />
       <Drawer.Screen name="AdminUsers" component={AdminUsersScreen} />
       <Drawer.Screen name="AdminAllProducts" component={AdminProductsScreen} />
+      <Drawer.Screen name="AdminStores" component={AdminStoresScreen} />
       <Drawer.Screen name="AdminOrders" component={AdminOrdersScreen} />
       <Drawer.Screen name="AdminInventory" component={AdminInventoryScreen} />
       <Drawer.Screen name="AdminBanners" component={AdminBannersScreen} />

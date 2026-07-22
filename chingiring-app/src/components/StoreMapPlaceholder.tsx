@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import type { Store } from '../data/offlineStores';
+import type { Store } from '../api/stores';
 import { StoreMarkerPill } from './StoreMarkerPill';
 import { MAP_PALETTE } from '../constants/mapStyle';
 
@@ -68,13 +68,13 @@ export const StoreMapPlaceholder: React.FC<Props> = ({ stores, selectedId, onSel
       {/* Store pills positioned by projected coords */}
       {projected.map((s) => (
         <View
-          key={s.id}
+          key={s._id}
           style={[styles.markerWrap, { left: `${s._x}%`, top: `${s._y}%` }]}
         >
           <StoreMarkerPill
             store={s}
-            isSelected={s.id === selectedId}
-            onPress={() => onSelect(s.id)}
+            isSelected={s._id === selectedId}
+            onPress={() => onSelect(s._id)}
           />
         </View>
       ))}

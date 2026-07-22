@@ -151,6 +151,26 @@ export const adminAPI = {
     return response.data;
   },
 
+  // ─── Offline Stores ─────────────────────────────────────────────────────────
+  // Public GET for shoppers hits /api/stores; admin list (with deal terms) is
+  // /api/admin/stores; writes go through the admin-gated /api/stores routes.
+  getStores: async (params?: { page?: number; limit?: number; search?: string }) => {
+    const response = await apiClient.get('/api/admin/stores', { params });
+    return response.data;
+  },
+  createStore: async (data: Record<string, any>) => {
+    const response = await apiClient.post('/api/stores', data);
+    return response.data;
+  },
+  updateStore: async (id: string, data: Record<string, any>) => {
+    const response = await apiClient.put(`/api/stores/${id}`, data);
+    return response.data;
+  },
+  deleteStore: async (id: string) => {
+    const response = await apiClient.delete(`/api/stores/${id}`);
+    return response.data;
+  },
+
   // ─── Wallet Operations Hub ─────────────────────────────────────────────────
 
   /** Pending Queue tab — withdrawals + lock-expired txns + recent imports. */

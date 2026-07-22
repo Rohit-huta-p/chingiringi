@@ -9,7 +9,7 @@ import { View, StyleSheet } from 'react-native';
 import MapboxMap, { Marker, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-import type { Store } from '../data/offlineStores';
+import type { Store } from '../api/stores';
 import { BENGALURU_CENTER } from '../data/offlineStores';
 import { MAP_STYLE } from '../constants/mapStyle';
 import { StoreMarkerPill } from './StoreMarkerPill';
@@ -27,7 +27,7 @@ const HAS_TOKEN = !!MAPBOX_TOKEN && MAPBOX_TOKEN.startsWith('pk.');
 export const StoreMap: React.FC<StoreMapProps> = ({ stores, selectedId, onSelect }) => {
   // Compute initial view: center on selected store (if any) or average of all
   const initialView = useMemo(() => {
-    const s = stores.find((x) => x.id === selectedId) ?? stores[0];
+    const s = stores.find((x) => x._id === selectedId) ?? stores[0];
     return {
       longitude: s?.lng ?? BENGALURU_CENTER.lng,
       latitude: s?.lat ?? BENGALURU_CENTER.lat,
@@ -63,16 +63,16 @@ export const StoreMap: React.FC<StoreMapProps> = ({ stores, selectedId, onSelect
         {/* Store pills */}
         {stores.map((s) => (
           <Marker
-            key={s.id}
+            key={s._id}
             longitude={s.lng}
             latitude={s.lat}
             anchor="center"
             onClick={(e) => {
               e.originalEvent.stopPropagation();
-              onSelect(s.id);
+              onSelect(s._id);
             }}
           >
-            <StoreMarkerPill store={s} isSelected={s.id === selectedId} onPress={() => onSelect(s.id)} />
+            <StoreMarkerPill store={s} isSelected={s._id === selectedId} onPress={() => onSelect(s._id)} />
           </Marker>
         ))}
 

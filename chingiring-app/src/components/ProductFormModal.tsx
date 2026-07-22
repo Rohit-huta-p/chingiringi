@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { X, Package } from 'lucide-react-native';
-import { ImageUploader } from './ImageUploader';
+import { MultiImageUploader } from './MultiImageUploader';
 import { CategoryPicker } from './CategoryPicker';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -25,7 +25,8 @@ export interface ProductFormValues {
   category: string;
   price: number;
   coinsPrice: number;
-  imageUrl: string;
+  imageUrl: string;    // cover image (mirrors images[0]) — read by every card surface
+  images: string[];    // full gallery, cover first
   affiliateUrl: string;
   stock: number;
 }
@@ -113,13 +114,15 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
 
     setSubmit(true);
     try {
+      const images = form.images.map((u) => u.trim()).filter(Boolean);
       await onSubmit({
         name:         form.name.trim(),
         description:  form.description.trim(),
         category:     form.category.trim(),
         price:        priceN,
         coinsPrice:   coinsN,
-        imageUrl:     form.imageUrl.trim(),
+        images,
+        imageUrl:     images[0] ?? '',   // cover mirrors the first gallery image
         affiliateUrl: form.affiliateUrl.trim(),
         stock:        stockN,
       });
@@ -181,11 +184,12 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Product Image — Cloudinary upload (web), URL fallback */}
-            <Field label="Product Image">
-              <ImageUploader
-                value={form.imageUrl}
-                onChange={(url) => update('imageUrl', url)}
+            {/* Product Images — multi-image gallery (cover first). imageUrl on
+                submit mirrors images[0] so every card surface keeps working. */}
+            <Field label="Product Images">
+              <MultiImageUploader
+                value={form.images}
+                onChange={(urls) => update('images', urls)}
                 folder="chingiringi/products"
                 disabled={submitting}
               />
@@ -337,6 +341,7 @@ function buildInitial(p?: ProductFormSeed | null) {
     price:        p?.price         != null ? String(p.price)       : '',
     coinsPrice:   p?.coinsPrice    != null ? String(p.coinsPrice)  : '',
     imageUrl:     p?.imageUrl     ?? '',
+    images:       p?.images?.length ? p.images : (p?.imageUrl ? [p.imageUrl] : []),
     affiliateUrl: p?.affiliateUrl ?? '',
     stock:        p?.stock         != null ? String(p.stock)        : '',
   };

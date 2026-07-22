@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import {
-  LayoutDashboard, Tag, Wallet, Users, Package,
+  LayoutDashboard, Wallet, Users, Package, Store,
   Grid3X3, ClipboardList, Warehouse, Image as ImageIcon, Ticket,
   LogOut, ChevronDown, ChevronUp, X, Coins,
 } from 'lucide-react-native';
@@ -10,7 +10,7 @@ import { useAuthStore } from '../store';
 
 const ADMIN_NAV = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'AdminDeals', label: 'Deals', icon: Tag },
+  // Deals hidden from the admin panel nav (backend + screen kept intact).
   // Wallet Operations Hub — unified workflow for crediting from merchant reports,
   // processing withdrawals, and drilling into any user's wallet timeline.
   { key: 'AdminWalletOps', label: 'Wallet Ops', icon: Coins },
@@ -25,6 +25,7 @@ const ADMIN_NAV = [
       { key: 'AdminInventory', label: 'Inventory' },
     ],
   },
+  { key: 'AdminStores', label: 'Offline Stores', icon: Store },
   { key: 'AdminBanners', label: 'Banners', icon: ImageIcon },
   { key: 'AdminCoupons', label: 'Coupons', icon: Ticket },
 ];
@@ -47,7 +48,7 @@ export function AdminSidebar({ navigation, state }: any) {
           <Text style={styles.logoEmoji}>C</Text>
         </View>
         <Text style={styles.logoText}>Admin Panel</Text>
-        <TouchableOpacity style={styles.closeBtn}>
+        <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.closeDrawer?.()}>
           <X size={18} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
