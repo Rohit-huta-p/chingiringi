@@ -23,7 +23,10 @@ import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 
-const isMobile = Platform.OS !== 'web';
+// Mobile layout when native, OR on a narrow web viewport (sm). Mirrors the
+// user-facing DrawerNavigator so admin renders its mobile screens on small
+// web widths instead of cramming the desktop screens into the mobile stack.
+const computeIsMobile = (width: number) => Platform.OS !== 'web' || width < 768;
 
 // Categories management is now inline inside the Product form (CategoryPicker).
 // No dedicated Categories screen — admins create / edit / delete from there.
@@ -35,8 +38,12 @@ const DesktopAdminDrawer = lazy(() => import('./DesktopAdminDrawer'));
 
 const Stack = createNativeStackNavigator();
 
-// Mobile admin uses a stack navigator
+// Mobile admin uses a stack navigator. `isMobile` is derived from the live
+// viewport width so a narrow web window gets the mobile screens (and their
+// self-rendered headers), matching native.
 function MobileAdminNavigator() {
+  const { width } = useWindowDimensions();
+  const isMobile = computeIsMobile(width);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['bottom', 'left', 'right']}>
     <Stack.Navigator screenOptions={{ headerShown: true, headerTintColor: Colors.primary }}>
@@ -69,7 +76,7 @@ function Fallback() {
 export default function AdminNavigator() {
   const { width } = useWindowDimensions();
 
-  if (Platform.OS !== 'web' || width < 768) {
+  if (computeIsMobile(width)) {
     return <MobileAdminNavigator />;
   }
 
