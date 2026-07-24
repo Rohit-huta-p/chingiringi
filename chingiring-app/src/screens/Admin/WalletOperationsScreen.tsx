@@ -17,6 +17,11 @@ import { adminAPI } from '../../api/admin';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 const isNative = Platform.OS !== 'web';
+// Mobile *layout* — true on native OR a narrow web viewport. Gating layout on
+// `isNative` alone forced the desktop header, long tab labels, and desktop
+// tables onto phone-width web (the "broken" Wallet Ops screen). Use this for
+// those decisions; keep `isNative` only for genuinely native-only concerns.
+const computeIsMobile = (width: number) => Platform.OS !== 'web' || width < 768;
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -135,6 +140,8 @@ function useNativePrompt() {
 
 export function WalletOperationsScreen() {
   const [tab, setTab] = useState<Tab>('queue');
+  const { width } = useWindowDimensions();
+  const isMobile = computeIsMobile(width);
 
   const TABS: { key: Tab; icon: React.ComponentType<any>; label: string; shortLabel: string }[] = [
     { key: 'queue',    icon: Inbox,          label: 'Pending Queue', shortLabel: 'Queue' },
@@ -148,9 +155,10 @@ export function WalletOperationsScreen() {
 
   return (
     <Root style={s.root} {...rootProps}>
-      {isNative ? (
+      {isMobile ? (
         /* Same blue admin header + section nav as every other admin screen,
-           so Wallet Ops stops being the odd screen with no nav bar. */
+           so Wallet Ops stops being the odd screen with no nav bar. Shown on
+           native AND narrow web so phone-width web matches the native screen. */
         <MobileAdminNav active="AdminWalletOps" />
       ) : (
         <View style={s.header}>
@@ -164,20 +172,26 @@ export function WalletOperationsScreen() {
 
       {/* Sub-tab bar — plain flex row (a horizontal ScrollView would expand
           vertically and clip labels / center in empty space). */}
-      <View style={s.tabBar}>
+      <View style={[s.tabBar, isMobile && { gap: 0, paddingHorizontal: 0, backgroundColor: '#fff' }]}>
         {TABS.map((t) => (
           <TouchableOpacity
             key={t.key}
-            style={[s.tabBtn, tab === t.key && s.tabBtnActive]}
+            style={[
+              s.tabBtn,
+              tab === t.key && s.tabBtnActive,
+              // Native tab metrics on narrow web: equal-width, compact padding so
+              // 4 tabs fit a phone instead of overflowing with desktop padding.
+              isMobile && { flex: 1, gap: 5, paddingVertical: 13, paddingHorizontal: 4 },
+            ]}
             onPress={() => setTab(t.key)}
             activeOpacity={0.7}
           >
-            <t.icon size={isNative ? 17 : 15} color={tab === t.key ? Colors.primary : '#64748b'} strokeWidth={2.2} />
+            <t.icon size={isMobile ? 17 : 15} color={tab === t.key ? Colors.primary : '#64748b'} strokeWidth={2.2} />
             <Text
-              style={[s.tabBtnTxt, tab === t.key && s.tabBtnTxtActive]}
+              style={[s.tabBtnTxt, tab === t.key && s.tabBtnTxtActive, isMobile && { fontSize: 12.5 }]}
               numberOfLines={1}
             >
-              {isNative ? t.shortLabel : t.label}
+              {isMobile ? t.shortLabel : t.label}
             </Text>
           </TouchableOpacity>
         ))}
@@ -202,7 +216,7 @@ function PendingQueueTab({ onJumpToUser }: { onJumpToUser: (userId: string) => v
   const summary: QueueSummary | undefined = data?.data;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg }}>
       <View style={s.queueHeader}>
         <Text style={s.sectionTitle}>What needs your action</Text>
         <TouchableOpacity style={s.refreshBtn} onPress={() => refetch()} disabled={isFetching}>
@@ -424,6 +438,8 @@ function ReportsInboxTab() {
   const [parseError, setParseError] = useState<string | undefined>();
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [importResult, setImportResult] = useState<any>(null);
+  const { width } = useWindowDimensions();
+  const isMobile = computeIsMobile(width);
 
   // Fetch current coin-economy settings so the preview estimate matches
   // exactly what the server will credit (instead of the old hard-coded 10x).
@@ -490,7 +506,7 @@ function ReportsInboxTab() {
   const history = historyQuery.data?.data?.imports ?? [];
 
   return (
-    <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg }}>
       <Text style={s.sectionTitle}>Import a merchant report</Text>
       <Text style={s.sectionSub}>
         Paste the CSV (or tab-separated rows) from your merchant's affiliate dashboard.
@@ -582,8 +598,8 @@ function ReportsInboxTab() {
             />
           </View>
 
-          {isNative ? (
-            /* Mobile: card layout per row */
+          {isMobile ? (
+            /* Mobile: card layout per row (native + narrow web) */
             <View style={{ gap: 10 }}>
               {parsedRows.slice(0, 20).map((r) => {
                 const willMatch = r.subid?.startsWith('cr_') && !r.subid.includes('anon_');
@@ -776,7 +792,7 @@ function UserWalletTab() {
         >
           <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.primary }}>← Back to search</Text>
         </TouchableOpacity>
-        <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.md }}>
           <UserTimelineDetail userId={selectedId} />
         </ScrollView>
       </View>
@@ -1125,6 +1141,8 @@ function TimelineRow({ event, isLast }: { event: TimelineEvent; isLast: boolean 
 
 function SettingsTab() {
   const qc = useQueryClient();
+  const { width } = useWindowDimensions();
+  const isMobile = computeIsMobile(width);
   const settingsQuery = useQuery({
     queryKey: ['admin', 'settings'],
     queryFn: () => adminAPI.getSettings(),
@@ -1181,7 +1199,7 @@ function SettingsTab() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg }}>
       <Text style={s.sectionTitle}>Coin economy</Text>
       <Text style={s.sectionSub}>
         The three numbers below define how much every user earns from every
@@ -1191,7 +1209,7 @@ function SettingsTab() {
       </Text>
 
       <View style={s.formCard}>
-        <View style={s.settingsRow}>
+        <View style={[s.settingsRow, isMobile && { flexDirection: 'column' }]}>
           <View style={s.settingsField}>
             <Text style={s.label}>Pass-through %</Text>
             <Text style={s.labelHelp}>
@@ -1255,7 +1273,7 @@ function SettingsTab() {
       </Text>
 
       <View style={s.formCard}>
-        <View style={s.settingsRow}>
+        <View style={[s.settingsRow, isMobile && { flexDirection: 'column' }]}>
           <View style={[s.settingsField, { flex: 1 }]}>
             <Text style={s.label}>Cuelinks publisher ID</Text>
             <Text style={s.labelHelp}>Used in linksredirect.com URLs for non-Amazon merchants.</Text>

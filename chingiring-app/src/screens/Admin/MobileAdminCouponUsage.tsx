@@ -116,7 +116,7 @@ export const MobileAdminCouponUsage = () => {
           <Text style={s.errTitle}>No data</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
           <View style={s.body}>
 
             {/* Overall progress */}

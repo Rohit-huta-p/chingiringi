@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { View, ActivityIndicator, Platform, useWindowDimensions } from 'react-native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { AdminDashboardScreen } from '../screens/Admin/AdminDashboardScreen';
@@ -36,31 +36,43 @@ const AdminInventoryScreen = createAdminPlaceholder('Inventory');
 // Lazy-load the desktop admin drawer (uses reanimated)
 const DesktopAdminDrawer = lazy(() => import('./DesktopAdminDrawer'));
 
-const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 
-// Mobile admin uses a stack navigator. `isMobile` is derived from the live
-// viewport width so a narrow web window gets the mobile screens (and their
-// self-rendered headers), matching native.
+// Mobile admin uses a BOTTOM-TAB navigator with its tab bar hidden (each screen
+// draws its own MobileAdminNav). Tabs keep every section mounted after first
+// visit, so tapping a nav tab switches instantly — scroll position and
+// already-fetched data are preserved, with no slide, spinner, or refetch. A
+// stack (the old setup) instead pushed + remounted + refetched on every tap,
+// which is why pages didn't "just open on the spot". `lazy: false` mounts every
+// tab the moment admin opens, so even the FIRST tap of each tab is instant — the
+// tradeoff is that all the sections' data fetches fire at once on entry. After
+// that first mount, inactive tabs are detached (state + fetched data kept), never
+// remounted. (Flip to `lazy: true` to instead mount each tab on first focus —
+// lighter entry, but one spinner the first time you open each tab.)
+// `backBehavior="history"` makes the hardware back button (and goBack from
+// drill-downs like Coupon Usage / Profile) return to the previously viewed tab.
+// `isMobile` is derived from the live viewport width so a narrow web window gets
+// the mobile screens, matching native.
 function MobileAdminNavigator() {
   const { width } = useWindowDimensions();
   const isMobile = computeIsMobile(width);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['bottom', 'left', 'right']}>
-    <Stack.Navigator screenOptions={{ headerShown: true, headerTintColor: Colors.primary }}>
-      <Stack.Screen name="AdminDashboard" component={isMobile ? MobileAdminDashboard : AdminDashboardScreen} options={{ headerShown: !isMobile, title: 'Admin Dashboard' }} />
-      <Stack.Screen name="AdminDeals" component={isMobile ? MobileAdminDeals : AdminDealsScreen} options={{ headerShown: !isMobile, title: 'Deals' }} />
-      <Stack.Screen name="AdminWalletOps" component={WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
-      <Stack.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
-      <Stack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
-      <Stack.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
-      <Stack.Screen name="AdminStores" component={isMobile ? MobileAdminStores : AdminStoresScreen} options={{ headerShown: !isMobile, title: 'Offline Stores' }} />
-      <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
-      <Stack.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />
-      <Stack.Screen name="AdminBanners" component={isMobile ? MobileAdminBanners : AdminBannersScreen} options={{ headerShown: !isMobile, title: 'Banners' }} />
-      <Stack.Screen name="AdminCoupons" component={isMobile ? MobileAdminCoupons : AdminCouponsScreen} options={{ headerShown: !isMobile, title: 'Coupons' }} />
-      <Stack.Screen name="AdminCouponUsage" component={MobileAdminCouponUsage} options={{ headerShown: false, title: 'Coupon Usage' }} />
-      <Stack.Screen name="AdminProfile" component={AdminProfileScreen} options={{ headerShown: false, title: 'Profile' }} />
-    </Stack.Navigator>
+    <Tab.Navigator tabBar={() => null} backBehavior="history" screenOptions={{ headerShown: false, lazy: false }}>
+      <Tab.Screen name="AdminDashboard" component={isMobile ? MobileAdminDashboard : AdminDashboardScreen} options={{ headerShown: !isMobile, title: 'Admin Dashboard' }} />
+      <Tab.Screen name="AdminDeals" component={isMobile ? MobileAdminDeals : AdminDealsScreen} options={{ headerShown: !isMobile, title: 'Deals' }} />
+      <Tab.Screen name="AdminWalletOps" component={WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
+      <Tab.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
+      <Tab.Screen name="AdminUsers" component={AdminUsersScreen} options={{ headerShown: !isMobile, title: 'Users' }} />
+      <Tab.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
+      <Tab.Screen name="AdminStores" component={isMobile ? MobileAdminStores : AdminStoresScreen} options={{ headerShown: !isMobile, title: 'Offline Stores' }} />
+      <Tab.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
+      <Tab.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />
+      <Tab.Screen name="AdminBanners" component={isMobile ? MobileAdminBanners : AdminBannersScreen} options={{ headerShown: !isMobile, title: 'Banners' }} />
+      <Tab.Screen name="AdminCoupons" component={isMobile ? MobileAdminCoupons : AdminCouponsScreen} options={{ headerShown: !isMobile, title: 'Coupons' }} />
+      <Tab.Screen name="AdminCouponUsage" component={MobileAdminCouponUsage} options={{ headerShown: false, title: 'Coupon Usage' }} />
+      <Tab.Screen name="AdminProfile" component={AdminProfileScreen} options={{ headerShown: false, title: 'Profile' }} />
+    </Tab.Navigator>
     </SafeAreaView>
   );
 }

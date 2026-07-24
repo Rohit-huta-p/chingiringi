@@ -851,6 +851,7 @@ export const MobileAdminBanners = () => {
   return (
     <SafeAreaView style={s.root} edges={['top']}>
       <ScrollView
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
       >

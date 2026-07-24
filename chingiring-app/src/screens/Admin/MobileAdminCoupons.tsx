@@ -624,7 +624,7 @@ export const MobileAdminCoupons = () => {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
         {/* Shared admin header + section nav */}
         <MobileAdminNav active="AdminCoupons" />
@@ -632,8 +632,8 @@ export const MobileAdminCoupons = () => {
         <View style={s.body}>
           {/* Title + Create */}
           <View style={s.titleRow}>
-            <View>
-              <Text style={s.pageTitle}>Coupon Management</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.pageTitle} numberOfLines={1}>Coupon Management</Text>
               <Text style={s.pageSub}>Create and manage discount codes</Text>
             </View>
             <TouchableOpacity onPress={openCreate} activeOpacity={0.85} style={s.addBtnWrap}>
@@ -644,7 +644,7 @@ export const MobileAdminCoupons = () => {
                 style={s.addBtn}
               >
                 <Plus size={16} color="#fff" strokeWidth={2.5} />
-                <Text style={s.addBtnText}>Create Coupon</Text>
+                <Text style={s.addBtnText}>Add</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -752,10 +752,10 @@ const s = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 16 },
 
   // Title
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 },
   pageTitle: { fontSize: 22, fontFamily: Fonts.extraBold, color: '#1e293b' },
   pageSub: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 2 },
-  addBtnWrap: { borderRadius: 10, overflow: 'hidden' },
+  addBtnWrap: { borderRadius: 10, overflow: 'hidden', flexShrink: 0 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   addBtnText: { fontSize: 13, fontFamily: Fonts.bold, color: '#fff' },
 

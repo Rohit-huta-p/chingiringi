@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, ActivityIndicator, Alert, Platform, Dimensions,
+  Modal, ActivityIndicator, Alert, Platform, Dimensions, useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MobileAdminNav } from '../../components/MobileAdminNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, X, CheckCircle, Ban, IndianRupee, Coins,
@@ -202,11 +204,98 @@ function WalletAdjustModal({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
+// Mobile card — replaces the desktop 6-column table row below 768px. Stacks the
+// same data (identity, wallet, activity, status, joined, actions) into a card.
+function MobileUserCard({
+  u, disabled, onToggle, onCredit, onDebit,
+}: {
+  u: AdminUser;
+  disabled: boolean;
+  onToggle: () => void;
+  onCredit: () => void;
+  onDebit: () => void;
+}) {
+  const isBlocked = userStatus(u) === 'blocked';
+  return (
+    <View style={styles.mCard}>
+      <View style={styles.mCardTop}>
+        <View style={[styles.avatar, { backgroundColor: avatarColor(u._id) }]}>
+          <Text style={styles.avatarTxt}>{firstInitial(u.name)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.userName} numberOfLines={1}>{u.name}</Text>
+          {u.email ? <Text style={styles.userMeta} numberOfLines={1}>{u.email}</Text> : null}
+          {u.phone ? <Text style={styles.userMeta} numberOfLines={1}>{u.phone}</Text> : null}
+        </View>
+        {isBlocked ? (
+          <View style={[styles.statusPill, { backgroundColor: '#fee2e2' }]}>
+            <Ban size={12} color="#dc2626" strokeWidth={2.5} />
+            <Text style={[styles.statusPillTxt, { color: '#dc2626' }]}>Blocked</Text>
+          </View>
+        ) : (
+          <View style={[styles.statusPill, { backgroundColor: '#dcfce7' }]}>
+            <CheckCircle size={12} color="#16a34a" strokeWidth={2.5} />
+            <Text style={[styles.statusPillTxt, { color: '#16a34a' }]}>Active</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.mCardGrid}>
+        <View style={styles.mStat}>
+          <Text style={styles.mStatLabel}>Confirmed</Text>
+          <Text style={[styles.mStatVal, { color: '#16a34a' }]}>₹{(u.wallet?.confirmedCashback ?? 0).toLocaleString('en-IN')}</Text>
+        </View>
+        <View style={styles.mStat}>
+          <Text style={styles.mStatLabel}>Pending</Text>
+          <Text style={[styles.mStatVal, { color: '#d97706' }]}>₹{(u.wallet?.pendingCashback ?? 0).toLocaleString('en-IN')}</Text>
+        </View>
+        <View style={styles.mStat}>
+          <Text style={styles.mStatLabel}>Coins</Text>
+          <Text style={[styles.mStatVal, { color: '#7c3aed' }]}>{(u.wallet?.coins ?? 0).toLocaleString('en-IN')}</Text>
+        </View>
+        <View style={styles.mStat}>
+          <Text style={styles.mStatLabel}>Orders</Text>
+          <Text style={[styles.mStatVal, { color: '#2563eb' }]}>{(u.stats?.orders ?? 0).toLocaleString('en-IN')}</Text>
+        </View>
+        <View style={styles.mStat}>
+          <Text style={styles.mStatLabel}>Referrals</Text>
+          <Text style={[styles.mStatVal, { color: '#0891b2' }]}>{(u.stats?.referrals ?? 0).toLocaleString('en-IN')}</Text>
+        </View>
+        <View style={styles.mStat}>
+          <Text style={styles.mStatLabel}>Joined</Text>
+          <Text style={styles.mStatVal}>{isoDate(u.createdAt)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.mCardActions}>
+        <TouchableOpacity
+          style={[styles.actBtn, isBlocked ? styles.actUnblock : styles.actBlock, { flex: 1 }]}
+          onPress={onToggle}
+          disabled={disabled}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.actBtnTxt, { color: isBlocked ? '#16a34a' : '#dc2626' }]}>{isBlocked ? 'Unblock' : 'Block'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actBtn, styles.actCredit, { flex: 1 }]} onPress={onCredit} activeOpacity={0.8}>
+          <Text style={[styles.actBtnTxt, { color: '#16a34a' }]}>+ Credit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actBtn, styles.actDebit, { flex: 1 }]} onPress={onDebit} activeOpacity={0.8}>
+          <Text style={[styles.actBtnTxt, { color: '#dc2626' }]}>− Debit</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 export function AdminUsersScreen() {
   const [search, setSearch] = useState('');
   const [walletUser, setWalletUser] = useState<AdminUser | null>(null);
   const [walletType, setWalletType] = useState<'credit' | 'debit'>('credit');
   const queryClient = useQueryClient();
+  const { width } = useWindowDimensions();
+  // Mobile layout — native OR narrow web. Renders the shared admin nav header
+  // (all section tabs) so Users matches the Dashboard on native + phone-web.
+  const isMobile = Platform.OS !== 'web' || width < 768;
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'users', search],
@@ -273,8 +362,22 @@ export function AdminUsersScreen() {
     );
   }, [users, search]);
 
+  // On mobile the whole screen scrolls as one unit (like MobileAdminDashboard).
+  // A nested ScrollView inside a flex View has no bounded height on web, so the
+  // list below the search box wasn't scrollable — a single outer scroll fixes it.
+  const Body: any = isMobile ? ScrollView : View;
+  const bodyProps = isMobile
+    ? {
+        style: { flex: 1 },
+        contentContainerStyle: { padding: Spacing.lg, paddingBottom: 32 },
+        showsVerticalScrollIndicator: false,
+      }
+    : { style: styles.container };
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.root} edges={isMobile ? ['top'] : []}>
+      {isMobile ? <MobileAdminNav active="AdminUsers" /> : null}
+      <Body {...bodyProps}>
       {/* Header */}
       <View style={styles.pageHeader}>
         <View>
@@ -285,21 +388,21 @@ export function AdminUsersScreen() {
         </View>
       </View>
 
-      {/* Stats row — 4 cards */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
+      {/* Stats row — 4 cards (2 per row on mobile) */}
+      <View style={[styles.statsRow, isMobile && { flexWrap: 'wrap' }]}>
+        <View style={[styles.statCard, isMobile && styles.statCardMobile]}>
           <Text style={styles.statLabel}>Total Users</Text>
           <Text style={[styles.statValue, { color: '#0f172a' }]}>{total}</Text>
         </View>
-        <View style={styles.statCard}>
+        <View style={[styles.statCard, isMobile && styles.statCardMobile]}>
           <Text style={[styles.statLabel, { color: '#15803d' }]}>Active Users</Text>
           <Text style={[styles.statValue, { color: '#16a34a' }]}>{active}</Text>
         </View>
-        <View style={styles.statCard}>
+        <View style={[styles.statCard, isMobile && styles.statCardMobile]}>
           <Text style={[styles.statLabel, { color: '#b91c1c' }]}>Blocked Users</Text>
           <Text style={[styles.statValue, { color: '#dc2626' }]}>{blocked}</Text>
         </View>
-        <View style={styles.statCard}>
+        <View style={[styles.statCard, isMobile && styles.statCardMobile]}>
           <Text style={[styles.statLabel, { color: '#6d28d9' }]}>Total Balance</Text>
           <Text style={[styles.statValue, { color: '#7c3aed' }]}>
             ₹{totalBalance.toLocaleString('en-IN')}
@@ -324,9 +427,31 @@ export function AdminUsersScreen() {
         ) : null}
       </View>
 
-      {/* Table */}
+      {/* Cards on mobile · 6-column table on desktop */}
       {isLoading ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
+      ) : isMobile ? (
+        filtered.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Users2 size={28} color="#cbd5e1" strokeWidth={1.5} />
+            <Text style={styles.emptyText}>
+              {search.trim() ? `No users match "${search}".` : 'No users yet.'}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 12, paddingTop: 4 }}>
+            {filtered.map((u) => (
+              <MobileUserCard
+                key={u._id}
+                u={u}
+                disabled={statusMutation.isPending}
+                onToggle={() => handleBlockToggle(u)}
+                onCredit={() => openWalletModal(u, 'credit')}
+                onDebit={() => openWalletModal(u, 'debit')}
+              />
+            ))}
+          </View>
+        )
       ) : (
         <ScrollView>
           <View style={styles.tableContainer}>
@@ -492,13 +617,15 @@ export function AdminUsersScreen() {
         user={walletUser}
         type={walletType}
       />
-    </View>
+      </Body>
+    </SafeAreaView>
   );
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F5F8FF' },
   container: { flex: 1, backgroundColor: '#F5F8FF', padding: Spacing.lg },
   pageHeader: {
     flexDirection: 'row',
@@ -522,6 +649,19 @@ const styles = StyleSheet.create({
   },
   statLabel: { fontSize: 13, color: '#64748b', fontWeight: '500' },
   statValue: { fontSize: 28, fontWeight: '700', marginTop: 6, letterSpacing: -0.5 },
+  // 2 per row on mobile: basis 45% leaves room for the row gap (so two fit and
+  // a third wraps), flexGrow makes the pair fill the width. flexBasis overrides
+  // the basis:0 that statCard's `flex:1` sets.
+  statCardMobile: { flexBasis: '45%', flexGrow: 1 },
+
+  // ── Mobile user card (replaces the 6-column table below 768px) ──
+  mCard: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e8ecf2', padding: 14, gap: 12 },
+  mCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mCardGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12, columnGap: 10 },
+  mStat: { flexBasis: '30%', flexGrow: 1 },
+  mStatLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  mStatVal: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginTop: 2 },
+  mCardActions: { flexDirection: 'row', gap: 8 },
 
   // Search
   searchRow: {
