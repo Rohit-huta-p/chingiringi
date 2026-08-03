@@ -34,6 +34,8 @@ export const updateSettings = async (req, res) => {
   const ALLOWED = [
     'passThroughPercent',
     'coinsPerRupee',
+    'coinsPerShare',
+    'maxSharesPerDay',
     'defaultLockDays',
     'cuelinksPublisherId',
     'amazonAssociateTag',
@@ -79,6 +81,13 @@ export const updateSettings = async (req, res) => {
       throw new Error('defaultLockDays must be >= 0');
     }
     updates.defaultLockDays = n;
+  }
+  for (const key of ['coinsPerShare', 'maxSharesPerDay']) {
+    if (updates[key] !== undefined) {
+      const n = Number(updates[key]);
+      if (!Number.isFinite(n) || n < 0) { res.status(400); throw new Error(`${key} must be >= 0`); }
+      updates[key] = n;
+    }
   }
 
   const settings = await AdminSettings.findOneAndUpdate(

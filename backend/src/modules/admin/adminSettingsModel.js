@@ -20,7 +20,10 @@ const adminSettingsSchema = new mongoose.Schema(
     key: { type: String, default: 'default', unique: true, index: true },
 
     passThroughPercent: { type: Number, default: 0.25, min: 0, max: 1 },
-    coinsPerRupee:      { type: Number, default: 10,   min: 1 },
+    coinsPerRupee:      { type: Number, default: 1000, min: 1 }, // 100 coins = 10 paise
+    // Share-to-earn economy.
+    coinsPerShare:      { type: Number, default: 100,  min: 0 },
+    maxSharesPerDay:    { type: Number, default: 100,  min: 0 }, // per user, products+stores combined
     defaultLockDays:    { type: Number, default: 30,   min: 0 },
 
     cuelinksPublisherId: { type: String, default: '', trim: true },
