@@ -9,7 +9,9 @@ import AdminSettings from '../admin/adminSettingsModel.js';
 import { notify } from '../notifications/notificationService.js';
 import { evaluateShareQuota, istDayBucket } from './shareService.js';
 
-const MODEL_BY_TYPE = { product: Product, store: Store };
+// Object.create(null) — a plain `{...}` lets itemType:'__proto__'/'constructor'
+// resolve truthy off Object.prototype and skip the `if (!Model)` 400 guard below.
+const MODEL_BY_TYPE = Object.assign(Object.create(null), { product: Product, store: Store });
 
 async function ensureWallet(userId) {
   let w = await Wallet.findOne({ userId });
@@ -40,17 +42,26 @@ export const createShare = async (req, res) => {
 
   // Insert FIRST — the unique (userId,itemType,itemId,day) index is the
   // idempotency guard. Already shared this item today → E11000 → no double-pay.
+  let created;
   try {
-    await ShareEvent.create({ userId, itemType, itemId, coinsAwarded: coinsPerShare, day });
+    created = await ShareEvent.create({ userId, itemType, itemId, coinsAwarded: coinsPerShare, day });
   } catch (err) {
     if (err?.code === 11000) {
-      const usedToday = await ShareEvent.countDocuments({ userId, day });
+      // Insert failed → nothing written → todayCount from the check above is still accurate.
       return res.json({ status: 'success', data: {
         coinsAwarded: 0, duplicate: true,
-        remainingToday: Math.max(0, maxSharesPerDay - usedToday),
+        remainingToday: Math.max(0, maxSharesPerDay - todayCount),
       }});
     }
     throw err;
+  }
+
+  // ponytail: early check is check-then-act (races past the cap across distinct items), so cap is enforced fail-closed here via a post-insert re-count instead of a transaction/lock — a rare concurrent burst may under-credit by a share or two, never over.
+  const after = await ShareEvent.countDocuments({ userId, day });
+  if (after > maxSharesPerDay) {
+    await ShareEvent.deleteOne({ _id: created._id });
+    res.status(429);
+    throw new Error('Daily share limit reached');
   }
 
   // Credit — same primitive as adjustUserWallet. ponytail: non-transactional to
@@ -69,10 +80,9 @@ export const createShare = async (req, res) => {
   notify({ userId, type: 'wallet_credited', data: { amount: coinsPerShare, currency: 'coins' } })
     .catch(() => {}); // best-effort; a notif failure must never fail the credit
 
-  const usedToday = await ShareEvent.countDocuments({ userId, day });
   res.status(201).json({ status: 'success', data: {
     coinsAwarded: coinsPerShare,
-    remainingToday: Math.max(0, maxSharesPerDay - usedToday),
+    remainingToday: Math.max(0, maxSharesPerDay - after),
   }});
 };
 
