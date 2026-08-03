@@ -6,6 +6,7 @@ import ClickEvent from '../clicks/clickModel.js';
 import ReportImport from './reportImportModel.js';
 import AdminSettings from './adminSettingsModel.js';
 import { notify } from '../notifications/notificationService.js';
+import { payoutsEnabled, payoutForWithdrawal } from '../payments/razorpayService.js';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Coin economy — configurable via AdminSettings singleton.
@@ -338,11 +339,85 @@ export const getWithdrawals = async (req, res) => {
 };
 
 /**
+ * Fire a RazorpayX payout for a pending withdrawal. Holds (debits) the coins up
+ * front and refunds them if the payout call fails, so a failed payout never
+ * costs the user their coins. Status lands at 'processing'; the payout webhook
+ * flips it to 'completed' (or refunds again on failure/reversal).
+ */
+async function runRazorpayPayout({ req, res, tx }) {
+  if (tx.metadata?.payoutId) {
+    res.status(409);
+    throw new Error('This withdrawal already has a payout in flight.');
+  }
+  if (tx.status !== 'pending') {
+    res.status(409);
+    throw new Error(`Withdrawal is "${tx.status}", not pending — cannot start a payout.`);
+  }
+
+  const md = tx.metadata || {};
+  const coinsRedeemed = Number(md.coinsRedeemed) || 0;
+  const rupees = Math.abs(Number(tx.amount) || 0);
+  if (coinsRedeemed <= 0 || rupees <= 0) {
+    res.status(400);
+    throw new Error('Withdrawal is missing its coin amount or ₹ value.');
+  }
+
+  // Hold the coins before any money moves.
+  const wallet = await ensureWallet(tx.userId);
+  if (wallet.coins < coinsRedeemed) {
+    res.status(400);
+    throw new Error(`Insufficient coins (${wallet.coins} available, ${coinsRedeemed} needed).`);
+  }
+  wallet.coins -= coinsRedeemed;
+  await wallet.save();
+
+  const dest = md.method === 'Bank'
+    ? { method: 'Bank', accountNumber: md.accountNumber, ifsc: md.ifsc, name: md.accountName }
+    : { method: 'UPI', upiId: md.paymentDetails };
+  const user = await User.findById(tx.userId).select('name').lean();
+
+  let payout;
+  try {
+    payout = await payoutForWithdrawal({
+      userName: user?.name,
+      userId: tx.userId,
+      txId: tx._id,
+      amountRupees: rupees,
+      dest,
+    });
+  } catch (e) {
+    // Refund the held coins; leave the withdrawal pending for a retry.
+    wallet.coins += coinsRedeemed;
+    await wallet.save();
+    res.status(502);
+    throw new Error(`Razorpay payout failed: ${e.message}`);
+  }
+
+  tx.status = 'processing';
+  tx.metadata = {
+    ...md,
+    payoutId: payout.payoutId,
+    contactId: payout.contactId,
+    fundAccountId: payout.fundAccountId,
+    payoutStatus: payout.status,
+    payoutInitiatedAt: new Date(),
+    actionedBy: req.user?._id?.toString(),
+    actionedAt: new Date(),
+  };
+  await tx.save();
+
+  res.json({
+    status: 'success',
+    data: { transaction: tx, payout: { id: payout.payoutId, status: payout.status } },
+  });
+}
+
+/**
  * PATCH /api/admin/withdrawals/:id
  *
  * Move a withdrawal through the state machine:
- *   pending → processing (admin started the payout)
- *   processing → completed (paid; admin pastes the UPI/bank TXN id)
+ *   pending → processing (admin started the payout — manual, or via RazorpayX)
+ *   processing → completed (paid; RazorpayX webhook, or admin pastes a TXN id)
  *   pending → rejected (refunds the held amount back to the user's wallet)
  */
 export const updateWithdrawal = async (req, res) => {
@@ -360,6 +435,14 @@ export const updateWithdrawal = async (req, res) => {
   if (!nextStatus) {
     res.status(400);
     throw new Error('action must be process | complete | reject');
+  }
+
+  // Auto-payout: admin approves a pending withdrawal, Razorpay is enabled, and
+  // no manual TXN id was supplied → fire a real RazorpayX payout. Coins are
+  // held now and refunded if the call fails; the webhook confirms completion.
+  if (action === 'complete' && !txnId && (await payoutsEnabled())) {
+    await runRazorpayPayout({ req, res, tx });
+    return;
   }
 
   tx.status = nextStatus;

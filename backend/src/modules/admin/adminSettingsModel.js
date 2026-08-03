@@ -33,6 +33,7 @@ const adminSettingsSchema = new mongoose.Schema(
     razorpayKeyId:         { type: String, default: '', trim: true },
     razorpayKeySecret:     { type: String, default: '', trim: true },
     razorpayAccountNumber: { type: String, default: '', trim: true }, // RazorpayX payout account
+    razorpayWebhookSecret: { type: String, default: '', trim: true }, // verifies inbound payout webhooks
     razorpayEnabled:       { type: Boolean, default: false },
   },
   { timestamps: true },

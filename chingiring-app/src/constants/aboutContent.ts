@@ -58,7 +58,7 @@ export const ABOUT_TEAM_ATTRIB = '— The ChingiRingi Team, Bengaluru 🇮🇳';
 // Shades that only the About page uses. Brand blue / muted greys already live
 // in theme.ts (Colors), but the About design leans on a few extra slate tones.
 export const AboutColors = {
-  pageBg:        '#F5F8FF',
+  pageBg:        '#F0F4F8',
   cardBorder:    '#F0F2F7',
   missionBorder: '#E8F0FE',
   eyebrowBlue:   '#4784E2',

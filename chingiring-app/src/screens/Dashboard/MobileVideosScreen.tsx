@@ -29,7 +29,7 @@ export const MobileVideosScreen = () => {
 };
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
   content: {
     flex: 1,
     justifyContent: 'center',

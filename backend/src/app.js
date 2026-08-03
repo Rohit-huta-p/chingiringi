@@ -24,6 +24,7 @@ import reviewRoutes from './modules/reviews/reviewRoutes.js';
 import clickRoutes from './modules/clicks/clickRoutes.js';
 import notificationRoutes from './modules/notifications/notificationRoutes.js';
 import storeRoutes from './modules/stores/storeRoutes.js';
+import paymentsWebhookRoutes from './modules/payments/paymentsRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -40,6 +41,10 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(limiter);
+
+// Razorpay webhook needs the RAW request body to verify the HMAC signature, so
+// it is mounted BEFORE express.json() (which would parse & discard the bytes).
+app.use('/api/webhooks/razorpay', express.raw({ type: '*/*' }), paymentsWebhookRoutes);
 
 // Body parser
 app.use(express.json({ limit: '10kb' }));

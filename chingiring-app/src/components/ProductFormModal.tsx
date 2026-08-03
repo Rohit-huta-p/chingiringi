@@ -11,11 +11,13 @@ import {
   Platform,
   useWindowDimensions,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Package } from 'lucide-react-native';
+import { X, Package, DownloadCloud } from 'lucide-react-native';
 import { MultiImageUploader } from './MultiImageUploader';
 import { CategoryPicker } from './CategoryPicker';
+import { adminAPI } from '../api/admin';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -86,11 +88,44 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
 
   const [errors, setErrors]     = useState<FormErrors>({});
   const [submitting, setSubmit] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
     if (errors[k as keyof FormErrors]) {
       setErrors((e) => ({ ...e, [k]: undefined }));
+    }
+  };
+
+  // Best-effort prefill from the product/buy link (OpenGraph image + title +
+  // price). If the site blocks it, the admin still has manual upload.
+  const handleFetchFromLink = async () => {
+    const url = form.affiliateUrl.trim();
+    if (!url) {
+      Alert.alert('Add a link first', 'Paste the product / buy link, then fetch.');
+      return;
+    }
+    setFetching(true);
+    try {
+      const { data } = await adminAPI.fetchUrlMeta(url);
+      const patch: Partial<typeof form> = {};
+      if (data.image && !form.images.includes(data.image)) patch.images = [...form.images, data.image];
+      if (data.title && !form.name.trim()) patch.name = data.title;
+      if (data.price != null && !form.price.trim()) patch.price = String(data.price);
+      if (Object.keys(patch).length) {
+        setForm((f) => ({ ...f, ...patch }));
+      } else {
+        Alert.alert(
+          'Nothing to import',
+          data.image || data.title
+            ? 'Everything it returned is already filled in.'
+            : 'This link didn’t return an image — the site may block it. Upload manually instead.',
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Fetch failed', e?.response?.data?.message || e?.message || 'Try again.');
+    } finally {
+      setFetching(false);
     }
   };
 
@@ -233,6 +268,21 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                 keyboardType="url"
               />
             </Field>
+
+            {/* Prefill image + title from the link (best-effort; manual upload stays as fallback) */}
+            <TouchableOpacity
+              style={[st.fetchBtn, (fetching || submitting || !form.affiliateUrl.trim()) && { opacity: 0.5 }]}
+              onPress={handleFetchFromLink}
+              disabled={fetching || submitting || !form.affiliateUrl.trim()}
+              activeOpacity={0.85}
+            >
+              {fetching
+                ? <ActivityIndicator size="small" color="#4784E2" />
+                : <DownloadCloud size={15} color="#4784E2" strokeWidth={2.2} />}
+              <Text style={st.fetchBtnText}>
+                {fetching ? 'Fetching…' : 'Fetch image & title from link'}
+              </Text>
+            </TouchableOpacity>
 
             {/* Price / Coins / Stock row */}
             <View style={st.row3}>
@@ -466,6 +516,20 @@ const st = StyleSheet.create({
   col3: {
     flex: 1,
   },
+  fetchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: -6,
+    marginBottom: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  fetchBtnText: { fontSize: 13, fontWeight: '700', color: '#4784E2' },
 
   actions: {
     flexDirection: 'row',

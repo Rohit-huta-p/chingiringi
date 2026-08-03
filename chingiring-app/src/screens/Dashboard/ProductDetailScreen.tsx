@@ -761,21 +761,21 @@ const styles = StyleSheet.create({
   desktopContainer: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
   // New desktop wrapper: vertical scroll, row at top, reviews below.
   desktopScrollContent: {
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
   desktopRow: {
     flexDirection: 'row',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     alignItems: 'flex-start', // image col is fixed-height; let details col size naturally
   },
   desktopReviewsWrap: {
     paddingHorizontal: 28,
     paddingBottom: 40,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
 
   // ─── Desktop image col (Figma 395:1104) ─────────────────────────────
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
     padding: 28,
     paddingRight: 14,
     gap: 14,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
   desktopImageBox: {
     width: '100%',
@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
   },
   detailsScrollDesktop: {
     flex: 1,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
   detailsContent: {
     padding: 28,

@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, Coins, ChevronRight, ChevronDown } from 'lucide-react-native';
+import { Search, ChevronRight, ChevronDown, Coins } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -20,9 +20,12 @@ import { useAuthStore } from '../../store';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
-import { bannersAPI, Banner, resolveBannerGradient } from '../../api/banners';
+import { bannersAPI, Banner } from '../../api/banners';
 import { walletAPI } from '../../api/wallet';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
+import { ProductCard } from '../../components/ProductCard';
+import { BannerBlock, interleaveBanners } from '../../components/BannerBlock';
+import { tint } from '../../utils/color';
 import {
   applyProductControls,
   DEFAULT_CONTROLS,
@@ -38,9 +41,7 @@ function greeting(): string {
   return 'Good evening';
 }
 
-function priceFmt(n: number): string {
-  return `₹${n.toLocaleString('en-IN')}`;
-}
+
 
 // Emoji stand-ins for the category chips (real category images can replace these
 // once products/categories carry an imageUrl). Keyed case-insensitively.
@@ -54,83 +55,9 @@ function emojiFor(cat: string): string {
   return CATEGORY_EMOJI[cat.trim().toLowerCase()] ?? '🛒';
 }
 
-// ─── Promo banner (renders admin banners) ───────────────────────────────────
-
-function PromoBanner({ banner }: { banner?: Banner }) {
-  const imageUrl = banner?.imageUrl;
-  const title    = banner?.title    ?? 'Shop and earn coins';
-  const subtitle = banner?.subtitle ?? '';
-  const ctaLabel = banner?.ctaLabel;
-  const colors   = banner
-    ? resolveBannerGradient(banner)
-    : (['#4784E2', '#2E6BD0'] as [string, string]);
-
-  return (
-    <TouchableOpacity style={st.banner} activeOpacity={0.92}>
-      {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-      ) : (
-        <>
-          <LinearGradient
-            colors={colors}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={st.bannerBlobRight} />
-          <View style={st.bannerContent}>
-            <Text style={st.bannerTitle}>{title}</Text>
-            {subtitle ? <Text style={st.bannerSub}>{subtitle}</Text> : null}
-            {ctaLabel ? (
-              <View style={st.bannerCta}><Text style={st.bannerCtaText}>{ctaLabel}</Text></View>
-            ) : null}
-          </View>
-        </>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-// ─── Product card (Zepto-style) ─────────────────────────────────────────────
-// Real data only: image, price, coins earned, ADD. No fabricated MRP/rating.
-
-function ProductCard({
-  product,
-  width,
-  onPress,
-}: {
-  product: Product;
-  width: number;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={[st.card, { width }]} onPress={onPress} activeOpacity={0.85}>
-      <View style={st.thumb}>
-        {product.imageUrl ? (
-          <Image source={{ uri: product.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-        ) : (
-          <View style={[StyleSheet.absoluteFillObject, st.thumbFallback]}>
-            <Text style={st.thumbLetter}>{product.name?.[0]?.toUpperCase() ?? '?'}</Text>
-          </View>
-        )}
-        {product.isFeatured ? (
-          <View style={st.flag}><Text style={st.flagText}>Bestseller</Text></View>
-        ) : null}
-        <TouchableOpacity style={st.add} onPress={onPress} activeOpacity={0.8}>
-          <Text style={st.addText}>ADD</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={st.pricePill}><Text style={st.pricePillText}>{priceFmt(product.price)}</Text></View>
-      <Text style={st.name} numberOfLines={2}>{product.name}</Text>
-      {product.category ? <Text style={st.qty} numberOfLines={1}>{product.category}</Text> : null}
-      <View style={st.earn}>
-        <Coins size={11} color="#a86b06" />
-        <Text style={st.earnText}>Earn {product.coinsPrice.toLocaleString('en-IN')}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
+// Banners render through the shared <BannerBlock> (hero | dual), placed by
+// rowIndex via interleaveBanners(). The old local PromoBanner + banners[0] /
+// every-2-rows placement was removed in the slot→position redesign.
 
 // ─── Main screen ────────────────────────────────────────────────────────────
 
@@ -194,6 +121,12 @@ export const MobileHomeScreen = () => {
     return m;
   }, [apiCategories]);
 
+  // Theme: shades of the selected category's color (empty → default header).
+  const themeColor = apiCategories.find((c) => c.name === selectedCategory)?.color || '';
+  const headerColors: [string, string] = themeColor
+    ? [tint(themeColor, 0.86), tint(themeColor, 0.72)]
+    : ['#E9F4FF', '#DCEBFF'];
+
   // Filter + search
   const filteredProducts = useMemo(() => {
     let p = allProducts;
@@ -223,6 +156,38 @@ export const MobileHomeScreen = () => {
   const RAIL_CARD_W = 150;
   const GRID_CARD_W = Math.floor((width - 16 * 2 - 12) / 2); // responsive 2-col, always fits
 
+  // Curated home = one horizontal rail per category (with products). Placed
+  // banners are interleaved by rowIndex (see interleaveBanners).
+  const categoryRailBlocks = (): React.ReactNode[] =>
+    categoryNames
+      .map((cat) => {
+        const catProducts = allProducts.filter(
+          (p) => (p.category ?? '').trim().toLowerCase() === cat.trim().toLowerCase(),
+        );
+        if (catProducts.length === 0) return null;
+        return (
+          <View key={cat} style={st.sec}>
+            <View style={st.secHead}>
+              <Text style={st.secTitle}>{cat}</Text>
+              <TouchableOpacity
+                style={st.seeAll}
+                onPress={() => navigation.navigate('CategoryProducts', { category: cat })}
+                activeOpacity={0.7}
+              >
+                <Text style={st.seeAllText}>See all</Text>
+                <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rail}>
+              {catProducts.slice(0, 10).map((p) => (
+                <ProductCard key={p._id} product={p} width={RAIL_CARD_W} onPress={() => handleProductPress(p)} />
+              ))}
+            </ScrollView>
+          </View>
+        );
+      })
+      .filter(Boolean) as React.ReactNode[];
+
   if (productsLoading) {
     return (
       <View style={[st.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -238,7 +203,7 @@ export const MobileHomeScreen = () => {
       refreshControl={<RefreshControl {...refresh} />}
     >
       {/* ── Header (light-blue) ─────────────────────────────────────── */}
-      <LinearGradient colors={['#E9F4FF', '#DCEBFF']} style={st.header}>
+      <LinearGradient colors={headerColors} style={st.header}>
         <View style={st.hrow}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={st.greet}>{greeting()}</Text>
@@ -295,8 +260,8 @@ export const MobileHomeScreen = () => {
                       <Text style={st.chipEmoji}>{emojiFor(cat)}</Text>
                     )}
                   </View>
-                  <Text style={[st.chipLabel, on && st.chipLabelOn]} numberOfLines={1}>{cat}</Text>
-                  {on ? <View style={st.chipUnderline} /> : null}
+                  <Text style={[st.chipLabel, on && st.chipLabelOn, on && themeColor ? { color: themeColor } : null]} numberOfLines={1}>{cat}</Text>
+                  {on ? <View style={[st.chipUnderline, themeColor ? { backgroundColor: themeColor } : null]} /> : null}
                 </TouchableOpacity>
               );
             })}
@@ -322,39 +287,12 @@ export const MobileHomeScreen = () => {
           </View>
         )
       ) : (
-        /* ── Unfiltered home: promo + a horizontal rail per category ──── */
-        <>
-          {banners[0] ? <PromoBanner banner={banners[0]} /> : null}
-          {categoryNames.map((cat, i) => {
-            const catProducts = allProducts.filter(
-              (p) => (p.category ?? '').trim().toLowerCase() === cat.trim().toLowerCase(),
-            );
-            if (catProducts.length === 0) return null;
-            return (
-              <View key={cat} style={st.sec}>
-                <View style={st.secHead}>
-                  <Text style={st.secTitle}>{cat}</Text>
-                  <TouchableOpacity
-                    style={st.seeAll}
-                    onPress={() => navigation.navigate('CategoryProducts', { category: cat })}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={st.seeAllText}>See all</Text>
-                    <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rail}>
-                  {catProducts.slice(0, 10).map((p) => (
-                    <ProductCard key={p._id} product={p} width={RAIL_CARD_W} onPress={() => handleProductPress(p)} />
-                  ))}
-                </ScrollView>
-                {i % 2 === 1 && banners.length > 0 ? (
-                  <PromoBanner banner={banners[(i + 1) % banners.length]} />
-                ) : null}
-              </View>
-            );
-          })}
-        </>
+        /* ── Unfiltered home: category rails with placed banners interleaved ── */
+        interleaveBanners(categoryRailBlocks(), banners, (b) => (
+          <View key={`banner-${b._id}`} style={st.bannerWrap}>
+            <BannerBlock banner={b} navigation={navigation} isMobile />
+          </View>
+        ))
       )}
 
       <View style={{ height: 110 }} />
@@ -365,7 +303,7 @@ export const MobileHomeScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF' },
+  container: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header
   header: {
@@ -425,6 +363,9 @@ const st = StyleSheet.create({
   chipLabelOn: { color: '#2E6BD0', fontFamily: Fonts.bold },
   chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 5 },
 
+  // Placed banner wrapper (BannerBlock supplies the card itself)
+  bannerWrap: { paddingHorizontal: 16, marginTop: 16 },
+
   // Promo banner
   banner: {
     height: 150, marginHorizontal: 16, marginTop: 16, borderRadius: 18,
@@ -457,38 +398,7 @@ const st = StyleSheet.create({
   // Grid (listing mode)
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 14, gap: 12 },
 
-  // Product card
-  card: { backgroundColor: 'transparent' },
-  thumb: {
-    height: 132, borderRadius: 13, backgroundColor: '#f4f7fc',
-    borderWidth: 1, borderColor: '#eef2f7', position: 'relative', overflow: 'visible',
-  },
-  thumbFallback: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#eef2f7', borderRadius: 13 },
-  thumbLetter: { fontSize: 34, fontFamily: Fonts.extraBold, color: '#b8c4d6' },
-  flag: {
-    position: 'absolute', left: 0, top: 9, backgroundColor: '#fdeede',
-    paddingHorizontal: 7, paddingVertical: 2, borderTopRightRadius: 6, borderBottomRightRadius: 6,
-  },
-  flagText: { fontSize: 9, fontFamily: Fonts.extraBold, color: '#a15a1e', textTransform: 'uppercase', letterSpacing: 0.4 },
-  add: {
-    position: 'absolute', right: 8, bottom: -13,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: Colors.primary, borderRadius: 10,
-    paddingHorizontal: 16, paddingVertical: 6,
-    shadowColor: Colors.primary, shadowOpacity: 0.15, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, elevation: 2,
-  },
-  addText: { fontSize: 12.5, fontFamily: Fonts.extraBold, color: Colors.primary, letterSpacing: 0.5 },
-  pricePill: {
-    alignSelf: 'flex-start', marginTop: 20,
-    backgroundColor: Colors.success, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
-  },
-  pricePillText: { color: '#fff', fontSize: 12.5, fontFamily: Fonts.extraBold },
-  name: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: '#28303c', marginTop: 6, lineHeight: 16, minHeight: 32 },
-  qty: { fontSize: 11.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
-  earn: {
-    flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginTop: 7,
-    backgroundColor: '#fdf3e0', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5,
-  },
-  earnText: { fontSize: 10.5, fontFamily: Fonts.extraBold, color: '#a86b06' },
+
 
   // Empty
   empty: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24 },

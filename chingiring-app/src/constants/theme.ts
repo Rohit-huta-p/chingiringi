@@ -20,7 +20,7 @@ export const Colors = {
   primary: '#4784E2',
   primaryLight: '#8BB9FD',
   primaryLight10: '#E9F4FF',
-  background: '#F5F8FF',
+  background: '#F0F4F8',
   backgroundGrey: '#F3F5F7',
   surface: '#ffffff',
   text: '#1e293b',

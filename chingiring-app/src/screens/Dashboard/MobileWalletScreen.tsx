@@ -278,7 +278,7 @@ const ws = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 16,
     padding: 18,
     marginBottom: 24,
@@ -719,7 +719,7 @@ export const MobileWalletScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const m = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#eef2f8' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header avatar (rendered inside MobileAuthHeader's rightSlot)
   headerAvatar: {

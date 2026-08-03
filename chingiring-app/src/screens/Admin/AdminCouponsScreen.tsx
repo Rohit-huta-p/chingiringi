@@ -426,7 +426,7 @@ function CouponFormModal({
                 value={form.isActive}
                 onValueChange={(v) => update('isActive', v)}
                 trackColor={{ false: '#e2e8f0', true: '#86efac' }}
-                thumbColor={form.isActive ? '#22c55e' : '#F5F8FF'}
+                thumbColor={form.isActive ? '#22c55e' : '#F0F4F8'}
               />
             </View>
 
@@ -627,7 +627,7 @@ export function AdminCouponsScreen() {
 // ─── Page Styles ────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF' },
+  container: { flex: 1, backgroundColor: '#F0F4F8' },
   containerContent: { padding: Spacing.lg, paddingBottom: 60 },
 
   // Header
@@ -806,7 +806,7 @@ const m = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 10,
@@ -832,7 +832,7 @@ const m = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
   typeBtnActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
   typeBtnTxt: { fontSize: 13, fontWeight: '600', color: '#64748b' },
@@ -845,7 +845,7 @@ const m = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,

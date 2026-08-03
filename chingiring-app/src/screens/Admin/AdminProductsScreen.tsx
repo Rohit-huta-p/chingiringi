@@ -458,7 +458,7 @@ export function AdminProductsScreen() {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF' },
+  container: { flex: 1, backgroundColor: '#F0F4F8' },
   containerContent: { padding: Spacing.lg, paddingBottom: 60 },
 
   // Page header
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusPillActive: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
-  statusPillInactive: { backgroundColor: '#F5F8FF', borderColor: '#e2e8f0' },
+  statusPillInactive: { backgroundColor: '#F0F4F8', borderColor: '#e2e8f0' },
   statusPillText: { fontSize: 13, fontWeight: '600' },
   statusPillTextActive: { color: '#16a34a' },
   statusPillTextInactive: { color: '#64748b' },

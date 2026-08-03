@@ -8,6 +8,11 @@ function presentSettings(doc) {
   s.razorpayConfigured = !!(s.razorpayKeyId && secret);
   s.razorpayKeySecretMasked = secret ? `••••••••${secret.slice(-4)}` : '';
   delete s.razorpayKeySecret;
+
+  const webhookSecret = s.razorpayWebhookSecret || '';
+  s.razorpayWebhookConfigured = !!webhookSecret;
+  s.razorpayWebhookSecretMasked = webhookSecret ? `••••••••${webhookSecret.slice(-4)}` : '';
+  delete s.razorpayWebhookSecret;
   return s;
 }
 
@@ -45,6 +50,10 @@ export const updateSettings = async (req, res) => {
   // won't clear it — use a dedicated clear flow if that's ever needed.
   if (typeof req.body.razorpayKeySecret === 'string' && req.body.razorpayKeySecret.trim()) {
     updates.razorpayKeySecret = req.body.razorpayKeySecret.trim();
+  }
+  // Webhook secret is write-only + optional, same as the key secret.
+  if (typeof req.body.razorpayWebhookSecret === 'string' && req.body.razorpayWebhookSecret.trim()) {
+    updates.razorpayWebhookSecret = req.body.razorpayWebhookSecret.trim();
   }
 
   if (updates.passThroughPercent !== undefined) {

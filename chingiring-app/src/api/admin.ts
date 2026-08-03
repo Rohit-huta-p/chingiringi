@@ -229,9 +229,19 @@ export const adminAPI = {
     razorpayKeyId?: string;
     razorpayKeySecret?: string;
     razorpayAccountNumber?: string;
+    razorpayWebhookSecret?: string;
     razorpayEnabled?: boolean;
   }) => {
     const response = await apiClient.patch('/api/admin/settings', data);
     return response.data;
+  },
+
+  // Best-effort prefill from a product/buy link (OpenGraph image + title + price).
+  fetchUrlMeta: async (url: string) => {
+    const response = await apiClient.post('/api/admin/fetch-url-meta', { url });
+    return response.data as {
+      status: string;
+      data: { image: string; title: string; price: number | null; blocked?: number; error?: string };
+    };
   },
 };

@@ -247,7 +247,7 @@ export const MobileAdminWithdrawals = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#3b82f6', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14 },
@@ -294,7 +294,7 @@ const s = StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '600' },
 
   // Details
-  detailsBox: { backgroundColor: '#F5F8FF', borderRadius: 10, padding: 12, marginBottom: 12 },
+  detailsBox: { backgroundColor: '#F0F4F8', borderRadius: 10, padding: 12, marginBottom: 12 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   detailLabel: { fontSize: 12, color: '#94a3b8' },
   detailValue: { fontSize: 13, fontWeight: '600', color: '#1e293b', maxWidth: '55%', textAlign: 'right' },

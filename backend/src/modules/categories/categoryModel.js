@@ -25,6 +25,13 @@ const categorySchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    // Theme color (hex). When this category is selected on the home page, the
+    // header tints to shades of it. Empty → default theme.
+    color: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     isActive: {
       type: Boolean,
       default: true,

@@ -30,6 +30,8 @@ export interface Category {
   icon: string;
   /** Optional category tile image (Cloudinary URL). Falls back to an emoji when empty. */
   imageUrl?: string;
+  /** Optional theme color (hex). Selecting the category tints the home header. */
+  color?: string;
   isActive: boolean;
   sortOrder: number;
   /** Admin-toggled — hide this category from the user Deals page. Default true. */

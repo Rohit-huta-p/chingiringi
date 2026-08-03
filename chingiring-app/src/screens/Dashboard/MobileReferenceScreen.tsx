@@ -165,7 +165,7 @@ export const MobileReferenceScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#eef2f8' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header — matches MobileWalletScreen blue gradient header
   header: {
@@ -252,7 +252,7 @@ const s = StyleSheet.create({
 
   // Code box
   codeBox: {
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#e2e8f0',

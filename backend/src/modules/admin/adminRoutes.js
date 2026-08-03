@@ -12,6 +12,7 @@ import {
   getReportImport,
 } from './walletOpsController.js';
 import { getSettings, updateSettings } from './adminSettingsController.js';
+import { fetchUrlMeta } from './urlMetaController.js';
 import { couponAdminRouter } from '../coupons/couponRoutes.js';
 import { getAdminBanners } from '../banners/bannerController.js';
 import { getAllProductsAdmin } from '../products/productController.js';
@@ -28,6 +29,7 @@ router.get('/dashboard', getDashboardStats);
 router.get('/users', getUsers);
 router.get('/deals', getAllDeals);
 router.get('/products', getAllProductsAdmin);
+router.post('/fetch-url-meta', fetchUrlMeta); // prefill product image/title from a buy link
 router.get('/stores', getAllStoresAdmin);
 
 // Banners (admin — returns all including inactive)

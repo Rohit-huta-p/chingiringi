@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: Colors.text,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
   otpBoxFilled: {
     borderColor: Colors.primary,

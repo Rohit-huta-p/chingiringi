@@ -270,7 +270,7 @@ export const ReferScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f7fa' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
   rootContent: { padding: 24, paddingBottom: 60 },
 
   // Top header
@@ -332,7 +332,7 @@ const s = StyleSheet.create({
 
   // Code box
   codeBox: {
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 14,
@@ -480,7 +480,7 @@ const s = StyleSheet.create({
   },
   emptyIconBox: {
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 6,
   },

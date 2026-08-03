@@ -12,10 +12,11 @@ import {
 import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import {
-  Banner, BannerDraft, BannerLinkType, BannerSlot,
+  Banner, BannerDraft, BannerLinkType, BannerSlot, BannerType,
   BANNER_SLOTS, SLOT_INFO, SLOT_GRADIENTS, withDerivedSlot,
 } from '../../api/banners';
 import { ImageUploader } from '../../components/ImageUploader';
+import { BannerPositionModal } from '../../components/BannerPositionModal';
 
 // ─── Slot visuals ───────────────────────────────────────────────────────────
 // Gradients come from SLOT_GRADIENTS (shared with home screens) so the
@@ -154,23 +155,30 @@ const EMPTY_DRAFT: BannerDraft = {
   title: '',
   subtitle: '',
   imageUrl: '',
+  mobileImageUrl: '',
   linkType: 'url',
   linkValue: '',
   slot: 'hero',
+  type: 'hero',
+  rowIndex: 0,
+  right: {},
   isActive: true,
   sortOrder: 1,
 };
 
 function BannerFormModal({
-  visible, banner, onClose, onSave,
+  visible, banner, allBanners, onClose, onSave,
 }: {
   visible: boolean;
   banner: Banner | null;
+  allBanners: Banner[];
   onClose: () => void;
-  onSave: (draft: BannerDraft) => void;
+  onSave: (draft: BannerDraft, otherMoves: { id: string; rowIndex: number }[]) => void;
 }) {
   const isEdit = !!banner;
   const [draft, setDraft] = useState<BannerDraft>(EMPTY_DRAFT);
+  const [showPosition, setShowPosition] = useState(false);
+  const [pendingMoves, setPendingMoves] = useState<{ id: string; rowIndex: number }[]>([]);
 
   // Reset form on each open
   React.useEffect(() => {
@@ -179,11 +187,15 @@ function BannerFormModal({
         title: banner.title,
         subtitle: banner.subtitle,
         imageUrl: banner.imageUrl,
+        mobileImageUrl: banner.mobileImageUrl,
         overlayImage: banner.overlayImage,
         linkType: banner.linkType,
         linkValue: banner.linkValue,
         ctaLabel: banner.ctaLabel,
         slot: banner.slot ?? 'hero',
+        type: banner.type ?? 'hero',
+        rowIndex: banner.rowIndex ?? 0,
+        right: banner.right ?? {},
         gradientColors: banner.gradientColors,
         textColor: banner.textColor,
         badges: banner.badges,
@@ -192,6 +204,7 @@ function BannerFormModal({
         startsAt: banner.startsAt,
         expiresAt: banner.expiresAt,
       } : EMPTY_DRAFT);
+      setPendingMoves([]);
     }
   }, [visible, banner]);
 
@@ -200,7 +213,7 @@ function BannerFormModal({
       Alert.alert('Validation', 'Title is required');
       return;
     }
-    onSave(draft);
+    onSave(draft, pendingMoves);
   };
 
   return (
@@ -215,35 +228,41 @@ function BannerFormModal({
           </View>
 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-            {/* Slot selector */}
-            <Text style={styles.fieldLabel}>Slot *</Text>
-            <View style={styles.slotGrid}>
-              {BANNER_SLOTS.map((slot) => {
-                const visual = SLOT_VISUALS[slot];
-                const SlotIcon = visual.Icon;
-                const selected = draft.slot === slot;
+            {/* Type selector — Hero (full-width) or Dual (left + right) */}
+            <Text style={styles.fieldLabel}>Type *</Text>
+            <View style={styles.segmentRow}>
+              {(['hero', 'dual'] as BannerType[]).map((t) => {
+                const selected = draft.type === t;
                 return (
                   <TouchableOpacity
-                    key={slot}
-                    style={[styles.slotOption, selected && styles.slotOptionSelected]}
-                    onPress={() => setDraft({ ...draft, slot })}
+                    key={t}
+                    style={[styles.segmentBtn, selected && styles.segmentBtnSelected]}
+                    onPress={() => setDraft({ ...draft, type: t })}
                     activeOpacity={0.8}
                   >
-                    <LinearGradient
-                      colors={visual.preview as any}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.slotPreview}
-                    >
-                      <SlotIcon size={18} color="#fff" strokeWidth={1.8} />
-                    </LinearGradient>
-                    <Text style={[styles.slotLabel, selected && styles.slotLabelSelected]}>
-                      {SLOT_INFO[slot].label}
+                    <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
+                      {t}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+
+            {/* Placement — opens the home preview to drag/tap the banner's row */}
+            <TouchableOpacity
+              style={styles.positionBtn}
+              onPress={() => setShowPosition(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.positionBtnText}>Preview & position on home</Text>
+              <Text style={styles.positionBtnBadge}>Row {draft.rowIndex ?? 0}</Text>
+            </TouchableOpacity>
+
+            {draft.type === 'dual' ? (
+              <View style={styles.sideDivider}>
+                <Text style={styles.sideDividerText}>Left side</Text>
+              </View>
+            ) : null}
 
             {/* Title + subtitle */}
             <Text style={styles.fieldLabel}>Title *</Text>
@@ -265,13 +284,24 @@ function BannerFormModal({
               onChangeText={(v) => setDraft({ ...draft, subtitle: v })}
             />
 
-            {/* Image — Cloudinary upload (web), URL fallback */}
-            <Text style={styles.fieldLabel}>Image</Text>
+            {/* Images — Cloudinary upload (web), URL fallback. Desktop + mobile
+                render on their own home screens (MobileHomeScreen falls back to
+                the desktop image when no mobile image is set). */}
+            <Text style={styles.fieldLabel}>Desktop Image</Text>
             <ImageUploader
               value={draft.imageUrl}
               onChange={(url) => setDraft({ ...draft, imageUrl: url })}
               folder="chingiringi/banners"
             />
+            <Text style={styles.fieldHint}>Recommended 2400 × 600 px or larger. Auto-cropped to fit — keep the key subject centered.</Text>
+
+            <Text style={styles.fieldLabel}>Mobile Image</Text>
+            <ImageUploader
+              value={draft.mobileImageUrl || ''}
+              onChange={(url) => setDraft({ ...draft, mobileImageUrl: url })}
+              folder="chingiringi/banners"
+            />
+            <Text style={styles.fieldHint}>Recommended 1080 × 640 px or larger. Auto-cropped to fit.</Text>
 
             {/* CTA label */}
             <Text style={styles.fieldLabel}>CTA Label</Text>
@@ -312,6 +342,86 @@ function BannerFormModal({
               value={draft.linkValue}
               onChangeText={(v) => setDraft({ ...draft, linkValue: v })}
             />
+
+            {/* Dual — right half (top-level fields above are the left half) */}
+            {draft.type === 'dual' ? (
+              <>
+                <View style={styles.sideDivider}>
+                  <Text style={styles.sideDividerText}>Right side</Text>
+                </View>
+
+                <Text style={styles.fieldLabel}>Right Title</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Right half title"
+                  placeholderTextColor="#94a3b8"
+                  value={draft.right?.title || ''}
+                  onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), title: v } })}
+                />
+
+                <Text style={styles.fieldLabel}>Right Subtitle</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Right half subtitle"
+                  placeholderTextColor="#94a3b8"
+                  value={draft.right?.subtitle || ''}
+                  onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), subtitle: v } })}
+                />
+
+                <Text style={styles.fieldLabel}>Right Desktop Image</Text>
+                <ImageUploader
+                  value={draft.right?.imageUrl || ''}
+                  onChange={(url) => setDraft({ ...draft, right: { ...(draft.right ?? {}), imageUrl: url } })}
+                  folder="chingiringi/banners"
+                />
+                <Text style={styles.fieldHint}>Recommended 1200 × 700 px (half-width) or larger. Auto-cropped to fit.</Text>
+
+                <Text style={styles.fieldLabel}>Right Mobile Image</Text>
+                <ImageUploader
+                  value={draft.right?.mobileImageUrl || ''}
+                  onChange={(url) => setDraft({ ...draft, right: { ...(draft.right ?? {}), mobileImageUrl: url } })}
+                  folder="chingiringi/banners"
+                />
+
+                <Text style={styles.fieldLabel}>Right CTA Label</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Shop Now"
+                  placeholderTextColor="#94a3b8"
+                  value={draft.right?.ctaLabel || ''}
+                  onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), ctaLabel: v } })}
+                />
+
+                <Text style={styles.fieldLabel}>Right Link Type</Text>
+                <View style={styles.segmentRow}>
+                  {(['deal', 'category', 'url'] as BannerLinkType[]).map((t) => {
+                    const selected = (draft.right?.linkType ?? 'url') === t;
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        style={[styles.segmentBtn, selected && styles.segmentBtnSelected]}
+                        onPress={() => setDraft({ ...draft, right: { ...(draft.right ?? {}), linkType: t } })}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
+                          {t}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.fieldLabel}>Right Link Value</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="category slug / deal-id / /referral"
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                  value={draft.right?.linkValue || ''}
+                  onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), linkValue: v } })}
+                />
+              </>
+            ) : null}
 
             {/* Order + dates */}
             <View style={styles.fieldRow}>
@@ -367,6 +477,25 @@ function BannerFormModal({
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+
+          <BannerPositionModal
+            visible={showPosition}
+            banners={allBanners}
+            currentId={banner?._id}
+            value={draft.rowIndex ?? 0}
+            current={{
+              type: draft.type,
+              title: draft.title,
+              imageUrl: draft.imageUrl,
+              mobileImageUrl: draft.mobileImageUrl,
+              right: draft.right,
+            }}
+            onArrange={(cur, moves) => {
+              setDraft((d) => ({ ...d, rowIndex: cur }));
+              setPendingMoves(moves);
+            }}
+            onClose={() => setShowPosition(false)}
+          />
         </View>
       </View>
     </Modal>
@@ -440,7 +569,20 @@ export function AdminBannersScreen() {
       Alert.alert('Could not update banner', e?.response?.data?.message || e?.message || 'Please try again.'),
   });
 
-  const handleSave = (draft: BannerDraft) => {
+  const handleSave = async (draft: BannerDraft, otherMoves: { id: string; rowIndex: number }[]) => {
+    // Persist any OTHER banners the position board rearranged (rowIndex only),
+    // then save the current banner. Only writes banners whose row actually moved.
+    const changed = otherMoves.filter((m) => {
+      const orig = banners.find((b) => b._id === m.id);
+      return orig && (orig.rowIndex ?? 0) !== m.rowIndex;
+    });
+    if (changed.length) {
+      try {
+        await Promise.all(changed.map((m) => adminAPI.updateBanner(m.id, { rowIndex: m.rowIndex })));
+      } catch {
+        // Non-fatal: the current banner still saves; reorder can be retried.
+      }
+    }
     if (editBanner) updateMutation.mutate({ id: editBanner._id, draft });
     else createMutation.mutate(draft);
   };
@@ -511,6 +653,7 @@ export function AdminBannersScreen() {
       <BannerFormModal
         visible={showForm}
         banner={editBanner}
+        allBanners={banners}
         onClose={() => { setShowForm(false); setEditBanner(null); }}
         onSave={handleSave}
       />
@@ -521,7 +664,7 @@ export function AdminBannersScreen() {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF' },
+  container: { flex: 1, backgroundColor: '#F0F4F8' },
   containerContent: { padding: Spacing.lg, paddingBottom: 60 },
 
   // Page header
@@ -615,7 +758,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   activePillOn: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
-  activePillOff: { backgroundColor: '#F5F8FF', borderColor: '#e2e8f0' },
+  activePillOff: { backgroundColor: '#F0F4F8', borderColor: '#e2e8f0' },
   activePillText: { fontSize: 14, fontWeight: '600' },
   activePillTextOn: { color: '#16a34a' },
   activePillTextOff: { color: '#64748b' },
@@ -699,6 +842,23 @@ const styles = StyleSheet.create({
 
   // Form fields
   fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 6, marginTop: 12 },
+  fieldHint: { fontSize: 11, color: Colors.textSecondary, marginTop: 6 },
+  sideDivider: { marginTop: 18, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+  sideDividerText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  positionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: '#eff6ff',
+  },
+  positionBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  positionBtnBadge: { fontSize: 12, fontWeight: '700', color: Colors.text },
   fieldRow: { flexDirection: 'row', gap: 12 },
   fieldHalf: { flex: 1 },
   input: {

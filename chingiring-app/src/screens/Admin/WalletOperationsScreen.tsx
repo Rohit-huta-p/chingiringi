@@ -904,6 +904,11 @@ function UserWalletTab() {
 function UserTimelineDetail({ userId }: { userId: string }) {
   const qc = useQueryClient();
   const nativePrompt = useNativePrompt();
+  const settingsQuery = useQuery({
+    queryKey: ['admin', 'settings'],
+    queryFn: () => adminAPI.getSettings(),
+  });
+  const razorpayEnabled = !!settingsQuery.data?.data?.settings?.razorpayEnabled;
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['admin', 'user-timeline', userId],
     queryFn: () => adminAPI.getUserTimeline(userId, { limit: 60 }),
@@ -934,6 +939,7 @@ function UserTimelineDetail({ userId }: { userId: string }) {
       qc.invalidateQueries({ queryKey: ['admin', 'user-timeline', userId] });
       qc.invalidateQueries({ queryKey: ['admin', 'queue'] });
     },
+    onError: (e: any) => Alert.alert('Payout failed', e?.response?.data?.message || e?.message),
   });
 
   const promptAdjust = async (
@@ -1035,12 +1041,20 @@ function UserTimelineDetail({ userId }: { userId: string }) {
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
             <TouchableOpacity
               style={[s.actBtn, { backgroundColor: '#dcfce7' }]}
+              disabled={withdrawalActionMutation.isPending}
               onPress={async () => {
-                const txnId = await nativePrompt.prompt('Paste UPI/bank TXN id (optional)');
-                withdrawalActionMutation.mutate({ id: pendingWithdrawal.data._id, action: 'complete', txnId: txnId || undefined });
+                if (razorpayEnabled) {
+                  // RazorpayX auto-payout — server pays the user's UPI/bank; no manual TXN id.
+                  withdrawalActionMutation.mutate({ id: pendingWithdrawal.data._id, action: 'complete' });
+                } else {
+                  const txnId = await nativePrompt.prompt('Paste UPI/bank TXN id (optional)');
+                  withdrawalActionMutation.mutate({ id: pendingWithdrawal.data._id, action: 'complete', txnId: txnId || undefined });
+                }
               }}
             >
-              <Text style={[s.actBtnTxt, { color: '#16a34a' }]}>Approve & Pay</Text>
+              <Text style={[s.actBtnTxt, { color: '#16a34a' }]}>
+                {razorpayEnabled ? 'Pay via Razorpay' : 'Approve & Pay'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.actBtn, { backgroundColor: '#fee2e2' }]}
@@ -1340,7 +1354,7 @@ function relativeTime(iso: string): string {
 // ─── Styles ────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   header: {
     paddingHorizontal: Spacing.lg,
@@ -1461,7 +1475,7 @@ const s = StyleSheet.create({
     marginTop: 8,
     minHeight: 160,
     borderWidth: 1, borderColor: '#e2e8f0',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 10,
     padding: 12,
     fontSize: 12,
@@ -1509,7 +1523,7 @@ const s = StyleSheet.create({
   },
   previewHeader: {
     flexDirection: 'row',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     paddingHorizontal: 14, paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: '#e8ecf2',
   },
@@ -1559,7 +1573,7 @@ const s = StyleSheet.create({
   },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 40,
@@ -1603,7 +1617,7 @@ const s = StyleSheet.create({
   walletStatBox: {
     flex: 1,
     minWidth: 120,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 10,
     padding: 12,
   },
@@ -1672,7 +1686,7 @@ const s = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
@@ -1684,7 +1698,7 @@ const s = StyleSheet.create({
   livePreview: {
     marginTop: 20,
     padding: 14,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#dbeafe',
@@ -1725,7 +1739,7 @@ const s = StyleSheet.create({
   promptInput: {
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,

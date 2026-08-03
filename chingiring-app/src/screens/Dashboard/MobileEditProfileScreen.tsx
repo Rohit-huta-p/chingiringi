@@ -294,7 +294,7 @@ export const MobileEditProfileScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Avatar card — overlaps the bottom of the shared header by ~40px.
   avatarCardWrap: {

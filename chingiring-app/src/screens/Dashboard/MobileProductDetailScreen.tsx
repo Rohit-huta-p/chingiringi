@@ -656,7 +656,7 @@ export const MobileProductDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
 
   // ── Image ──
@@ -934,7 +934,7 @@ const styles = StyleSheet.create({
 // Kept separate from `styles` so the deal-mode visual tweaks don't bleed in.
 
 const pStyles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Hero
   heroBox: {
