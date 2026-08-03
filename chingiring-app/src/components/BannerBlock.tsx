@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight } from 'lucide-react-native';
 import { Fonts } from '../constants/theme';
@@ -29,10 +29,17 @@ export function bannerNavigate(
   } else if (linkType === 'deal') {
     navigation.navigate('ProductDetail', { dealId: linkValue });
   } else if (linkType === 'url') {
-    const v = linkValue.toLowerCase();
-    if (v.includes('wallet')) navigation.navigate('Wallet');
-    else if (v.includes('refer')) navigation.navigate('Referrals');
-    // external / unknown internal path → no-op for now
+    const v = linkValue.trim();
+    const lower = v.toLowerCase();
+    // Internal shorthand (e.g. "/wallet", "referrals") → in-app screen.
+    if (!/^https?:\/\//i.test(v) && (lower.includes('wallet') || lower.includes('refer'))) {
+      navigation.navigate(lower.includes('wallet') ? 'Wallet' : 'Referrals');
+      return;
+    }
+    // Anything else that looks like a web address → open in the browser
+    // (new tab on web, system browser on native). Handles a missing protocol.
+    const url = /^https?:\/\//i.test(v) ? v : v.includes('.') ? `https://${v}` : '';
+    if (url) Linking.openURL(url).catch(() => {});
   }
 }
 
