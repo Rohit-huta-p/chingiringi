@@ -14,10 +14,16 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Package, DownloadCloud } from 'lucide-react-native';
+import {
+  X, Package, DownloadCloud, Image as ImageIcon, Type as TypeIcon, Link2, Coins, Tag,
+} from 'lucide-react-native';
 import { MultiImageUploader } from './MultiImageUploader';
+import { ImageUploader } from './ImageUploader';
 import { CategoryPicker } from './CategoryPicker';
+import { ProductCard } from './ProductCard';
 import { adminAPI } from '../api/admin';
+import type { Product } from '../api/products';
+import { Colors, Gradient } from '../constants/theme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +34,7 @@ export interface ProductFormValues {
   price: number;
   coinsPrice: number;
   imageUrl: string;    // cover image (mirrors images[0]) — read by every card surface
+  mobileImageUrl: string; // optional mobile-specific cover crop
   images: string[];    // full gallery, cover first
   affiliateUrl: string;
   stock: number;
@@ -46,8 +53,6 @@ interface Props {
   onSubmit: (values: ProductFormValues) => Promise<void> | void;
 }
 
-// ─── Validation ─────────────────────────────────────────────────────────────
-
 interface FormErrors {
   name?: string;
   price?: string;
@@ -55,30 +60,26 @@ interface FormErrors {
   stock?: string;
 }
 
-function validate(form: {
-  name: string; price: string; coinsPrice: string; stock: string;
-}): { errors: FormErrors; values?: ProductFormValues } {
-  const errors: FormErrors = {};
-  if (!form.name.trim())  errors.name  = 'Required';
-
-  const priceN = Number(form.price);
-  if (!form.price.trim() || Number.isNaN(priceN) || priceN < 0) errors.price = 'Required (₹ ≥ 0)';
-
-  const coinsN = Number(form.coinsPrice);
-  if (!form.coinsPrice.trim() || Number.isNaN(coinsN) || coinsN < 0) errors.coinsPrice = 'Required (≥ 0)';
-
-  const stockN = Number(form.stock);
-  if (!form.stock.trim() || Number.isNaN(stockN) || stockN < 0) errors.stock = 'Required (≥ 0)';
-
-  return Object.keys(errors).length > 0 ? { errors } : { errors };
+// ─── Section wrapper (mirrors the banner form) ───────────────────────────────
+// Icon chip + title with a divider, fields below.
+function FormSection({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+  return (
+    <View style={st.section}>
+      <View style={st.sectionHead}>
+        <View style={st.sectionIcon}><Icon size={13} color={Colors.primary} strokeWidth={2.4} /></View>
+        <Text style={st.sectionHeadText}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, onSubmit }) => {
   const { width: winW, height: winH } = useWindowDimensions();
-  const isMobile = winW < 600;
-  const isEdit   = !!product?._id;
+  const twoCol = winW >= 880; // side-by-side form + live preview on desktop
+  const isEdit = !!product?._id;
 
   // Reset form whenever the modal opens with a new product.
   const [form, setForm] = useState(() => buildInitial(product));
@@ -158,6 +159,7 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
         coinsPrice:   coinsN,
         images,
         imageUrl:     images[0] ?? '',   // cover mirrors the first gallery image
+        mobileImageUrl: form.mobileImageUrl.trim(),
         affiliateUrl: form.affiliateUrl.trim(),
         stock:        stockN,
       });
@@ -167,17 +169,31 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     }
   };
 
-  // ── Layout: bottom sheet on mobile, centred card on desktop ────────────
-  const sheetWidth  = isMobile ? winW : Math.min(540, winW - 48);
-  const sheetRadius = isMobile ? 24 : 16;
+  // Live preview object built from the in-progress form — feeds the same
+  // ProductCard users see on the home grid, so admins see the real result.
+  const previewProduct: Product = {
+    _id: 'preview',
+    name: form.name.trim() || 'Product name',
+    description: form.description,
+    category: form.category,
+    price: Number(form.price) || 0,
+    coinsPrice: Number(form.coinsPrice) || 0,
+    imageUrl: form.images[0] || form.mobileImageUrl || '',
+    mobileImageUrl: form.mobileImageUrl || undefined,
+    images: form.images,
+    stock: Number(form.stock) || 0,
+    sold: 0,
+    isActive: true,
+    isFeatured: false,
+    createdAt: '',
+    updatedAt: '',
+  };
+  const previewCardEl = (w: number) => (
+    <ProductCard product={previewProduct} width={w} onPress={() => {}} />
+  );
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType={isMobile ? 'slide' : 'fade'}
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={st.overlay}
@@ -185,170 +201,188 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
         {/* Backdrop dismiss */}
         <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={onClose} />
 
-        <View
-          style={[
-            st.sheet,
-            {
-              width: sheetWidth,
-              maxHeight: winH * 0.92,
-              borderTopLeftRadius:  sheetRadius,
-              borderTopRightRadius: sheetRadius,
-              borderBottomLeftRadius:  isMobile ? 0 : sheetRadius,
-              borderBottomRightRadius: isMobile ? 0 : sheetRadius,
-            },
-          ]}
-        >
-          {/* Drag handle (mobile only) */}
-          {isMobile && <View style={st.handle} />}
-
+        <View style={[st.modalCard, twoCol && st.modalCardWide, { maxHeight: winH * 0.92 }]}>
           {/* Header */}
-          <View style={st.header}>
+          <View style={st.modalHeader}>
             <View style={st.headerLeft}>
-              <Package size={18} color="#0f172a" strokeWidth={2.5} />
-              <Text style={st.title}>{isEdit ? 'Edit Product' : 'Add New Product'}</Text>
+              <View style={st.headerBadge}>
+                <Package size={16} color="#fff" strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={st.modalTitle}>{isEdit ? 'Edit product' : 'New product'}</Text>
+                <Text style={st.modalSubtitle}>
+                  {isEdit ? 'Update its details and images' : 'Add a product to the store'}
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity style={st.closeBtn} onPress={onClose}>
-              <X size={16} color="#64748b" strokeWidth={2.5} />
+            <TouchableOpacity onPress={onClose} style={st.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={18} color={Colors.textSecondary} strokeWidth={2.4} />
             </TouchableOpacity>
           </View>
 
-          {/* Form body */}
-          <ScrollView
-            style={st.body}
-            contentContainerStyle={{ paddingBottom: 16 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Product Images — multi-image gallery (cover first). imageUrl on
-                submit mirrors images[0] so every card surface keeps working. */}
-            <Field label="Product Images">
-              <MultiImageUploader
-                value={form.images}
-                onChange={(urls) => update('images', urls)}
-                folder="chingiringi/products"
-                disabled={submitting}
-              />
-            </Field>
+          {/* Body: live preview + sectioned form (side-by-side on desktop) */}
+          <View style={twoCol ? st.bodyRow : st.bodyCol}>
+            {twoCol ? (
+              <View style={st.previewPane}>
+                <Text style={st.previewCap}>Preview</Text>
+                {previewCardEl(300)}
+              </View>
+            ) : null}
 
-            {/* Product Name * */}
-            <Field label="Product Name" required error={errors.name}>
-              <TextInput
-                style={[st.input, errors.name && st.inputErr, !errors.name && form.name && st.inputFocus]}
-                placeholder="e.g., Wireless Headphones"
-                placeholderTextColor="#94a3b8"
-                value={form.name}
-                onChangeText={(v) => update('name', v)}
-              />
-            </Field>
-
-            {/* Description */}
-            <Field label="Description">
-              <TextInput
-                style={[st.input, st.textarea]}
-                placeholder="Short product description..."
-                placeholderTextColor="#94a3b8"
-                value={form.description}
-                onChangeText={(v) => update('description', v)}
-                multiline
-                textAlignVertical="top"
-              />
-            </Field>
-
-            {/* Product Link — optional buy / affiliate URL. When set, the
-                product's "Buy Now" opens it (subid-tracked, like deals). */}
-            <Field label="Product Link">
-              <TextInput
-                style={[st.input, !!form.affiliateUrl && st.inputFocus]}
-                placeholder="https://amazon.in/... (optional — leave blank for display-only)"
-                placeholderTextColor="#94a3b8"
-                value={form.affiliateUrl}
-                onChangeText={(v) => update('affiliateUrl', v)}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-              />
-            </Field>
-
-            {/* Prefill image + title from the link (best-effort; manual upload stays as fallback) */}
-            <TouchableOpacity
-              style={[st.fetchBtn, (fetching || submitting || !form.affiliateUrl.trim()) && { opacity: 0.5 }]}
-              onPress={handleFetchFromLink}
-              disabled={fetching || submitting || !form.affiliateUrl.trim()}
-              activeOpacity={0.85}
+            <ScrollView
+              style={st.formPane}
+              contentContainerStyle={st.formPaneContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              {fetching
-                ? <ActivityIndicator size="small" color="#4784E2" />
-                : <DownloadCloud size={15} color="#4784E2" strokeWidth={2.2} />}
-              <Text style={st.fetchBtnText}>
-                {fetching ? 'Fetching…' : 'Fetch image & title from link'}
-              </Text>
+              {!twoCol ? (
+                <View style={st.previewInline}>{previewCardEl(200)}</View>
+              ) : null}
+
+              {/* Images — gallery (cover first). imageUrl on submit mirrors
+                  images[0] so every card surface keeps working. */}
+              <FormSection icon={ImageIcon} title="Photos">
+                <Field label="Desktop photos">
+                  <MultiImageUploader
+                    value={form.images}
+                    onChange={(urls) => update('images', urls)}
+                    folder="chingiringi/products"
+                    disabled={submitting}
+                  />
+                  <Text style={st.fieldHint}>
+                    Shown on the store grid & desktop product page. Recommended 1200 × 1200 px (1:1) or larger — auto-cropped to a square, keep the subject centered.
+                  </Text>
+                </Field>
+                <Field label="Mobile photo (optional)">
+                  <ImageUploader
+                    value={form.mobileImageUrl}
+                    onChange={(url) => update('mobileImageUrl', url)}
+                    folder="chingiringi/products"
+                    disabled={submitting}
+                  />
+                  <Text style={st.fieldHint}>
+                    Leads the mobile product page; falls back to the first desktop photo. Recommended 1080 × 810 px (4:3, landscape).
+                  </Text>
+                </Field>
+              </FormSection>
+
+              {/* Details */}
+              <FormSection icon={TypeIcon} title="Details">
+                <Field label="Product name" required error={errors.name}>
+                  <TextInput
+                    style={[st.input, errors.name && st.inputErr, !errors.name && !!form.name && st.inputFocus]}
+                    placeholder="e.g., Wireless Headphones"
+                    placeholderTextColor="#94a3b8"
+                    value={form.name}
+                    onChangeText={(v) => update('name', v)}
+                  />
+                </Field>
+                <Field label="Description">
+                  <TextInput
+                    style={[st.input, st.textarea]}
+                    placeholder="Short product description..."
+                    placeholderTextColor="#94a3b8"
+                    value={form.description}
+                    onChangeText={(v) => update('description', v)}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </Field>
+              </FormSection>
+
+              {/* Product link — optional buy / affiliate URL. When set, the
+                  product's "Buy Now" opens it (subid-tracked, like deals). */}
+              <FormSection icon={Link2} title="Product link">
+                <Field label="Buy / affiliate URL">
+                  <TextInput
+                    style={[st.input, !!form.affiliateUrl && st.inputFocus]}
+                    placeholder="https://amazon.in/... (optional — blank = display-only)"
+                    placeholderTextColor="#94a3b8"
+                    value={form.affiliateUrl}
+                    onChangeText={(v) => update('affiliateUrl', v)}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </Field>
+                <TouchableOpacity
+                  style={[st.fetchBtn, (fetching || submitting || !form.affiliateUrl.trim()) && { opacity: 0.5 }]}
+                  onPress={handleFetchFromLink}
+                  disabled={fetching || submitting || !form.affiliateUrl.trim()}
+                  activeOpacity={0.85}
+                >
+                  {fetching
+                    ? <ActivityIndicator size="small" color={Colors.primary} />
+                    : <DownloadCloud size={15} color={Colors.primary} strokeWidth={2.2} />}
+                  <Text style={st.fetchBtnText}>
+                    {fetching ? 'Fetching…' : 'Fetch image & title from link'}
+                  </Text>
+                </TouchableOpacity>
+              </FormSection>
+
+              {/* Pricing & stock */}
+              <FormSection icon={Coins} title="Pricing & stock">
+                <View style={st.row3}>
+                  <Field label="Price (₹)" required error={errors.price} style={st.col3}>
+                    <TextInput
+                      style={[st.input, errors.price && st.inputErr]}
+                      placeholder="2999"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={form.price}
+                      onChangeText={(v) => update('price', v.replace(/[^0-9.]/g, ''))}
+                    />
+                  </Field>
+                  <Field label="Coins" required error={errors.coinsPrice} style={st.col3}>
+                    <TextInput
+                      style={[st.input, errors.coinsPrice && st.inputErr]}
+                      placeholder="15000"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={form.coinsPrice}
+                      onChangeText={(v) => update('coinsPrice', v.replace(/[^0-9]/g, ''))}
+                    />
+                  </Field>
+                  <Field label="Stock" required error={errors.stock} style={st.col3}>
+                    <TextInput
+                      style={[st.input, errors.stock && st.inputErr]}
+                      placeholder="50"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={form.stock}
+                      onChangeText={(v) => update('stock', v.replace(/[^0-9]/g, ''))}
+                    />
+                  </Field>
+                </View>
+              </FormSection>
+
+              {/* Category — inline picker with create / edit / delete */}
+              <FormSection icon={Tag} title="Category">
+                <CategoryPicker
+                  value={form.category}
+                  onChange={(v) => update('category', v)}
+                  disabled={submitting}
+                />
+              </FormSection>
+            </ScrollView>
+          </View>
+
+          {/* Footer */}
+          <View style={st.modalActions}>
+            <TouchableOpacity style={st.cancelBtn} onPress={onClose} disabled={submitting} activeOpacity={0.85}>
+              <Text style={st.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-
-            {/* Price / Coins / Stock row */}
-            <View style={st.row3}>
-              <Field label="Price (₹)" required error={errors.price} style={st.col3}>
-                <TextInput
-                  style={[st.input, errors.price && st.inputErr]}
-                  placeholder="2999"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={form.price}
-                  onChangeText={(v) => update('price', v.replace(/[^0-9.]/g, ''))}
-                />
-              </Field>
-              <Field label="Coins" required error={errors.coinsPrice} style={st.col3}>
-                <TextInput
-                  style={[st.input, errors.coinsPrice && st.inputErr]}
-                  placeholder="15000"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={form.coinsPrice}
-                  onChangeText={(v) => update('coinsPrice', v.replace(/[^0-9]/g, ''))}
-                />
-              </Field>
-              <Field label="Stock" required error={errors.stock} style={st.col3}>
-                <TextInput
-                  style={[st.input, errors.stock && st.inputErr]}
-                  placeholder="50"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={form.stock}
-                  onChangeText={(v) => update('stock', v.replace(/[^0-9]/g, ''))}
-                />
-              </Field>
-            </View>
-
-            {/* Category — inline picker with create / edit / delete */}
-            <Field label="Category">
-              <CategoryPicker
-                value={form.category}
-                onChange={(v) => update('category', v)}
-                disabled={submitting}
-              />
-            </Field>
-          </ScrollView>
-
-          {/* Actions */}
-          <View style={st.actions}>
             <TouchableOpacity
-              activeOpacity={0.85}
-              style={[st.primaryBtnWrap, submitting && { opacity: 0.7 }]}
+              style={[st.submitBtnWrap, submitting && { opacity: 0.7 }]}
               onPress={handleSubmit}
               disabled={submitting}
+              activeOpacity={0.9}
             >
-              <LinearGradient
-                colors={['#4784E2', '#91BDFF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={st.primaryBtn}
-              >
+              <LinearGradient colors={Gradient.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.submitBtn}>
                 {submitting
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={st.primaryBtnText}>{isEdit ? 'Update Product' : 'Add Product'}</Text>}
+                  : <Text style={st.submitBtnText}>{isEdit ? 'Update product' : 'Create product'}</Text>}
               </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity style={st.cancelBtn} onPress={onClose} disabled={submitting}>
-              <Text style={st.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -369,10 +403,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <View style={[{ marginBottom: 14 }, style]}>
+    <View style={[st.field, style]}>
       <View style={st.labelRow}>
-        <Text style={st.label}>
-          {label.toUpperCase()}{required ? ' *' : ''}
+        <Text style={st.fieldLabel}>
+          {label}{required ? <Text style={st.req}> *</Text> : null}
         </Text>
         {error ? <Text style={st.errText}>{error}</Text> : null}
       </View>
@@ -391,6 +425,7 @@ function buildInitial(p?: ProductFormSeed | null) {
     price:        p?.price         != null ? String(p.price)       : '',
     coinsPrice:   p?.coinsPrice    != null ? String(p.coinsPrice)  : '',
     imageUrl:     p?.imageUrl     ?? '',
+    mobileImageUrl: p?.mobileImageUrl ?? '',
     images:       p?.images?.length ? p.images : (p?.imageUrl ? [p.imageUrl] : []),
     affiliateUrl: p?.affiliateUrl ?? '',
     stock:        p?.stock         != null ? String(p.stock)        : '',
@@ -402,172 +437,148 @@ function buildInitial(p?: ProductFormSeed | null) {
 const st = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
-  sheet: {
+  modalCard: {
     backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 560,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: -4 },
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    elevation: 10,
   },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#cbd5e1',
-    alignSelf: 'center',
-    marginTop: 10,
-  },
-  header: {
+  modalCardWide: { maxWidth: 960 },
+
+  // Header
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 16,
     paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: '#eef2f7',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  headerBadge: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center',
   },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  modalSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center',
+  },
+
+  // Body panes (live preview + form)
+  bodyRow: { flexDirection: 'row', flex: 1, minHeight: 0 },
+  bodyCol: { flex: 1, minHeight: 0 },
+  previewPane: {
+    width: 360,
+    padding: 20,
+    gap: 12,
+    borderRightWidth: 1,
+    borderRightColor: '#eef2f7',
+    backgroundColor: '#fbfcfe',
     alignItems: 'center',
   },
-
-  body: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
+  previewCap: {
+    alignSelf: 'flex-start',
+    fontSize: 11, fontWeight: '800', color: Colors.textSecondary,
+    letterSpacing: 0.6, textTransform: 'uppercase',
   },
+  previewInline: { alignItems: 'center', marginBottom: 6 },
+  formPane: { flex: 1 },
+  formPaneContent: { padding: 20, paddingTop: 6, paddingBottom: 24 },
 
+  // Sections
+  section: { marginTop: 18 },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: 2, paddingBottom: 8,
+    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  sectionIcon: {
+    width: 24, height: 24, borderRadius: 7,
+    backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center',
+  },
+  sectionHeadText: { fontSize: 13, fontWeight: '800', color: Colors.text, letterSpacing: 0.2 },
+
+  // Fields
+  field: { marginTop: 12 },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
     marginBottom: 6,
   },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-    letterSpacing: 0.5,
-  },
-  errText: {
-    fontSize: 11,
-    color: '#dc2626',
-    fontWeight: '600',
-  },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  fieldHint: { fontSize: 11, color: Colors.textSecondary, marginTop: 6 },
+  req: { color: '#ef4444' },
+  errText: { fontSize: 11, color: '#dc2626', fontWeight: '600' },
 
   input: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#F5F8FF',
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    borderColor: Colors.border,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     fontSize: 14,
-    color: '#0f172a',
+    color: Colors.text,
     minHeight: 44,
-  },
-  inputFocus: {
-    borderColor: '#4784E2',
-    backgroundColor: '#fff',
-  },
-  inputErr: {
-    borderColor: '#ef4444',
-    backgroundColor: '#fef2f2',
-  },
-  inputWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  inputText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#0f172a',
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
-  textarea: {
-    minHeight: 80,
-    paddingTop: 12,
-  },
+  inputFocus: { borderColor: Colors.primary },
+  inputErr: { borderColor: '#ef4444', backgroundColor: '#fef2f2' },
+  textarea: { minHeight: 80, paddingTop: 12 },
 
-  row3: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  col3: {
-    flex: 1,
-  },
+  row3: { flexDirection: 'row', gap: 10 },
+  col3: { flex: 1 },
+
   fetchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: -6,
-    marginBottom: 14,
+    marginTop: 10,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#eff6ff',
     borderWidth: 1,
     borderColor: '#dbeafe',
   },
-  fetchBtnText: { fontSize: 13, fontWeight: '700', color: '#4784E2' },
+  fetchBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
 
-  actions: {
+  // Footer
+  modalActions: {
     flexDirection: 'row',
     gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 20,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  primaryBtnWrap: {
-    flex: 2,
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  primaryBtn: {
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
+    borderTopColor: Colors.border,
   },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 13,
-    borderRadius: 22,
     backgroundColor: '#f1f5f9',
+    paddingVertical: 13,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelBtnText: {
-    color: '#475569',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  cancelBtnText: { color: Colors.text, fontWeight: '600', fontSize: 14 },
+  submitBtnWrap: { flex: 2, borderRadius: 10, overflow: 'hidden' },
+  submitBtn: { paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
 
 export default ProductFormModal;

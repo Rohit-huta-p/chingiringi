@@ -33,6 +33,12 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Optional mobile-specific cover crop. Mobile surfaces prefer this and fall
+    // back to imageUrl — mirrors the banner desktop/mobile image split.
+    mobileImageUrl: {
+      type: String,
+      default: '',
+    },
     // Full image gallery (cover first). Additive — imageUrl above stays the
     // cover for backward compatibility with every surface reading .imageUrl.
     images: {

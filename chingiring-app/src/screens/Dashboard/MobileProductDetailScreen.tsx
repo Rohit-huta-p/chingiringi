@@ -125,8 +125,13 @@ function ProductDetailMobile({
   const imageUrl    = product?.imageUrl;
   // Gallery, cover first. Falls back to the single imageUrl for products
   // created before multi-image, and to [] when there's no image at all.
-  const gallery: string[] =
+  const baseGallery: string[] =
     product?.images?.length ? product.images : (imageUrl ? [imageUrl] : []);
+  // A mobile-specific crop (if set) leads the gallery, mirroring the banner
+  // desktop/mobile split — otherwise the normal cover-first gallery.
+  const gallery: string[] = product?.mobileImageUrl
+    ? [product.mobileImageUrl, ...baseGallery.filter((u) => u !== product.mobileImageUrl)]
+    : baseGallery;
   const price       = Number(product?.price ?? 0);
   const coinsPrice  = Number(product?.coinsPrice ?? 0);
   const stock       = Number(product?.stock ?? 0);
