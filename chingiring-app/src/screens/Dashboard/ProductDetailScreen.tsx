@@ -264,22 +264,12 @@ export const ProductDetailScreen = () => {
   const productCategory = product?.category?.name || product?.category || '';
   const productPrice = product?.price ?? 0;
   const productOldPrice = product?.oldPrice ?? 0;
-  const productCoins = product?.coins ?? product?.coinsPrice ?? 0;
-  const productStock = product?.productStock ?? product?.stock;
   const productDescription = product?.subtitle || product?.description || '';
   const productRating = product?.rating;
   const productRatingCount = product?.ratingCount;
   const productDiscount = product?.discount;
   const productSold = product?.sold ?? 0;
   const productImages: string[] = Array.isArray(product?.images) ? product.images : [];
-  const stockLabel =
-    productStock == null
-      ? 'In stock'
-      : productStock === 0
-        ? 'Out of stock'
-        : productStock <= 15
-          ? `Only ${productStock} left`
-          : 'In stock';
 
   const priceFmt = (n: number) => `\u20B9${(n || 0).toLocaleString('en-IN')}`;
 
@@ -382,31 +372,16 @@ export const ProductDetailScreen = () => {
       contentContainerStyle={styles.detailsContent}
       showsVerticalScrollIndicator={false}
     >
-      {/* Tags: Category + Stock status */}
-      <View style={styles.tagsRow}>
-        {productCategory ? (
+      {/* Tags: Category */}
+      {productCategory ? (
+        <View style={styles.tagsRow}>
           <View style={[styles.tagPill, styles.tagBlue]}>
             <Text style={[styles.tagText, styles.tagBlueText]}>
               {'◇'} {productCategory}
             </Text>
           </View>
-        ) : null}
-        <View
-          style={[
-            styles.tagPill,
-            productStock === 0 ? styles.tagOrange : styles.tagBlue,
-          ]}
-        >
-          <Text
-            style={[
-              styles.tagText,
-              productStock === 0 ? styles.tagOrangeText : styles.tagBlueText,
-            ]}
-          >
-            {'◇'} {stockLabel}
-          </Text>
         </View>
-      </View>
+      ) : null}
 
       {/* Title */}
       <Text style={styles.productTitle}>{productName}</Text>
@@ -429,7 +404,7 @@ export const ProductDetailScreen = () => {
         </View>
       ) : null}
 
-      {/* Stat cards: Price (with old price) + Coins reward */}
+      {/* Price */}
       <View style={styles.statCardsRow}>
         <Card style={styles.statCard}>
           <View style={styles.statHeaderRow}>
@@ -446,18 +421,6 @@ export const ProductDetailScreen = () => {
           ) : (
             <Text style={styles.statSub}>Inclusive of taxes</Text>
           )}
-        </Card>
-        <Card style={styles.statCard}>
-          <View style={styles.statHeaderRow}>
-            <View style={[styles.statIconCircle, { backgroundColor: '#fef3c7' }]}>
-              <Text style={[styles.statIconText, { color: '#b45309' }]}>{'◆'}</Text>
-            </View>
-            <Text style={styles.statLabel}>COINS</Text>
-          </View>
-          <Text style={styles.statValue}>
-            {productCoins.toLocaleString('en-IN')}
-          </Text>
-          <Text style={styles.statSub}>Or pay with coins</Text>
         </Card>
       </View>
 
@@ -482,23 +445,6 @@ export const ProductDetailScreen = () => {
           </View>
         </Card>
       ) : null}
-
-      {/* Stock card */}
-      <Card style={styles.lockCard}>
-        <View style={styles.lockRow}>
-          <View style={styles.lockIconCircle}>
-            <Text style={styles.lockIconText}>{'✓'}</Text>
-          </View>
-          <View style={styles.lockTextContainer}>
-            <Text style={styles.lockTitle}>{stockLabel}</Text>
-            <Text style={styles.lockDescription}>
-              {productStock === 0
-                ? 'This item is currently sold out. Check back soon.'
-                : 'Ships within 24 hours of order confirmation.'}
-            </Text>
-          </View>
-        </View>
-      </Card>
 
       {/* Description card (only when description has more than the subtitle) */}
       {productDescription ? (

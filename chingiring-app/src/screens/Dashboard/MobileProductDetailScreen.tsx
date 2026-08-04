@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import {
   ArrowLeft, Share2, Clock, Percent, Lock, CheckCircle, Star, PencilLine,
-  Minus, Plus, Award,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -113,7 +112,6 @@ function ProductDetailMobile({
   onWriteReview: () => void;
 }) {
   const { width: winW } = useWindowDimensions();
-  const [quantity, setQuantity] = React.useState(1);
   const [imgIndex, setImgIndex] = React.useState(0);
 
   // Daily share quota — same query key the share actions invalidate.
@@ -133,8 +131,6 @@ function ProductDetailMobile({
     ? [product.mobileImageUrl, ...baseGallery.filter((u) => u !== product.mobileImageUrl)]
     : baseGallery;
   const price       = Number(product?.price ?? 0);
-  const coinsPrice  = Number(product?.coinsPrice ?? 0);
-  const stock       = Number(product?.stock ?? 0);
   const sold        = Number(product?.sold ?? 0);
   const category    = String(product?.category ?? '').trim();
   const description = String(product?.description ?? '').trim();
@@ -142,15 +138,7 @@ function ProductDetailMobile({
   // Hero pages are inset by the 16px heroBox margin on each side.
   const pageW = Math.max(1, winW - 32);
 
-  const fmtPrice = (n: number) => `₹${(n * quantity).toLocaleString('en-IN')}`;
-
-  // Stock availability badge — green (in stock) / amber (low) / red (out).
-  const stockBadge =
-    stock <= 0
-      ? { label: 'Out of stock', fg: '#b91c1c', bg: '#fef2f2', dot: '#ef4444' }
-      : stock <= 5
-      ? { label: `Only ${stock} left`, fg: '#b45309', bg: '#fffbeb', dot: '#f59e0b' }
-      : { label: 'In stock', fg: '#15803d', bg: '#f0fdf4', dot: '#22c55e' };
+  const fmtPrice = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
   return (
     <View style={pStyles.root}>
@@ -222,54 +210,13 @@ function ProductDetailMobile({
             </View>
           ) : null}
 
-          {/* Price + quantity stepper */}
-          <View style={pStyles.priceRow}>
-            <Text style={pStyles.price}>{fmtPrice(price)}</Text>
-            <View style={pStyles.stepper}>
-              <TouchableOpacity
-                style={pStyles.stepBtn}
-                onPress={() => setQuantity((q) => Math.max(1, q - 1))}
-              >
-                <Minus size={14} color={Colors.text} strokeWidth={2.2} />
-              </TouchableOpacity>
-              <Text style={pStyles.stepQty}>{quantity}</Text>
-              <TouchableOpacity
-                style={pStyles.stepBtn}
-                onPress={() => setQuantity((q) => Math.min(Math.max(stock, 1), q + 1))}
-                disabled={stock > 0 && quantity >= stock}
-              >
-                <Plus
-                  size={14}
-                  color={stock > 0 && quantity >= stock ? '#cbd5e1' : Colors.text}
-                  strokeWidth={2.2}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+          {/* Price */}
+          <Text style={pStyles.price}>{fmtPrice(price)}</Text>
 
-          {/* Availability badge + social proof */}
-          <View style={pStyles.availRow}>
-            <View style={[pStyles.stockBadge, { backgroundColor: stockBadge.bg }]}>
-              <View style={[pStyles.stockDot, { backgroundColor: stockBadge.dot }]} />
-              <Text style={[pStyles.stockText, { color: stockBadge.fg }]}>{stockBadge.label}</Text>
-            </View>
-            {sold > 0 ? (
+          {/* Social proof */}
+          {sold > 0 ? (
+            <View style={pStyles.availRow}>
               <Text style={pStyles.soldText}>🔥 {sold.toLocaleString('en-IN')}+ bought</Text>
-            ) : null}
-          </View>
-
-          {/* Loyalty Reward card — derived from coinsPrice */}
-          {coinsPrice > 0 ? (
-            <View style={pStyles.loyaltyCard}>
-              <View style={pStyles.loyaltyMedal}>
-                <Award size={18} color="#b45309" strokeWidth={2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={pStyles.loyaltyTitle}>Loyalty Reward</Text>
-                <Text style={pStyles.loyaltyAmount}>
-                  +{(coinsPrice * quantity).toLocaleString('en-IN')} coins
-                </Text>
-              </View>
             </View>
           ) : null}
 
@@ -959,22 +906,8 @@ const pStyles = StyleSheet.create({
     fontSize: 14, color: Colors.textSecondary, lineHeight: 20, marginBottom: 14,
   },
 
-  // Price + stepper
-  priceRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 18,
-  },
-  price: { fontSize: 28, fontWeight: '800', color: Colors.text },
-  stepper: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: '#e8edf5', borderRadius: 18, backgroundColor: '#fff',
-  },
-  stepBtn: {
-    width: 34, height: 34, justifyContent: 'center', alignItems: 'center',
-  },
-  stepQty: {
-    minWidth: 22, textAlign: 'center', fontSize: 15, fontWeight: '700', color: Colors.text,
-  },
+  // Price
+  price: { fontSize: 28, fontWeight: '800', color: Colors.text, marginTop: 8, marginBottom: 18 },
 
   // Stat cards row
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
@@ -1009,23 +942,6 @@ const pStyles = StyleSheet.create({
   promiseLabel: {
     fontSize: 11, fontWeight: '600', color: Colors.textSecondary,
   },
-
-  // Loyalty reward card
-  loyaltyCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fef9c3',
-    borderRadius: 12,
-    borderWidth: 1, borderColor: '#fde68a',
-    paddingHorizontal: 14, paddingVertical: 12,
-    marginTop: 4,
-  },
-  loyaltyMedal: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#fde68a',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  loyaltyTitle: { fontSize: 12, fontWeight: '700', color: '#92400e', marginBottom: 2 },
-  loyaltyAmount: { fontSize: 15, fontWeight: '800', color: '#92400e' },
 
   // Share button (mirrors the back button)
   shareBtn: {
@@ -1073,12 +989,6 @@ const pStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginBottom: 16, flexWrap: 'wrap',
   },
-  stockBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
-  },
-  stockDot: { width: 7, height: 7, borderRadius: 4 },
-  stockText: { fontSize: 12, fontWeight: '700' },
   soldText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
 
   // About this item
