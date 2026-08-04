@@ -26,7 +26,7 @@
 - Create: `chingiring-app/src/api/shares.ts`
 
 **Interfaces:**
-- Produces: `sharesAPI.postShare(itemType:'product'|'store', itemId:string) → Promise<{status,data:{shareToken,shareUrl,coinsAwarded,remainingToday,duplicate?}}>`; `sharesAPI.getQuota() → Promise<{status,data:{usedToday,remaining,cap}}>`.
+- Produces: `sharesAPI.postShare(itemType:'product'|'store', itemId:string) → Promise<{status,data:{coinsAwarded,remainingToday,duplicate?}}>`; `sharesAPI.getQuota() → Promise<{status,data:{usedToday,remaining,cap}}>`.
 
 - [ ] **Step 1: Implement (mirrors api/wallet.ts object style)**
 

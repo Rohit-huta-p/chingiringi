@@ -126,7 +126,7 @@ Expected: response shows `"coinsPerRupee": 1000`.
 - Test: `backend/src/__tests__/shareModel.test.js`
 
 **Interfaces:**
-- Produces: default export `ShareEvent`; document shape `{ userId, itemType:'product'|'store', itemId, shareToken, coinsAwarded, day }`. Unique index on `(userId,itemType,itemId,day)`.
+- Produces: default export `ShareEvent`; document shape `{ userId, itemType:'product'|'store', itemId, coinsAwarded, day }`. Unique index on `(userId,itemType,itemId,day)`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -277,7 +277,7 @@ git commit -m "feat(shares): pure quota + IST day-bucket logic with tests"
 
 **Interfaces:**
 - Consumes: `ShareEvent` (Task 3), `evaluateShareQuota`/`istDayBucket` (Task 4), `Wallet`, `Transaction`, `Product`, `Store`, `AdminSettings.get()`, `notify`.
-- Produces: `createShare(req,res)`, `getShareQuota(req,res)`. `POST /api/shares` returns `{ status, data:{ shareToken, shareUrl, coinsAwarded, remainingToday, duplicate? } }`; `GET /api/shares/quota` returns `{ status, data:{ usedToday, remaining, cap } }`.
+- Produces: `createShare(req,res)`, `getShareQuota(req,res)`. `POST /api/shares` returns `{ status, data:{ coinsAwarded, remainingToday, duplicate? } }`; `GET /api/shares/quota` returns `{ status, data:{ usedToday, remaining, cap } }`.
 
 - [ ] **Step 1: Implement the controller**
 
