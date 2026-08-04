@@ -103,6 +103,17 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       MyAddress:          'addresses',
       AddEditAddress:     'addresses/edit',
       TransactionHistory: 'transactions',
+      StoreDetail: {
+        // `store` is a full object passed via JS navigation for instant render;
+        // strip it from the URL (else it stringifies to `[object Object]`).
+        path: 'offline-stores/:storeId',
+        stringify: {
+          store: () => undefined as unknown as string,
+        },
+        parse: {
+          storeId: (id: string) => id,
+        },
+      } as any,
       ProductDetail: {
         // `product` / `deal` params (full objects passed via JS navigation for
         // instant-render UX) must be stripped — otherwise React Nav stringifies

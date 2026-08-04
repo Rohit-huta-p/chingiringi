@@ -16,6 +16,7 @@ import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
 import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
+import { StoreDetailScreen } from '../screens/Dashboard/StoreDetailScreen';
 import { AboutScreen } from '../screens/Dashboard/AboutScreen';
 import { useUIStore } from '../store/uiStore';
 
@@ -61,6 +62,7 @@ export default function DesktopDrawerNavigator() {
       <Drawer.Screen name="AddEditAddress" component={AddEditAddressScreen} />
       <Drawer.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
       <Drawer.Screen name="ProductDetail" component={ProductDetailScreen} />
+      <Drawer.Screen name="StoreDetail" component={StoreDetailScreen} />
       <Drawer.Screen name="CategoryProducts" component={CategoryProductsScreen} />
     </Drawer.Navigator>
   );

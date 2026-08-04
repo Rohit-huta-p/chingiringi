@@ -26,6 +26,7 @@ import {
   Minus,
 } from 'lucide-react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
 import { StoreMap } from '../../components/StoreMap';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
@@ -49,6 +50,7 @@ export const OfflineStoresScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isNarrow = width < 1100;
   const user = useAuthStore((st) => st.user);
+  const navigation = useNavigation<any>();
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
@@ -332,7 +334,7 @@ export const OfflineStoresScreen: React.FC = () => {
                 key={s._id}
                 store={s}
                 isSelected={s._id === selectedId}
-                onPress={() => setSelectedId(s._id)}
+                onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
               />
             ))}
             {filtered.length === 0 && (
