@@ -44,6 +44,8 @@ import {
   Gift,
   Rows3,
   Columns2,
+  Layers,
+  Type as TypeIcon,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -65,6 +67,8 @@ import { Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 import { BannerPositionModal } from '../../components/BannerPositionModal';
+import { ImageUploader } from '../../components/ImageUploader';
+import { BannerPreview } from '../../components/BannerPreview';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -192,6 +196,16 @@ function BannerCard({
   );
 }
 
+// Section header: an icon chip + title with a hairline divider.
+function MSectionHead({ icon: Icon, title }: { icon: any; title: string }) {
+  return (
+    <View style={m.sectionRow}>
+      <View style={m.sectionIcon}><Icon size={13} color="#3b82f6" strokeWidth={2.4} /></View>
+      <Text style={m.sectionTitle}>{title}</Text>
+    </View>
+  );
+}
+
 // ─── Banner Form Modal ───────────────────────────────────────────────
 
 interface BannerFormState {
@@ -293,16 +307,32 @@ function BannerModal({
   const update = <K extends keyof BannerFormState>(k: K, v: BannerFormState[K]) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  // Slots are retired; the form always shows the same content fields. Overlay
-  // and badges are hidden (BannerBlock doesn't render them for hero/dual).
+  // Slots are retired; the form always shows the same content fields. Overlay,
+  // gradient, and badges are hidden (BannerBlock doesn't render them for hero/dual).
   const fields = {
     showImage: true,
     showOverlayImage: false,
-    showGradient: true,
+    showGradient: false,
     showBadges: false,
     showCta: true,
     showSubtitle: true,
   };
+
+  // Live preview banner built from the current form state (gradientColors is a
+  // comma string in this form → parse to the array BannerBlock expects).
+  const previewBanner = {
+    type: form.type,
+    title: form.title,
+    subtitle: form.subtitle,
+    imageUrl: form.imageUrl,
+    mobileImageUrl: form.mobileImageUrl,
+    ctaLabel: form.ctaLabel,
+    right: form.right,
+    slot: form.slot,
+    gradientColors: form.gradientColors
+      ? form.gradientColors.split(',').map((c) => c.trim()).filter(Boolean)
+      : [],
+  } as Partial<Banner>;
 
   const handleSubmit = () => {
     if (!form.title.trim()) return setErrMsg('Banner title is required');
@@ -388,9 +418,24 @@ function BannerModal({
 
           <ScrollView contentContainerStyle={m.body} keyboardShouldPersistTaps="handled">
 
-            {/* Type — Hero (full-width) or Dual (left + right) */}
-            <Text style={m.sectionHead}>Type</Text>
-            <Text style={m.sectionDesc}>Hero is full-width; Dual shows two halves side by side.</Text>
+            {/* Live preview + placement */}
+            <BannerPreview banner={previewBanner} />
+            <TouchableOpacity
+              style={[m.positionBtn, { marginTop: 12 }]}
+              onPress={() => setShowPosition(true)}
+              activeOpacity={0.85}
+            >
+              <View style={m.positionBtnMain}>
+                <MapPin size={15} color="#3b82f6" strokeWidth={2.2} />
+                <Text style={m.positionBtnText}>Preview & position on home</Text>
+              </View>
+              <View style={m.positionBtnBadge}>
+                <Text style={m.positionBtnBadgeTxt}>Row {form.rowIndex}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Type */}
+            <MSectionHead icon={Layers} title="Banner type" />
             <View style={m.threeToggle}>
               {(['hero', 'dual'] as BannerType[]).map((t) => (
                 <TouchableOpacity
@@ -405,15 +450,8 @@ function BannerModal({
               ))}
             </View>
 
-            {/* Placement — opens the home preview to drag/tap the banner's row */}
-            <TouchableOpacity
-              style={m.positionBtn}
-              onPress={() => setShowPosition(true)}
-              activeOpacity={0.85}
-            >
-              <Text style={m.positionBtnText}>Preview & position on home</Text>
-              <Text style={m.positionBtnBadge}>Position {form.rowIndex}</Text>
-            </TouchableOpacity>
+            {/* Content */}
+            <MSectionHead icon={TypeIcon} title={form.type === 'dual' ? 'Left content' : 'Content'} />
 
             {/* Title */}
             <Text style={m.label}>Banner Title <Text style={m.req}>*</Text></Text>
@@ -444,37 +482,24 @@ function BannerModal({
               </>
             )}
 
-            {/* Image URLs — desktop + mobile render on their own home screens */}
+            {/* Images */}
+            <MSectionHead icon={ImageIcon} title={form.type === 'dual' ? 'Left images' : 'Images'} />
             {fields.showImage && (
               <>
-                <Text style={m.label}>Desktop Image URL</Text>
-                <View style={m.inputRow}>
-                  <ImageIcon size={16} color="#94a3b8" strokeWidth={2} />
-                  <TextInput
-                    style={m.inputTxt}
-                    placeholder="https://..."
-                    placeholderTextColor="#9ca3af"
-                    autoCapitalize="none"
-                    keyboardType="url"
-                    value={form.imageUrl}
-                    onChangeText={(v) => update('imageUrl', v)}
-                  />
-                </View>
+                <Text style={m.label}>Desktop Image</Text>
+                <ImageUploader
+                  value={form.imageUrl}
+                  onChange={(url) => update('imageUrl', url)}
+                  folder="chingiringi/banners"
+                />
                 <Text style={m.hint}>Recommended 2400 × 600 px or larger. Auto-cropped to fit — keep the key subject centered.</Text>
 
-                <Text style={m.label}>Mobile Image URL</Text>
-                <View style={m.inputRow}>
-                  <ImageIcon size={16} color="#94a3b8" strokeWidth={2} />
-                  <TextInput
-                    style={m.inputTxt}
-                    placeholder="https://..."
-                    placeholderTextColor="#9ca3af"
-                    autoCapitalize="none"
-                    keyboardType="url"
-                    value={form.mobileImageUrl}
-                    onChangeText={(v) => update('mobileImageUrl', v)}
-                  />
-                </View>
+                <Text style={m.label}>Mobile Image</Text>
+                <ImageUploader
+                  value={form.mobileImageUrl}
+                  onChange={(url) => update('mobileImageUrl', url)}
+                  folder="chingiringi/banners"
+                />
                 <Text style={m.hint}>Recommended 1080 × 640 px or larger. Auto-cropped to fit.</Text>
               </>
             )}
@@ -553,7 +578,8 @@ function BannerModal({
               </>
             )}
 
-            {/* Link Type */}
+            {/* Call to action & link */}
+            <MSectionHead icon={Link2} title={form.type === 'dual' ? 'Left CTA & link' : 'Call to action & link'} />
             <Text style={m.label}>Link Type</Text>
             <View style={m.threeToggle}>
               {(['url', 'category', 'deal'] as BannerLinkType[]).map((lt) => (
@@ -617,8 +643,7 @@ function BannerModal({
             {/* Dual — right half (fields above are the left half) */}
             {form.type === 'dual' && (
               <>
-                <Text style={m.sectionHead}>Right side</Text>
-                <Text style={m.sectionDesc}>Second half of the dual banner.</Text>
+                <MSectionHead icon={Columns2} title="Right side" />
 
                 <Text style={m.label}>Right Title</Text>
                 <View style={m.inputRow}>
@@ -643,33 +668,19 @@ function BannerModal({
                   />
                 </View>
 
-                <Text style={m.label}>Right Desktop Image URL</Text>
-                <View style={m.inputRow}>
-                  <ImageIcon size={16} color="#94a3b8" strokeWidth={2} />
-                  <TextInput
-                    style={m.inputTxt}
-                    placeholder="https://..."
-                    placeholderTextColor="#9ca3af"
-                    autoCapitalize="none"
-                    keyboardType="url"
-                    value={form.right.imageUrl ?? ''}
-                    onChangeText={(v) => update('right', { ...form.right, imageUrl: v })}
-                  />
-                </View>
+                <Text style={m.label}>Right Desktop Image</Text>
+                <ImageUploader
+                  value={form.right.imageUrl ?? ''}
+                  onChange={(url) => update('right', { ...form.right, imageUrl: url })}
+                  folder="chingiringi/banners"
+                />
 
-                <Text style={m.label}>Right Mobile Image URL</Text>
-                <View style={m.inputRow}>
-                  <ImageIcon size={16} color="#94a3b8" strokeWidth={2} />
-                  <TextInput
-                    style={m.inputTxt}
-                    placeholder="https://..."
-                    placeholderTextColor="#9ca3af"
-                    autoCapitalize="none"
-                    keyboardType="url"
-                    value={form.right.mobileImageUrl ?? ''}
-                    onChangeText={(v) => update('right', { ...form.right, mobileImageUrl: v })}
-                  />
-                </View>
+                <Text style={m.label}>Right Mobile Image</Text>
+                <ImageUploader
+                  value={form.right.mobileImageUrl ?? ''}
+                  onChange={(url) => update('right', { ...form.right, mobileImageUrl: url })}
+                  folder="chingiringi/banners"
+                />
 
                 <Text style={m.label}>Right CTA Button Label</Text>
                 <View style={m.inputRow}>
@@ -712,7 +723,8 @@ function BannerModal({
               </>
             )}
 
-            {/* 2-col: Sort order + Starts */}
+            {/* Schedule & status */}
+            <MSectionHead icon={Calendar} title="Schedule & status" />
             <View style={m.twoCol}>
               <View style={m.col}>
                 <Text style={m.label}>Sort Order</Text>
@@ -1408,8 +1420,22 @@ const m = StyleSheet.create({
     borderColor: '#3b82f6',
     backgroundColor: '#eff6ff',
   },
+  positionBtnMain: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   positionBtnText: { fontSize: 13, fontFamily: Fonts.semiBold, color: '#3b82f6' },
-  positionBtnBadge: { fontSize: 12, fontFamily: Fonts.bold, color: '#1e293b' },
+  positionBtnBadge: { backgroundColor: '#dbeafe', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+  positionBtnBadgeTxt: { fontSize: 12, fontFamily: Fonts.bold, color: '#2563eb' },
+
+  // Section header (icon chip + title + hairline)
+  sectionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginTop: 20, marginBottom: 2, paddingBottom: 8,
+    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  sectionIcon: {
+    width: 24, height: 24, borderRadius: 7,
+    backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center',
+  },
+  sectionTitle: { fontSize: 13, fontFamily: Fonts.extraBold, color: '#1e293b', letterSpacing: 0.2 },
 
   inputRow: {
     flexDirection: 'row',
