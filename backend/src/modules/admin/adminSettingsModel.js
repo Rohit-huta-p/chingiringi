@@ -6,7 +6,10 @@ import mongoose from 'mongoose';
  *  passThroughPercent — fraction of every ₹ of commission we give the user
  *                       back as coins. 0.25 = 25%.
  *  coinsPerRupee      — how many coins equal ₹1 both at credit AND redemption.
- *                       10 = 10 coins per ₹1.
+ *                       1000 = 1000 coins per ₹1 (100 coins = 10 paise).
+ *  coinsPerShare      — flat coins awarded per completed product/store share.
+ *  maxSharesPerDay    — daily cap on credited shares per user, products+stores
+ *                       combined.
  *  defaultLockDays    — how long pending coins sit before confirming. Matches
  *                       typical merchant return window (30d).
  *  cuelinksPublisherId— our Cuelinks pub ID; used by the URL wrapper (Phase C).
