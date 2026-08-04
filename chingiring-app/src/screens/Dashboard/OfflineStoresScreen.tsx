@@ -325,8 +325,8 @@ export const OfflineStoresScreen: React.FC = () => {
 
         {showList && (
           <ScrollView
-            style={[styles.listCol, isNarrow && { flex: 0 }]}
-            contentContainerStyle={styles.listContent}
+            style={[styles.listCol, isNarrow && { flex: 1, maxWidth: '100%' }]}
+            contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
             showsVerticalScrollIndicator={false}
           >
             {filtered.map((s) => (
