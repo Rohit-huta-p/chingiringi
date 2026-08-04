@@ -430,6 +430,8 @@ export const MobileProductDetailScreen = () => {
             visible={shareOpen}
             onClose={() => setShareOpen(false)}
             title={productForView?.name || 'Product'}
+            imageUrl={productForView?.productImage || productForView?.imageUrl}
+            discount={productForView?.discount ? `${productForView?.discount}% off` : undefined}
             url={shareUrl}
             onShared={async () => {
               try {

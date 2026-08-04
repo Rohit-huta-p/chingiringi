@@ -535,6 +535,8 @@ export const ProductDetailScreen = () => {
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
         title={productName}
+        imageUrl={productImage}
+        discount={productDiscount ? `${productDiscount}% off` : undefined}
         url={`${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${targetProductId}?ref=cr_${user?.id ?? ''}`}
         onShared={async () => {
           if (!targetProductId || targetProductId === 'sample') return;
