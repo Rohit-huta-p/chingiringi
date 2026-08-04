@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reviewsAPI, toUiReview, UiReview } from '../../api/reviews';
 import { WriteReviewModal } from '../../components/WriteReviewModal';
+import { ShareSheet } from '../../components/ShareSheet';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -157,6 +158,7 @@ export const ProductDetailScreen = () => {
 
   // Reviews — real data from the API (replaces the old placeholder list).
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data: reviewsRes } = useQuery({
     queryKey: ['reviews', targetProductId],
@@ -183,6 +185,10 @@ export const ProductDetailScreen = () => {
   // shares carry a referral link and are credited (once per item per day) but
   // ONLY after the share sheet reports a completed share \u2014 never before.
   const handleShare = async () => {
+    // Product shares MUST go through our ShareSheet (no "Copy" loophole). Every
+    // product-mode trigger (CTA + the image-panel share icons) routes here.
+    // handleShare below is the deal-mode / OS-sheet path only (deals never credit).
+    if (isProductMode) { setShareOpen(true); return; }
     const shareTitle = isProductMode
       ? (product?.title || product?.name || 'Check out this product')
       : (deal?.title || deal?.description || 'Check out this deal');
@@ -509,10 +515,12 @@ export const ProductDetailScreen = () => {
         </Card>
       ) : null}
 
-      {/* CTA — share is the primary action; product shares earn coins. */}
+      {/* CTA — share is the primary action; product shares earn coins.
+          Opens the custom ShareSheet (product mode only); deal mode keeps
+          using handleShare below, unchanged. */}
       <Button
         title="Share & Earn 100 CR ↗"
-        onPress={handleShare}
+        onPress={() => setShareOpen(true)}
         style={styles.ctaButton}
       />
       <Text style={styles.helperText}>
@@ -523,6 +531,25 @@ export const ProductDetailScreen = () => {
           {sharesLeft}/{sharesCap} shares left today
         </Text>
       )}
+      <ShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={productName}
+        url={`${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${targetProductId}?ref=cr_${user?.id ?? ''}`}
+        onShared={async () => {
+          if (!targetProductId || targetProductId === 'sample') return;
+          try {
+            const { data } = await sharesAPI.postShare('product', targetProductId);
+            queryClient.invalidateQueries({ queryKey: ['wallet'] });
+            queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
+            queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
+            Alert.alert(
+              data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+              data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+            );
+          } catch { /* cap/offline — no credit */ }
+        }}
+      />
     </ScrollView>
   );
 

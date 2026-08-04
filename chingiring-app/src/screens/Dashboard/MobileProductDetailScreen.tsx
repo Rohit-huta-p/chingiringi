@@ -8,8 +8,6 @@ import {
   Image,
   Linking,
   Alert,
-  Share,
-  Platform,
   useWindowDimensions,
 } from 'react-native';
 import {
@@ -21,6 +19,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reviewsAPI, toUiReview } from '../../api/reviews';
 import { WriteReviewModal } from '../../components/WriteReviewModal';
+import { ShareSheet } from '../../components/ShareSheet';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
@@ -382,6 +381,7 @@ export const MobileProductDetailScreen = () => {
   // Reviews — real data from the API (product mode only).
   const reviewProductId = productForView?._id || productId;
   const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
   const queryClient = useQueryClient();
   const { data: reviewsRes } = useQuery({
     queryKey: ['reviews', reviewProductId],
@@ -398,48 +398,18 @@ export const MobileProductDetailScreen = () => {
   };
 
   if (isProductMode) {
-    // Share the product — native share sheet; web falls back to the Web Share
-    // API, then clipboard. Credits 100 CR only once the share sheet reports a
-    // completed share (not a dismiss/cancel).
-    const handleShareProduct = async () => {
-      const pid = productForView?._id || productId;
-      const shareTitle = productForView?.name || 'Check out this product';
-      const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app';
-      const shareUrl = pid && pid !== 'sample' ? `${base}/product/${pid}?ref=cr_${user?.id ?? ''}` : '';
-      const message = shareUrl ? `${shareTitle}\n${shareUrl}` : shareTitle;
-
-      // 1) Open the share sheet. 2) Credit ONLY if it reports a completed share.
-      let shared = false;
-      try {
-        if (Platform.OS === 'web') {
-          const nav: any = (globalThis as any).navigator;
-          if (nav?.share) { await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined }); shared = true; }
-          else if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(message); Alert.alert('Link copied', 'Paste it anywhere to share.'); }
-        } else {
-          const result = await Share.share({ message, title: shareTitle });
-          shared = result.action === Share.sharedAction; // credit only on a real share
-        }
-      } catch { shared = false; /* dismissed / AbortError → no credit */ }
-
-      if (!shared || !pid || pid === 'sample') return;
-      try {
-        const { data } = await sharesAPI.postShare('product', pid);
-        queryClient.invalidateQueries({ queryKey: ['wallet'] });
-        queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
-        queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
-        Alert.alert(
-          data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
-          data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
-        );
-      } catch { /* cap reached or offline; the share already happened */ }
-    };
+    // Share the product — opens the custom ShareSheet. Credits 100 CR only
+    // once a channel link is actually opened (see onShared below), and only
+    // for real products (not the 'sample' template rows).
+    const canShare = !!reviewProductId && reviewProductId !== 'sample';
+    const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
 
     return (
       <>
         <ProductDetailMobile
           product={productForView}
           onBack={() => navigation.goBack()}
-          onShare={handleShareProduct}
+          onShare={() => canShare && setShareOpen(true)}
           reviews={reviews}
           reviewCount={reviewCount}
           averageRating={averageRating}
@@ -450,6 +420,26 @@ export const MobileProductDetailScreen = () => {
           onClose={() => setReviewOpen(false)}
           onSubmit={submitReview}
         />
+        {canShare ? (
+          <ShareSheet
+            visible={shareOpen}
+            onClose={() => setShareOpen(false)}
+            title={productForView?.name || 'Product'}
+            url={shareUrl}
+            onShared={async () => {
+              try {
+                const { data } = await sharesAPI.postShare('product', reviewProductId);
+                queryClient.invalidateQueries({ queryKey: ['wallet'] });
+                queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
+                queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
+                Alert.alert(
+                  data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+                  data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+                );
+              } catch { /* cap/offline — no credit */ }
+            }}
+          />
+        ) : null}
       </>
     );
   }

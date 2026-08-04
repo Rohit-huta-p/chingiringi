@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
   Platform,
   ActivityIndicator,
-  Share,
   Alert,
 } from 'react-native';
 import {
@@ -30,6 +29,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors, Fonts } from '../../constants/theme';
 import { StoreMap } from '../../components/StoreMap';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
+import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
 import { storesAPI, type Store } from '../../api/stores';
 import { sharesAPI } from '../../api/shares';
@@ -419,47 +419,8 @@ const StoreCard: React.FC<{
 }> = ({ store, isSelected, onPress }) => {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
-
-  // Share the store — opens the share sheet FIRST, and only credits coins
-  // once the share sheet reports a completed share (never before).
-  const shareStore = async () => {
-    const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app';
-    const url = `${base}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
-    const msg = `${store.name}\n${url}`;
-
-    let shared = false;
-    try {
-      if (Platform.OS === 'web') {
-        const nav: any = (globalThis as any).navigator;
-        if (nav?.share) {
-          await nav.share({ title: store.name, text: store.name, url });
-          shared = true;
-        } else if (nav?.clipboard?.writeText) {
-          await nav.clipboard.writeText(msg);
-          Alert.alert('Link copied', 'Paste it anywhere to share.');
-        }
-      } else {
-        const result = await Share.share({ message: msg, title: store.name });
-        shared = result.action === Share.sharedAction;
-      }
-    } catch {
-      shared = false; // user dismissed the share sheet, or sharing is unsupported
-    }
-
-    if (!shared) return;
-    try {
-      const { data } = await sharesAPI.postShare('store', store._id);
-      qc.invalidateQueries({ queryKey: ['wallet'] });
-      qc.invalidateQueries({ queryKey: ['walletSummary'] });
-      qc.invalidateQueries({ queryKey: ['shareQuota'] });
-      Alert.alert(
-        data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
-        data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
-      );
-    } catch {
-      /* cap reached or offline — the share already happened */
-    }
-  };
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
 
   return (
     <Pressable
@@ -531,7 +492,7 @@ const StoreCard: React.FC<{
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
-            shareStore();
+            setShareOpen(true);
           }}
           hitSlop={8}
           style={styles.shareBtn}
@@ -539,6 +500,24 @@ const StoreCard: React.FC<{
           <Text style={styles.shareCta}>Share &amp; Earn 100 CR</Text>
         </Pressable>
       </View>
+      <ShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={store.name}
+        url={shareUrl}
+        onShared={async () => {
+          try {
+            const { data } = await sharesAPI.postShare('store', store._id);
+            qc.invalidateQueries({ queryKey: ['wallet'] });
+            qc.invalidateQueries({ queryKey: ['walletSummary'] });
+            qc.invalidateQueries({ queryKey: ['shareQuota'] });
+            Alert.alert(
+              data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+              data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+            );
+          } catch { /* cap/offline — no credit */ }
+        }}
+      />
     </Pressable>
   );
 };
