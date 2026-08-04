@@ -202,10 +202,10 @@ export const ProductDetailScreen = () => {
           shared = true;
         } else if (nav?.clipboard?.writeText) {
           await nav.clipboard.writeText(message);
-          shared = true;
-          // Product-mode success shows its own reward alert below; deal mode
-          // has no follow-up alert, so keep the clipboard confirmation here.
-          if (!isProductMode) Alert.alert('Link copied', 'Link copied to your clipboard.');
+          // Copying isn't a real share, so no credit (shared stays false).
+          // Product mode gets the generic copy prompt since it won't see the
+          // reward alert below; deal mode keeps its original confirmation.
+          Alert.alert('Link copied', isProductMode ? 'Paste it anywhere to share.' : 'Link copied to your clipboard.');
         }
       } else {
         const result = await Share.share({ message, title: shareTitle });

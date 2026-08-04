@@ -436,7 +436,7 @@ const StoreCard: React.FC<{
           shared = true;
         } else if (nav?.clipboard?.writeText) {
           await nav.clipboard.writeText(msg);
-          shared = true;
+          Alert.alert('Link copied', 'Paste it anywhere to share.');
         }
       } else {
         const result = await Share.share({ message: msg, title: store.name });

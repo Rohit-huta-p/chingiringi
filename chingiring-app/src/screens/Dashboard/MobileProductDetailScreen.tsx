@@ -414,7 +414,7 @@ export const MobileProductDetailScreen = () => {
         if (Platform.OS === 'web') {
           const nav: any = (globalThis as any).navigator;
           if (nav?.share) { await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined }); shared = true; }
-          else if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(message); shared = true; }
+          else if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(message); Alert.alert('Link copied', 'Paste it anywhere to share.'); }
         } else {
           const result = await Share.share({ message, title: shareTitle });
           shared = result.action === Share.sharedAction; // credit only on a real share
