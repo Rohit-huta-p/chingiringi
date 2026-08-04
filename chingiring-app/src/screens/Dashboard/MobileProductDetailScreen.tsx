@@ -26,6 +26,8 @@ import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
 import { clicksAPI } from '../../api/clicks';
 import { productsAPI } from '../../api/products';
+import { sharesAPI } from '../../api/shares';
+import { useAuthStore } from '../../store';
 
 function formatExpiresIn(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
@@ -98,7 +100,6 @@ function ProductDetailMobile({
   product,
   onBack,
   onShare,
-  onShopNow,
   reviews,
   reviewCount,
   averageRating,
@@ -107,7 +108,6 @@ function ProductDetailMobile({
   product: any;
   onBack: () => void;
   onShare: () => void;
-  onShopNow: () => void;
   reviews: any[];
   reviewCount: number;
   averageRating: number;
@@ -330,14 +330,14 @@ function ProductDetailMobile({
 
       {/* Sticky bottom CTA */}
       <View style={pStyles.ctaBar}>
-        <TouchableOpacity activeOpacity={0.85} onPress={onShopNow} style={pStyles.ctaWrap}>
+        <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={pStyles.ctaWrap}>
           <LinearGradient
             colors={Gradient.brand}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={pStyles.ctaBtn}
           >
-            <Text style={pStyles.ctaText}>Shop Now · {fmtPrice(price)}</Text>
+            <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -347,6 +347,7 @@ function ProductDetailMobile({
 
 export const MobileProductDetailScreen = () => {
   const navigation = useNavigation();
+  const user = useAuthStore((s) => s.user);
   const route = useRoute<any>();
   const passedDeal    = route.params?.deal;
   const dealId        = route.params?.dealId;
@@ -390,64 +391,47 @@ export const MobileProductDetailScreen = () => {
 
   if (isProductMode) {
     // Share the product — native share sheet; web falls back to the Web Share
-    // API, then clipboard. Includes the buy link when the product has one.
+    // API, then clipboard. Credits 100 CR only once the share sheet reports a
+    // completed share (not a dismiss/cancel).
     const handleShareProduct = async () => {
+      const pid = productForView?._id || productId;
       const shareTitle = productForView?.name || 'Check out this product';
-      const shareUrl = productForView?.affiliateUrl || '';
+      const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app';
+      const shareUrl = pid && pid !== 'sample' ? `${base}/product/${pid}?ref=cr_${user?.id ?? ''}` : '';
       const message = shareUrl ? `${shareTitle}\n${shareUrl}` : shareTitle;
+
+      // 1) Open the share sheet. 2) Credit ONLY if it reports a completed share.
+      let shared = false;
       try {
         if (Platform.OS === 'web') {
           const nav: any = (globalThis as any).navigator;
-          if (nav?.share) {
-            await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined });
-            return;
-          }
-          if (nav?.clipboard?.writeText) {
-            await nav.clipboard.writeText(message);
-            Alert.alert('Link copied', 'Product link copied to your clipboard.');
-            return;
-          }
+          if (nav?.share) { await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined }); shared = true; }
+          else if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(message); shared = true; }
+        } else {
+          const result = await Share.share({ message, title: shareTitle });
+          shared = result.action === Share.sharedAction; // credit only on a real share
         }
-        await Share.share({ message, title: shareTitle });
-      } catch {
-        /* user dismissed the share sheet, or sharing is unsupported */
-      }
+      } catch { shared = false; /* dismissed / AbortError → no credit */ }
+
+      if (!shared || !pid || pid === 'sample') return;
+      try {
+        const { data } = await sharesAPI.postShare('product', pid);
+        queryClient.invalidateQueries({ queryKey: ['wallet'] });
+        queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
+        queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
+        Alert.alert(
+          data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+          data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+        );
+      } catch { /* cap reached or offline; the share already happened */ }
     };
 
-    // Product "Shop Now": open the product's buy link (subid-tracked, same as
-    // deals) when present; otherwise the product is display-only.
-    const handleBuyProduct = async () => {
-      const url = productForView?.affiliateUrl;
-      if (!url) {
-        Alert.alert(
-          'Coming soon',
-          'This product is display-only — no buy link has been added yet.',
-        );
-        return;
-      }
-      try {
-        let openUrl = url;
-        const pid = productForView?._id || productId;
-        if (pid && pid !== 'sample') {
-          try {
-            const { redirectUrl } = await clicksAPI.log({ productId: pid, source: 'product_detail' });
-            if (redirectUrl) openUrl = redirectUrl;
-          } catch {
-            /* fall through to the raw url */
-          }
-        }
-        await Linking.openURL(openUrl);
-      } catch {
-        Alert.alert('Error', 'Could not open the link.');
-      }
-    };
     return (
       <>
         <ProductDetailMobile
           product={productForView}
           onBack={() => navigation.goBack()}
           onShare={handleShareProduct}
-          onShopNow={handleBuyProduct}
           reviews={reviews}
           reviewCount={reviewCount}
           averageRating={averageRating}
