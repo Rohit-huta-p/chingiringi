@@ -9,6 +9,8 @@ import {
   useWindowDimensions,
   Platform,
   ActivityIndicator,
+  Share,
+  Alert,
 } from 'react-native';
 import {
   Search,
@@ -24,12 +26,13 @@ import {
   Plus,
   Minus,
 } from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors, Fonts } from '../../constants/theme';
 import { StoreMap } from '../../components/StoreMap';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { useAuthStore } from '../../store';
 import { storesAPI, type Store } from '../../api/stores';
+import { sharesAPI } from '../../api/shares';
 import { haversineKm } from '../../utils/geo';
 import {
   BENGALURU_CENTER,
@@ -402,6 +405,50 @@ const StoreCard: React.FC<{
   isSelected: boolean;
   onPress: () => void;
 }> = ({ store, isSelected, onPress }) => {
+  const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+
+  // Share the store — opens the share sheet FIRST, and only credits coins
+  // once the share sheet reports a completed share (never before).
+  const shareStore = async () => {
+    const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app';
+    const url = `${base}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+    const msg = `${store.name}\n${url}`;
+
+    let shared = false;
+    try {
+      if (Platform.OS === 'web') {
+        const nav: any = (globalThis as any).navigator;
+        if (nav?.share) {
+          await nav.share({ title: store.name, text: store.name, url });
+          shared = true;
+        } else if (nav?.clipboard?.writeText) {
+          await nav.clipboard.writeText(msg);
+          shared = true;
+        }
+      } else {
+        const result = await Share.share({ message: msg, title: store.name });
+        shared = result.action === Share.sharedAction;
+      }
+    } catch {
+      shared = false; // user dismissed the share sheet, or sharing is unsupported
+    }
+
+    if (!shared) return;
+    try {
+      const { data } = await sharesAPI.postShare('store', store._id);
+      qc.invalidateQueries({ queryKey: ['wallet'] });
+      qc.invalidateQueries({ queryKey: ['walletSummary'] });
+      qc.invalidateQueries({ queryKey: ['shareQuota'] });
+      Alert.alert(
+        data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+        data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+      );
+    } catch {
+      /* cap reached or offline — the share already happened */
+    }
+  };
+
   return (
     <Pressable
       onPress={onPress}
@@ -468,6 +515,17 @@ const StoreCard: React.FC<{
             {store.address}
           </Text>
         </View>
+
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            shareStore();
+          }}
+          hitSlop={8}
+          style={styles.shareBtn}
+        >
+          <Text style={styles.shareCta}>Share &amp; Earn 100 CR</Text>
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -783,6 +841,8 @@ const styles = StyleSheet.create({
   metaMuted: { color: Colors.textSecondary, fontWeight: '400' },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   addressText: { fontSize: 11, color: Colors.textSecondary, flex: 1 },
+  shareBtn: { alignSelf: 'flex-start', marginTop: 6 },
+  shareCta: { fontSize: 11, fontFamily: Fonts.bold, color: PRIMARY },
 
   emptyState: {
     padding: 40,
