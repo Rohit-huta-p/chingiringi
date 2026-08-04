@@ -1,21 +1,36 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Image, ActivityIndicator, Alert, Platform, Switch,
+  Modal, Image, ActivityIndicator, Alert, Platform, Switch, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, X, Pencil, Trash2, Image as ImageIcon, Sparkles, Zap, Columns2,
-  Coins, Gift, Rows3, ToggleLeft,
+  Coins, Gift, Rows3, ToggleLeft, Type as TypeIcon, Link2, Calendar, Layers, MapPin,
 } from 'lucide-react-native';
 import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import {
-  Banner, BannerDraft, BannerLinkType, BannerSlot,
+  Banner, BannerDraft, BannerLinkType, BannerSlot, BannerType,
   BANNER_SLOTS, SLOT_INFO, SLOT_GRADIENTS, withDerivedSlot,
 } from '../../api/banners';
 import { ImageUploader } from '../../components/ImageUploader';
+import { BannerPositionModal } from '../../components/BannerPositionModal';
+import { BannerPreview } from '../../components/BannerPreview';
+
+// Small section wrapper: an icon chip + title with a divider, fields below.
+function FormSection({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <View style={styles.sectionIcon}><Icon size={13} color={Colors.primary} strokeWidth={2.4} /></View>
+        <Text style={styles.sectionHeadText}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
 
 // ─── Slot visuals ───────────────────────────────────────────────────────────
 // Gradients come from SLOT_GRADIENTS (shared with home screens) so the
@@ -154,23 +169,32 @@ const EMPTY_DRAFT: BannerDraft = {
   title: '',
   subtitle: '',
   imageUrl: '',
+  mobileImageUrl: '',
   linkType: 'url',
   linkValue: '',
   slot: 'hero',
+  type: 'hero',
+  rowIndex: 0,
+  right: {},
   isActive: true,
   sortOrder: 1,
 };
 
 function BannerFormModal({
-  visible, banner, onClose, onSave,
+  visible, banner, allBanners, onClose, onSave,
 }: {
   visible: boolean;
   banner: Banner | null;
+  allBanners: Banner[];
   onClose: () => void;
-  onSave: (draft: BannerDraft) => void;
+  onSave: (draft: BannerDraft, otherMoves: { id: string; rowIndex: number }[]) => void;
 }) {
   const isEdit = !!banner;
+  const { width } = useWindowDimensions();
+  const twoCol = width >= 880; // side-by-side form + live preview on desktop
   const [draft, setDraft] = useState<BannerDraft>(EMPTY_DRAFT);
+  const [showPosition, setShowPosition] = useState(false);
+  const [pendingMoves, setPendingMoves] = useState<{ id: string; rowIndex: number }[]>([]);
 
   // Reset form on each open
   React.useEffect(() => {
@@ -179,11 +203,15 @@ function BannerFormModal({
         title: banner.title,
         subtitle: banner.subtitle,
         imageUrl: banner.imageUrl,
+        mobileImageUrl: banner.mobileImageUrl,
         overlayImage: banner.overlayImage,
         linkType: banner.linkType,
         linkValue: banner.linkValue,
         ctaLabel: banner.ctaLabel,
         slot: banner.slot ?? 'hero',
+        type: banner.type ?? 'hero',
+        rowIndex: banner.rowIndex ?? 0,
+        right: banner.right ?? {},
         gradientColors: banner.gradientColors,
         textColor: banner.textColor,
         badges: banner.badges,
@@ -192,6 +220,7 @@ function BannerFormModal({
         startsAt: banner.startsAt,
         expiresAt: banner.expiresAt,
       } : EMPTY_DRAFT);
+      setPendingMoves([]);
     }
   }, [visible, banner]);
 
@@ -200,173 +229,313 @@ function BannerFormModal({
       Alert.alert('Validation', 'Title is required');
       return;
     }
-    onSave(draft);
+    onSave(draft, pendingMoves);
   };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, twoCol && styles.modalCardWide]}>
+          {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{isEdit ? 'Edit Banner' : 'Add Banner'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={20} color={Colors.textSecondary} />
+            <View style={styles.headerLeft}>
+              <View style={styles.headerBadge}>
+                <ImageIcon size={16} color="#fff" strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>{isEdit ? 'Edit banner' : 'New banner'}</Text>
+                <Text style={styles.modalSubtitle}>
+                  {isEdit ? 'Update its look and where it sits' : 'Design a banner and place it on the home screen'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={18} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-            {/* Slot selector */}
-            <Text style={styles.fieldLabel}>Slot *</Text>
-            <View style={styles.slotGrid}>
-              {BANNER_SLOTS.map((slot) => {
-                const visual = SLOT_VISUALS[slot];
-                const SlotIcon = visual.Icon;
-                const selected = draft.slot === slot;
-                return (
-                  <TouchableOpacity
-                    key={slot}
-                    style={[styles.slotOption, selected && styles.slotOptionSelected]}
-                    onPress={() => setDraft({ ...draft, slot })}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={visual.preview as any}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.slotPreview}
-                    >
-                      <SlotIcon size={18} color="#fff" strokeWidth={1.8} />
-                    </LinearGradient>
-                    <Text style={[styles.slotLabel, selected && styles.slotLabelSelected]}>
-                      {SLOT_INFO[slot].label}
-                    </Text>
+          {/* Body: live preview + sectioned form (side-by-side on desktop) */}
+          <View style={twoCol ? styles.bodyRow : styles.bodyCol}>
+            {twoCol ? (
+              <View style={styles.previewPane}>
+                <BannerPreview banner={draft} />
+                <TouchableOpacity style={styles.positionBtn} onPress={() => setShowPosition(true)} activeOpacity={0.85}>
+                  <View style={styles.positionBtnMain}>
+                    <MapPin size={15} color={Colors.primary} strokeWidth={2.2} />
+                    <Text style={styles.positionBtnText}>Preview &amp; position on home</Text>
+                  </View>
+                  <View style={styles.positionBtnBadge}>
+                    <Text style={styles.positionBtnBadgeTxt}>Row {draft.rowIndex ?? 0}</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <ScrollView style={styles.formPane} contentContainerStyle={styles.formPaneContent} showsVerticalScrollIndicator={false}>
+              {!twoCol ? (
+                <View>
+                  <BannerPreview banner={draft} />
+                  <TouchableOpacity style={[styles.positionBtn, { marginTop: 12 }]} onPress={() => setShowPosition(true)} activeOpacity={0.85}>
+                    <View style={styles.positionBtnMain}>
+                      <MapPin size={15} color={Colors.primary} strokeWidth={2.2} />
+                      <Text style={styles.positionBtnText}>Preview &amp; position on home</Text>
+                    </View>
+                    <View style={styles.positionBtnBadge}>
+                      <Text style={styles.positionBtnBadgeTxt}>Row {draft.rowIndex ?? 0}</Text>
+                    </View>
                   </TouchableOpacity>
-                );
-              })}
-            </View>
+                </View>
+              ) : null}
 
-            {/* Title + subtitle */}
-            <Text style={styles.fieldLabel}>Title *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Summer Sale - Fashion"
-              placeholderTextColor="#94a3b8"
-              value={draft.title}
-              onChangeText={(v) => setDraft({ ...draft, title: v })}
-            />
+              {/* Type */}
+              <FormSection icon={Layers} title="Banner type">
+                <View style={styles.typeRow}>
+                  {(['hero', 'dual'] as BannerType[]).map((t) => {
+                    const on = draft.type === t;
+                    const Icon = t === 'hero' ? Sparkles : Columns2;
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        style={[styles.typeCard, on && styles.typeCardOn]}
+                        onPress={() => setDraft({ ...draft, type: t })}
+                        activeOpacity={0.85}
+                      >
+                        <Icon size={18} color={on ? Colors.primary : '#64748b'} strokeWidth={2.2} />
+                        <Text style={[styles.typeCardTitle, on && styles.typeCardTitleOn]}>{t === 'hero' ? 'Hero' : 'Dual'}</Text>
+                        <Text style={styles.typeCardSub}>{t === 'hero' ? 'Full-width banner' : 'Two halves side by side'}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </FormSection>
 
-            <Text style={styles.fieldLabel}>Subtitle</Text>
-            <TextInput
-              style={[styles.input, { height: 60, textAlignVertical: 'top' }]}
-              placeholder="Up to 50% off on fashion brands"
-              placeholderTextColor="#94a3b8"
-              multiline
-              value={draft.subtitle}
-              onChangeText={(v) => setDraft({ ...draft, subtitle: v })}
-            />
-
-            {/* Image — Cloudinary upload (web), URL fallback */}
-            <Text style={styles.fieldLabel}>Image</Text>
-            <ImageUploader
-              value={draft.imageUrl}
-              onChange={(url) => setDraft({ ...draft, imageUrl: url })}
-              folder="chingiringi/banners"
-            />
-
-            {/* CTA label */}
-            <Text style={styles.fieldLabel}>CTA Label</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Shop Now"
-              placeholderTextColor="#94a3b8"
-              value={draft.ctaLabel || ''}
-              onChangeText={(v) => setDraft({ ...draft, ctaLabel: v })}
-            />
-
-            {/* Link type + value */}
-            <Text style={styles.fieldLabel}>Link Type</Text>
-            <View style={styles.segmentRow}>
-              {(['deal', 'category', 'url'] as BannerLinkType[]).map((t) => {
-                const selected = draft.linkType === t;
-                return (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.segmentBtn, selected && styles.segmentBtnSelected]}
-                    onPress={() => setDraft({ ...draft, linkType: t })}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
-                      {t}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <Text style={styles.fieldLabel}>Link Value</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={draft.linkType === 'url' ? '/referral' : draft.linkType === 'deal' ? 'deal-id or slug' : 'category slug'}
-              placeholderTextColor="#94a3b8"
-              autoCapitalize="none"
-              value={draft.linkValue}
-              onChangeText={(v) => setDraft({ ...draft, linkValue: v })}
-            />
-
-            {/* Order + dates */}
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Sort Order</Text>
+              {/* Content */}
+              <FormSection icon={TypeIcon} title={draft.type === 'dual' ? 'Left content' : 'Content'}>
+                <Text style={styles.fieldLabel}>Title <Text style={styles.req}>*</Text></Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="1"
+                  placeholder="Summer Sale — Fashion"
                   placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={String(draft.sortOrder ?? '')}
-                  onChangeText={(v) => setDraft({ ...draft, sortOrder: parseInt(v, 10) || 0 })}
+                  value={draft.title}
+                  onChangeText={(v) => setDraft({ ...draft, title: v })}
                 />
-              </View>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Starts At</Text>
+                <Text style={styles.fieldLabel}>Subtitle</Text>
+                <TextInput
+                  style={[styles.input, styles.inputArea]}
+                  placeholder="Up to 50% off on fashion brands"
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  value={draft.subtitle}
+                  onChangeText={(v) => setDraft({ ...draft, subtitle: v })}
+                />
+              </FormSection>
+
+              {/* Images */}
+              <FormSection icon={ImageIcon} title={draft.type === 'dual' ? 'Left images' : 'Images'}>
+                <Text style={styles.fieldLabel}>Desktop image</Text>
+                <ImageUploader
+                  value={draft.imageUrl}
+                  onChange={(url) => setDraft({ ...draft, imageUrl: url })}
+                  folder="chingiringi/banners"
+                />
+                <Text style={styles.fieldHint}>Recommended 2400 × 600 px or larger. Auto-cropped to fit — keep the key subject centered.</Text>
+                <Text style={styles.fieldLabel}>Mobile image</Text>
+                <ImageUploader
+                  value={draft.mobileImageUrl || ''}
+                  onChange={(url) => setDraft({ ...draft, mobileImageUrl: url })}
+                  folder="chingiringi/banners"
+                />
+                <Text style={styles.fieldHint}>Recommended 1080 × 640 px or larger. Auto-cropped to fit.</Text>
+              </FormSection>
+
+              {/* CTA & link */}
+              <FormSection icon={Link2} title={draft.type === 'dual' ? 'Left CTA & link' : 'Call to action & link'}>
+                <Text style={styles.fieldLabel}>CTA label</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="2026-04-01"
+                  placeholder="Shop Now"
                   placeholderTextColor="#94a3b8"
-                  value={draft.startsAt || ''}
-                  onChangeText={(v) => setDraft({ ...draft, startsAt: v })}
+                  value={draft.ctaLabel || ''}
+                  onChangeText={(v) => setDraft({ ...draft, ctaLabel: v })}
                 />
-              </View>
-            </View>
+                <Text style={styles.fieldLabel}>Link type</Text>
+                <View style={styles.segmentRow}>
+                  {(['deal', 'category', 'url'] as BannerLinkType[]).map((t) => {
+                    const on = draft.linkType === t;
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        style={[styles.segmentBtn, on && styles.segmentBtnSelected]}
+                        onPress={() => setDraft({ ...draft, linkType: t })}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.segmentText, on && styles.segmentTextSelected]}>{t}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={styles.fieldLabel}>Link value</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={draft.linkType === 'url' ? 'https://… or /referral' : draft.linkType === 'deal' ? 'deal-id or slug' : 'category slug'}
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                  value={draft.linkValue}
+                  onChangeText={(v) => setDraft({ ...draft, linkValue: v })}
+                />
+              </FormSection>
 
-            <Text style={styles.fieldLabel}>Expires At</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="2026-04-30 (optional)"
-              placeholderTextColor="#94a3b8"
-              value={draft.expiresAt || ''}
-              onChangeText={(v) => setDraft({ ...draft, expiresAt: v })}
-            />
+              {/* Dual — right half (fields above are the left half) */}
+              {draft.type === 'dual' ? (
+                <View style={styles.rightGroup}>
+                  <FormSection icon={Columns2} title="Right side">
+                    <Text style={styles.fieldLabel}>Right title</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Right half title"
+                      placeholderTextColor="#94a3b8"
+                      value={draft.right?.title || ''}
+                      onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), title: v } })}
+                    />
+                    <Text style={styles.fieldLabel}>Right subtitle</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Right half subtitle"
+                      placeholderTextColor="#94a3b8"
+                      value={draft.right?.subtitle || ''}
+                      onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), subtitle: v } })}
+                    />
+                    <Text style={styles.fieldLabel}>Right desktop image</Text>
+                    <ImageUploader
+                      value={draft.right?.imageUrl || ''}
+                      onChange={(url) => setDraft({ ...draft, right: { ...(draft.right ?? {}), imageUrl: url } })}
+                      folder="chingiringi/banners"
+                    />
+                    <Text style={styles.fieldHint}>Recommended 1200 × 700 px (half-width) or larger.</Text>
+                    <Text style={styles.fieldLabel}>Right mobile image</Text>
+                    <ImageUploader
+                      value={draft.right?.mobileImageUrl || ''}
+                      onChange={(url) => setDraft({ ...draft, right: { ...(draft.right ?? {}), mobileImageUrl: url } })}
+                      folder="chingiringi/banners"
+                    />
+                    <Text style={styles.fieldLabel}>Right CTA label</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Shop Now"
+                      placeholderTextColor="#94a3b8"
+                      value={draft.right?.ctaLabel || ''}
+                      onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), ctaLabel: v } })}
+                    />
+                    <Text style={styles.fieldLabel}>Right link type</Text>
+                    <View style={styles.segmentRow}>
+                      {(['deal', 'category', 'url'] as BannerLinkType[]).map((t) => {
+                        const on = (draft.right?.linkType ?? 'url') === t;
+                        return (
+                          <TouchableOpacity
+                            key={t}
+                            style={[styles.segmentBtn, on && styles.segmentBtnSelected]}
+                            onPress={() => setDraft({ ...draft, right: { ...(draft.right ?? {}), linkType: t } })}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.segmentText, on && styles.segmentTextSelected]}>{t}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <Text style={styles.fieldLabel}>Right link value</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="category slug / deal-id / https://…"
+                      placeholderTextColor="#94a3b8"
+                      autoCapitalize="none"
+                      value={draft.right?.linkValue || ''}
+                      onChangeText={(v) => setDraft({ ...draft, right: { ...(draft.right ?? {}), linkValue: v } })}
+                    />
+                  </FormSection>
+                </View>
+              ) : null}
 
-            {/* Active */}
-            <View style={styles.switchRow}>
-              <Text style={styles.fieldLabel}>Active</Text>
-              <Switch
-                value={draft.isActive}
-                onValueChange={(v) => setDraft({ ...draft, isActive: v })}
-                trackColor={{ false: '#cbd5e1', true: '#86efac' }}
-                thumbColor={draft.isActive ? '#16a34a' : '#f1f5f9'}
-              />
-            </View>
-          </ScrollView>
+              {/* Schedule & status */}
+              <FormSection icon={Calendar} title="Schedule & status">
+                <View style={styles.fieldRow}>
+                  <View style={styles.fieldHalf}>
+                    <Text style={styles.fieldLabel}>Sort order</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="1"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={String(draft.sortOrder ?? '')}
+                      onChangeText={(v) => setDraft({ ...draft, sortOrder: parseInt(v, 10) || 0 })}
+                    />
+                    <Text style={styles.fieldHint}>Tie-break within a row</Text>
+                  </View>
+                  <View style={styles.fieldHalf}>
+                    <Text style={styles.fieldLabel}>Starts at</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#94a3b8"
+                      value={draft.startsAt || ''}
+                      onChangeText={(v) => setDraft({ ...draft, startsAt: v })}
+                    />
+                    <Text style={styles.fieldHint}>Blank = now</Text>
+                  </View>
+                </View>
+                <Text style={styles.fieldLabel}>Expires at</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="YYYY-MM-DD (blank = never)"
+                  placeholderTextColor="#94a3b8"
+                  value={draft.expiresAt || ''}
+                  onChangeText={(v) => setDraft({ ...draft, expiresAt: v })}
+                />
+                <View style={styles.activeRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.activeLabel}>Active</Text>
+                    <Text style={styles.activeHint}>Show this banner to users</Text>
+                  </View>
+                  <Switch
+                    value={draft.isActive}
+                    onValueChange={(v) => setDraft({ ...draft, isActive: v })}
+                    trackColor={{ false: '#cbd5e1', true: '#86efac' }}
+                    thumbColor={draft.isActive ? '#16a34a' : '#f1f5f9'}
+                  />
+                </View>
+              </FormSection>
+            </ScrollView>
+          </View>
 
+          {/* Footer */}
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
-              <Text style={styles.submitBtnText}>{isEdit ? 'Update Banner' : 'Create Banner'}</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.85}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.submitBtnWrap} onPress={handleSubmit} activeOpacity={0.9}>
+              <LinearGradient colors={Gradient.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.submitBtn}>
+                <Text style={styles.submitBtnText}>{isEdit ? 'Update banner' : 'Create banner'}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
+
+          <BannerPositionModal
+            visible={showPosition}
+            banners={allBanners}
+            currentId={banner?._id}
+            value={draft.rowIndex ?? 0}
+            current={{
+              type: draft.type,
+              title: draft.title,
+              imageUrl: draft.imageUrl,
+              mobileImageUrl: draft.mobileImageUrl,
+              right: draft.right,
+            }}
+            onArrange={(cur, moves) => {
+              setDraft((d) => ({ ...d, rowIndex: cur }));
+              setPendingMoves(moves);
+            }}
+            onClose={() => setShowPosition(false)}
+          />
         </View>
       </View>
     </Modal>
@@ -440,7 +609,20 @@ export function AdminBannersScreen() {
       Alert.alert('Could not update banner', e?.response?.data?.message || e?.message || 'Please try again.'),
   });
 
-  const handleSave = (draft: BannerDraft) => {
+  const handleSave = async (draft: BannerDraft, otherMoves: { id: string; rowIndex: number }[]) => {
+    // Persist any OTHER banners the position board rearranged (rowIndex only),
+    // then save the current banner. Only writes banners whose row actually moved.
+    const changed = otherMoves.filter((m) => {
+      const orig = banners.find((b) => b._id === m.id);
+      return orig && (orig.rowIndex ?? 0) !== m.rowIndex;
+    });
+    if (changed.length) {
+      try {
+        await Promise.all(changed.map((m) => adminAPI.updateBanner(m.id, { rowIndex: m.rowIndex })));
+      } catch {
+        // Non-fatal: the current banner still saves; reorder can be retried.
+      }
+    }
     if (editBanner) updateMutation.mutate({ id: editBanner._id, draft });
     else createMutation.mutate(draft);
   };
@@ -511,6 +693,7 @@ export function AdminBannersScreen() {
       <BannerFormModal
         visible={showForm}
         banner={editBanner}
+        allBanners={banners}
         onClose={() => { setShowForm(false); setEditBanner(null); }}
         onSave={handleSave}
       />
@@ -521,7 +704,7 @@ export function AdminBannersScreen() {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF' },
+  container: { flex: 1, backgroundColor: '#F0F4F8' },
   containerContent: { padding: Spacing.lg, paddingBottom: 60 },
 
   // Page header
@@ -615,7 +798,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   activePillOn: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
-  activePillOff: { backgroundColor: '#F5F8FF', borderColor: '#e2e8f0' },
+  activePillOff: { backgroundColor: '#F0F4F8', borderColor: '#e2e8f0' },
   activePillText: { fontSize: 14, fontWeight: '600' },
   activePillTextOn: { color: '#16a34a' },
   activePillTextOff: { color: '#64748b' },
@@ -653,26 +836,53 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     width: '100%',
     maxWidth: 560,
-    maxHeight: '90%',
+    maxHeight: '92%',
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    elevation: 10,
   },
+  modalCardWide: { maxWidth: 960 },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#eef2f7',
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  headerBadge: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center',
+  },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  modalSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center',
+  },
   modalBody: { padding: 20 },
+
+  // Body panes (form + live preview)
+  bodyRow: { flexDirection: 'row', flex: 1, minHeight: 0 },
+  bodyCol: { flex: 1, minHeight: 0 },
+  previewPane: {
+    width: 372,
+    padding: 20,
+    gap: 14,
+    borderRightWidth: 1,
+    borderRightColor: '#eef2f7',
+    backgroundColor: '#fbfcfe',
+  },
+  formPane: { flex: 1 },
+  formPaneContent: { padding: 20, paddingTop: 6 },
   modalActions: {
     flexDirection: 'row',
     gap: 10,
@@ -680,14 +890,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
+  submitBtnWrap: { flex: 2, borderRadius: 10, overflow: 'hidden' },
   submitBtn: {
-    flex: 2,
-    backgroundColor: '#3b82f6',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 13,
+    borderRadius: 10,
     alignItems: 'center',
   },
-  submitBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: {
     flex: 1,
     backgroundColor: '#f1f5f9',
@@ -699,6 +908,72 @@ const styles = StyleSheet.create({
 
   // Form fields
   fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 6, marginTop: 12 },
+  fieldHint: { fontSize: 11, color: Colors.textSecondary, marginTop: 6 },
+  sideDivider: { marginTop: 18, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+  sideDividerText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  positionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: '#eff6ff',
+  },
+  positionBtnMain: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  positionBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  positionBtnBadge: { backgroundColor: '#dbeafe', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  positionBtnBadgeTxt: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+
+  // Section headers
+  section: { marginTop: 18 },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: 2, paddingBottom: 8,
+    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  sectionIcon: {
+    width: 24, height: 24, borderRadius: 7,
+    backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center',
+  },
+  sectionHeadText: { fontSize: 13, fontWeight: '800', color: Colors.text, letterSpacing: 0.2 },
+
+  // Type cards
+  typeRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  typeCard: {
+    flex: 1, gap: 2,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: '#fff',
+  },
+  typeCardOn: { borderColor: Colors.primary, backgroundColor: '#eff6ff' },
+  typeCardTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginTop: 4 },
+  typeCardTitleOn: { color: Colors.primary },
+  typeCardSub: { fontSize: 11, color: Colors.textSecondary },
+
+  // Right-side group (dual)
+  rightGroup: {
+    marginTop: 10,
+    backgroundColor: '#faf9ff',
+    borderRadius: 14, borderWidth: 1, borderColor: '#ece7fb',
+    paddingHorizontal: 12, paddingBottom: 6,
+  },
+
+  // Active row
+  activeRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#f8fafc', borderRadius: 12,
+    padding: 14, marginTop: 16,
+    borderWidth: 1, borderColor: '#eef2f7',
+  },
+  activeLabel: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  activeHint: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+
+  inputArea: { height: 64, textAlignVertical: 'top', paddingTop: 10 },
+  req: { color: '#ef4444' },
   fieldRow: { flexDirection: 'row', gap: 12 },
   fieldHalf: { flex: 1 },
   input: {

@@ -77,6 +77,20 @@ export const SLOT_INFO: Record<
 
 export type BannerLinkType = 'deal' | 'category' | 'url';
 
+/** New banner shape — replaces the 8-slot taxonomy for new banners. */
+export type BannerType = 'hero' | 'dual';
+
+/** Right half of a dual banner. Top-level Banner fields are the left half. */
+export interface BannerSide {
+  imageUrl?: string;
+  mobileImageUrl?: string;
+  title?: string;
+  subtitle?: string;
+  ctaLabel?: string;
+  linkType?: BannerLinkType;
+  linkValue?: string;
+}
+
 /**
  * Default gradient per slot — used when a banner has no `imageUrl` AND no
  * explicit `gradientColors` override. Source of truth for the slot-coloured
@@ -125,6 +139,7 @@ export interface Banner {
   title: string;
   subtitle: string;
   imageUrl: string;
+  mobileImageUrl?: string;
   overlayImage?: string;
   linkType: BannerLinkType;
   linkValue: string;
@@ -132,6 +147,12 @@ export interface Banner {
   slot: BannerSlot;
   /** @deprecated use slot */
   position?: BannerPosition;
+  /** Banner layout type (replaces slot for new banners). */
+  type?: BannerType;
+  /** 0-based index of the home row-gap this banner sits in. */
+  rowIndex?: number;
+  /** Right half for dual banners; top-level fields are the left half. */
+  right?: BannerSide;
   gradientColors?: string[];
   textColor?: string;
   badges?: BannerBadge[];
@@ -171,6 +192,19 @@ export function withDerivedSlot(banners: Banner[]): Banner[] {
   return banners.map((b) => (b.slot ? b : { ...b, slot: normalizeSlot(b) }));
 }
 
+/**
+ * Fill the new layout fields for legacy banners: default `type` to 'hero' and
+ * derive `rowIndex` from `sortOrder` when missing. Legacy dual pairs are NOT
+ * merged — they degrade to a single hero. Run after withDerivedSlot.
+ */
+export function withDerivedBannerLayout(banners: Banner[]): Banner[] {
+  return banners.map((b) => ({
+    ...b,
+    type: b.type ?? 'hero',
+    rowIndex: b.rowIndex ?? b.sortOrder ?? 0,
+  }));
+}
+
 // ─── API client ─────────────────────────────────────────────────────────────
 
 export const bannersAPI = {
@@ -187,7 +221,7 @@ export const bannersAPI = {
     return {
       ...raw,
       data: {
-        banners: withDerivedSlot(raw.data?.banners ?? []),
+        banners: withDerivedBannerLayout(withDerivedSlot(raw.data?.banners ?? [])),
       },
     };
   },

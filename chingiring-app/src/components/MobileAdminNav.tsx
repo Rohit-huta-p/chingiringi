@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -38,6 +38,16 @@ export function MobileAdminNav({ active }: { active: string }) {
   const nav = useNavigation<any>();
   const userName = useAuthStore((s) => s.user?.name);
 
+  // Keep the tab for the current screen visible: scroll the horizontal nav so
+  // the active tab is in view instead of always resting at the start.
+  const scrollRef = useRef<ScrollView>(null);
+  const tabX = useRef<Record<number, number>>({});
+  const activeIndex = ADMIN_NAV_ITEMS.findIndex((i) => i.key === active);
+  useEffect(() => {
+    const x = tabX.current[activeIndex];
+    if (x != null) scrollRef.current?.scrollTo({ x: Math.max(0, x - 16), animated: false });
+  }, [activeIndex]);
+
   return (
     <>
       <View style={st.header}>
@@ -58,6 +68,7 @@ export function MobileAdminNav({ active }: { active: string }) {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         style={st.navScroll}
@@ -66,13 +77,21 @@ export function MobileAdminNav({ active }: { active: string }) {
         // fill a flex-column parent (as in WalletOps, where this sits directly
         // under SafeAreaView), overlapping whatever follows.
       >
-        {ADMIN_NAV_ITEMS.map((item) => {
+        {ADMIN_NAV_ITEMS.map((item, i) => {
           const isActive = item.key === active;
           return (
             <TouchableOpacity
               key={item.key}
               style={[st.navTab, isActive && st.navTabActive]}
               onPress={() => { if (!isActive) nav.navigate(item.key); }}
+              onLayout={(e) => {
+                tabX.current[i] = e.nativeEvent.layout.x;
+                // Bring the active tab into view even when it mounts off-screen
+                // (e.g. Coupons, the last tab).
+                if (i === activeIndex) {
+                  scrollRef.current?.scrollTo({ x: Math.max(0, e.nativeEvent.layout.x - 16), animated: false });
+                }
+              }}
             >
               <item.icon size={16} color={isActive ? '#3b82f6' : 'rgba(255,255,255,0.75)'} strokeWidth={2} />
               <Text style={[st.navLabel, isActive && st.navLabelActive]}>{item.label}</Text>

@@ -341,7 +341,7 @@ export const MobileTransactionHistoryScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const css = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header
   headerGradient: {

@@ -75,12 +75,18 @@ export const MobileAdminStores = () => {
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       adminAPI.updateStore(id, { isActive: !isActive }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'stores'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'stores'] });
+      qc.invalidateQueries({ queryKey: ['stores'] });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminAPI.deleteStore(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'stores'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'stores'] });
+      qc.invalidateQueries({ queryKey: ['stores'] });
+    },
   });
 
   const handleDelete = (store: any) => {
@@ -108,7 +114,7 @@ export const MobileAdminStores = () => {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
         <MobileAdminNav active="AdminStores" />
 
         <View style={s.body}>
@@ -186,7 +192,7 @@ export const MobileAdminStores = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   body: { paddingHorizontal: 16, paddingTop: 16 },
 

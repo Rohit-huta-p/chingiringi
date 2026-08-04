@@ -23,6 +23,21 @@ const badgeSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Right half of a "dual" banner. The banner's top-level fields are the left
+// half; this sub-doc mirrors them for the right half. Empty/ignored for hero.
+const sideSchema = new mongoose.Schema(
+  {
+    imageUrl: { type: String, default: '' },
+    mobileImageUrl: { type: String, default: '' },
+    title: { type: String, default: '' },
+    subtitle: { type: String, default: '' },
+    ctaLabel: { type: String, default: '' },
+    linkType: { type: String, enum: ['deal', 'category', 'url'], default: 'url' },
+    linkValue: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
 const bannerSchema = new mongoose.Schema(
   {
     title: {
@@ -35,6 +50,11 @@ const bannerSchema = new mongoose.Schema(
       default: '',
     },
     imageUrl: {
+      type: String,
+      default: '',
+    },
+    // Mobile-specific banner image. Falls back to imageUrl on mobile when empty.
+    mobileImageUrl: {
       type: String,
       default: '',
     },
@@ -71,6 +91,18 @@ const bannerSchema = new mongoose.Schema(
       default: 'hero',
     },
 
+    // New placement model (replaces the 8-slot taxonomy for new banners).
+    // `type` picks the shape; `rowIndex` is the 0-based home row-gap it sits in.
+    type: {
+      type: String,
+      enum: ['hero', 'dual'],
+      default: 'hero',
+    },
+    rowIndex: {
+      type: Number,
+      default: 0,
+    },
+
     // Visual customisation
     gradientColors: {
       type: [String],
@@ -84,6 +116,9 @@ const bannerSchema = new mongoose.Schema(
       type: [badgeSchema],
       default: [],
     },
+
+    // Right half for a dual banner (see sideSchema). Undefined for hero.
+    right: sideSchema,
 
     isActive: {
       type: Boolean,

@@ -13,11 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Search,
-  Star,
   ChevronRight,
-  ArrowRight,
-  Share2,
-  Sparkles,
   Sparkles as SparklesIcon,
   Tag,
 } from 'lucide-react-native';
@@ -27,14 +23,11 @@ import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
-import {
-  Banner as BannerModel,
-  BannerSlot,
-  bannersAPI,
-  bucketBySlot,
-  resolveBannerGradient,
-} from '../../api/banners';
+import { Banner as BannerModel, bannersAPI } from '../../api/banners';
+import { BannerBlock, interleaveBanners } from '../../components/BannerBlock';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
+import { ProductCard } from '../../components/ProductCard';
+import { tint } from '../../utils/color';
 import {
   applyProductControls,
   DEFAULT_CONTROLS,
@@ -57,9 +50,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-function priceFmt(n: number) {
-  return `₹${n.toLocaleString('en-IN')}`;
-}
+
 
 // ─── Content ────────────────────────────────────────────────────────────────
 
@@ -86,132 +77,9 @@ const CATEGORY_IMAGES: Record<string, string> = {
   Accessories: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&q=75',
 };
 
-// ─── Buy Now button (gradient) ──────────────────────────────────────────────
 
-function BuyNowButton({ onPress }: { onPress?: () => void }) {
-  return (
-    <TouchableOpacity
-      style={s.buyBtn}
-      activeOpacity={0.85}
-      onPress={onPress}
-    >
-      <LinearGradient
-        colors={['#4784E2', '#91BDFF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <Text style={s.buyBtnTxt}>Buy Now</Text>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Product Card ───────────────────────────────────────────────────────────
-
-function ProductCard({
-  image,
-  brand,
-  title,
-  subtitle,
-  price,
-  oldPrice,
-  coins,
-  rating,
-  ratingCount,
-  badge,
-  stockLeft,
-  isNew,
-  onPress,
-  width,
-}: {
-  image: string;
-  brand: string;
-  title: string;
-  subtitle?: string;
-  price: number;
-  oldPrice?: number;
-  coins: number;
-  rating?: number;
-  ratingCount?: number;
-  badge?: { text: string; color: string };
-  stockLeft?: number;
-  isNew?: boolean;
-  onPress: () => void;
-  width: number;
-}) {
-  return (
-    <TouchableOpacity
-      style={[s.productCard, { width }]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <View style={s.productImageBox}>
-        <Image source={{ uri: image }} style={s.productImage} resizeMode="cover" />
-        {badge ? (
-          <View style={[s.productBadge, { backgroundColor: badge.color }]}>
-            <Text style={s.productBadgeTxt}>{badge.text}</Text>
-          </View>
-        ) : null}
-        {stockLeft != null && stockLeft > 0 ? (
-          <View style={s.stockBadge}>
-            <Text style={s.stockBadgeTxt}>{stockLeft} left!</Text>
-          </View>
-        ) : isNew ? (
-          <View style={s.newBadge}>
-            <Text style={s.newBadgeTxt}>NEW</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={s.productInfo}>
-        <Text style={s.productTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={s.productSub} numberOfLines={1}>
-          {subtitle || brand}
-        </Text>
-        {rating != null && ratingCount != null ? (
-          <View style={s.ratingRow}>
-            <Star size={11} color="#f59e0b" fill="#f59e0b" strokeWidth={0} />
-            <Text style={s.ratingValue}>{rating.toFixed(1)}</Text>
-            <Text style={s.ratingCount}>({ratingCount.toLocaleString('en-IN')})</Text>
-          </View>
-        ) : null}
-        <View style={s.priceRow}>
-          <Text style={s.productPrice}>{priceFmt(price)}</Text>
-          {oldPrice ? (
-            <Text style={s.productOldPrice}>{priceFmt(oldPrice)}</Text>
-          ) : null}
-        </View>
-        <View style={s.coinsPill}>
-          <View style={s.coinsIcon}>
-            <Text style={s.coinsIconTxt}>◆</Text>
-          </View>
-          <Text style={s.coinsPillTxt}>
-            {coins.toLocaleString('en-IN')} coins
-          </Text>
-        </View>
-        <BuyNowButton onPress={onPress} />
-      </View>
-    </TouchableOpacity>
-  );
-}
 
 // ─── Product Grid Section ───────────────────────────────────────────────────
-
-type GridItem = {
-  title: string;
-  subtitle: string;
-  rating: number;
-  ratingCount: number;
-  price: number;
-  oldPrice: number;
-  coins: number;
-  discount: number;
-  _id?: string;
-  productImage?: string;
-  category: string;
-  productStock?: number;
-};
 
 function ProductGrid({
   title,
@@ -221,8 +89,6 @@ function ProductGrid({
   cols = 6,
   onProductPress,
   onSeeAll,
-  newBadgeCols = [],
-  stockLeftCols = [],
   products = [],
   hasFilter = false,
 }: {
@@ -231,10 +97,8 @@ function ProductGrid({
   startIdx?: number;
   containerWidth: number;
   cols?: number;
-  onProductPress: (item: GridItem) => void;
+  onProductPress: (product: Product) => void;
   onSeeAll?: () => void;
-  newBadgeCols?: number[];
-  stockLeftCols?: { col: number; left: number }[];
   products?: Product[];
   hasFilter?: boolean;
 }) {
@@ -281,41 +145,12 @@ function ProductGrid({
         >
           {row.map((product, idx) => {
             const globalIdx = rIdx * cols + idx;
-            const image = product.imageUrl || PRODUCT_IMAGES[globalIdx % PRODUCT_IMAGES.length];
-            const isNew = newBadgeCols.includes(globalIdx);
-            const stockHint = stockLeftCols.find((sc) => sc.col === globalIdx);
-            const stockLeft =
-              product.stock != null && product.stock > 0 && product.stock <= 15
-                ? product.stock
-                : stockHint?.left;
             return (
               <ProductCard
                 key={product._id ?? globalIdx}
-                image={image}
-                brand={product.category || ''}
-                title={product.name}
-                subtitle={product.description || product.category}
-                price={product.price}
-                coins={product.coinsPrice}
-                isNew={isNew}
-                stockLeft={stockLeft}
-                onPress={() =>
-                  onProductPress({
-                    _id: product._id,
-                    title: product.name,
-                    subtitle: product.description || product.category || '',
-                    price: product.price,
-                    oldPrice: 0,
-                    coins: product.coinsPrice,
-                    rating: 0,
-                    ratingCount: 0,
-                    discount: 0,
-                    productImage: image,
-                    category: product.category || '',
-                    productStock: product.stock,
-                  })
-                }
+                product={product}
                 width={cardW}
+                onPress={() => onProductPress(product)}
               />
             );
           })}
@@ -325,206 +160,10 @@ function ProductGrid({
   );
 }
 
-// ─── Banner fallback (when no image) ────────────────────────────────────────
-//
-// Colours come from the banner's slot (or its admin-set gradientColors
-// override). This keeps the home page consistent with the slot preview shown
-// in the admin form — see SLOT_GRADIENTS in src/api/banners.ts.
-
-function FallbackGradient({ banner }: { banner: BannerModel }) {
-  const colors = resolveBannerGradient(banner);
-  return (
-    <LinearGradient
-      colors={colors as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={StyleSheet.absoluteFillObject}
-    />
-  );
-}
-
-// ─── Hero Banner ────────────────────────────────────────────────────────────
-
-function HeroBanner({ banner, onPress }: { banner?: BannerModel | null; onPress?: () => void }) {
-  if (!banner) return null;
-  const image = banner.imageUrl || banner.overlayImage;
-  return (
-    <TouchableOpacity activeOpacity={onPress ? 0.95 : 1} onPress={onPress} style={s.heroBanner}>
-      {image ? (
-        <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
-      ) : (
-        <>
-          <FallbackGradient banner={banner} />
-          <View style={s.fbHero}>
-            {banner.title ? <Text style={s.fbHeroTitle}>{banner.title}</Text> : null}
-            {banner.subtitle ? <Text style={s.fbHeroSub}>{banner.subtitle}</Text> : null}
-            {banner.ctaLabel ? (
-              <View style={s.fbHeroCta}>
-                <Text style={s.fbHeroCtaTxt}>{banner.ctaLabel}</Text>
-                <ArrowRight size={14} color="#0f172a" strokeWidth={2.5} />
-              </View>
-            ) : null}
-          </View>
-        </>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-// ─── Promo Strip ────────────────────────────────────────────────────────────
-
-function PromoStrip({
-  banner,
-  onPress,
-}: {
-  banner?: BannerModel | null;
-  onPress?: () => void;
-}) {
-  if (!banner) return null;
-  const image = banner.imageUrl || banner.overlayImage;
-  return (
-    <TouchableOpacity activeOpacity={onPress ? 0.95 : 1} onPress={onPress} style={s.promoStrip}>
-      {image ? (
-        <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
-      ) : (
-        <>
-          <FallbackGradient banner={banner} />
-          <View style={s.fbThin}>
-            <View style={{ flex: 1, gap: 4 }}>
-              {banner.badges && banner.badges.length > 0 ? (
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {banner.badges.map((b) => (
-                    <View
-                      key={b.label}
-                      style={[s.fbBadge, { backgroundColor: b.color || '#ef4444' }]}
-                    >
-                      <Text style={s.fbBadgeTxt}>{b.label}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-              {banner.title ? <Text style={s.fbTitle}>{banner.title}</Text> : null}
-            </View>
-            {banner.ctaLabel ? (
-              <View style={s.fbCta}>
-                <Text style={s.fbCtaTxt}>{banner.ctaLabel}</Text>
-              </View>
-            ) : null}
-          </View>
-        </>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-// ─── Dual Banner ────────────────────────────────────────────────────────────
-
-function DualBannerHalf({
-  banner,
-  onPress,
-}: {
-  banner?: BannerModel | null;
-  onPress?: () => void;
-}) {
-  if (!banner) return null;
-  const image = banner.imageUrl || banner.overlayImage;
-  return (
-    <TouchableOpacity
-      activeOpacity={onPress ? 0.95 : 1}
-      onPress={onPress}
-      style={s.dualBanner}
-    >
-      {image ? (
-        <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
-      ) : (
-        <>
-          <FallbackGradient banner={banner} />
-          <View style={s.fbDual}>
-            {banner.badges && banner.badges[0] ? (
-              <View
-                style={[
-                  s.fbBadge,
-                  { backgroundColor: banner.badges[0].color || '#ef4444' },
-                ]}
-              >
-                <Text style={s.fbBadgeTxt}>{banner.badges[0].label}</Text>
-              </View>
-            ) : null}
-            {banner.title ? <Text style={s.fbDualTitle}>{banner.title}</Text> : null}
-            {banner.subtitle ? (
-              <Text style={s.fbDualSub}>{banner.subtitle}</Text>
-            ) : null}
-            {banner.ctaLabel ? (
-              <View style={s.fbCta}>
-                <Text style={s.fbCtaTxt}>{banner.ctaLabel}</Text>
-              </View>
-            ) : null}
-          </View>
-        </>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-function DualBanner({
-  left,
-  right,
-  onLeftPress,
-  onRightPress,
-}: {
-  left?: BannerModel | null;
-  right?: BannerModel | null;
-  onLeftPress?: () => void;
-  onRightPress?: () => void;
-}) {
-  if (!left && !right) return null;
-  return (
-    <View style={s.dualBannerRow}>
-      <DualBannerHalf banner={left} onPress={onLeftPress} />
-      <DualBannerHalf banner={right} onPress={onRightPress} />
-    </View>
-  );
-}
-
-// ─── Earn Coins Banner ──────────────────────────────────────────────────────
-
-function EarnCoinsBanner({
-  banner,
-  onPress,
-}: {
-  banner?: BannerModel | null;
-  onPress: () => void;
-}) {
-  if (!banner) return null;
-  const image = banner.imageUrl || banner.overlayImage;
-  return (
-    <TouchableOpacity activeOpacity={0.95} onPress={onPress} style={s.earnBanner}>
-      {image ? (
-        <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
-      ) : (
-        <>
-          <FallbackGradient banner={banner} />
-          <View style={s.fbThin}>
-            <View style={s.fbIcon}>
-              <Sparkles size={20} color="#fff" strokeWidth={2.5} />
-            </View>
-            <View style={{ flex: 1 }}>
-              {banner.title ? <Text style={s.fbTitle}>{banner.title}</Text> : null}
-              {banner.subtitle ? (
-                <Text style={s.fbSub}>{banner.subtitle}</Text>
-              ) : null}
-            </View>
-            {banner.ctaLabel ? (
-              <View style={s.fbCta}>
-                <Text style={s.fbCtaTxt}>{banner.ctaLabel}</Text>
-              </View>
-            ) : null}
-          </View>
-        </>
-      )}
-    </TouchableOpacity>
-  );
-}
+// Banners now render through the shared <BannerBlock> (hero | dual), placed by
+// rowIndex via interleaveBanners(). The old per-slot banner components
+// (FallbackGradient / HeroBanner / PromoStrip / DualBanner / EarnCoinsBanner /
+// ReferBanner) were removed in the slot→position redesign.
 
 // ─── How to Explore Section ─────────────────────────────────────────────────
 
@@ -537,7 +176,7 @@ function MoreToExploreSection({
   hasFilter = false,
 }: {
   containerWidth: number;
-  onPress: (item: GridItem) => void;
+  onPress: (product: Product) => void;
   onSeeAll?: () => void;
   products?: Product[];
   hasFilter?: boolean;
@@ -551,50 +190,8 @@ function MoreToExploreSection({
       onProductPress={onPress}
       onSeeAll={onSeeAll}
       hasFilter={hasFilter}
-      stockLeftCols={[{ col: 1, left: 12 }]}
-      newBadgeCols={[3]}
       products={products}
     />
-  );
-}
-
-// ─── Refer & Earn Banner ────────────────────────────────────────────────────
-
-function ReferBanner({
-  banner,
-  onPress,
-}: {
-  banner?: BannerModel | null;
-  onPress: () => void;
-}) {
-  if (!banner) return null;
-  const image = banner.imageUrl || banner.overlayImage;
-  return (
-    <TouchableOpacity activeOpacity={0.95} onPress={onPress} style={s.referBanner}>
-      {image ? (
-        <Image source={{ uri: image }} style={s.fullImage} resizeMode="cover" />
-      ) : (
-        <>
-          <FallbackGradient banner={banner} />
-          <View style={s.fbThin}>
-            <View style={s.fbIcon}>
-              <Share2 size={20} color="#fff" strokeWidth={2.5} />
-            </View>
-            <View style={{ flex: 1 }}>
-              {banner.title ? <Text style={s.fbTitle}>{banner.title}</Text> : null}
-              {banner.subtitle ? (
-                <Text style={s.fbSub}>{banner.subtitle}</Text>
-              ) : null}
-            </View>
-            {banner.ctaLabel ? (
-              <View style={s.fbCta}>
-                <Text style={s.fbCtaTxt}>{banner.ctaLabel}</Text>
-              </View>
-            ) : null}
-          </View>
-        </>
-      )}
-    </TouchableOpacity>
   );
 }
 
@@ -688,6 +285,7 @@ function TopNav({
   width,
   controls,
   onControlsChange,
+  themeColor,
 }: {
   selectedCategory: string;
   onCategoryChange: (c: string) => void;
@@ -700,9 +298,10 @@ function TopNav({
   width: number;
   controls: ProductControlsState;
   onControlsChange: (next: ProductControlsState) => void;
+  themeColor?: string;
 }) {
   return (
-    <View style={s.topNav}>
+    <View style={[s.topNav, themeColor ? { backgroundColor: tint(themeColor, 0.88) } : null]}>
       <View style={[s.topNavInner, { width }]}>
         {/* Row 1: Search full-width + avatar */}
         <View style={s.topNavRow}>
@@ -743,7 +342,7 @@ function TopNav({
               return (
                 <TouchableOpacity
                   key={label}
-                  style={[s.navChip, active && s.navChipActive]}
+                  style={[s.navChip, active && (themeColor ? { backgroundColor: themeColor } : s.navChipActive)]}
                   onPress={() => onCategoryChange(label)}
                   activeOpacity={0.7}
                 >
@@ -829,6 +428,9 @@ export const HomeScreen = () => {
   // Category filter chips: "All" + only the categories that have products.
   const categoryChips: string[] = ['All', ...activeCategories.map((c) => c.name)];
 
+  // Theme: the selected category's color (empty → default). Home tints to it.
+  const themeColor = activeCategories.find((c) => c.name === selectedCategory)?.color || '';
+
   // Products belonging to a specific category — for the per-category sections.
   const productsInCategory = (name: string) =>
     products.filter(
@@ -859,9 +461,6 @@ export const HomeScreen = () => {
   const listingProducts = applyProductControls(filteredProducts, controls);
 
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
-  const bySlot = bucketBySlot(allBanners);
-  const firstBannerFor = (slot: BannerSlot): BannerModel | null =>
-    bySlot[slot]?.[0] ?? null;
 
   if (productsLoading) {
     return (
@@ -871,13 +470,25 @@ export const HomeScreen = () => {
     );
   }
 
-  const onProductPress = (item: GridItem) => {
-    // Pass the resolved item so the detail screen can render instantly,
-    // and pass productId separately so it can refetch fresh data when
-    // the click came from a real (non-template) product.
+  const onProductPress = (product: Product) => {
+    // Pass the product so the detail screen can render instantly,
+    // and pass productId separately so it can refetch fresh data.
     navigation.navigate('ProductDetail', {
-      productId: item._id,
-      product: item,
+      productId: product._id,
+      product: {
+        _id: product._id,
+        title: product.name,
+        subtitle: product.description || product.category || '',
+        price: product.price,
+        oldPrice: 0,
+        coins: product.coinsPrice,
+        rating: 0,
+        ratingCount: 0,
+        discount: 0,
+        productImage: product.imageUrl || '',
+        category: product.category || '',
+        productStock: product.stock,
+      },
     });
   };
 
@@ -892,8 +503,74 @@ export const HomeScreen = () => {
     navigation.navigate('CategoryProducts', { category });
   };
 
+  // Curated home = product sections in a fixed order. Placed banners are
+  // interleaved by rowIndex (see interleaveBanners). Only built when no
+  // search/category/sort filter is active.
+  const buildCuratedBlocks = (): React.ReactNode[] => {
+    const blocks: React.ReactNode[] = [
+      <ProductGrid
+        key="all-products"
+        title="All Products"
+        count={listingProducts.length ? `${listingProducts.length} items` : undefined}
+        startIdx={0}
+        containerWidth={contentW}
+        cols={gridCols}
+        onProductPress={onProductPress}
+        onSeeAll={() => goToCategory('All')}
+        hasFilter={false}
+        products={listingProducts}
+      />,
+    ];
+    activeCategories.forEach((cat) => {
+      const catProducts = productsInCategory(cat.name);
+      if (catProducts.length === 0) return;
+      blocks.push(
+        <ProductGrid
+          key={`cat-${(cat as any)._id ?? cat.name}`}
+          title={cat.name}
+          count={`${catProducts.length} item${catProducts.length === 1 ? '' : 's'}`}
+          startIdx={0}
+          containerWidth={contentW}
+          cols={gridCols}
+          onProductPress={onProductPress}
+          onSeeAll={() => goToCategory(cat.name)}
+          hasFilter={false}
+          products={catProducts}
+        />,
+      );
+    });
+    blocks.push(
+      <ProductGrid
+        key="new-arrivals"
+        title="New Arrivals"
+        startIdx={6}
+        containerWidth={contentW}
+        cols={gridCols}
+        onProductPress={onProductPress}
+        onSeeAll={() => goToCategory('All')}
+        hasFilter={false}
+        products={products}
+      />,
+      <MoreToExploreSection
+        key="more-to-explore"
+        containerWidth={contentW}
+        onPress={onProductPress}
+        onSeeAll={() => goToCategory('All')}
+        hasFilter={false}
+        products={products}
+      />,
+      <ShopByCategorySection
+        key="shop-by-category"
+        containerWidth={contentW}
+        onPress={onCategoryPress}
+        categories={activeCategories}
+      />,
+    );
+    return blocks;
+  };
+
   return (
-    <View style={s.root}>
+    <View style={[s.root, themeColor ? { backgroundColor: tint(themeColor, 0.94) } : null]}>
       <TopNav
         selectedCategory={selectedCategory}
         onCategoryChange={onCategoryPress}
@@ -906,6 +583,7 @@ export const HomeScreen = () => {
         width={contentW}
         controls={controls}
         onControlsChange={setControls}
+        themeColor={themeColor}
       />
       <ScrollView
         ref={scrollRef}
@@ -914,94 +592,26 @@ export const HomeScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={[s.body, { maxWidth: contentW + 64, width: '100%' }]}>
-          {!isListing && <HeroBanner banner={firstBannerFor('hero')} />}
-
-          <ProductGrid
-            title={categoryActive ? selectedCategory : 'All Products'}
-            count={listingProducts.length ? `${listingProducts.length} items` : undefined}
-            startIdx={0}
-            containerWidth={contentW}
-            cols={gridCols}
-            onProductPress={onProductPress}
-            onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
-            hasFilter={hasFilter}
-            stockLeftCols={[{ col: 1, left: 8 }]}
-            products={listingProducts}
-          />
-
-          {/* Everything below "All Products" is the rich curated home. Any
-              active control (category, search, sort, or a price/coins filter)
-              collapses it so the page shows ONLY the flat listing grid. */}
-          {!isListing && (
-            <>
-              <PromoStrip banner={firstBannerFor('flash-strip')} />
-
-              {/* Per-category sections — one row per category that has products,
-                  so a product only ever appears under its own category (never a
-                  mislabelled "Electronics" row). Hidden while a search filter is
-                  active; "All Products" already narrows then. */}
-              {!hasFilter &&
-                activeCategories.map((cat) => {
-                  const catProducts = productsInCategory(cat.name);
-                  if (catProducts.length === 0) return null;
-                  return (
-                    <ProductGrid
-                      key={(cat as any)._id ?? cat.name}
-                      title={cat.name}
-                      count={`${catProducts.length} item${catProducts.length === 1 ? '' : 's'}`}
-                      startIdx={0}
-                      containerWidth={contentW}
-                      cols={gridCols}
-                      onProductPress={onProductPress}
-                      onSeeAll={() => goToCategory(cat.name)}
-                      hasFilter={false}
-                      products={catProducts}
-                    />
-                  );
-                })}
-
-              <DualBanner
-                left={firstBannerFor('dual-left')}
-                right={firstBannerFor('dual-right')}
-              />
-
-              <ProductGrid
-                title="New Arrivals"
-                startIdx={6}
-                containerWidth={contentW}
-                cols={gridCols}
-                onProductPress={onProductPress}
-                onSeeAll={() => goToCategory('All')}
-                hasFilter={hasFilter}
-                newBadgeCols={[0, 1, 2, 3, 6]}
-                stockLeftCols={[{ col: 5, left: 5 }]}
-                products={filteredProducts}
-              />
-
-              <EarnCoinsBanner
-                banner={firstBannerFor('earn-coins')}
-                onPress={() => navigation.navigate('Wallet')}
-              />
-
-              <MoreToExploreSection
-                containerWidth={contentW}
-                onPress={onProductPress}
-                onSeeAll={() => goToCategory('All')}
-                hasFilter={hasFilter}
-                products={filteredProducts}
-              />
-
-              <ReferBanner
-                banner={firstBannerFor('refer-earn')}
-                onPress={() => navigation.navigate('Referrals')}
-              />
-
-              <ShopByCategorySection
-                containerWidth={contentW}
-                onPress={onCategoryPress}
-                categories={activeCategories}
-              />
-            </>
+          {/* Any active control (category, search, sort, or a price/coins
+              filter) collapses the curated home to ONLY the flat listing grid,
+              with no banners. Otherwise the curated sections render with placed
+              banners interleaved by rowIndex. */}
+          {isListing ? (
+            <ProductGrid
+              title={categoryActive ? selectedCategory : 'All Products'}
+              count={listingProducts.length ? `${listingProducts.length} items` : undefined}
+              startIdx={0}
+              containerWidth={contentW}
+              cols={gridCols}
+              onProductPress={onProductPress}
+              onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
+              hasFilter={hasFilter}
+              products={listingProducts}
+            />
+          ) : (
+            interleaveBanners(buildCuratedBlocks(), allBanners, (b) => (
+              <BannerBlock key={`banner-${b._id}`} banner={b} navigation={navigation} />
+            ))
           )}
         </View>
       </ScrollView>
@@ -1012,7 +622,7 @@ export const HomeScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Generic full-bleed image (used by image-only banners)
   fullImage: { width: '100%', height: '100%' },
@@ -1357,159 +967,7 @@ const s = StyleSheet.create({
   productRow: {
     flexDirection: 'row',
   },
-  productCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  productImageBox: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: '#F1F5F9',
-    position: 'relative',
-  },
-  productImage: { width: '100%', height: '100%' },
-  productBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    zIndex: 1,
-  },
-  productBadgeTxt: {
-    fontSize: 10,
-    fontFamily: Fonts.bold,
-    color: '#fff',
-    letterSpacing: 0.3,
-  },
-  newBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    backgroundColor: '#10b981',
-  },
-  newBadgeTxt: {
-    fontSize: 9,
-    fontFamily: Fonts.bold,
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  stockBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    backgroundColor: '#ef4444',
-  },
-  stockBadgeTxt: {
-    fontSize: 9,
-    fontFamily: Fonts.bold,
-    color: '#fff',
-    letterSpacing: 0.3,
-  },
-  productInfo: {
-    padding: 12,
-    gap: 4,
-  },
-  productTitle: {
-    fontSize: 13,
-    fontFamily: Fonts.bold,
-    color: '#0f172a',
-  },
-  productSub: {
-    fontSize: 10,
-    fontFamily: Fonts.regular,
-    color: '#94a3b8',
-    marginBottom: 2,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginBottom: 4,
-  },
-  ratingValue: {
-    fontSize: 10,
-    fontFamily: Fonts.semiBold,
-    color: '#475569',
-    marginLeft: 2,
-  },
-  ratingCount: {
-    fontSize: 10,
-    fontFamily: Fonts.regular,
-    color: '#94a3b8',
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    marginBottom: 2,
-  },
-  productPrice: {
-    fontSize: 14,
-    fontFamily: Fonts.bold,
-    color: '#0f172a',
-  },
-  productOldPrice: {
-    fontSize: 10,
-    fontFamily: Fonts.regular,
-    color: '#94a3b8',
-    textDecorationLine: 'line-through',
-  },
-  coinsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-    marginTop: 2,
-    marginBottom: 6,
-  },
-  coinsIcon: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#4784E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coinsIconTxt: {
-    fontSize: 8,
-    color: '#fff',
-    fontFamily: Fonts.bold,
-  },
-  coinsPillTxt: {
-    fontSize: 10,
-    fontFamily: Fonts.semiBold,
-    color: '#1D4ED8',
-  },
-  buyBtn: {
-    borderRadius: 20,
-    paddingVertical: 9,
-    alignItems: 'center',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  buyBtnTxt: {
-    fontSize: 12,
-    fontFamily: Fonts.bold,
-    color: '#fff',
-  },
+
 
   // ── Promo Strip (thin banner)
   promoStrip: {

@@ -6,9 +6,9 @@ import { X, CheckCircle2, Wallet as WalletIcon, Clock, Coins, TrendingUp, ArrowD
 import { Colors } from '../../constants/theme';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 
-// Coins→₹ conversion. Mirrors AdminSettings.coinsPerRupee default (10);
-// the exact rate is re-locked server-side at request time.
-const COINS_PER_RUPEE = 10;
+// Coins→₹ conversion. Mirrors AdminSettings.coinsPerRupee default (1000);
+// 100 coins = 10 paise. The exact rate is re-locked server-side at request time.
+const COINS_PER_RUPEE = 1000;
 const MIN_WITHDRAW_RUPEES = 100;
 const QUICK_AMOUNTS = [100, 500, 1000];
 type WithdrawMethod = 'UPI' | 'Bank' | 'Paytm';

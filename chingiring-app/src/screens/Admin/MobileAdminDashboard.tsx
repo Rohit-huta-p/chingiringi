@@ -141,7 +141,7 @@ export const MobileAdminDashboard = () => {
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
         {/* ── Shared admin header + section nav ────────── */}
         <MobileAdminNav active="AdminDashboard" />
@@ -226,7 +226,7 @@ export const MobileAdminDashboard = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header
   header: {

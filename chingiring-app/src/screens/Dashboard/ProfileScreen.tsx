@@ -305,7 +305,7 @@ export const ProfileScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f5f7fa' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
   rootContent: { padding: 24, paddingBottom: 60 },
 
   // Top header
@@ -410,7 +410,7 @@ const s = StyleSheet.create({
   },
   quickIconBox: {
     width: 28, height: 28, borderRadius: 8,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     justifyContent: 'center', alignItems: 'center',
   },
   quickLabel: {

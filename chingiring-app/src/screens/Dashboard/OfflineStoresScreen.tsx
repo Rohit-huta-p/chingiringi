@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {
   Search,
@@ -24,12 +25,15 @@ import {
   Plus,
   Minus,
 } from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
 import { StoreMap } from '../../components/StoreMap';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
+import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
 import { storesAPI, type Store } from '../../api/stores';
+import { sharesAPI } from '../../api/shares';
 import { haversineKm } from '../../utils/geo';
 import {
   BENGALURU_CENTER,
@@ -46,6 +50,7 @@ export const OfflineStoresScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isNarrow = width < 1100;
   const user = useAuthStore((st) => st.user);
+  const navigation = useNavigation<any>();
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
@@ -57,6 +62,12 @@ export const OfflineStoresScreen: React.FC = () => {
     queryKey: ['stores'],
     queryFn: () => storesAPI.list({ limit: 50 }),
   });
+
+  // Daily share quota — screen-level (not per-card); same query key the
+  // per-store share action invalidates.
+  const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
+  const sharesLeft = quotaRes?.data?.remaining;
+  const sharesCap = quotaRes?.data?.cap;
 
   const stores: Store[] = useMemo(() => {
     const list = (data?.data?.stores ?? []) as Store[];
@@ -262,6 +273,12 @@ export const OfflineStoresScreen: React.FC = () => {
         </Pressable>
       </View>
 
+      {sharesLeft != null && (
+        <Text style={[styles.shareQuotaText, isNarrow && { paddingHorizontal: 16 }]}>
+          {sharesLeft}/{sharesCap} shares left today
+        </Text>
+      )}
+
       {/* ── Body: map + list ────────────────────────────────────── */}
       <View style={[
         styles.body,
@@ -317,7 +334,7 @@ export const OfflineStoresScreen: React.FC = () => {
                 key={s._id}
                 store={s}
                 isSelected={s._id === selectedId}
-                onPress={() => setSelectedId(s._id)}
+                onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
               />
             ))}
             {filtered.length === 0 && (
@@ -402,6 +419,11 @@ const StoreCard: React.FC<{
   isSelected: boolean;
   onPress: () => void;
 }> = ({ store, isSelected, onPress }) => {
+  const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+
   return (
     <Pressable
       onPress={onPress}
@@ -468,7 +490,36 @@ const StoreCard: React.FC<{
             {store.address}
           </Text>
         </View>
+
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            setShareOpen(true);
+          }}
+          hitSlop={8}
+          style={styles.shareBtn}
+        >
+          <Text style={styles.shareCta}>Share &amp; Earn 100 CR</Text>
+        </Pressable>
       </View>
+      <ShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={store.name}
+        url={shareUrl}
+        onShared={async () => {
+          try {
+            const { data } = await sharesAPI.postShare('store', store._id);
+            qc.invalidateQueries({ queryKey: ['wallet'] });
+            qc.invalidateQueries({ queryKey: ['walletSummary'] });
+            qc.invalidateQueries({ queryKey: ['shareQuota'] });
+            Alert.alert(
+              data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+              data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+            );
+          } catch { /* cap/offline — no credit */ }
+        }}
+      />
     </Pressable>
   );
 };
@@ -627,6 +678,7 @@ const styles = StyleSheet.create({
   statusSep: { color: Colors.textSecondary, fontSize: 12 },
   filtersBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   filtersText: { fontSize: 12, color: PRIMARY, fontWeight: '700' },
+  shareQuotaText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10 },
 
   // Body
   body: { flex: 1, flexDirection: 'row', gap: 14 },
@@ -783,6 +835,8 @@ const styles = StyleSheet.create({
   metaMuted: { color: Colors.textSecondary, fontWeight: '400' },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   addressText: { fontSize: 11, color: Colors.textSecondary, flex: 1 },
+  shareBtn: { alignSelf: 'flex-start', marginTop: 6 },
+  shareCta: { fontSize: 11, fontFamily: Fonts.bold, color: PRIMARY },
 
   emptyState: {
     padding: 40,

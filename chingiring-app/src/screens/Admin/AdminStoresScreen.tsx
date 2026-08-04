@@ -60,6 +60,7 @@ export function StoreFormModal({ visible, onClose, store }: {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] });
+      queryClient.invalidateQueries({ queryKey: ['stores'] }); // refresh shopper list too
       onClose();
     },
     onError: (err: any) => {
@@ -382,13 +383,19 @@ export function AdminStoresScreen() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminAPI.deleteStore(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] });
+      queryClient.invalidateQueries({ queryKey: ['stores'] });
+    },
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       adminAPI.updateStore(id, { isActive: !isActive }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] });
+      queryClient.invalidateQueries({ queryKey: ['stores'] });
+    },
   });
 
   const stores = data?.data?.stores || [];
@@ -555,7 +562,7 @@ export function AdminStoresScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF', padding: Spacing.lg },
+  container: { flex: 1, backgroundColor: '#F0F4F8', padding: Spacing.lg },
   pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   pageTitle: { fontSize: 24, fontWeight: '700', color: Colors.text },
   pageSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
@@ -575,7 +582,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 28, fontWeight: '700', marginTop: 6, letterSpacing: -0.5 },
 
   tableContainer: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e8ecf2', overflow: 'hidden' },
-  tableHeader: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#F5F8FF', borderBottomWidth: 1, borderBottomColor: '#e8ecf2' },
+  tableHeader: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#F0F4F8', borderBottomWidth: 1, borderBottomColor: '#e8ecf2' },
   tableHeaderCell: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
   tableRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   tableRowLast: { borderBottomWidth: 0 },
@@ -590,7 +597,7 @@ const styles = StyleSheet.create({
   statusActiveText: { color: '#16a34a' },
   statusInactiveText: { color: '#dc2626' },
   actions: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 6, borderRadius: 6, backgroundColor: '#F5F8FF' },
+  actionBtn: { padding: 6, borderRadius: 6, backgroundColor: '#F0F4F8' },
 
   emptyState: { padding: 40, alignItems: 'center' },
   emptyText: { fontSize: 14, color: Colors.textSecondary },

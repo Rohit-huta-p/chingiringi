@@ -868,7 +868,7 @@ export const DealsListScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   fullImage: { width: '100%', height: '100%' },
 

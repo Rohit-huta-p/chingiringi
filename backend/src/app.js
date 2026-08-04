@@ -15,6 +15,7 @@ import dealRoutes from './modules/deals/dealRoutes.js';
 import categoryRoutes from './modules/categories/categoryRoutes.js';
 import bannerRoutes from './modules/banners/bannerRoutes.js';
 import walletRoutes from './modules/wallet/walletRoutes.js';
+import shareRoutes from './modules/shares/shareRoutes.js';
 import profileRoutes from './modules/users/profileRoutes.js';
 import addressRoutes from './modules/addresses/addressRoutes.js';
 import adminRoutes from './modules/admin/adminRoutes.js';
@@ -24,6 +25,7 @@ import reviewRoutes from './modules/reviews/reviewRoutes.js';
 import clickRoutes from './modules/clicks/clickRoutes.js';
 import notificationRoutes from './modules/notifications/notificationRoutes.js';
 import storeRoutes from './modules/stores/storeRoutes.js';
+import paymentsWebhookRoutes from './modules/payments/paymentsRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -40,6 +42,10 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(limiter);
+
+// Razorpay webhook needs the RAW request body to verify the HMAC signature, so
+// it is mounted BEFORE express.json() (which would parse & discard the bytes).
+app.use('/api/webhooks/razorpay', express.raw({ type: '*/*' }), paymentsWebhookRoutes);
 
 // Body parser
 app.use(express.json({ limit: '10kb' }));
@@ -87,6 +93,7 @@ app.use('/api/deals', dealRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/shares', shareRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/admin', adminRoutes);

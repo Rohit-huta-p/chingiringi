@@ -193,6 +193,7 @@ function RazorpayModal({ visible, onClose, settings }: {
   const [keyId, setKeyId] = useState('');
   const [secret, setSecret] = useState('');
   const [account, setAccount] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
   const [enabled, setEnabled] = useState(false);
 
   React.useEffect(() => {
@@ -201,6 +202,7 @@ function RazorpayModal({ visible, onClose, settings }: {
     setAccount(settings.razorpayAccountNumber ?? '');
     setEnabled(!!settings.razorpayEnabled);
     setSecret(''); // never pre-filled — write-only
+    setWebhookSecret('');
   }, [settings, visible]);
 
   const save = useMutation({
@@ -208,8 +210,9 @@ function RazorpayModal({ visible, onClose, settings }: {
       razorpayKeyId: keyId.trim(),
       razorpayAccountNumber: account.trim(),
       razorpayEnabled: enabled,
-      // Only send the secret when the admin typed a new one.
+      // Only send secrets when the admin typed new ones.
       ...(secret.trim() ? { razorpayKeySecret: secret.trim() } : {}),
+      ...(webhookSecret.trim() ? { razorpayWebhookSecret: webhookSecret.trim() } : {}),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'settings'] });
@@ -220,6 +223,9 @@ function RazorpayModal({ visible, onClose, settings }: {
   });
 
   const maskedSecret = settings?.razorpayKeySecretMasked;
+  const maskedWebhook = settings?.razorpayWebhookSecretMasked;
+  const apiBase = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+  const webhookUrl = `${apiBase || '<your-api-host>'}/api/webhooks/razorpay`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -257,6 +263,22 @@ function RazorpayModal({ visible, onClose, settings }: {
             placeholder="2323230000000000" placeholderTextColor="#94a3b8"
             autoCapitalize="none" autoCorrect={false}
           />
+
+          <Text style={m.label}>Webhook secret {maskedWebhook ? `(saved: ${maskedWebhook})` : ''}</Text>
+          <TextInput
+            style={m.input} value={webhookSecret} onChangeText={setWebhookSecret}
+            placeholder={maskedWebhook ? 'Leave blank to keep current' : 'Secret set on the Razorpay webhook'}
+            placeholderTextColor="#94a3b8" autoCapitalize="none" autoCorrect={false} secureTextEntry
+          />
+
+          <Text style={m.label}>Webhook URL — register in Razorpay</Text>
+          <View style={m.webhookBox}>
+            <Text style={m.webhookUrl} selectable>{webhookUrl}</Text>
+          </View>
+          <Text style={m.note}>
+            Add this in Razorpay → Settings → Webhooks (same secret as above), for events:
+            payout.processed, payout.failed, payout.reversed.
+          </Text>
 
           <TouchableOpacity style={m.toggleRow} onPress={() => setEnabled((v) => !v)} activeOpacity={0.8}>
             <View style={[m.toggle, enabled && m.toggleOn]}>
@@ -325,7 +347,7 @@ function Badge({ text }: { text: string }) {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
   content: { padding: 16 },
   contentDesktop: { padding: 24, maxWidth: 760, alignSelf: 'center', width: '100%' },
 
@@ -418,11 +440,13 @@ const m = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
   note: { fontSize: 12, color: '#64748b', lineHeight: 17, marginBottom: 14 },
+  webhookBox: { backgroundColor: '#f1f5f9', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 6 },
+  webhookUrl: { fontSize: 12, color: '#0f172a', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
 
   label: { fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 6, marginTop: 10 },
   input: {
     height: 46, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
-    paddingHorizontal: 14, fontSize: 14, color: '#0f172a', backgroundColor: '#F5F8FF',
+    paddingHorizontal: 14, fontSize: 14, color: '#0f172a', backgroundColor: '#F0F4F8',
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
 

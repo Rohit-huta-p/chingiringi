@@ -306,7 +306,7 @@ export const MobileProfileScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
 
   body: { paddingHorizontal: 16, paddingTop: 14 },

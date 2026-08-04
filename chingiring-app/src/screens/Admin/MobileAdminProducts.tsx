@@ -216,7 +216,7 @@ export const MobileAdminProducts = () => {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
         {/* Shared admin header + section nav */}
         <MobileAdminNav active="AdminAllProducts" />
@@ -224,8 +224,8 @@ export const MobileAdminProducts = () => {
         <View style={s.body}>
           {/* Title */}
           <View style={s.titleRow}>
-            <View>
-              <Text style={s.pageTitle}>Product Management</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.pageTitle} numberOfLines={1}>Product Management</Text>
               <Text style={s.pageSub}>Manage store products</Text>
             </View>
             <TouchableOpacity
@@ -303,7 +303,7 @@ export const MobileAdminProducts = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#3b82f6', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -323,10 +323,10 @@ const s = StyleSheet.create({
 
   body: { paddingHorizontal: 16, paddingTop: 16 },
 
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 },
   pageTitle: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
   pageSub: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#22c55e', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#22c55e', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, flexShrink: 0 },
   addBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, height: 46, borderWidth: 1, borderColor: '#e8ecf2', marginBottom: 14 },

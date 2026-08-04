@@ -29,12 +29,14 @@ const transactionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Deal',
     },
+    // Loose bag of type-specific fields — affiliate brand/orderId, lock timing,
+    // and withdrawal payout details (method, paymentDetails, accountNumber,
+    // ifsc, coinsRedeemed, coinRate, payoutId, payoutStatus, contactId,
+    // fundAccountId, …). Mixed so arbitrary keys persist: a typed sub-schema
+    // silently dropped the payout fields on save under Mongoose strict mode.
     metadata: {
-      brand: String,
-      orderId: String,
-      lockExpiresAt: Date,
-      rejectionReason: String,
-      payoutId: String,
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
   },
   {

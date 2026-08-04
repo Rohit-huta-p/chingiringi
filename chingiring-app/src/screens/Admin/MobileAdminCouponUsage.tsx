@@ -116,7 +116,7 @@ export const MobileAdminCouponUsage = () => {
           <Text style={s.errTitle}>No data</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
           <View style={s.body}>
 
             {/* Overall progress */}
@@ -251,7 +251,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

@@ -28,7 +28,14 @@ interface Category {
   name: string;
   slug: string;
   imageUrl?: string;
+  color?: string;
 }
+
+// Preset theme colors for the swatch picker (no free-form picker dependency).
+const THEME_COLORS = [
+  '#4784E2', '#2563EB', '#059669', '#16A34A', '#DC2626',
+  '#EA580C', '#D97706', '#9333EA', '#DB2777', '#0891B2',
+];
 
 interface Props {
   value: string;
@@ -43,6 +50,7 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [editingImage, setEditingImage] = useState('');
+  const [editingColor, setEditingColor] = useState('');
   // When a delete is blocked because the category is in use, we switch the
   // sheet into a "reassign" mode instead of a dead-end error.
   const [reassignFor, setReassignFor] = useState<Category | null>(null);
@@ -85,8 +93,8 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, name, imageUrl }: { id: string; name: string; imageUrl?: string }) =>
-      adminAPI.updateCategory(id, { name, imageUrl }),
+    mutationFn: ({ id, name, imageUrl, color }: { id: string; name: string; imageUrl?: string; color?: string }) =>
+      adminAPI.updateCategory(id, { name, imageUrl, color }),
     onSuccess: (res, vars) => {
       invalidate();
       const newName = res?.data?.category?.name ?? vars.name;
@@ -133,11 +141,13 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
     setEditingId(cat._id);
     setEditingName(cat.name);
     setEditingImage(cat.imageUrl ?? '');
+    setEditingColor(cat.color ?? '');
   };
   const cancelEdit = () => {
     setEditingId(null);
     setEditingName('');
     setEditingImage('');
+    setEditingColor('');
   };
   const saveEdit = () => {
     if (!editingId) return;
@@ -145,8 +155,13 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
     if (!name) return cancelEdit();
     const cat = categories.find((c) => c._id === editingId);
     // Nothing changed (name AND image identical) → just close.
-    if (name === cat?.name && editingImage === (cat?.imageUrl ?? '')) return cancelEdit();
-    updateMutation.mutate({ id: editingId, name, imageUrl: editingImage });
+    if (
+      name === cat?.name &&
+      editingImage === (cat?.imageUrl ?? '') &&
+      editingColor === (cat?.color ?? '')
+    )
+      return cancelEdit();
+    updateMutation.mutate({ id: editingId, name, imageUrl: editingImage, color: editingColor });
   };
 
   const confirmDelete = (cat: Category) => {
@@ -308,6 +323,21 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
                           label="Category image"
                           folder="categories"
                         />
+                      </View>
+                      <View style={st.colorRow}>
+                        <Text style={st.colorLabel}>Theme color</Text>
+                        <View style={st.swatches}>
+                          {THEME_COLORS.map((c) => (
+                            <TouchableOpacity
+                              key={c}
+                              style={[st.swatch, { backgroundColor: c }, editingColor === c && st.swatchOn]}
+                              onPress={() => setEditingColor(editingColor === c ? '' : c)}
+                              activeOpacity={0.8}
+                            >
+                              {editingColor === c ? <Check size={12} color="#fff" strokeWidth={3} /> : null}
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                       </View>
                       <View style={st.editActions}>
                         <TouchableOpacity style={st.editCancelBtn} onPress={cancelEdit}>
@@ -642,6 +672,17 @@ const st = StyleSheet.create({
     minWidth: 72, alignItems: 'center',
   },
   editSaveText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+
+  // Theme-color swatch picker
+  colorRow: { gap: 6 },
+  colorLabel: { fontSize: 12, fontWeight: '700', color: '#64748b' },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  swatch: {
+    width: 28, height: 28, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: 'transparent',
+  },
+  swatchOn: { borderColor: '#0f172a' },
 });
 
 export default CategoryPicker;

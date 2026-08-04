@@ -21,6 +21,7 @@
     "@types/mapbox-gl": "^3.4.1",
     "axios": "^1.13.6",
     "expo": "~54",
+    "expo-camera": "~17.0.10",
     "expo-device": "~8.0.10",
     "expo-font": "~14.0.11",
     "expo-image-picker": "~17.0.11",

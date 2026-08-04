@@ -6,7 +6,10 @@ import mongoose from 'mongoose';
  *  passThroughPercent — fraction of every ₹ of commission we give the user
  *                       back as coins. 0.25 = 25%.
  *  coinsPerRupee      — how many coins equal ₹1 both at credit AND redemption.
- *                       10 = 10 coins per ₹1.
+ *                       1000 = 1000 coins per ₹1 (100 coins = 10 paise).
+ *  coinsPerShare      — flat coins awarded per completed product/store share.
+ *  maxSharesPerDay    — daily cap on credited shares per user, products+stores
+ *                       combined.
  *  defaultLockDays    — how long pending coins sit before confirming. Matches
  *                       typical merchant return window (30d).
  *  cuelinksPublisherId— our Cuelinks pub ID; used by the URL wrapper (Phase C).
@@ -20,7 +23,10 @@ const adminSettingsSchema = new mongoose.Schema(
     key: { type: String, default: 'default', unique: true, index: true },
 
     passThroughPercent: { type: Number, default: 0.25, min: 0, max: 1 },
-    coinsPerRupee:      { type: Number, default: 10,   min: 1 },
+    coinsPerRupee:      { type: Number, default: 1000, min: 1 }, // 100 coins = 10 paise
+    // Share-to-earn economy.
+    coinsPerShare:      { type: Number, default: 100,  min: 0 },
+    maxSharesPerDay:    { type: Number, default: 100,  min: 0 }, // per user, products+stores combined
     defaultLockDays:    { type: Number, default: 30,   min: 0 },
 
     cuelinksPublisherId: { type: String, default: '', trim: true },
@@ -33,6 +39,7 @@ const adminSettingsSchema = new mongoose.Schema(
     razorpayKeyId:         { type: String, default: '', trim: true },
     razorpayKeySecret:     { type: String, default: '', trim: true },
     razorpayAccountNumber: { type: String, default: '', trim: true }, // RazorpayX payout account
+    razorpayWebhookSecret: { type: String, default: '', trim: true }, // verifies inbound payout webhooks
     razorpayEnabled:       { type: Boolean, default: false },
   },
   { timestamps: true },

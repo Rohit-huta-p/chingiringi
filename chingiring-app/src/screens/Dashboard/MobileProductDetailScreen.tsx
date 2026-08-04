@@ -8,8 +8,6 @@ import {
   Image,
   Linking,
   Alert,
-  Share,
-  Platform,
   useWindowDimensions,
 } from 'react-native';
 import {
@@ -21,11 +19,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reviewsAPI, toUiReview } from '../../api/reviews';
 import { WriteReviewModal } from '../../components/WriteReviewModal';
+import { ShareSheet } from '../../components/ShareSheet';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
 import { clicksAPI } from '../../api/clicks';
 import { productsAPI } from '../../api/products';
+import { sharesAPI } from '../../api/shares';
+import { useAuthStore } from '../../store';
 
 function formatExpiresIn(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
@@ -98,7 +99,6 @@ function ProductDetailMobile({
   product,
   onBack,
   onShare,
-  onShopNow,
   reviews,
   reviewCount,
   averageRating,
@@ -107,7 +107,6 @@ function ProductDetailMobile({
   product: any;
   onBack: () => void;
   onShare: () => void;
-  onShopNow: () => void;
   reviews: any[];
   reviewCount: number;
   averageRating: number;
@@ -117,12 +116,22 @@ function ProductDetailMobile({
   const [quantity, setQuantity] = React.useState(1);
   const [imgIndex, setImgIndex] = React.useState(0);
 
+  // Daily share quota — same query key the share actions invalidate.
+  const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
+  const sharesLeft = quotaRes?.data?.remaining;
+  const sharesCap = quotaRes?.data?.cap;
+
   const name        = product?.name ?? 'Product';
   const imageUrl    = product?.imageUrl;
   // Gallery, cover first. Falls back to the single imageUrl for products
   // created before multi-image, and to [] when there's no image at all.
-  const gallery: string[] =
+  const baseGallery: string[] =
     product?.images?.length ? product.images : (imageUrl ? [imageUrl] : []);
+  // A mobile-specific crop (if set) leads the gallery, mirroring the banner
+  // desktop/mobile split — otherwise the normal cover-first gallery.
+  const gallery: string[] = product?.mobileImageUrl
+    ? [product.mobileImageUrl, ...baseGallery.filter((u) => u !== product.mobileImageUrl)]
+    : baseGallery;
   const price       = Number(product?.price ?? 0);
   const coinsPrice  = Number(product?.coinsPrice ?? 0);
   const stock       = Number(product?.stock ?? 0);
@@ -330,16 +339,19 @@ function ProductDetailMobile({
 
       {/* Sticky bottom CTA */}
       <View style={pStyles.ctaBar}>
-        <TouchableOpacity activeOpacity={0.85} onPress={onShopNow} style={pStyles.ctaWrap}>
+        <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={pStyles.ctaWrap}>
           <LinearGradient
             colors={Gradient.brand}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={pStyles.ctaBtn}
           >
-            <Text style={pStyles.ctaText}>Shop Now · {fmtPrice(price)}</Text>
+            <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
           </LinearGradient>
         </TouchableOpacity>
+        {sharesLeft != null && (
+          <Text style={pStyles.hint}>{sharesLeft}/{sharesCap} shares left today</Text>
+        )}
       </View>
     </View>
   );
@@ -347,6 +359,7 @@ function ProductDetailMobile({
 
 export const MobileProductDetailScreen = () => {
   const navigation = useNavigation();
+  const user = useAuthStore((s) => s.user);
   const route = useRoute<any>();
   const passedDeal    = route.params?.deal;
   const dealId        = route.params?.dealId;
@@ -373,6 +386,7 @@ export const MobileProductDetailScreen = () => {
   // Reviews — real data from the API (product mode only).
   const reviewProductId = productForView?._id || productId;
   const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
   const queryClient = useQueryClient();
   const { data: reviewsRes } = useQuery({
     queryKey: ['reviews', reviewProductId],
@@ -389,65 +403,18 @@ export const MobileProductDetailScreen = () => {
   };
 
   if (isProductMode) {
-    // Share the product — native share sheet; web falls back to the Web Share
-    // API, then clipboard. Includes the buy link when the product has one.
-    const handleShareProduct = async () => {
-      const shareTitle = productForView?.name || 'Check out this product';
-      const shareUrl = productForView?.affiliateUrl || '';
-      const message = shareUrl ? `${shareTitle}\n${shareUrl}` : shareTitle;
-      try {
-        if (Platform.OS === 'web') {
-          const nav: any = (globalThis as any).navigator;
-          if (nav?.share) {
-            await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined });
-            return;
-          }
-          if (nav?.clipboard?.writeText) {
-            await nav.clipboard.writeText(message);
-            Alert.alert('Link copied', 'Product link copied to your clipboard.');
-            return;
-          }
-        }
-        await Share.share({ message, title: shareTitle });
-      } catch {
-        /* user dismissed the share sheet, or sharing is unsupported */
-      }
-    };
+    // Share the product — opens the custom ShareSheet. Credits 100 CR only
+    // once a channel link is actually opened (see onShared below), and only
+    // for real products (not the 'sample' template rows).
+    const canShare = !!reviewProductId && reviewProductId !== 'sample';
+    const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
 
-    // Product "Shop Now": open the product's buy link (subid-tracked, same as
-    // deals) when present; otherwise the product is display-only.
-    const handleBuyProduct = async () => {
-      const url = productForView?.affiliateUrl;
-      if (!url) {
-        Alert.alert(
-          'Coming soon',
-          'This product is display-only — no buy link has been added yet.',
-        );
-        return;
-      }
-      try {
-        let openUrl = url;
-        const pid = productForView?._id || productId;
-        if (pid && pid !== 'sample') {
-          try {
-            const { redirectUrl } = await clicksAPI.log({ productId: pid, source: 'product_detail' });
-            if (redirectUrl) openUrl = redirectUrl;
-          } catch {
-            /* fall through to the raw url */
-          }
-        }
-        await Linking.openURL(openUrl);
-      } catch {
-        Alert.alert('Error', 'Could not open the link.');
-      }
-    };
     return (
       <>
         <ProductDetailMobile
           product={productForView}
           onBack={() => navigation.goBack()}
-          onShare={handleShareProduct}
-          onShopNow={handleBuyProduct}
+          onShare={() => canShare && setShareOpen(true)}
           reviews={reviews}
           reviewCount={reviewCount}
           averageRating={averageRating}
@@ -458,6 +425,26 @@ export const MobileProductDetailScreen = () => {
           onClose={() => setReviewOpen(false)}
           onSubmit={submitReview}
         />
+        {canShare ? (
+          <ShareSheet
+            visible={shareOpen}
+            onClose={() => setShareOpen(false)}
+            title={productForView?.name || 'Product'}
+            url={shareUrl}
+            onShared={async () => {
+              try {
+                const { data } = await sharesAPI.postShare('product', reviewProductId);
+                queryClient.invalidateQueries({ queryKey: ['wallet'] });
+                queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
+                queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
+                Alert.alert(
+                  data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+                  data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+                );
+              } catch { /* cap/offline — no credit */ }
+            }}
+          />
+        ) : null}
       </>
     );
   }
@@ -656,7 +643,7 @@ export const MobileProductDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
 
   // ── Image ──
@@ -934,7 +921,7 @@ const styles = StyleSheet.create({
 // Kept separate from `styles` so the deal-mode visual tweaks don't bleed in.
 
 const pStyles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Hero
   heroBox: {
@@ -1109,4 +1096,5 @@ const pStyles = StyleSheet.create({
   ctaWrap: { borderRadius: 28, overflow: 'hidden' },
   ctaBtn: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  hint: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
 });

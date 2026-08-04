@@ -50,7 +50,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#eff6ff', // Light blue background from designs
+    backgroundColor: '#F0F4F8', // Light blue background from designs
   },
   scrollContent: {
     flexGrow: 1,

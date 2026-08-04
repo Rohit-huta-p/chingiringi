@@ -8,6 +8,11 @@ function presentSettings(doc) {
   s.razorpayConfigured = !!(s.razorpayKeyId && secret);
   s.razorpayKeySecretMasked = secret ? `••••••••${secret.slice(-4)}` : '';
   delete s.razorpayKeySecret;
+
+  const webhookSecret = s.razorpayWebhookSecret || '';
+  s.razorpayWebhookConfigured = !!webhookSecret;
+  s.razorpayWebhookSecretMasked = webhookSecret ? `••••••••${webhookSecret.slice(-4)}` : '';
+  delete s.razorpayWebhookSecret;
   return s;
 }
 
@@ -29,6 +34,8 @@ export const updateSettings = async (req, res) => {
   const ALLOWED = [
     'passThroughPercent',
     'coinsPerRupee',
+    'coinsPerShare',
+    'maxSharesPerDay',
     'defaultLockDays',
     'cuelinksPublisherId',
     'amazonAssociateTag',
@@ -45,6 +52,10 @@ export const updateSettings = async (req, res) => {
   // won't clear it — use a dedicated clear flow if that's ever needed.
   if (typeof req.body.razorpayKeySecret === 'string' && req.body.razorpayKeySecret.trim()) {
     updates.razorpayKeySecret = req.body.razorpayKeySecret.trim();
+  }
+  // Webhook secret is write-only + optional, same as the key secret.
+  if (typeof req.body.razorpayWebhookSecret === 'string' && req.body.razorpayWebhookSecret.trim()) {
+    updates.razorpayWebhookSecret = req.body.razorpayWebhookSecret.trim();
   }
 
   if (updates.passThroughPercent !== undefined) {
@@ -70,6 +81,13 @@ export const updateSettings = async (req, res) => {
       throw new Error('defaultLockDays must be >= 0');
     }
     updates.defaultLockDays = n;
+  }
+  for (const key of ['coinsPerShare', 'maxSharesPerDay']) {
+    if (updates[key] !== undefined) {
+      const n = Number(updates[key]);
+      if (!Number.isFinite(n) || n < 0) { res.status(400); throw new Error(`${key} must be >= 0`); }
+      updates[key] = n;
+    }
   }
 
   const settings = await AdminSettings.findOneAndUpdate(

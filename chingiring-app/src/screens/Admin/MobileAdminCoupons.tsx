@@ -493,7 +493,7 @@ function CreateCouponModal({
                 value={form.isActive}
                 onValueChange={(v) => update('isActive', v)}
                 trackColor={{ false: '#e2e8f0', true: '#86efac' }}
-                thumbColor={form.isActive ? '#22c55e' : '#F5F8FF'}
+                thumbColor={form.isActive ? '#22c55e' : '#F0F4F8'}
               />
             </View>
 
@@ -624,7 +624,7 @@ export const MobileAdminCoupons = () => {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
         {/* Shared admin header + section nav */}
         <MobileAdminNav active="AdminCoupons" />
@@ -632,8 +632,8 @@ export const MobileAdminCoupons = () => {
         <View style={s.body}>
           {/* Title + Create */}
           <View style={s.titleRow}>
-            <View>
-              <Text style={s.pageTitle}>Coupon Management</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.pageTitle} numberOfLines={1}>Coupon Management</Text>
               <Text style={s.pageSub}>Create and manage discount codes</Text>
             </View>
             <TouchableOpacity onPress={openCreate} activeOpacity={0.85} style={s.addBtnWrap}>
@@ -644,7 +644,7 @@ export const MobileAdminCoupons = () => {
                 style={s.addBtn}
               >
                 <Plus size={16} color="#fff" strokeWidth={2.5} />
-                <Text style={s.addBtnText}>Create Coupon</Text>
+                <Text style={s.addBtnText}>Add</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -725,7 +725,7 @@ export const MobileAdminCoupons = () => {
 // ─── Page Styles ────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header
   header: {
@@ -752,10 +752,10 @@ const s = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingTop: 16 },
 
   // Title
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 },
   pageTitle: { fontSize: 22, fontFamily: Fonts.extraBold, color: '#1e293b' },
   pageSub: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 2 },
-  addBtnWrap: { borderRadius: 10, overflow: 'hidden' },
+  addBtnWrap: { borderRadius: 10, overflow: 'hidden', flexShrink: 0 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   addBtnText: { fontSize: 13, fontFamily: Fonts.bold, color: '#fff' },
 
@@ -848,7 +848,7 @@ const m = StyleSheet.create({
   hint: { fontSize: 10, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 4 },
   inputRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F5F8FF', borderWidth: 1, borderColor: '#e2e8f0',
+    backgroundColor: '#F0F4F8', borderWidth: 1, borderColor: '#e2e8f0',
     borderRadius: 10, paddingHorizontal: 12, minHeight: 46,
   },
   inputTxt: { flex: 1, fontSize: 14, fontFamily: Fonts.regular, color: '#1e293b', paddingVertical: 10 },
@@ -857,7 +857,7 @@ const m = StyleSheet.create({
   typeBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
   },
   typeBtnActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
   typeBtnTxt: { fontSize: 13, fontFamily: Fonts.semiBold, color: '#64748b' },
@@ -868,7 +868,7 @@ const m = StyleSheet.create({
 
   activeRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#F5F8FF', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginTop: 16,
+    backgroundColor: '#F0F4F8', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginTop: 16,
     borderWidth: 1, borderColor: '#f1f5f9',
   },
   activeLabel: { fontSize: 13, fontFamily: Fonts.bold, color: '#1e293b' },

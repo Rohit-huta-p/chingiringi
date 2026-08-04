@@ -193,7 +193,7 @@ export function AdminDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF' },
+  container: { flex: 1, backgroundColor: '#F0F4F8' },
   content: { padding: Spacing.lg },
   pageTitle: { fontSize: 24, fontWeight: '700', color: Colors.text, marginBottom: Spacing.lg },
 

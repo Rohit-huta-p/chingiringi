@@ -57,7 +57,7 @@ function ToggleRow({ label, subtitle, value, onToggle }: ToggleRowProps) {
         value={value}
         onValueChange={onToggle}
         trackColor={{ false: '#e2e8f0', true: Colors.primaryLight }}
-        thumbColor={value ? Colors.primary : '#F5F8FF'}
+        thumbColor={value ? Colors.primary : '#F0F4F8'}
         ios_backgroundColor="#e2e8f0"
       />
     </View>
@@ -383,7 +383,7 @@ export const MobileSettingsScreen = () => {
 // ─── Styles ──────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F8FF' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   scroll: { flex: 1 },
   body: { paddingHorizontal: 16, paddingTop: 16 },

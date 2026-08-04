@@ -76,7 +76,7 @@ function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; on
   // read. For simplicity we hit /api/wallet — it doesn't return the rate,
   // so we default to 10 (matches server default). Live-rate polish can come
   // later via a dedicated /api/config public endpoint.
-  const RATE = 10; // coins per ₹1 — mirrors AdminSettings default
+  const RATE = 1000; // coins per ₹1 — mirrors AdminSettings default (100 coins = 10 paise)
 
   const coinsNum = Number(coinAmount) || 0;
   const rupees = Math.round((coinsNum / RATE) * 100) / 100;
@@ -278,7 +278,7 @@ const ws = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderRadius: 16,
     padding: 18,
     marginBottom: 24,
@@ -719,7 +719,7 @@ export const MobileWalletScreen = () => {
 // ─── Styles ─────────────────────────────────────────────────────────
 
 const m = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#eef2f8' },
+  root: { flex: 1, backgroundColor: '#F0F4F8' },
 
   // Header avatar (rendered inside MobileAuthHeader's rightSlot)
   headerAvatar: {

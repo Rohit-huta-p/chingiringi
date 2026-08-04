@@ -618,7 +618,7 @@ export function AdminDealsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8FF', padding: Spacing.lg },
+  container: { flex: 1, backgroundColor: '#F0F4F8', padding: Spacing.lg },
   pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   pageTitle: { fontSize: 24, fontWeight: '700', color: Colors.text },
   pageSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: '#F5F8FF',
+    backgroundColor: '#F0F4F8',
     borderBottomWidth: 1,
     borderBottomColor: '#e8ecf2',
   },
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   statusActiveText: { color: '#16a34a' },
   statusInactiveText: { color: '#dc2626' },
   actions: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 6, borderRadius: 6, backgroundColor: '#F5F8FF' },
+  actionBtn: { padding: 6, borderRadius: 6, backgroundColor: '#F0F4F8' },
 
   emptyState: { padding: 40, alignItems: 'center' },
   emptyText: { fontSize: 14, color: Colors.textSecondary },
