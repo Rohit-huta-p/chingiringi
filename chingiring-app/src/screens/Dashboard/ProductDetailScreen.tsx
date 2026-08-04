@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Linking, Alert, Platform, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Alert, Platform, Share } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reviewsAPI, toUiReview, UiReview } from '../../api/reviews';
@@ -9,7 +9,8 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { dealsAPI } from '../../api/deals';
 import { productsAPI } from '../../api/products';
-import { clicksAPI } from '../../api/clicks';
+import { sharesAPI } from '../../api/shares';
+import { useAuthStore } from '../../store';
 
 const SIZES = ['30', '32', '34', '36'];
 
@@ -120,6 +121,7 @@ export const ProductDetailScreen = () => {
   const screenWidth = Dimensions.get('window').width;
   const isDesktop = screenWidth >= 768;
   const navigation = useNavigation();
+  const user = useAuthStore((s) => s.user);
   const route = useRoute<any>();
   const passedDeal = route.params?.deal;
   const dealId = route.params?.dealId;
@@ -171,79 +173,56 @@ export const ProductDetailScreen = () => {
     setReviewOpen(false);
   };
 
-  const handleShopNow = async () => {
-    const url = deal?.affiliateUrl;
-    if (!url) return;
-    try {
-      // Subid-rewritten URL so the merchant report can attribute the sale back
-      // to this user. Falls back to raw URL if click logging fails.
-      let openUrl = url;
-      if (dealId) {
-        try {
-          const { redirectUrl } = await clicksAPI.log({ dealId, source: 'product_detail_web' });
-          if (redirectUrl) openUrl = redirectUrl;
-        } catch {
-          /* fall through */
-        }
-      }
-      await Linking.openURL(openUrl);
-    } catch {
-      Alert.alert('Error', 'Could not open the link. Please try again.');
-    }
-  };
-
-  // Product-mode "Buy Now". If the product has a link, log a click (subid-
-  // rewritten, same as deals) and open it. Otherwise it's display-only.
-  const handleBuyProduct = async () => {
-    const url = product?.affiliateUrl;
-    if (!url) {
-      Alert.alert(
-        'Coming soon',
-        'This product is display-only \u2014 no buy link has been added yet.'
-      );
-      return;
-    }
-    try {
-      let openUrl = url;
-      const pid = product?._id || productId;
-      if (pid && pid !== 'sample') {
-        try {
-          const { redirectUrl } = await clicksAPI.log({ productId: pid, source: 'product_detail_web' });
-          if (redirectUrl) openUrl = redirectUrl;
-        } catch {
-          /* fall through to the raw url */
-        }
-      }
-      await Linking.openURL(openUrl);
-    } catch {
-      Alert.alert('Error', 'Could not open the link. Please try again.');
-    }
-  };
-
   // Share the current item \u2014 native share sheet; web falls back to the Web
-  // Share API, then clipboard. Works for both product and deal modes.
+  // Share API, then clipboard. Works for both product and deal modes. Product
+  // shares carry a referral link and are credited (once per item per day) but
+  // ONLY after the share sheet reports a completed share \u2014 never before.
   const handleShare = async () => {
     const shareTitle = isProductMode
       ? (product?.title || product?.name || 'Check out this product')
       : (deal?.title || deal?.description || 'Check out this deal');
-    const shareUrl = (isProductMode ? product?.affiliateUrl : deal?.affiliateUrl) || '';
+    const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app';
+    const pid = product?._id || productId;
+    const shareUrl = isProductMode
+      ? (pid && pid !== 'sample' ? `${base}/product/${pid}?ref=cr_${user?.id ?? ''}` : '')
+      : (deal?.affiliateUrl || '');
     const message = shareUrl ? `${shareTitle}\n${shareUrl}` : shareTitle;
+
+    let shared = false;
     try {
       if (Platform.OS === 'web') {
         const nav: any = (globalThis as any).navigator;
         if (nav?.share) {
           await nav.share({ title: shareTitle, text: shareTitle, url: shareUrl || undefined });
-          return;
-        }
-        if (nav?.clipboard?.writeText) {
+          shared = true;
+        } else if (nav?.clipboard?.writeText) {
           await nav.clipboard.writeText(message);
-          Alert.alert('Link copied', 'Link copied to your clipboard.');
-          return;
+          shared = true;
+          // Product-mode success shows its own reward alert below; deal mode
+          // has no follow-up alert, so keep the clipboard confirmation here.
+          if (!isProductMode) Alert.alert('Link copied', 'Link copied to your clipboard.');
         }
+      } else {
+        const result = await Share.share({ message, title: shareTitle });
+        shared = result.action === Share.sharedAction;
       }
-      await Share.share({ message, title: shareTitle });
     } catch {
-      /* user dismissed the share sheet, or sharing is unsupported */
+      shared = false; // user dismissed the share sheet, or sharing is unsupported
+    }
+
+    if (shared && isProductMode && pid && pid !== 'sample') {
+      try {
+        const { data } = await sharesAPI.postShare('product', pid);
+        queryClient.invalidateQueries({ queryKey: ['wallet'] });
+        queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
+        queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
+        Alert.alert(
+          data.coinsAwarded > 0 ? 'You earned 100 CR \u2728' : 'Shared!',
+          data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+        );
+      } catch {
+        /* cap reached or offline \u2014 the share already happened */
+      }
     }
   };
 
@@ -525,26 +504,14 @@ export const ProductDetailScreen = () => {
         </Card>
       ) : null}
 
-      {/* CTA */}
+      {/* CTA — share is the primary action; product shares earn coins. */}
       <Button
-        title={
-          productStock === 0
-            ? 'Notify Me When Available'
-            : product?.affiliateUrl
-              ? 'Buy Now ↗'
-              : 'Currently unavailable'
-        }
-        // No affiliate link → nothing to open. Disable the CTA so it reads as
-        // unavailable instead of silently no-opping (Alert is a no-op on web).
-        disabled={productStock !== 0 && !product?.affiliateUrl}
-        onPress={() => {
-          if (productStock === 0) return;
-          handleBuyProduct();
-        }}
+        title="Share & Earn 100 CR ↗"
+        onPress={handleShare}
         style={styles.ctaButton}
       />
       <Text style={styles.helperText}>
-        Earn coins on every purchase · Free shipping over ₹999
+        Earn 100 CR every time you share · once per item per day
       </Text>
     </ScrollView>
   );
@@ -693,14 +660,14 @@ export const ProductDetailScreen = () => {
         ))}
       </Card>
 
-      {/* CTA */}
+      {/* CTA \u2014 share is the primary action here now (Buy CTA removed). */}
       <Button
-        title={"Shop Now & Earn Cashback \u2197"}
-        onPress={handleShopNow}
+        title="Share This Deal \u2197"
+        onPress={handleShare}
         style={styles.ctaButton}
       />
       <Text style={styles.helperText}>
-        You'll be tracked and cashback credited automatically
+        Share with friends to spread the word
       </Text>
 
       {/* Reviews \u2014 render inline only on mobile. Desktop puts the block
