@@ -167,6 +167,11 @@ export const ProductDetailScreen = () => {
   const reviewCount = reviewsRes?.data?.count ?? reviews.length;
   const averageRating = Number(reviewsRes?.data?.averageRating ?? 0);
 
+  // Daily share quota — same query key the share actions invalidate.
+  const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
+  const sharesLeft = quotaRes?.data?.remaining;
+  const sharesCap = quotaRes?.data?.cap;
+
   const submitReview = async (rating: number, text: string) => {
     await reviewsAPI.createReview(targetProductId, { rating, text });
     queryClient.invalidateQueries({ queryKey: ['reviews', targetProductId] });
@@ -513,6 +518,11 @@ export const ProductDetailScreen = () => {
       <Text style={styles.helperText}>
         Earn 100 CR every time you share · once per item per day
       </Text>
+      {sharesLeft != null && (
+        <Text style={[styles.helperText, { marginTop: 4 }]}>
+          {sharesLeft}/{sharesCap} shares left today
+        </Text>
+      )}
     </ScrollView>
   );
 

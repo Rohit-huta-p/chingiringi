@@ -117,6 +117,11 @@ function ProductDetailMobile({
   const [quantity, setQuantity] = React.useState(1);
   const [imgIndex, setImgIndex] = React.useState(0);
 
+  // Daily share quota — same query key the share actions invalidate.
+  const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
+  const sharesLeft = quotaRes?.data?.remaining;
+  const sharesCap = quotaRes?.data?.cap;
+
   const name        = product?.name ?? 'Product';
   const imageUrl    = product?.imageUrl;
   // Gallery, cover first. Falls back to the single imageUrl for products
@@ -340,6 +345,9 @@ function ProductDetailMobile({
             <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
           </LinearGradient>
         </TouchableOpacity>
+        {sharesLeft != null && (
+          <Text style={pStyles.hint}>{sharesLeft}/{sharesCap} shares left today</Text>
+        )}
       </View>
     </View>
   );
@@ -1093,4 +1101,5 @@ const pStyles = StyleSheet.create({
   ctaWrap: { borderRadius: 28, overflow: 'hidden' },
   ctaBtn: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  hint: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
 });

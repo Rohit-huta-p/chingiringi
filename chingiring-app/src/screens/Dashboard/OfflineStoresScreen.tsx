@@ -61,6 +61,12 @@ export const OfflineStoresScreen: React.FC = () => {
     queryFn: () => storesAPI.list({ limit: 50 }),
   });
 
+  // Daily share quota — screen-level (not per-card); same query key the
+  // per-store share action invalidates.
+  const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
+  const sharesLeft = quotaRes?.data?.remaining;
+  const sharesCap = quotaRes?.data?.cap;
+
   const stores: Store[] = useMemo(() => {
     const list = (data?.data?.stores ?? []) as Store[];
     return list.map((s) => ({
@@ -264,6 +270,12 @@ export const OfflineStoresScreen: React.FC = () => {
           <Text style={styles.filtersText}>Filters</Text>
         </Pressable>
       </View>
+
+      {sharesLeft != null && (
+        <Text style={[styles.shareQuotaText, isNarrow && { paddingHorizontal: 16 }]}>
+          {sharesLeft}/{sharesCap} shares left today
+        </Text>
+      )}
 
       {/* ── Body: map + list ────────────────────────────────────── */}
       <View style={[
@@ -685,6 +697,7 @@ const styles = StyleSheet.create({
   statusSep: { color: Colors.textSecondary, fontSize: 12 },
   filtersBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   filtersText: { fontSize: 12, color: PRIMARY, fontWeight: '700' },
+  shareQuotaText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10 },
 
   // Body
   body: { flex: 1, flexDirection: 'row', gap: 14 },
