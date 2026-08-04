@@ -448,7 +448,7 @@ function ReportsInboxTab() {
     queryFn: () => adminAPI.getSettings(),
   });
   const passThroughPercent = settingsQuery.data?.data?.settings?.passThroughPercent ?? 0.25;
-  const coinsPerRupee      = settingsQuery.data?.data?.settings?.coinsPerRupee ?? 10;
+  const coinsPerRupee      = settingsQuery.data?.data?.settings?.coinsPerRupee ?? 1000;
 
   const importMutation = useMutation({
     mutationFn: async () => {
