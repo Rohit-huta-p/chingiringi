@@ -8,8 +8,9 @@ export interface Product {
   price: number;
   coinsPrice: number;
   imageUrl: string;    // cover image (mirrors images[0])
-  mobileImageUrl?: string; // optional mobile-specific cover; mobile surfaces prefer it
+  mobileImageUrl?: string; // optional mobile-specific cover (mirrors mobileImages[0])
   images?: string[];   // full gallery, cover first
+  mobileImages?: string[]; // mobile-specific gallery, cover first; mobile surfaces prefer it
   stock: number;
   sold: number;
   isActive: boolean;

@@ -28,11 +28,15 @@ export function ProductCard({
   onPress: () => void;
 }) {
   const lowStock = product.stock > 0 && product.stock <= 10;
+  // Grid is square (1:1) → desktop 1:1 photos are the correct fit. Fall back to a
+  // mobile photo only so the card isn't blank when desktop photos are missing
+  // (mobile photos are 4:3 landscape → center-cropped here; fallback, not primary).
+  const gridImage = product.imageUrl || product.mobileImages?.[0] || product.mobileImageUrl;
   return (
     <TouchableOpacity style={[s.card, { width }]} onPress={onPress} activeOpacity={0.85}>
       <View style={s.cardImageBox}>
-        {product.imageUrl ? (
-          <Image source={{ uri: product.imageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        {gridImage ? (
+          <Image source={{ uri: gridImage }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
         ) : (
           <View style={[StyleSheet.absoluteFillObject, s.cardImageFallback]}>
             <Text style={s.cardImageLetter}>{product.name?.[0] ?? '?'}</Text>

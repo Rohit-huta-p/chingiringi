@@ -105,8 +105,8 @@ function ProductCard({
         <Text style={s.price}>₹{item.price.toLocaleString()}</Text>
         <Text style={s.coinsPrice} numberOfLines={1}>{item.coinsPrice.toLocaleString()} coins</Text>
 
-        {/* Stock | Sold */}
-        <Text style={s.stockText} numberOfLines={1}>Stock: {item.stock} · Sold: {item.sold}</Text>
+        {/* Sold */}
+        <Text style={s.stockText} numberOfLines={1}>Sold: {item.sold}</Text>
 
         {/* Actions — icon-only, compact */}
         <View style={s.actionsRow}>

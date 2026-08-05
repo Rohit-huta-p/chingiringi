@@ -26,6 +26,11 @@ import { clicksAPI } from '../../api/clicks';
 import { productsAPI } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
 import { useAuthStore } from '../../store';
+import { cloudinaryFill } from '../../utils/cloudinary';
+
+// Mobile hero is a fixed 4:3 shape that scales with width (not a pinned height),
+// so a 4:3 upload fills it with no crop at any mobile width. Used to size the fetch.
+const HERO_ASPECT = 4 / 3;
 
 function formatExpiresIn(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
@@ -125,10 +130,13 @@ function ProductDetailMobile({
   // created before multi-image, and to [] when there's no image at all.
   const baseGallery: string[] =
     product?.images?.length ? product.images : (imageUrl ? [imageUrl] : []);
-  // A mobile-specific crop (if set) leads the gallery, mirroring the banner
-  // desktop/mobile split — otherwise the normal cover-first gallery.
-  const gallery: string[] = product?.mobileImageUrl
-    ? [product.mobileImageUrl, ...baseGallery.filter((u) => u !== product.mobileImageUrl)]
+  // Mobile-specific photos lead (cover first), then the desktop gallery for
+  // extra swipes (deduped). Back-compat: an old single mobileImageUrl seeds it.
+  const mobilePhotos: string[] = product?.mobileImages?.length
+    ? product.mobileImages
+    : (product?.mobileImageUrl ? [product.mobileImageUrl] : []);
+  const gallery: string[] = mobilePhotos.length
+    ? [...mobilePhotos, ...baseGallery.filter((u) => !mobilePhotos.includes(u))]
     : baseGallery;
   const price       = Number(product?.price ?? 0);
   const sold        = Number(product?.sold ?? 0);
@@ -137,6 +145,7 @@ function ProductDetailMobile({
 
   // Hero pages are inset by the 16px heroBox margin on each side.
   const pageW = Math.max(1, winW - 32);
+  const heroH = Math.round(pageW / HERO_ASPECT); // 4:3 box height, scales with width
 
   const fmtPrice = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
@@ -144,7 +153,7 @@ function ProductDetailMobile({
     <View style={pStyles.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* ── Hero carousel with back + share ─────────────────── */}
-        <View style={pStyles.heroBox}>
+        <View style={[pStyles.heroBox, { height: heroH }]}>
           {gallery.length > 0 ? (
             <ScrollView
               horizontal
@@ -158,7 +167,7 @@ function ProductDetailMobile({
               {gallery.map((uri, i) => (
                 <Image
                   key={`${uri}-${i}`}
-                  source={{ uri }}
+                  source={{ uri: cloudinaryFill(uri, pageW, heroH) ?? uri }}
                   style={{ width: pageW, height: '100%' }}
                   resizeMode="cover"
                 />
@@ -875,7 +884,8 @@ const pStyles = StyleSheet.create({
   // Hero
   heroBox: {
     margin: 16,
-    height: 280,
+    // height applied inline (pageW / HERO_ASPECT) so the 4:3 hero scales with
+    // width instead of a pinned pixel height.
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#0f172a',

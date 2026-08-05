@@ -12,6 +12,7 @@ import { dealsAPI } from '../../api/deals';
 import { productsAPI } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
 import { useAuthStore } from '../../store';
+import { cloudinaryFill } from '../../utils/cloudinary';
 
 const SIZES = ['30', '32', '34', '36'];
 
@@ -260,7 +261,9 @@ export const ProductDetailScreen = () => {
   // and the raw API Product ({ name, description, imageUrl, price,
   // coinsPrice, stock, ... }).
   const productName = product?.title || product?.name || 'Product';
-  const productImage = product?.productImage || product?.imageUrl;
+  // Single-cover fallback chain (ShareSheet + empty-gallery): desktop cover →
+  // mobile cover, so a product with only mobile photos still has an image.
+  const productImage = product?.productImage || product?.imageUrl || product?.mobileImageUrl;
   const productCategory = product?.category?.name || product?.category || '';
   const productPrice = product?.price ?? 0;
   const productOldPrice = product?.oldPrice ?? 0;
@@ -270,16 +273,26 @@ export const ProductDetailScreen = () => {
   const productDiscount = product?.discount;
   const productSold = product?.sold ?? 0;
   const productImages: string[] = Array.isArray(product?.images) ? product.images : [];
+  const productMobileImages: string[] = Array.isArray(product?.mobileImages) ? product.mobileImages : [];
 
   const priceFmt = (n: number) => `\u20B9${(n || 0).toLocaleString('en-IN')}`;
 
   // Image + identity used by the shared image panel. Product mode supports a
   // multi-image gallery (cover first); the thumbnail strip swaps activeImg.
+  // Desktop (md+) prefers the desktop gallery; when it's empty (admin uploaded
+  // only mobile photos) fall back to the mobile gallery, then any single cover —
+  // mirrors the reverse fallback MobileProductDetailScreen already does.
   const productGallery: string[] = productImages.length
     ? productImages
-    : (productImage ? [productImage] : []);
+    : productMobileImages.length
+      ? productMobileImages
+      : (productImage ? [productImage] : []);
   const activeProductImage = productGallery[activeImg] ?? productImage;
   const imageUrl = isProductMode ? activeProductImage : dealImageUrl;
+  // Crisp, box-sized delivery (kills upscale blur; c_fill,g_auto avoids stretch).
+  // Desktop box ≈ 438×476 (aspectRatio 0.92); mobile container is full-width×360.
+  const heroUrl =
+    cloudinaryFill(imageUrl, isDesktop ? 438 : screenWidth, isDesktop ? 476 : 360) ?? imageUrl;
   const overlayPrimary = isProductMode ? productName : brand;
   const overlaySecondary = isProductMode
     ? productCategory || 'Product'
@@ -308,7 +321,7 @@ export const ProductDetailScreen = () => {
     <View style={styles.desktopImageCol}>
       <View style={styles.desktopImageBox}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
+          <Image source={{ uri: heroUrl }} style={styles.productImage} resizeMode="cover" />
         ) : (
           <View style={styles.placeholderImage}>
             <Text style={styles.placeholderText}>{brand[0]}</Text>

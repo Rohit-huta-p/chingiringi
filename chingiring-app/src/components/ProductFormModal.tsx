@@ -11,17 +11,14 @@ import {
   Platform,
   useWindowDimensions,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  X, Package, DownloadCloud, Image as ImageIcon, Type as TypeIcon, Link2, Coins, Tag,
+  X, Package, Image as ImageIcon, Type as TypeIcon, Link2, Coins, Tag,
 } from 'lucide-react-native';
 import { MultiImageUploader } from './MultiImageUploader';
-import { ImageUploader } from './ImageUploader';
 import { CategoryPicker } from './CategoryPicker';
 import { ProductCard } from './ProductCard';
-import { adminAPI } from '../api/admin';
 import type { Product } from '../api/products';
 import { Colors, Gradient } from '../constants/theme';
 
@@ -34,10 +31,10 @@ export interface ProductFormValues {
   price: number;
   coinsPrice: number;
   imageUrl: string;    // cover image (mirrors images[0]) — read by every card surface
-  mobileImageUrl: string; // optional mobile-specific cover crop
+  mobileImageUrl: string; // mobile cover (mirrors mobileImages[0]) — back-compat
   images: string[];    // full gallery, cover first
+  mobileImages: string[]; // mobile-specific gallery, cover first
   affiliateUrl: string;
-  stock: number;
 }
 
 export interface ProductFormSeed extends Partial<ProductFormValues> {
@@ -56,8 +53,6 @@ interface Props {
 interface FormErrors {
   name?: string;
   price?: string;
-  coinsPrice?: string;
-  stock?: string;
 }
 
 // ─── Section wrapper (mirrors the banner form) ───────────────────────────────
@@ -89,44 +84,11 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
 
   const [errors, setErrors]     = useState<FormErrors>({});
   const [submitting, setSubmit] = useState(false);
-  const [fetching, setFetching] = useState(false);
 
   const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
     if (errors[k as keyof FormErrors]) {
       setErrors((e) => ({ ...e, [k]: undefined }));
-    }
-  };
-
-  // Best-effort prefill from the product/buy link (OpenGraph image + title +
-  // price). If the site blocks it, the admin still has manual upload.
-  const handleFetchFromLink = async () => {
-    const url = form.affiliateUrl.trim();
-    if (!url) {
-      Alert.alert('Add a link first', 'Paste the product / buy link, then fetch.');
-      return;
-    }
-    setFetching(true);
-    try {
-      const { data } = await adminAPI.fetchUrlMeta(url);
-      const patch: Partial<typeof form> = {};
-      if (data.image && !form.images.includes(data.image)) patch.images = [...form.images, data.image];
-      if (data.title && !form.name.trim()) patch.name = data.title;
-      if (data.price != null && !form.price.trim()) patch.price = String(data.price);
-      if (Object.keys(patch).length) {
-        setForm((f) => ({ ...f, ...patch }));
-      } else {
-        Alert.alert(
-          'Nothing to import',
-          data.image || data.title
-            ? 'Everything it returned is already filled in.'
-            : 'This link didn’t return an image — the site may block it. Upload manually instead.',
-        );
-      }
-    } catch (e: any) {
-      Alert.alert('Fetch failed', e?.response?.data?.message || e?.message || 'Try again.');
-    } finally {
-      setFetching(false);
     }
   };
 
@@ -137,12 +99,6 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     const priceN = Number(form.price);
     if (!form.price.trim() || Number.isNaN(priceN) || priceN < 0) errs.price = '₹ ≥ 0';
 
-    const coinsN = Number(form.coinsPrice);
-    if (!form.coinsPrice.trim() || Number.isNaN(coinsN) || coinsN < 0) errs.coinsPrice = '≥ 0';
-
-    const stockN = Number(form.stock);
-    if (!form.stock.trim() || Number.isNaN(stockN) || stockN < 0) errs.stock = '≥ 0';
-
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -151,17 +107,18 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     setSubmit(true);
     try {
       const images = form.images.map((u) => u.trim()).filter(Boolean);
+      const mobileImages = form.mobileImages.map((u) => u.trim()).filter(Boolean);
       await onSubmit({
         name:         form.name.trim(),
         description:  form.description.trim(),
         category:     form.category.trim(),
         price:        priceN,
-        coinsPrice:   coinsN,
+        coinsPrice:   Number(form.coinsPrice) || 0, // set by the share system, not the admin
         images,
         imageUrl:     images[0] ?? '',   // cover mirrors the first gallery image
-        mobileImageUrl: form.mobileImageUrl.trim(),
+        mobileImages,
+        mobileImageUrl: mobileImages[0] ?? '', // mobile cover mirrors first mobile image
         affiliateUrl: form.affiliateUrl.trim(),
-        stock:        stockN,
       });
       onClose();
     } finally {
@@ -178,10 +135,11 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     category: form.category,
     price: Number(form.price) || 0,
     coinsPrice: Number(form.coinsPrice) || 0,
-    imageUrl: form.images[0] || form.mobileImageUrl || '',
-    mobileImageUrl: form.mobileImageUrl || undefined,
+    imageUrl: form.images[0] || form.mobileImages[0] || '',
+    mobileImageUrl: form.mobileImages[0] || undefined,
     images: form.images,
-    stock: Number(form.stock) || 0,
+    mobileImages: form.mobileImages,
+    stock: 0,
     sold: 0,
     isActive: true,
     isFeatured: false,
@@ -250,18 +208,18 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                     disabled={submitting}
                   />
                   <Text style={st.fieldHint}>
-                    Shown on the store grid & desktop product page. Recommended 1200 × 1200 px (1:1) or larger — auto-cropped to a square, keep the subject centered.
+                    Shown on the desktop product page (≥768 px) and the store grid. Recommended ≥ 1320 × 1440 px (≈0.92 portrait) — the page renders 438×476 (crisp to 3× DPR); the square grid crops it centered. Keep the subject centered.
                   </Text>
                 </Field>
-                <Field label="Mobile photo (optional)">
-                  <ImageUploader
-                    value={form.mobileImageUrl}
-                    onChange={(url) => update('mobileImageUrl', url)}
+                <Field label="Mobile photos (optional)">
+                  <MultiImageUploader
+                    value={form.mobileImages}
+                    onChange={(urls) => update('mobileImages', urls)}
                     folder="chingiringi/products"
                     disabled={submitting}
                   />
                   <Text style={st.fieldHint}>
-                    Leads the mobile product page; falls back to the first desktop photo. Recommended 1080 × 810 px (4:3, landscape).
+                    Shown on the mobile product page (&lt;768 px, swipeable; first is the cover), and a fallback on desktop/grid when there's no desktop photo. Recommended 1600 × 1200 px (4:3, landscape) — the hero is 4:3 and scales with width, so it fits with no cropping.
                   </Text>
                 </Field>
               </FormSection>
@@ -305,23 +263,11 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                     keyboardType="url"
                   />
                 </Field>
-                <TouchableOpacity
-                  style={[st.fetchBtn, (fetching || submitting || !form.affiliateUrl.trim()) && { opacity: 0.5 }]}
-                  onPress={handleFetchFromLink}
-                  disabled={fetching || submitting || !form.affiliateUrl.trim()}
-                  activeOpacity={0.85}
-                >
-                  {fetching
-                    ? <ActivityIndicator size="small" color={Colors.primary} />
-                    : <DownloadCloud size={15} color={Colors.primary} strokeWidth={2.2} />}
-                  <Text style={st.fetchBtnText}>
-                    {fetching ? 'Fetching…' : 'Fetch image & title from link'}
-                  </Text>
-                </TouchableOpacity>
               </FormSection>
 
-              {/* Pricing & stock */}
-              <FormSection icon={Coins} title="Pricing & stock">
+              {/* Pricing — coins are set by the share system, so the field is
+                  read-only. Stock removed (not tracked in the current model). */}
+              <FormSection icon={Coins} title="Pricing">
                 <View style={st.row3}>
                   <Field label="Price (₹)" required error={errors.price} style={st.col3}>
                     <TextInput
@@ -333,25 +279,15 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                       onChangeText={(v) => update('price', v.replace(/[^0-9.]/g, ''))}
                     />
                   </Field>
-                  <Field label="Coins" required error={errors.coinsPrice} style={st.col3}>
+                  <Field label="Coins" style={st.col3}>
                     <TextInput
-                      style={[st.input, errors.coinsPrice && st.inputErr]}
-                      placeholder="15000"
+                      style={[st.input, st.inputDisabled]}
+                      placeholder="Auto"
                       placeholderTextColor="#94a3b8"
-                      keyboardType="numeric"
                       value={form.coinsPrice}
-                      onChangeText={(v) => update('coinsPrice', v.replace(/[^0-9]/g, ''))}
+                      editable={false}
                     />
-                  </Field>
-                  <Field label="Stock" required error={errors.stock} style={st.col3}>
-                    <TextInput
-                      style={[st.input, errors.stock && st.inputErr]}
-                      placeholder="50"
-                      placeholderTextColor="#94a3b8"
-                      keyboardType="numeric"
-                      value={form.stock}
-                      onChangeText={(v) => update('stock', v.replace(/[^0-9]/g, ''))}
-                    />
+                    <Text style={st.fieldHint}>Since coins are based on the share system right now.</Text>
                   </Field>
                 </View>
               </FormSection>
@@ -427,8 +363,8 @@ function buildInitial(p?: ProductFormSeed | null) {
     imageUrl:     p?.imageUrl     ?? '',
     mobileImageUrl: p?.mobileImageUrl ?? '',
     images:       p?.images?.length ? p.images : (p?.imageUrl ? [p.imageUrl] : []),
+    mobileImages: p?.mobileImages?.length ? p.mobileImages : (p?.mobileImageUrl ? [p.mobileImageUrl] : []),
     affiliateUrl: p?.affiliateUrl ?? '',
-    stock:        p?.stock         != null ? String(p.stock)        : '',
   };
 }
 
@@ -539,24 +475,11 @@ const st = StyleSheet.create({
   },
   inputFocus: { borderColor: Colors.primary },
   inputErr: { borderColor: '#ef4444', backgroundColor: '#fef2f2' },
+  inputDisabled: { backgroundColor: '#f1f5f9', color: '#94a3b8' },
   textarea: { minHeight: 80, paddingTop: 12 },
 
   row3: { flexDirection: 'row', gap: 10 },
   col3: { flex: 1 },
-
-  fetchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#dbeafe',
-  },
-  fetchBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
 
   // Footer
   modalActions: {
