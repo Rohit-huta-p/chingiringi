@@ -154,7 +154,7 @@ export const MobileHomeScreen = () => {
   };
 
   const RAIL_CARD_W = 150;
-  const GRID_CARD_W = Math.floor((width - 16 * 2 - 12) / 2); // responsive 2-col, always fits
+  const GRID_CARD_W = Math.floor((width - 16 * 2 - 12 * 2) / 3); // responsive 3-col, always fits
 
   // One horizontal rail: title + "See all" + up to 10 cards. Shared by the
   // "All Products" rail and every per-category rail.

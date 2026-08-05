@@ -70,7 +70,7 @@ export const CategoryProductsScreen = () => {
   // On web the permanent sidebar (~250px) eats into the window width; cap the
   // catalogue so cards don't stretch on very wide screens.
   const usableW = (isNarrow ? width : Math.min(width - 250, 1200)) - H_PAD * 2;
-  const cols = isNarrow ? 2 : usableW > 900 ? 5 : usableW > 640 ? 4 : 3;
+  const cols = isNarrow ? 3 : usableW > 900 ? 5 : usableW > 640 ? 4 : 3;
   const cardW = Math.floor((usableW - GAP * (cols - 1)) / cols);
 
   const handleProductPress = (p: Product) => {
