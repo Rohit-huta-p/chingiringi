@@ -51,6 +51,9 @@ export function ProductCard({
 
       <View style={s.cardBody}>
         <Text style={s.cardTitle} numberOfLines={1}>{product.name}</Text>
+        {product.description ? (
+          <Text style={s.cardDesc} numberOfLines={1}>{product.description}</Text>
+        ) : null}
         <Text style={s.cardPrice}>{priceFmt(product.price)}</Text>
         <View style={s.coinsPill}>
           <Coins size={10} color={Colors.primary} />
@@ -90,6 +93,7 @@ const s = StyleSheet.create({
   stockBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
   cardBody: { padding: 7, gap: 2 },
   cardTitle: { fontSize: 12, fontFamily: Fonts.bold, color: Colors.text },
+  cardDesc: { fontSize: 10.5, fontFamily: Fonts.regular, color: Colors.textSecondary },
   cardPrice: { fontSize: 13, fontFamily: Fonts.extraBold, color: Colors.text, marginTop: 1 },
   coinsPill: {
     flexDirection: 'row',
