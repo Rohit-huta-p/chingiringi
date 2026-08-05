@@ -63,7 +63,6 @@ interface Product {
   price: number;
   coinsPrice: number;
   imageUrl: string;
-  stock: number;
   sold: number;
   isActive: boolean;
 }
