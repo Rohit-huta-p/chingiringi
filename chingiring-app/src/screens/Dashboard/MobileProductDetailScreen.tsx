@@ -210,7 +210,7 @@ function ProductDetailMobile({
           <Text style={pStyles.title} numberOfLines={2}>{name}</Text>
 
           {/* Rating summary (from reviews averageRating) + category chip */}
-          {(headlineRating > 0 && headlineCount > 0) || category || merchant ? (
+          {(headlineRating > 0 && headlineCount > 0) || category ? (
             <View style={pStyles.metaRow}>
               {headlineRating > 0 && headlineCount > 0 ? (
                 <View style={pStyles.ratingPill}>
@@ -226,29 +226,30 @@ function ProductDetailMobile({
                   <Text style={pStyles.categoryChipText}>{category}</Text>
                 </View>
               ) : null}
-              {merchant ? (
-                <View style={pStyles.merchantChip}>
-                  <Text style={pStyles.merchantChipText}>at {merchant}</Text>
-                </View>
-              ) : null}
             </View>
           ) : null}
 
           {/* Price */}
           <Text style={pStyles.price}>{fmtPrice(price)}</Text>
 
-          {/* Trust row — reward always; sold when present (Direction A) */}
+          {/* Trust row — rating · merchant · reward (Direction A, 3-up) */}
           <View style={pStyles.trustRow}>
+            {headlineRating > 0 && headlineCount > 0 ? (
+              <View style={pStyles.trustPill}>
+                <Text style={pStyles.trustN}>{'★'} {headlineRating.toFixed(1)}</Text>
+                <Text style={pStyles.trustS}>{headlineCount.toLocaleString('en-IN')} {headlineCount === 1 ? 'review' : 'reviews'}</Text>
+              </View>
+            ) : null}
+            {merchant ? (
+              <View style={pStyles.trustPill}>
+                <Text style={pStyles.trustN} numberOfLines={1}>{merchant}</Text>
+                <Text style={pStyles.trustS}>available at</Text>
+              </View>
+            ) : null}
             <View style={pStyles.trustPill}>
               <Text style={[pStyles.trustN, pStyles.trustNGold]}>+100 CR</Text>
               <Text style={pStyles.trustS}>per share</Text>
             </View>
-            {sold > 0 ? (
-              <View style={pStyles.trustPill}>
-                <Text style={pStyles.trustN}>{sold.toLocaleString('en-IN')}+</Text>
-                <Text style={pStyles.trustS}>bought</Text>
-              </View>
-            ) : null}
           </View>
 
           {/* About this item — renders the description product mode previously

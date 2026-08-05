@@ -353,11 +353,6 @@ export const ProductDetailScreen = () => {
         </TouchableOpacity>
       </View>
       {thumbStrip}
-      <View style={styles.desktopBrandCard}>
-        <Text style={styles.desktopBrandLabel}>{overlayLabel}</Text>
-        <Text style={styles.desktopBrandName}>{overlayPrimary}</Text>
-        <Text style={styles.desktopBrandCategory}>{overlaySecondary}</Text>
-      </View>
     </View>
   ) : (
     <View style={styles.imageContainer}>
@@ -443,24 +438,25 @@ export const ProductDetailScreen = () => {
           <Text style={styles.buyTax}>Inclusive of all taxes</Text>
         </View>
 
-        {/* Trust row — real data only; reward always, rating/sold when present */}
+        {/* Trust row — rating · merchant · reward (Direction A, 3-up). Each
+            pill renders only when its data exists; the reward always shows. */}
         <View style={styles.trustRow}>
-          <View style={styles.trustPill}>
-            <Text style={[styles.trustN, styles.trustNGold]}>+100 CR</Text>
-            <Text style={styles.trustS}>per share</Text>
-          </View>
           {headlineRating > 0 && headlineRatingCount > 0 ? (
             <View style={styles.trustPill}>
               <Text style={styles.trustN}>{'★'} {headlineRating.toFixed(1)}</Text>
               <Text style={styles.trustS}>{headlineRatingCount.toLocaleString('en-IN')} {headlineRatingCount === 1 ? 'review' : 'reviews'}</Text>
             </View>
           ) : null}
-          {productSold > 0 ? (
+          {productMerchant ? (
             <View style={styles.trustPill}>
-              <Text style={styles.trustN}>{productSold.toLocaleString('en-IN')}+</Text>
-              <Text style={styles.trustS}>bought</Text>
+              <Text style={styles.trustN} numberOfLines={1}>{productMerchant}</Text>
+              <Text style={styles.trustS}>available at</Text>
             </View>
           ) : null}
+          <View style={styles.trustPill}>
+            <Text style={[styles.trustN, styles.trustNGold]}>+100 CR</Text>
+            <Text style={styles.trustS}>per share</Text>
+          </View>
         </View>
 
         {/* Buy Now is primary; Share is the secondary. No buy link → Share
