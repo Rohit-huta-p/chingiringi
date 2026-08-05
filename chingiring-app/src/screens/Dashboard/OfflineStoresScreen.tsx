@@ -422,7 +422,7 @@ const StoreCard: React.FC<{
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [shareOpen, setShareOpen] = useState(false);
-  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
 
   return (
     <Pressable

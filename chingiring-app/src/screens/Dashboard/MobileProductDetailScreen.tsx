@@ -374,7 +374,7 @@ export const MobileProductDetailScreen = () => {
     // once a channel link is actually opened (see onShared below), and only
     // for real products (not the 'sample' template rows).
     const canShare = !!reviewProductId && reviewProductId !== 'sample';
-    const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
+    const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com'}/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
     // Buy Now — opens the product's buy/affiliate link (only shown when set).
     const buyUrl: string | undefined = productForView?.affiliateUrl;
     const handleBuy = async () => {
