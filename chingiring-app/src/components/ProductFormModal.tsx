@@ -139,7 +139,6 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     mobileImageUrl: form.mobileImages[0] || undefined,
     images: form.images,
     mobileImages: form.mobileImages,
-    stock: 0,
     sold: 0,
     isActive: true,
     isFeatured: false,

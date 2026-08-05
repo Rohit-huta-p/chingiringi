@@ -11,7 +11,6 @@ export interface Product {
   mobileImageUrl?: string; // optional mobile-specific cover (mirrors mobileImages[0])
   images?: string[];   // full gallery, cover first
   mobileImages?: string[]; // mobile-specific gallery, cover first; mobile surfaces prefer it
-  stock: number;
   sold: number;
   isActive: boolean;
   isFeatured: boolean;
