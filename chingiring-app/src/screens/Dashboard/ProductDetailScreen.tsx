@@ -193,7 +193,7 @@ export const ProductDetailScreen = () => {
     const shareTitle = isProductMode
       ? (product?.title || product?.name || 'Check out this product')
       : (deal?.title || deal?.description || 'Check out this deal');
-    const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app';
+    const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com';
     const pid = product?._id || productId;
     const shareUrl = isProductMode
       ? (pid && pid !== 'sample' ? `${base}/product/${pid}?ref=cr_${user?.id ?? ''}` : '')
@@ -514,7 +514,7 @@ export const ProductDetailScreen = () => {
         title={productName}
         imageUrl={productImage}
         discount={productDiscount ? `${productDiscount}% off` : undefined}
-        url={`${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${targetProductId}?ref=cr_${user?.id ?? ''}`}
+        url={`${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com'}/product/${targetProductId}?ref=cr_${user?.id ?? ''}`}
         onShared={async () => {
           if (!targetProductId || targetProductId === 'sample') return;
           try {
