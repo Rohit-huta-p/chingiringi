@@ -27,7 +27,6 @@ export function ProductCard({
   width: number;
   onPress: () => void;
 }) {
-  const lowStock = product.stock > 0 && product.stock <= 10;
   // Grid is square (1:1) → desktop 1:1 photos are the correct fit. Fall back to a
   // mobile photo only so the card isn't blank when desktop photos are missing
   // (mobile photos are 4:3 landscape → center-cropped here; fallback, not primary).
@@ -40,11 +39,6 @@ export function ProductCard({
         ) : (
           <View style={[StyleSheet.absoluteFillObject, s.cardImageFallback]}>
             <Text style={s.cardImageLetter}>{product.name?.[0] ?? '?'}</Text>
-          </View>
-        )}
-        {lowStock && (
-          <View style={s.stockBadge}>
-            <Text style={s.stockBadgeText}>{product.stock} left</Text>
           </View>
         )}
       </View>
@@ -83,16 +77,6 @@ const s = StyleSheet.create({
   },
   cardImageFallback: { justifyContent: 'center', alignItems: 'center' },
   cardImageLetter: { fontSize: 28, fontFamily: Fonts.extraBold, color: Colors.primaryLight },
-  stockBadge: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    backgroundColor: Colors.danger,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  stockBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
   cardBody: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 11 },
   cardTitle: { fontSize: 12.5, lineHeight: 16, fontFamily: Fonts.bold, color: Colors.text },
   cardDesc: { fontSize: 11, lineHeight: 14, marginTop: 2, fontFamily: Fonts.regular, color: Colors.textSecondary },

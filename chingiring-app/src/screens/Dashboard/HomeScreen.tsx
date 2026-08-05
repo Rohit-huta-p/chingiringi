@@ -487,7 +487,6 @@ export const HomeScreen = () => {
         discount: 0,
         productImage: product.imageUrl || '',
         category: product.category || '',
-        productStock: product.stock,
       },
     });
   };
