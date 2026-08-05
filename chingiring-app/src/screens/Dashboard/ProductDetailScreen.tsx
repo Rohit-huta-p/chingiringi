@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Alert, Platform, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Alert, Platform, Share, Linking } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reviewsAPI, toUiReview, UiReview } from '../../api/reviews';
@@ -238,6 +238,14 @@ export const ProductDetailScreen = () => {
     }
   };
 
+  // Product "Buy Now" \u2014 opens the product's buy/affiliate link (product mode).
+  const handleBuyNow = async () => {
+    const url = product?.affiliateUrl;
+    if (!url) return;
+    try { await Linking.openURL(url); }
+    catch { Alert.alert('Error', 'Could not open the link.'); }
+  };
+
   // \u2500\u2500 Deal-mode bindings (used when navigation passes deal/dealId) \u2500\u2500
   const title = deal?.title || deal?.description || 'Flat 50% Off on Top Brands';
   const brand = deal?.brand || 'Myntra';
@@ -272,6 +280,7 @@ export const ProductDetailScreen = () => {
   const productRatingCount = product?.ratingCount;
   const productDiscount = product?.discount;
   const productSold = product?.sold ?? 0;
+  const productAffiliateUrl = product?.affiliateUrl;
   const productImages: string[] = Array.isArray(product?.images) ? product.images : [];
   const productMobileImages: string[] = Array.isArray(product?.mobileImages) ? product.mobileImages : [];
 
@@ -474,14 +483,23 @@ export const ProductDetailScreen = () => {
         </Card>
       ) : null}
 
-      {/* CTA — share is the primary action; product shares earn coins.
-          Opens the custom ShareSheet (product mode only); deal mode keeps
-          using handleShare below, unchanged. */}
-      <Button
-        title="Share & Earn 100 CR ↗"
-        onPress={() => setShareOpen(true)}
-        style={styles.ctaButton}
-      />
+      {/* CTA row — Buy Now (opens the product's buy link) beside Share & Earn.
+          Buy Now only shows when the product has an affiliate/buy URL. */}
+      <View style={styles.ctaRow}>
+        <Button
+          title="Share & Earn 100 CR ↗"
+          onPress={() => setShareOpen(true)}
+          style={styles.ctaBtnFlex}
+        />
+        {productAffiliateUrl ? (
+          <Button
+            title="Buy Now"
+            variant="outline"
+            onPress={handleBuyNow}
+            style={styles.ctaBtnFlex}
+          />
+        ) : null}
+      </View>
       <Text style={styles.helperText}>
         Earn 100 CR every time you share · once per item per day
       </Text>
@@ -676,7 +694,7 @@ export const ProductDetailScreen = () => {
   );
 
   // Pick the panel for the current navigation mode. Product mode renders
-  // price/coins/stock; deal mode keeps the existing cashback/lock/terms UI.
+  // price + description + share/buy CTAs; deal mode keeps cashback/lock/terms.
   const activePanel = isProductMode ? productDetailsPanel : detailsPanel;
 
   // ─── Layout ───────────────────────────────────────────────────────────
@@ -1180,6 +1198,16 @@ const styles = StyleSheet.create({
   ctaButton: {
     marginTop: 8,
     marginBottom: 10,
+    borderRadius: 14,
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  ctaBtnFlex: {
+    flex: 1,
     borderRadius: 14,
   },
   helperText: {

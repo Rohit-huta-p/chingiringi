@@ -103,6 +103,8 @@ function ProductDetailMobile({
   product,
   onBack,
   onShare,
+  onBuy,
+  canBuy,
   reviews,
   reviewCount,
   averageRating,
@@ -111,6 +113,8 @@ function ProductDetailMobile({
   product: any;
   onBack: () => void;
   onShare: () => void;
+  onBuy: () => void;
+  canBuy: boolean;
   reviews: any[];
   reviewCount: number;
   averageRating: number;
@@ -293,18 +297,25 @@ function ProductDetailMobile({
         </View>
       </ScrollView>
 
-      {/* Sticky bottom CTA */}
+      {/* Sticky bottom CTA — Buy Now (product link) beside Share & Earn */}
       <View style={pStyles.ctaBar}>
-        <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={pStyles.ctaWrap}>
-          <LinearGradient
-            colors={Gradient.brand}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={pStyles.ctaBtn}
-          >
-            <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        <View style={pStyles.ctaRow}>
+          <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={[pStyles.ctaWrap, { flex: 1 }]}>
+            <LinearGradient
+              colors={Gradient.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={pStyles.ctaBtn}
+            >
+              <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          {canBuy ? (
+            <TouchableOpacity activeOpacity={0.85} onPress={onBuy} style={pStyles.buyBtn}>
+              <Text style={pStyles.buyBtnText}>Buy Now</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         {sharesLeft != null && (
           <Text style={pStyles.hint}>{sharesLeft}/{sharesCap} shares left today</Text>
         )}
@@ -364,6 +375,13 @@ export const MobileProductDetailScreen = () => {
     // for real products (not the 'sample' template rows).
     const canShare = !!reviewProductId && reviewProductId !== 'sample';
     const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
+    // Buy Now — opens the product's buy/affiliate link (only shown when set).
+    const buyUrl: string | undefined = productForView?.affiliateUrl;
+    const handleBuy = async () => {
+      if (!buyUrl) return;
+      try { await Linking.openURL(buyUrl); }
+      catch { Alert.alert('Error', 'Could not open the link.'); }
+    };
 
     return (
       <>
@@ -371,6 +389,8 @@ export const MobileProductDetailScreen = () => {
           product={productForView}
           onBack={() => navigation.goBack()}
           onShare={() => canShare && setShareOpen(true)}
+          onBuy={handleBuy}
+          canBuy={!!buyUrl}
           reviews={reviews}
           reviewCount={reviewCount}
           averageRating={averageRating}
@@ -1015,8 +1035,15 @@ const pStyles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderTopWidth: 1, borderTopColor: '#e8edf5',
   },
+  ctaRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
   ctaWrap: { borderRadius: 28, overflow: 'hidden' },
   ctaBtn: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  buyBtn: {
+    borderRadius: 28, borderWidth: 1.5, borderColor: Colors.primary,
+    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  buyBtnText: { color: Colors.primary, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
   hint: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
 });
