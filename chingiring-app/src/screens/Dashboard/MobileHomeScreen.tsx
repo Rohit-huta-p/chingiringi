@@ -274,18 +274,27 @@ export const MobileHomeScreen = () => {
 
       {/* ── Listing: only matching products ──────────────────────────── */}
       {isListing ? (
-        listingProducts.length === 0 ? (
-          <View style={st.empty}>
-            <Text style={st.emptyTitle}>No products found</Text>
-            <Text style={st.emptySub}>Try a different category, search, or filter</Text>
-          </View>
-        ) : (
-          <View style={st.grid}>
-            {listingProducts.map((p) => (
-              <ProductCard key={p._id} product={p} width={GRID_CARD_W} onPress={() => handleProductPress(p)} />
-            ))}
-          </View>
-        )
+        <>
+          {/* Placed banners stay visible while browsing a category or filtering
+              — stacked above the results (they used to vanish on any chip). */}
+          {interleaveBanners([], banners, (b) => (
+            <View key={`banner-${b._id}`} style={st.bannerWrap}>
+              <BannerBlock banner={b} navigation={navigation} isMobile />
+            </View>
+          ))}
+          {listingProducts.length === 0 ? (
+            <View style={st.empty}>
+              <Text style={st.emptyTitle}>No products found</Text>
+              <Text style={st.emptySub}>Try a different category, search, or filter</Text>
+            </View>
+          ) : (
+            <View style={st.grid}>
+              {listingProducts.map((p) => (
+                <ProductCard key={p._id} product={p} width={GRID_CARD_W} onPress={() => handleProductPress(p)} />
+              ))}
+            </View>
+          )}
+        </>
       ) : (
         /* ── Unfiltered home: category rails with placed banners interleaved ── */
         interleaveBanners(categoryRailBlocks(), banners, (b) => (

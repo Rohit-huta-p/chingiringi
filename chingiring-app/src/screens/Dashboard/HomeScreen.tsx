@@ -597,17 +597,25 @@ export const HomeScreen = () => {
               with no banners. Otherwise the curated sections render with placed
               banners interleaved by rowIndex. */}
           {isListing ? (
-            <ProductGrid
-              title={categoryActive ? selectedCategory : 'All Products'}
-              count={listingProducts.length ? `${listingProducts.length} items` : undefined}
-              startIdx={0}
-              containerWidth={contentW}
-              cols={gridCols}
-              onProductPress={onProductPress}
-              onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
-              hasFilter={hasFilter}
-              products={listingProducts}
-            />
+            <>
+              {/* Placed banners stay visible while browsing a category or
+                  filtering — stacked above the results. They used to vanish
+                  the moment any chip / search / sort flipped isListing true. */}
+              {interleaveBanners([], allBanners, (b) => (
+                <BannerBlock key={`banner-${b._id}`} banner={b} navigation={navigation} />
+              ))}
+              <ProductGrid
+                title={categoryActive ? selectedCategory : 'All Products'}
+                count={listingProducts.length ? `${listingProducts.length} items` : undefined}
+                startIdx={0}
+                containerWidth={contentW}
+                cols={gridCols}
+                onProductPress={onProductPress}
+                onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
+                hasFilter={hasFilter}
+                products={listingProducts}
+              />
+            </>
           ) : (
             interleaveBanners(buildCuratedBlocks(), allBanners, (b) => (
               <BannerBlock key={`banner-${b._id}`} banner={b} navigation={navigation} />
