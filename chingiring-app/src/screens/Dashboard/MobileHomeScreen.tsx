@@ -156,37 +156,51 @@ export const MobileHomeScreen = () => {
   const RAIL_CARD_W = 150;
   const GRID_CARD_W = Math.floor((width - 16 * 2 - 12) / 2); // responsive 2-col, always fits
 
-  // Curated home = one horizontal rail per category (with products). Placed
-  // banners are interleaved by rowIndex (see interleaveBanners).
-  const categoryRailBlocks = (): React.ReactNode[] =>
-    categoryNames
-      .map((cat) => {
-        const catProducts = allProducts.filter(
-          (p) => (p.category ?? '').trim().toLowerCase() === cat.trim().toLowerCase(),
-        );
-        if (catProducts.length === 0) return null;
-        return (
-          <View key={cat} style={st.sec}>
-            <View style={st.secHead}>
-              <Text style={st.secTitle}>{cat}</Text>
-              <TouchableOpacity
-                style={st.seeAll}
-                onPress={() => navigation.navigate('CategoryProducts', { category: cat })}
-                activeOpacity={0.7}
-              >
-                <Text style={st.seeAllText}>See all</Text>
-                <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rail}>
-              {catProducts.slice(0, 10).map((p) => (
-                <ProductCard key={p._id} product={p} width={RAIL_CARD_W} onPress={() => handleProductPress(p)} />
-              ))}
-            </ScrollView>
-          </View>
-        );
-      })
-      .filter(Boolean) as React.ReactNode[];
+  // One horizontal rail: title + "See all" + up to 10 cards. Shared by the
+  // "All Products" rail and every per-category rail.
+  const renderRail = (
+    key: string,
+    title: string,
+    railProducts: Product[],
+    seeAllCategory: string,
+  ): React.ReactNode => (
+    <View key={key} style={st.sec}>
+      <View style={st.secHead}>
+        <Text style={st.secTitle}>{title}</Text>
+        <TouchableOpacity
+          style={st.seeAll}
+          onPress={() => navigation.navigate('CategoryProducts', { category: seeAllCategory })}
+          activeOpacity={0.7}
+        >
+          <Text style={st.seeAllText}>See all</Text>
+          <ChevronRight size={14} color={Colors.primary} strokeWidth={2.5} />
+        </TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rail}>
+        {railProducts.slice(0, 10).map((p) => (
+          <ProductCard key={p._id} product={p} width={RAIL_CARD_W} onPress={() => handleProductPress(p)} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  // Curated home = an "All Products" rail first (so uncategorised products
+  // still surface — mirrors desktop's All Products section), then one rail per
+  // category. Placed banners are interleaved by rowIndex (see interleaveBanners).
+  const categoryRailBlocks = (): React.ReactNode[] => {
+    const blocks: React.ReactNode[] = [];
+    if (allProducts.length) {
+      blocks.push(renderRail('all-products', 'All Products', allProducts, 'All'));
+    }
+    categoryNames.forEach((cat) => {
+      const catProducts = allProducts.filter(
+        (p) => (p.category ?? '').trim().toLowerCase() === cat.trim().toLowerCase(),
+      );
+      if (catProducts.length === 0) return;
+      blocks.push(renderRail(`cat-${cat}`, cat, catProducts, cat));
+    });
+    return blocks;
+  };
 
   if (productsLoading) {
     return (
