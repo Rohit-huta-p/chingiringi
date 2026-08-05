@@ -1,11 +1,15 @@
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { notificationsAPI } from '../api/notifications';
 
 const PUSH_TOKEN_KEY = 'expoPushToken';
+
+// expo-notifications native APIs were removed from Expo Go in SDK 53+; calling them
+// there throws "Exception in HostFunction". No-op in Expo Go — real push needs a dev build.
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 function getProjectId(): string | undefined {
   return (
@@ -16,7 +20,7 @@ function getProjectId(): string | undefined {
 
 /** Foreground behavior: show alerts while the app is open. Call once at startup. */
 export function configureNotificationHandler(): void {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' || isExpoGo) return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -32,7 +36,7 @@ export function configureNotificationHandler(): void {
  *  v1: NO navigation ref exists in this app, so we do NOT deep-link in-app — the OS
  *  already foregrounds the app on tap. Leave the TODO; do not build navigation-ref infra here. */
 export function addNotificationResponseListener() {
-  if (Platform.OS === 'web') return undefined;
+  if (Platform.OS === 'web' || isExpoGo) return undefined;
   return Notifications.addNotificationResponseReceivedListener(() => {
     // const data = response.notification.request.content.data; // { type, withdrawalId, orderId, ... }
     // TODO(v1): deep-link via a navigation ref once one is added to RootNavigator.
@@ -42,7 +46,7 @@ export function addNotificationResponseListener() {
 /** Register this device's Expo push token with the backend. Native + real device only. Best-effort. */
 export async function registerForPush(): Promise<void> {
   try {
-    if (Platform.OS === 'web' || !Device.isDevice) return;
+    if (Platform.OS === 'web' || isExpoGo || !Device.isDevice) return;
 
     const existing = await Notifications.getPermissionsAsync();
     let status = existing.status;

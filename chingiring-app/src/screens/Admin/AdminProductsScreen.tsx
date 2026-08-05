@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Dimensions, Alert, Platform, Image, useWindowDimensions,
+  Alert, Platform, Image, useWindowDimensions,
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,174 +23,8 @@ interface Product {
   price: number;
   coinsPrice: number;
   imageUrl: string;
-  stock: number;
   sold: number;
   isActive: boolean;
-  createdAt?: string;
-}
-
-// ─── Add/Edit Product Modal — replaced by shared ProductFormModal ───────────
-// Legacy inline modal removed; the screen now imports
-// `ProductFormModal` from src/components/ProductFormModal.tsx.
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _RemovedLegacyProductFormModal({
-  visible, onClose, product, onSave,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  product?: Product | null;
-  onSave: (p: Product) => void;
-}) {
-  const isEdit = !!product;
-
-  const [form, setForm] = useState({
-    name: product?.name || '',
-    description: product?.description || '',
-    category: product?.category || '',
-    price: product?.price?.toString() || '',
-    coinsPrice: product?.coinsPrice?.toString() || '',
-    imageUrl: product?.imageUrl || '',
-    stock: product?.stock?.toString() || '',
-    isActive: product?.isActive ?? true,
-  });
-
-  const handleSubmit = () => {
-    if (!form.name || !form.price) {
-      Alert.alert('Validation', 'Name and price are required');
-      return;
-    }
-    onSave({
-      _id: product?._id || String(Date.now()),
-      name: form.name,
-      description: form.description,
-      category: form.category,
-      price: parseFloat(form.price) || 0,
-      coinsPrice: parseFloat(form.coinsPrice) || 0,
-      imageUrl: form.imageUrl,
-      stock: parseInt(form.stock) || 0,
-      sold: product?.sold || 0,
-      isActive: form.isActive,
-      createdAt: product?.createdAt || new Date().toISOString(),
-    });
-    onClose();
-  };
-
-  const screenWidth = Dimensions.get('window').width;
-  const modalWidth = screenWidth >= 768 ? 520 : screenWidth - 40;
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { width: modalWidth }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{isEdit ? 'Edit Product' : 'Add Product'}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <X size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-            <Text style={styles.fieldLabel}>Product Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Wireless Headphones"
-              placeholderTextColor="#94a3b8"
-              value={form.name}
-              onChangeText={(v) => setForm({ ...form, name: v })}
-            />
-
-            <Text style={styles.fieldLabel}>Description</Text>
-            <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-              placeholder="Short product description..."
-              placeholderTextColor="#94a3b8"
-              multiline
-              value={form.description}
-              onChangeText={(v) => setForm({ ...form, description: v })}
-            />
-
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Category</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Electronics"
-                  placeholderTextColor="#94a3b8"
-                  value={form.category}
-                  onChangeText={(v) => setForm({ ...form, category: v })}
-                />
-              </View>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Image URL</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="https://..."
-                  placeholderTextColor="#94a3b8"
-                  value={form.imageUrl}
-                  onChangeText={(v) => setForm({ ...form, imageUrl: v })}
-                />
-              </View>
-            </View>
-
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Price ({'\u20B9'}) *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="2999"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={form.price}
-                  onChangeText={(v) => setForm({ ...form, price: v })}
-                />
-              </View>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Coins Price</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="15000"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={form.coinsPrice}
-                  onChangeText={(v) => setForm({ ...form, coinsPrice: v })}
-                />
-              </View>
-            </View>
-
-            <Text style={styles.fieldLabel}>Stock</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="45"
-              placeholderTextColor="#94a3b8"
-              keyboardType="numeric"
-              value={form.stock}
-              onChangeText={(v) => setForm({ ...form, stock: v })}
-            />
-
-            <TouchableOpacity
-              style={styles.toggleRow}
-              onPress={() => setForm({ ...form, isActive: !form.isActive })}
-            >
-              <View style={[styles.toggle, form.isActive && styles.toggleActive]}>
-                <View style={[styles.toggleDot, form.isActive && styles.toggleDotActive]} />
-              </View>
-              <Text style={styles.toggleLabel}>Active</Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-              <Text style={styles.submitBtnText}>{isEdit ? 'Update Product' : 'Create Product'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
 }
 
 // ─── Product Card ───────────────────────────────────────────────────────────
@@ -222,14 +56,13 @@ function ProductCard({
         <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
         <Text style={styles.productDesc} numberOfLines={1}>{product.description}</Text>
 
-        {/* Price + Stock/Sold row */}
+        {/* Price + Sold row */}
         <View style={styles.priceRow}>
           <View>
             <Text style={styles.priceText}>{'\u20B9'}{product.price.toLocaleString()}</Text>
             <Text style={styles.coinsText}>{product.coinsPrice.toLocaleString()} coins</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.metaText}>Stock: {product.stock}</Text>
             <Text style={styles.metaText}>Sold: {product.sold}</Text>
           </View>
         </View>
@@ -597,89 +430,4 @@ const styles = StyleSheet.create({
     borderColor: '#e8ecf2',
   },
   emptyText: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  modalBody: { padding: 20 },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 10,
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  submitBtn: {
-    flex: 2,
-    backgroundColor: '#3b82f6',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  submitBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: '#f1f5f9',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelBtnText: { color: Colors.text, fontWeight: '500', fontSize: 14 },
-
-  // Form fields
-  fieldLabel: { fontSize: 13, fontWeight: '500', color: Colors.text, marginBottom: 4, marginTop: 12 },
-  fieldRow: { flexDirection: 'row', gap: 12 },
-  fieldHalf: { flex: 1 },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Colors.text,
-    backgroundColor: '#fff',
-  },
-
-  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16, marginBottom: 8 },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#e2e8f0',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  toggleActive: { backgroundColor: '#3b82f6' },
-  toggleDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-  },
-  toggleDotActive: { alignSelf: 'flex-end' },
-  toggleLabel: { fontSize: 14, color: Colors.text },
 });

@@ -21,7 +21,10 @@ export function cloudinaryFill(
   // Already transformed (e.g. /upload/c_fill,.. or /upload/w_..) → leave as-is.
   if (/\/upload\/[a-z]{1,2}_/.test(url)) return url;
 
-  const dpr = Math.min(Math.max(Math.round(PixelRatio.get()) || 1, 1), 3);
+  // ceil (not round): on scaled displays / browser zoom the DPR is fractional
+  // (e.g. 2.2). Rounding down under-requests pixels → the browser upscales →
+  // blur. ceil always provisions enough. Capped at 3 to avoid absurd sizes.
+  const dpr = Math.min(Math.max(Math.ceil(PixelRatio.get()) || 1, 1), 3);
   const w = Math.max(1, Math.round(boxW * dpr));
   const h = Math.max(1, Math.round(boxH * dpr));
   return url.replace('/upload/', `/upload/c_fill,g_auto,f_auto,q_auto,w_${w},h_${h}/`);

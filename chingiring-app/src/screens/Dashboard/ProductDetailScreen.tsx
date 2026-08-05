@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Alert, Platform, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Alert, Platform, Share, Linking } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reviewsAPI, toUiReview, UiReview } from '../../api/reviews';
@@ -12,6 +12,7 @@ import { dealsAPI } from '../../api/deals';
 import { productsAPI } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
 import { useAuthStore } from '../../store';
+import { cloudinaryFill } from '../../utils/cloudinary';
 
 const SIZES = ['30', '32', '34', '36'];
 
@@ -237,6 +238,14 @@ export const ProductDetailScreen = () => {
     }
   };
 
+  // Product "Buy Now" \u2014 opens the product's buy/affiliate link (product mode).
+  const handleBuyNow = async () => {
+    const url = product?.affiliateUrl;
+    if (!url) return;
+    try { await Linking.openURL(url); }
+    catch { Alert.alert('Error', 'Could not open the link.'); }
+  };
+
   // \u2500\u2500 Deal-mode bindings (used when navigation passes deal/dealId) \u2500\u2500
   const title = deal?.title || deal?.description || 'Flat 50% Off on Top Brands';
   const brand = deal?.brand || 'Myntra';
@@ -260,36 +269,39 @@ export const ProductDetailScreen = () => {
   // and the raw API Product ({ name, description, imageUrl, price,
   // coinsPrice, stock, ... }).
   const productName = product?.title || product?.name || 'Product';
-  const productImage = product?.productImage || product?.imageUrl;
+  // Single-cover fallback chain (ShareSheet + empty-gallery): desktop cover →
+  // mobile cover, so a product with only mobile photos still has an image.
+  const productImage = product?.productImage || product?.imageUrl || product?.mobileImageUrl;
   const productCategory = product?.category?.name || product?.category || '';
   const productPrice = product?.price ?? 0;
   const productOldPrice = product?.oldPrice ?? 0;
-  const productCoins = product?.coins ?? product?.coinsPrice ?? 0;
-  const productStock = product?.productStock ?? product?.stock;
   const productDescription = product?.subtitle || product?.description || '';
   const productRating = product?.rating;
   const productRatingCount = product?.ratingCount;
   const productDiscount = product?.discount;
   const productSold = product?.sold ?? 0;
+  const productAffiliateUrl = product?.affiliateUrl;
   const productImages: string[] = Array.isArray(product?.images) ? product.images : [];
-  const stockLabel =
-    productStock == null
-      ? 'In stock'
-      : productStock === 0
-        ? 'Out of stock'
-        : productStock <= 15
-          ? `Only ${productStock} left`
-          : 'In stock';
+  const productMobileImages: string[] = Array.isArray(product?.mobileImages) ? product.mobileImages : [];
 
   const priceFmt = (n: number) => `\u20B9${(n || 0).toLocaleString('en-IN')}`;
 
   // Image + identity used by the shared image panel. Product mode supports a
   // multi-image gallery (cover first); the thumbnail strip swaps activeImg.
+  // Desktop (md+) prefers the desktop gallery; when it's empty (admin uploaded
+  // only mobile photos) fall back to the mobile gallery, then any single cover —
+  // mirrors the reverse fallback MobileProductDetailScreen already does.
   const productGallery: string[] = productImages.length
     ? productImages
-    : (productImage ? [productImage] : []);
+    : productMobileImages.length
+      ? productMobileImages
+      : (productImage ? [productImage] : []);
   const activeProductImage = productGallery[activeImg] ?? productImage;
   const imageUrl = isProductMode ? activeProductImage : dealImageUrl;
+  // Crisp, box-sized delivery (kills upscale blur; c_fill,g_auto avoids stretch).
+  // Desktop box ≈ 438×476 (aspectRatio 0.92); mobile container is full-width×360.
+  const heroUrl =
+    cloudinaryFill(imageUrl, isDesktop ? 438 : screenWidth, isDesktop ? 476 : 360) ?? imageUrl;
   const overlayPrimary = isProductMode ? productName : brand;
   const overlaySecondary = isProductMode
     ? productCategory || 'Product'
@@ -318,7 +330,7 @@ export const ProductDetailScreen = () => {
     <View style={styles.desktopImageCol}>
       <View style={styles.desktopImageBox}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.productImage} resizeMode="cover" />
+          <Image source={{ uri: heroUrl }} style={styles.productImage} resizeMode="cover" />
         ) : (
           <View style={styles.placeholderImage}>
             <Text style={styles.placeholderText}>{brand[0]}</Text>
@@ -382,31 +394,16 @@ export const ProductDetailScreen = () => {
       contentContainerStyle={styles.detailsContent}
       showsVerticalScrollIndicator={false}
     >
-      {/* Tags: Category + Stock status */}
-      <View style={styles.tagsRow}>
-        {productCategory ? (
+      {/* Tags: Category */}
+      {productCategory ? (
+        <View style={styles.tagsRow}>
           <View style={[styles.tagPill, styles.tagBlue]}>
             <Text style={[styles.tagText, styles.tagBlueText]}>
               {'◇'} {productCategory}
             </Text>
           </View>
-        ) : null}
-        <View
-          style={[
-            styles.tagPill,
-            productStock === 0 ? styles.tagOrange : styles.tagBlue,
-          ]}
-        >
-          <Text
-            style={[
-              styles.tagText,
-              productStock === 0 ? styles.tagOrangeText : styles.tagBlueText,
-            ]}
-          >
-            {'◇'} {stockLabel}
-          </Text>
         </View>
-      </View>
+      ) : null}
 
       {/* Title */}
       <Text style={styles.productTitle}>{productName}</Text>
@@ -429,7 +426,7 @@ export const ProductDetailScreen = () => {
         </View>
       ) : null}
 
-      {/* Stat cards: Price (with old price) + Coins reward */}
+      {/* Price */}
       <View style={styles.statCardsRow}>
         <Card style={styles.statCard}>
           <View style={styles.statHeaderRow}>
@@ -446,18 +443,6 @@ export const ProductDetailScreen = () => {
           ) : (
             <Text style={styles.statSub}>Inclusive of taxes</Text>
           )}
-        </Card>
-        <Card style={styles.statCard}>
-          <View style={styles.statHeaderRow}>
-            <View style={[styles.statIconCircle, { backgroundColor: '#fef3c7' }]}>
-              <Text style={[styles.statIconText, { color: '#b45309' }]}>{'◆'}</Text>
-            </View>
-            <Text style={styles.statLabel}>COINS</Text>
-          </View>
-          <Text style={styles.statValue}>
-            {productCoins.toLocaleString('en-IN')}
-          </Text>
-          <Text style={styles.statSub}>Or pay with coins</Text>
         </Card>
       </View>
 
@@ -483,23 +468,6 @@ export const ProductDetailScreen = () => {
         </Card>
       ) : null}
 
-      {/* Stock card */}
-      <Card style={styles.lockCard}>
-        <View style={styles.lockRow}>
-          <View style={styles.lockIconCircle}>
-            <Text style={styles.lockIconText}>{'✓'}</Text>
-          </View>
-          <View style={styles.lockTextContainer}>
-            <Text style={styles.lockTitle}>{stockLabel}</Text>
-            <Text style={styles.lockDescription}>
-              {productStock === 0
-                ? 'This item is currently sold out. Check back soon.'
-                : 'Ships within 24 hours of order confirmation.'}
-            </Text>
-          </View>
-        </View>
-      </Card>
-
       {/* Description card (only when description has more than the subtitle) */}
       {productDescription ? (
         <Card style={styles.card}>
@@ -515,14 +483,23 @@ export const ProductDetailScreen = () => {
         </Card>
       ) : null}
 
-      {/* CTA — share is the primary action; product shares earn coins.
-          Opens the custom ShareSheet (product mode only); deal mode keeps
-          using handleShare below, unchanged. */}
-      <Button
-        title="Share & Earn 100 CR ↗"
-        onPress={() => setShareOpen(true)}
-        style={styles.ctaButton}
-      />
+      {/* CTA row — Buy Now (opens the product's buy link) beside Share & Earn.
+          Buy Now only shows when the product has an affiliate/buy URL. */}
+      <View style={styles.ctaRow}>
+        <Button
+          title="Share & Earn 100 CR ↗"
+          onPress={() => setShareOpen(true)}
+          style={styles.ctaBtnFlex}
+        />
+        {productAffiliateUrl ? (
+          <Button
+            title="Buy Now"
+            variant="outline"
+            onPress={handleBuyNow}
+            style={styles.ctaBtnFlex}
+          />
+        ) : null}
+      </View>
       <Text style={styles.helperText}>
         Earn 100 CR every time you share · once per item per day
       </Text>
@@ -535,6 +512,8 @@ export const ProductDetailScreen = () => {
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
         title={productName}
+        imageUrl={productImage}
+        discount={productDiscount ? `${productDiscount}% off` : undefined}
         url={`${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/product/${targetProductId}?ref=cr_${user?.id ?? ''}`}
         onShared={async () => {
           if (!targetProductId || targetProductId === 'sample') return;
@@ -715,7 +694,7 @@ export const ProductDetailScreen = () => {
   );
 
   // Pick the panel for the current navigation mode. Product mode renders
-  // price/coins/stock; deal mode keeps the existing cashback/lock/terms UI.
+  // price + description + share/buy CTAs; deal mode keeps cashback/lock/terms.
   const activePanel = isProductMode ? productDetailsPanel : detailsPanel;
 
   // ─── Layout ───────────────────────────────────────────────────────────
@@ -1219,6 +1198,16 @@ const styles = StyleSheet.create({
   ctaButton: {
     marginTop: 8,
     marginBottom: 10,
+    borderRadius: 14,
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  ctaBtnFlex: {
+    flex: 1,
     borderRadius: 14,
   },
   helperText: {
