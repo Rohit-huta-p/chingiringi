@@ -55,10 +55,12 @@ export function ProductCard({
           <Text style={s.cardDesc} numberOfLines={1}>{product.description}</Text>
         ) : null}
         <Text style={s.cardPrice}>{priceFmt(product.price)}</Text>
-        <View style={s.coinsPill}>
-          <Coins size={10} color={Colors.primary} />
-          <Text style={s.coinsPillText}>{product.coinsPrice.toLocaleString('en-IN')} coins</Text>
-        </View>
+        {product.coinsPrice > 0 ? (
+          <View style={s.coinsPill}>
+            <Coins size={10} color={Colors.primary} />
+            <Text style={s.coinsPillText}>{product.coinsPrice.toLocaleString('en-IN')} coins</Text>
+          </View>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
