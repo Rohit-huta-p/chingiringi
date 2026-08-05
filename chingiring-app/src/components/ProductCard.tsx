@@ -51,12 +51,16 @@ export function ProductCard({
 
       <View style={s.cardBody}>
         <Text style={s.cardTitle} numberOfLines={1}>{product.name}</Text>
-        <Text style={s.cardDesc} numberOfLines={2}>{product.description}</Text>
+        {product.description ? (
+          <Text style={s.cardDesc} numberOfLines={1}>{product.description}</Text>
+        ) : null}
         <Text style={s.cardPrice}>{priceFmt(product.price)}</Text>
-        <View style={s.coinsPill}>
-          <Coins size={11} color={Colors.primary} />
-          <Text style={s.coinsPillText}>{product.coinsPrice.toLocaleString('en-IN')} coins</Text>
-        </View>
+        {product.coinsPrice > 0 ? (
+          <View style={s.coinsPill}>
+            <Coins size={10} color={Colors.primary} />
+            <Text style={s.coinsPillText}>{product.coinsPrice.toLocaleString('en-IN')} coins</Text>
+          </View>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -67,7 +71,7 @@ export function ProductCard({
 const s = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
@@ -78,30 +82,31 @@ const s = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   cardImageFallback: { justifyContent: 'center', alignItems: 'center' },
-  cardImageLetter: { fontSize: 32, fontFamily: Fonts.extraBold, color: Colors.primaryLight },
+  cardImageLetter: { fontSize: 28, fontFamily: Fonts.extraBold, color: Colors.primaryLight },
   stockBadge: {
     position: 'absolute',
-    top: 8,
-    left: 8,
+    top: 6,
+    left: 6,
     backgroundColor: Colors.danger,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
-  stockBadgeText: { color: '#fff', fontSize: 10, fontFamily: Fonts.bold },
-  cardBody: { padding: 10, gap: 4 },
-  cardTitle: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.text },
-  cardDesc: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textSecondary, minHeight: 28 },
-  cardPrice: { fontSize: 15, fontFamily: Fonts.extraBold, color: Colors.text, marginTop: 2 },
+  stockBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
+  cardBody: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 11 },
+  cardTitle: { fontSize: 12.5, lineHeight: 16, fontFamily: Fonts.bold, color: Colors.text },
+  cardDesc: { fontSize: 11, lineHeight: 14, marginTop: 2, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  cardPrice: { fontSize: 13.5, fontFamily: Fonts.extraBold, color: Colors.text, marginTop: 7 },
   coinsPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     alignSelf: 'flex-start',
+    marginTop: 6,
     backgroundColor: Colors.primaryLight10,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
-  coinsPillText: { fontSize: 11, fontFamily: Fonts.semiBold, color: Colors.primary },
+  coinsPillText: { fontSize: 10.5, fontFamily: Fonts.semiBold, color: Colors.primary },
 });
