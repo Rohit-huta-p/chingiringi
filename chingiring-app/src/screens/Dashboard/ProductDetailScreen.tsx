@@ -281,8 +281,13 @@ export const ProductDetailScreen = () => {
   const productDiscount = product?.discount;
   const productSold = product?.sold ?? 0;
   const productAffiliateUrl = product?.affiliateUrl;
+  const productMerchant = product?.merchant;
   const productImages: string[] = Array.isArray(product?.images) ? product.images : [];
   const productMobileImages: string[] = Array.isArray(product?.mobileImages) ? product.mobileImages : [];
+  // Headline rating: admin-set product.rating/ratingCount wins; else the live
+  // in-app review average. (The Reviews section still uses the real review count.)
+  const headlineRating = productRating && productRating > 0 ? productRating : averageRating;
+  const headlineRatingCount = productRatingCount && productRatingCount > 0 ? productRatingCount : reviewCount;
 
   const priceFmt = (n: number) => `\u20B9${(n || 0).toLocaleString('en-IN')}`;
 
@@ -302,7 +307,7 @@ export const ProductDetailScreen = () => {
   // Desktop box ≈ 438×476 (aspectRatio 0.92); mobile container is full-width×360.
   const heroUrl =
     cloudinaryFill(imageUrl, isDesktop ? 438 : screenWidth, isDesktop ? 476 : 360) ?? imageUrl;
-  const overlayPrimary = isProductMode ? productName : brand;
+  const overlayPrimary = isProductMode ? (productMerchant || productName) : brand;
   const overlaySecondary = isProductMode
     ? productCategory || 'Product'
     : categoryName;
@@ -409,14 +414,14 @@ export const ProductDetailScreen = () => {
       <Text style={styles.productTitle}>{productName}</Text>
 
       {/* Rating (real, from reviews) + sold social proof */}
-      {(averageRating > 0 && reviewCount > 0) || productSold > 0 ? (
+      {(headlineRating > 0 && headlineRatingCount > 0) || productSold > 0 ? (
         <View style={styles.metaRow}>
-          {averageRating > 0 && reviewCount > 0 ? (
+          {headlineRating > 0 && headlineRatingCount > 0 ? (
             <View style={styles.ratingPill}>
               <Text style={styles.ratingStar}>{'★'}</Text>
-              <Text style={styles.ratingValue}>{averageRating.toFixed(1)}</Text>
+              <Text style={styles.ratingValue}>{headlineRating.toFixed(1)}</Text>
               <Text style={styles.ratingCount}>
-                · {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                · {headlineRatingCount.toLocaleString('en-IN')} {headlineRatingCount === 1 ? 'review' : 'reviews'}
               </Text>
             </View>
           ) : null}
@@ -426,49 +431,65 @@ export const ProductDetailScreen = () => {
         </View>
       ) : null}
 
-      {/* Price */}
-      <View style={styles.statCardsRow}>
-        <Card style={styles.statCard}>
-          <View style={styles.statHeaderRow}>
-            <View style={styles.statIconCircle}>
-              <Text style={styles.statIconText}>{'₹'}</Text>
-            </View>
-            <Text style={styles.statLabel}>PRICE</Text>
+      {/* ── Buy card (Direction A — purchase-first) ─────────────── */}
+      <Card style={styles.buyCard}>
+        <View>
+          <View style={styles.buyPriceRow}>
+            <Text style={styles.buyPrice}>{priceFmt(productPrice)}</Text>
+            {productOldPrice > 0 && productOldPrice > productPrice ? (
+              <Text style={styles.buyOldPrice}>{priceFmt(productOldPrice)}</Text>
+            ) : null}
           </View>
-          <Text style={styles.statValue}>{priceFmt(productPrice)}</Text>
-          {productOldPrice > 0 && productOldPrice > productPrice ? (
-            <Text style={[styles.statSub, { textDecorationLine: 'line-through' }]}>
-              {priceFmt(productOldPrice)}
-            </Text>
-          ) : (
-            <Text style={styles.statSub}>Inclusive of taxes</Text>
-          )}
-        </Card>
-      </View>
+          <Text style={styles.buyTax}>Inclusive of all taxes</Text>
+        </View>
 
-      {/* Discount / Rating row (when synthetic template fields are present) */}
-      {productDiscount || productRating ? (
-        <Card style={styles.lockCard}>
-          <View style={styles.lockRow}>
-            <View style={[styles.lockIconCircle, { backgroundColor: '#fef9c3' }]}>
-              <Text style={[styles.lockIconText, { color: '#b45309' }]}>★</Text>
-            </View>
-            <View style={styles.lockTextContainer}>
-              <Text style={styles.lockTitle}>
-                {productRating ? `${productRating.toFixed(1)} rating` : 'Top pick'}
-                {productRatingCount ? ` (${productRatingCount.toLocaleString('en-IN')} reviews)` : ''}
-              </Text>
-              <Text style={styles.lockDescription}>
-                {productDiscount
-                  ? `Save ${productDiscount}% off MRP — limited-time offer.`
-                  : 'Customer favourite based on recent orders.'}
-              </Text>
-            </View>
+        {/* Trust row — real data only; reward always, rating/sold when present */}
+        <View style={styles.trustRow}>
+          <View style={styles.trustPill}>
+            <Text style={[styles.trustN, styles.trustNGold]}>+100 CR</Text>
+            <Text style={styles.trustS}>per share</Text>
           </View>
-        </Card>
-      ) : null}
+          {headlineRating > 0 && headlineRatingCount > 0 ? (
+            <View style={styles.trustPill}>
+              <Text style={styles.trustN}>{'★'} {headlineRating.toFixed(1)}</Text>
+              <Text style={styles.trustS}>{headlineRatingCount.toLocaleString('en-IN')} {headlineRatingCount === 1 ? 'review' : 'reviews'}</Text>
+            </View>
+          ) : null}
+          {productSold > 0 ? (
+            <View style={styles.trustPill}>
+              <Text style={styles.trustN}>{productSold.toLocaleString('en-IN')}+</Text>
+              <Text style={styles.trustS}>bought</Text>
+            </View>
+          ) : null}
+        </View>
 
-      {/* Description card (only when description has more than the subtitle) */}
+        {/* Buy Now is primary; Share is the secondary. No buy link → Share
+            becomes the primary full-width action. */}
+        {productAffiliateUrl ? (
+          <>
+            <Button title="Buy Now →" onPress={handleBuyNow} style={styles.buyBtnMain} />
+            <Button
+              title="Share & Earn 100 CR ↗"
+              variant="outline"
+              onPress={() => setShareOpen(true)}
+              style={styles.buyBtnAlt}
+            />
+          </>
+        ) : (
+          <Button
+            title="Share & Earn 100 CR ↗"
+            onPress={() => setShareOpen(true)}
+            style={styles.buyBtnMain}
+          />
+        )}
+
+        <Text style={styles.buyHelper}>
+          Earn 100 CR every time you share · once per item per day
+          {sharesLeft != null ? `  ·  ${sharesLeft}/${sharesCap} left today` : ''}
+        </Text>
+      </Card>
+
+      {/* About this item */}
       {productDescription ? (
         <Card style={styles.card}>
           <View style={styles.termsHeader}>
@@ -482,32 +503,6 @@ export const ProductDetailScreen = () => {
           </Text>
         </Card>
       ) : null}
-
-      {/* CTA row — Buy Now (opens the product's buy link) beside Share & Earn.
-          Buy Now only shows when the product has an affiliate/buy URL. */}
-      <View style={styles.ctaRow}>
-        <Button
-          title="Share & Earn 100 CR ↗"
-          onPress={() => setShareOpen(true)}
-          style={styles.ctaBtnFlex}
-        />
-        {productAffiliateUrl ? (
-          <Button
-            title="Buy Now"
-            variant="outline"
-            onPress={handleBuyNow}
-            style={styles.ctaBtnFlex}
-          />
-        ) : null}
-      </View>
-      <Text style={styles.helperText}>
-        Earn 100 CR every time you share · once per item per day
-      </Text>
-      {sharesLeft != null && (
-        <Text style={[styles.helperText, { marginTop: 4 }]}>
-          {sharesLeft}/{sharesCap} shares left today
-        </Text>
-      )}
       <ShareSheet
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
@@ -1215,6 +1210,55 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
   },
+
+  // ─── Buy card (Direction A) ─────────────────────────────────────────
+  buyCard: {
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 12,
+    gap: 12,
+  },
+  buyPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
+  },
+  buyPrice: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: -0.5,
+  },
+  buyOldPrice: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
+  buyTax: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 3,
+  },
+  trustRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  trustPill: {
+    flex: 1,
+    backgroundColor: '#F0F4F8',
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+  },
+  trustN: { fontSize: 13, fontWeight: '800', color: Colors.text },
+  trustNGold: { color: '#d98a12' },
+  trustS: { fontSize: 10, color: Colors.textSecondary, marginTop: 1 },
+  buyBtnMain: { borderRadius: 12 },
+  buyBtnAlt: { borderRadius: 12 },
+  buyHelper: { fontSize: 11.5, color: Colors.textSecondary, textAlign: 'center' },
 
   // ─── Reviews ────────────────────────────────────────────────────────
   reviewsSection: {

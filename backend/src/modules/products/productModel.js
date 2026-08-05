@@ -59,6 +59,26 @@ const productSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    // Merchant / store where the product is sold (e.g. "Amazon"). Shown on the
+    // product detail brand card as "Available at …".
+    merchant: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // Admin-set headline rating + count (e.g. the merchant's aggregate). Detail
+    // surfaces prefer these over the in-app review average when set.
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    ratingCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     sold: {
       type: Number,
       default: 0,

@@ -146,6 +146,12 @@ function ProductDetailMobile({
   const sold        = Number(product?.sold ?? 0);
   const category    = String(product?.category ?? '').trim();
   const description = String(product?.description ?? '').trim();
+  const merchant    = String(product?.merchant ?? '').trim();
+  const pRating     = Number(product?.rating ?? 0);
+  const pRatingCount = Number(product?.ratingCount ?? 0);
+  // Admin-set rating wins; else the live in-app review average.
+  const headlineRating = pRating > 0 ? pRating : averageRating;
+  const headlineCount  = pRatingCount > 0 ? pRatingCount : reviewCount;
 
   // Hero pages are inset by the 16px heroBox margin on each side.
   const pageW = Math.max(1, winW - 32);
@@ -204,14 +210,14 @@ function ProductDetailMobile({
           <Text style={pStyles.title} numberOfLines={2}>{name}</Text>
 
           {/* Rating summary (from reviews averageRating) + category chip */}
-          {(averageRating > 0 && reviewCount > 0) || category ? (
+          {(headlineRating > 0 && headlineCount > 0) || category || merchant ? (
             <View style={pStyles.metaRow}>
-              {averageRating > 0 && reviewCount > 0 ? (
+              {headlineRating > 0 && headlineCount > 0 ? (
                 <View style={pStyles.ratingPill}>
                   <Star size={13} color="#f59e0b" fill="#f59e0b" strokeWidth={2} />
-                  <Text style={pStyles.ratingValue}>{averageRating.toFixed(1)}</Text>
+                  <Text style={pStyles.ratingValue}>{headlineRating.toFixed(1)}</Text>
                   <Text style={pStyles.ratingCount}>
-                    · {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                    · {headlineCount.toLocaleString('en-IN')} {headlineCount === 1 ? 'review' : 'reviews'}
                   </Text>
                 </View>
               ) : null}
@@ -220,18 +226,30 @@ function ProductDetailMobile({
                   <Text style={pStyles.categoryChipText}>{category}</Text>
                 </View>
               ) : null}
+              {merchant ? (
+                <View style={pStyles.merchantChip}>
+                  <Text style={pStyles.merchantChipText}>at {merchant}</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
           {/* Price */}
           <Text style={pStyles.price}>{fmtPrice(price)}</Text>
 
-          {/* Social proof */}
-          {sold > 0 ? (
-            <View style={pStyles.availRow}>
-              <Text style={pStyles.soldText}>🔥 {sold.toLocaleString('en-IN')}+ bought</Text>
+          {/* Trust row — reward always; sold when present (Direction A) */}
+          <View style={pStyles.trustRow}>
+            <View style={pStyles.trustPill}>
+              <Text style={[pStyles.trustN, pStyles.trustNGold]}>+100 CR</Text>
+              <Text style={pStyles.trustS}>per share</Text>
             </View>
-          ) : null}
+            {sold > 0 ? (
+              <View style={pStyles.trustPill}>
+                <Text style={pStyles.trustN}>{sold.toLocaleString('en-IN')}+</Text>
+                <Text style={pStyles.trustS}>bought</Text>
+              </View>
+            ) : null}
+          </View>
 
           {/* About this item — renders the description product mode previously
               dropped. Hidden when the product has no description. */}
@@ -297,24 +315,37 @@ function ProductDetailMobile({
         </View>
       </ScrollView>
 
-      {/* Sticky bottom CTA — Buy Now (product link) beside Share & Earn */}
+      {/* Sticky bottom CTA — Buy Now primary; Share secondary (Direction A) */}
       <View style={pStyles.ctaBar}>
         <View style={pStyles.ctaRow}>
-          <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={[pStyles.ctaWrap, { flex: 1 }]}>
-            <LinearGradient
-              colors={Gradient.brand}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={pStyles.ctaBtn}
-            >
-              <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
-            </LinearGradient>
-          </TouchableOpacity>
           {canBuy ? (
-            <TouchableOpacity activeOpacity={0.85} onPress={onBuy} style={pStyles.buyBtn}>
-              <Text style={pStyles.buyBtnText}>Buy Now</Text>
+            <>
+              <TouchableOpacity activeOpacity={0.85} onPress={onBuy} style={[pStyles.ctaWrap, { flex: 1 }]}>
+                <LinearGradient
+                  colors={Gradient.brand}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={pStyles.ctaBtn}
+                >
+                  <Text style={pStyles.ctaText}>Buy Now →</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={pStyles.buyBtn}>
+                <Text style={pStyles.buyBtnText}>Share</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={[pStyles.ctaWrap, { flex: 1 }]}>
+              <LinearGradient
+                colors={Gradient.brand}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={pStyles.ctaBtn}
+              >
+                <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
+              </LinearGradient>
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
         {sharesLeft != null && (
           <Text style={pStyles.hint}>{sharesLeft}/{sharesCap} shares left today</Text>
@@ -1013,6 +1044,12 @@ const pStyles = StyleSheet.create({
     borderWidth: 1, borderColor: '#dbeafe',
   },
   categoryChipText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  merchantChip: {
+    backgroundColor: '#f1f5f9', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  merchantChipText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
 
   // Availability + social proof
   availRow: {
@@ -1020,6 +1057,16 @@ const pStyles = StyleSheet.create({
     marginBottom: 16, flexWrap: 'wrap',
   },
   soldText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+
+  // Trust row (Direction A)
+  trustRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  trustPill: {
+    flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5',
+    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center',
+  },
+  trustN: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  trustNGold: { color: '#d98a12' },
+  trustS: { fontSize: 10.5, color: Colors.textSecondary, marginTop: 1 },
 
   // About this item
   aboutSection: { marginTop: 18 },
