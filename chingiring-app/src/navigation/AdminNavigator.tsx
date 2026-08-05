@@ -3,7 +3,6 @@ import { View, ActivityIndicator, Platform, useWindowDimensions } from 'react-na
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
-import { AdminDashboardScreen } from '../screens/Admin/AdminDashboardScreen';
 import { MobileAdminDashboard } from '../screens/Admin/MobileAdminDashboard';
 import { MobileAdminDeals } from '../screens/Admin/MobileAdminDeals';
 import { MobileAdminWithdrawals } from '../screens/Admin/MobileAdminWithdrawals';
@@ -13,13 +12,7 @@ import { MobileAdminBanners } from '../screens/Admin/MobileAdminBanners';
 import { MobileAdminCoupons } from '../screens/Admin/MobileAdminCoupons';
 import { MobileAdminCouponUsage } from '../screens/Admin/MobileAdminCouponUsage';
 import { createAdminPlaceholder } from '../screens/Admin/AdminPlaceholderScreen';
-import { AdminDealsScreen } from '../screens/Admin/AdminDealsScreen';
-import { AdminProductsScreen } from '../screens/Admin/AdminProductsScreen';
-import { AdminStoresScreen } from '../screens/Admin/AdminStoresScreen';
-import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen';
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
-import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
-import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 
@@ -51,27 +44,33 @@ const Tab = createBottomTabNavigator();
 // lighter entry, but one spinner the first time you open each tab.)
 // `backBehavior="history"` makes the hardware back button (and goBack from
 // drill-downs like Coupon Usage / Profile) return to the previously viewed tab.
-// `isMobile` is derived from the live viewport width so a narrow web window gets
-// the mobile screens, matching native.
+//
+// This navigator only ever mounts when AdminNavigator (below) has already decided
+// the viewport is mobile (width < 768), so it renders the mobile screens
+// UNCONDITIONALLY. It used to re-derive `isMobile` from a SECOND
+// useWindowDimensions read — but on iOS Safari that read could come back stale
+// (>= 768) while the outer read was correct (< 768). The mobile shell then mounted
+// the DESKTOP screens, which draw no self-nav (they expect the desktop drawer's
+// sidebar), so admin saw a dashboard with zero navigation. One source of truth —
+// the single outer check — removes that whole failure mode. Every mobile screen
+// draws its own <MobileAdminNav/>, so headerShown stays false (screenOptions).
 function MobileAdminNavigator() {
-  const { width } = useWindowDimensions();
-  const isMobile = computeIsMobile(width);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['bottom', 'left', 'right']}>
     <Tab.Navigator tabBar={() => null} backBehavior="history" screenOptions={{ headerShown: false, lazy: false }}>
-      <Tab.Screen name="AdminDashboard" component={isMobile ? MobileAdminDashboard : AdminDashboardScreen} options={{ headerShown: !isMobile, title: 'Admin Dashboard' }} />
-      <Tab.Screen name="AdminDeals" component={isMobile ? MobileAdminDeals : AdminDealsScreen} options={{ headerShown: !isMobile, title: 'Deals' }} />
-      <Tab.Screen name="AdminWalletOps" component={WalletOperationsScreen} options={{ headerShown: !isMobile, title: 'Wallet Operations' }} />
-      <Tab.Screen name="AdminWithdrawals" component={isMobile ? MobileAdminWithdrawals : AdminWithdrawalsScreen} options={{ headerShown: !isMobile, title: 'Withdrawals' }} />
-      <Tab.Screen name="AdminUsers" component={AdminUsersScreen} options={{ headerShown: !isMobile, title: 'Users' }} />
-      <Tab.Screen name="AdminAllProducts" component={isMobile ? MobileAdminProducts : AdminProductsScreen} options={{ headerShown: !isMobile, title: 'Products' }} />
-      <Tab.Screen name="AdminStores" component={isMobile ? MobileAdminStores : AdminStoresScreen} options={{ headerShown: !isMobile, title: 'Offline Stores' }} />
+      <Tab.Screen name="AdminDashboard" component={MobileAdminDashboard} options={{ title: 'Admin Dashboard' }} />
+      <Tab.Screen name="AdminDeals" component={MobileAdminDeals} options={{ title: 'Deals' }} />
+      <Tab.Screen name="AdminWalletOps" component={WalletOperationsScreen} options={{ title: 'Wallet Operations' }} />
+      <Tab.Screen name="AdminWithdrawals" component={MobileAdminWithdrawals} options={{ title: 'Withdrawals' }} />
+      <Tab.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
+      <Tab.Screen name="AdminAllProducts" component={MobileAdminProducts} options={{ title: 'Products' }} />
+      <Tab.Screen name="AdminStores" component={MobileAdminStores} options={{ title: 'Offline Stores' }} />
       <Tab.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
       <Tab.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />
-      <Tab.Screen name="AdminBanners" component={isMobile ? MobileAdminBanners : AdminBannersScreen} options={{ headerShown: !isMobile, title: 'Banners' }} />
-      <Tab.Screen name="AdminCoupons" component={isMobile ? MobileAdminCoupons : AdminCouponsScreen} options={{ headerShown: !isMobile, title: 'Coupons' }} />
-      <Tab.Screen name="AdminCouponUsage" component={MobileAdminCouponUsage} options={{ headerShown: false, title: 'Coupon Usage' }} />
-      <Tab.Screen name="AdminProfile" component={AdminProfileScreen} options={{ headerShown: false, title: 'Profile' }} />
+      <Tab.Screen name="AdminBanners" component={MobileAdminBanners} options={{ title: 'Banners' }} />
+      <Tab.Screen name="AdminCoupons" component={MobileAdminCoupons} options={{ title: 'Coupons' }} />
+      <Tab.Screen name="AdminCouponUsage" component={MobileAdminCouponUsage} options={{ title: 'Coupon Usage' }} />
+      <Tab.Screen name="AdminProfile" component={AdminProfileScreen} options={{ title: 'Profile' }} />
     </Tab.Navigator>
     </SafeAreaView>
   );
