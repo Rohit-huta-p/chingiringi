@@ -20,7 +20,6 @@ import {
   Star,
   Navigation,
   Clock,
-  ChevronRight,
   SlidersHorizontal,
   Plus,
   Minus,
@@ -48,14 +47,15 @@ const PRIMARY = Colors.primary;
 
 export const OfflineStoresScreen: React.FC = () => {
   const { width } = useWindowDimensions();
-  const isNarrow = width < 1100;
+  // Match the navigator: desktop two-pane only on web ≥768; native stays mobile.
+  const isNarrow = Platform.OS !== 'web' || width < 768;
   const user = useAuthStore((st) => st.user);
   const navigation = useNavigation<any>();
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
   const [sort, setSort] = useState<SortKey>('near');
-  const [viewMode, setViewMode] = useState<ViewMode>('map');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -325,7 +325,7 @@ export const OfflineStoresScreen: React.FC = () => {
 
         {showList && (
           <ScrollView
-            style={[styles.listCol, isNarrow && { flex: 1, maxWidth: '100%' }]}
+            style={isNarrow ? styles.listColMobile : styles.listColDesktop}
             contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
             showsVerticalScrollIndicator={false}
           >
@@ -436,10 +436,6 @@ const StoreCard: React.FC<{
           <Tag size={11} color="#fff" />
           <Text style={styles.coinBadgeText}>{store.userDiscountPercent}% OFF</Text>
         </View>
-        {/* open/closed badge top-right */}
-        <View style={[styles.statusBadge, !store.isOpen && styles.statusBadgeClosed]}>
-          <Text style={styles.statusBadgeText}>{store.isOpen ? 'Open' : 'Closed'}</Text>
-        </View>
         {/* hottest badge */}
         {store.isFeatured && (
           <View style={styles.hotBadge}>
@@ -454,7 +450,12 @@ const StoreCard: React.FC<{
           <Text style={styles.storeName} numberOfLines={1}>
             {store.name}
           </Text>
-          <ChevronRight size={16} color={Colors.textSecondary} />
+          <View style={[styles.ocPill, store.isOpen ? styles.ocOpen : styles.ocClosed]}>
+            <View style={[styles.ocDot, { backgroundColor: store.isOpen ? '#0F9D6E' : '#64748B' }]} />
+            <Text style={[styles.ocText, { color: store.isOpen ? '#0F9D6E' : '#64748B' }]}>
+              {store.isOpen ? 'Open' : 'Closed'}
+            </Text>
+          </View>
         </View>
         <View
           style={[
@@ -473,10 +474,6 @@ const StoreCard: React.FC<{
             <Text style={styles.metaText}>
               {store.rating} <Text style={styles.metaMuted}>({store.reviewsCount})</Text>
             </Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Navigation size={12} color={Colors.textSecondary} />
-            <Text style={styles.metaText}>{store.distanceKm} km</Text>
           </View>
           <View style={styles.metaItem}>
             <Clock size={12} color={Colors.textSecondary} />
@@ -681,7 +678,8 @@ const styles = StyleSheet.create({
   shareQuotaText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10 },
 
   // Body
-  body: { flex: 1, flexDirection: 'row', gap: 14 },
+  // desktop: list on the left, map on the right (mobile overrides to column)
+  body: { flex: 1, flexDirection: 'row-reverse', gap: 14 },
   mapCol: { flex: 1, minHeight: 400 },
   mapInner: {
     flex: 1,
@@ -692,7 +690,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F8F6',
     position: 'relative',
   },
-  listCol: { flex: 1, maxWidth: 460 },
+  // Desktop: fixed-width left list (RN-Web ScrollView won't grow reliably with flex).
+  listColDesktop: { width: 420, flexGrow: 0, flexShrink: 0 },
+  listColMobile: { flex: 1, width: '100%' },
   listContent: { paddingRight: 4, paddingBottom: 30, gap: 12 },
 
   // Map overlays
@@ -796,17 +796,19 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   coinBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  statusBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: '#10B981',
+  ocPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
+    flexShrink: 0,
   },
-  statusBadgeClosed: { backgroundColor: '#94A3B8' },
-  statusBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  ocOpen: { backgroundColor: 'rgba(16,185,129,0.12)' },
+  ocClosed: { backgroundColor: 'rgba(148,163,184,0.16)' },
+  ocDot: { width: 6, height: 6, borderRadius: 3 },
+  ocText: { fontSize: 10.5, fontWeight: '700' },
   hotBadge: {
     position: 'absolute',
     bottom: 6,
