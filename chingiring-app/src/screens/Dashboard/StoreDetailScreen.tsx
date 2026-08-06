@@ -122,22 +122,31 @@ export const StoreDetailScreen: React.FC = () => {
             <ChevronLeft size={22} color="#fff" />
           </Pressable>
 
-          <View style={styles.heroText}>
-            <Text style={[styles.heroName, isWide && { fontSize: 32 }]} numberOfLines={2}>{store.name}</Text>
-            <View style={styles.heroMeta}>
-              <View style={styles.catPillOnPhoto}>
-                <Text style={styles.catPillTextOnPhoto}>{store.category}</Text>
+          <View style={styles.heroBottom}>
+            {store.logoUrl ? (
+              <Image source={{ uri: store.logoUrl }} style={[styles.heroLogo, isWide && styles.heroLogoWide]} resizeMode="cover" />
+            ) : (
+              <View style={[styles.heroLogo, isWide && styles.heroLogoWide, styles.heroLogoFallback, { backgroundColor: cat }]}>
+                <Text style={styles.heroLogoInitial}>{(store.shortName || store.name)[0]?.toUpperCase()}</Text>
               </View>
-              <View style={styles.heroMetaItem}>
-                <Star size={13} color="#FBBF24" fill="#FBBF24" />
-                <Text style={styles.heroMetaText}>{store.rating} <Text style={{ opacity: 0.8 }}>({store.reviewsCount})</Text></Text>
-              </View>
-              {store.isVerified && (
-                <View style={styles.heroMetaItem}>
-                  <BadgeCheck size={14} color="#fff" />
-                  <Text style={styles.heroMetaText}>Verified</Text>
+            )}
+            <View style={styles.heroText}>
+              <Text style={[styles.heroName, isWide && { fontSize: 32 }]} numberOfLines={2}>{store.name}</Text>
+              <View style={styles.heroMeta}>
+                <View style={styles.catPillOnPhoto}>
+                  <Text style={styles.catPillTextOnPhoto}>{store.category}</Text>
                 </View>
-              )}
+                <View style={styles.heroMetaItem}>
+                  <Star size={13} color="#FBBF24" fill="#FBBF24" />
+                  <Text style={styles.heroMetaText}>{store.rating} <Text style={{ opacity: 0.8 }}>({store.reviewsCount})</Text></Text>
+                </View>
+                {store.isVerified && (
+                  <View style={styles.heroMetaItem}>
+                    <BadgeCheck size={14} color="#fff" />
+                    <Text style={styles.heroMetaText}>Verified</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -253,7 +262,12 @@ const styles = StyleSheet.create({
     position: 'absolute', left: 14, width: 38, height: 38, borderRadius: 19,
     backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center',
   },
-  heroText: { padding: 20 },
+  heroBottom: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20 },
+  heroText: { flex: 1, minWidth: 0 },
+  heroLogo: { width: 54, height: 54, borderRadius: 14, backgroundColor: '#fff', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)' },
+  heroLogoWide: { width: 64, height: 64, borderRadius: 16 },
+  heroLogoFallback: { alignItems: 'center', justifyContent: 'center' },
+  heroLogoInitial: { color: '#fff', fontSize: 22, fontFamily: Fonts.extraBold },
   heroName: { fontSize: 26, fontFamily: Fonts.extraBold, color: '#fff', letterSpacing: -0.3 },
   heroMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 9, flexWrap: 'wrap' },
   heroMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
