@@ -243,23 +243,16 @@ function ProductDetailMobile({
         <View style={pStyles.body}>
           <Text style={pStyles.title} numberOfLines={2}>{name}</Text>
 
-          {/* Rating summary (from reviews averageRating) + category chip */}
-          {(headlineRating > 0 && headlineCount > 0) || category ? (
+          {/* Rating summary (from reviews averageRating) */}
+          {headlineRating > 0 && headlineCount > 0 ? (
             <View style={pStyles.metaRow}>
-              {headlineRating > 0 && headlineCount > 0 ? (
-                <View style={pStyles.ratingPill}>
-                  <Star size={13} color="#f59e0b" fill="#f59e0b" strokeWidth={2} />
-                  <Text style={pStyles.ratingValue}>{headlineRating.toFixed(1)}</Text>
-                  <Text style={pStyles.ratingCount}>
-                    · {headlineCount.toLocaleString('en-IN')} {headlineCount === 1 ? 'review' : 'reviews'}
-                  </Text>
-                </View>
-              ) : null}
-              {category ? (
-                <View style={pStyles.categoryChip}>
-                  <Text style={pStyles.categoryChipText}>{category}</Text>
-                </View>
-              ) : null}
+              <View style={pStyles.ratingPill}>
+                <Star size={13} color="#f59e0b" fill="#f59e0b" strokeWidth={2} />
+                <Text style={pStyles.ratingValue}>{headlineRating.toFixed(1)}</Text>
+                <Text style={pStyles.ratingCount}>
+                  · {headlineCount.toLocaleString('en-IN')} {headlineCount === 1 ? 'review' : 'reviews'}
+                </Text>
+              </View>
             </View>
           ) : null}
 
@@ -1125,9 +1118,6 @@ const pStyles = StyleSheet.create({
   },
   ratingPill: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: '#fffbeb', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1, borderColor: '#fde68a',
   },
   ratingValue: { fontSize: 13, fontWeight: '800', color: '#b45309' },
   ratingCount: { fontSize: 12, fontWeight: '600', color: '#a16207' },
