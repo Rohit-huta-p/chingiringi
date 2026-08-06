@@ -55,6 +55,17 @@ function emojiFor(cat: string): string {
   return CATEGORY_EMOJI[cat.trim().toLowerCase()] ?? '🛒';
 }
 
+// Zero the first block's top margin so a top banner (or the first rail) sits
+// flush under the header — no gap between the category header and the banner.
+// Later blocks keep their own spacing.
+function flushFirst(nodes: React.ReactNode[]): React.ReactNode[] {
+  if (nodes.length === 0) return nodes;
+  const [first, ...rest] = nodes;
+  if (!React.isValidElement(first)) return nodes;
+  const el = first as React.ReactElement<any>;
+  return [React.cloneElement(el, { style: [el.props.style, { marginTop: 0 }] }), ...rest];
+}
+
 // Banners render through the shared <BannerBlock> (hero | dual), placed by
 // rowIndex via interleaveBanners(). The old local PromoBanner + banners[0] /
 // every-2-rows placement was removed in the slot→position redesign.
@@ -291,11 +302,11 @@ export const MobileHomeScreen = () => {
         <>
           {/* Placed banners stay visible while browsing a category or filtering
               — stacked above the results (they used to vanish on any chip). */}
-          {interleaveBanners([], banners, (b) => (
+          {flushFirst(interleaveBanners([], banners, (b) => (
             <View key={`banner-${b._id}`} style={st.bannerWrap}>
               <BannerBlock banner={b} navigation={navigation} isMobile />
             </View>
-          ))}
+          )))}
           {listingProducts.length === 0 ? (
             <View style={st.empty}>
               <Text style={st.emptyTitle}>No products found</Text>
@@ -311,11 +322,11 @@ export const MobileHomeScreen = () => {
         </>
       ) : (
         /* ── Unfiltered home: category rails with placed banners interleaved ── */
-        interleaveBanners(categoryRailBlocks(), banners, (b) => (
+        flushFirst(interleaveBanners(categoryRailBlocks(), banners, (b) => (
           <View key={`banner-${b._id}`} style={st.bannerWrap}>
             <BannerBlock banner={b} navigation={navigation} isMobile />
           </View>
-        ))
+        )))
       )}
 
       <View style={{ height: 110 }} />
@@ -386,8 +397,9 @@ const st = StyleSheet.create({
   chipLabelOn: { color: '#2E6BD0', fontFamily: Fonts.bold },
   chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 5 },
 
-  // Placed banner wrapper (BannerBlock supplies the card itself)
-  bannerWrap: { paddingHorizontal: 16, marginTop: 16 },
+  // Placed banner wrapper — full-bleed (no side padding) so banners run
+  // edge-to-edge; BannerBlock supplies the card itself.
+  bannerWrap: { marginTop: 16 },
 
   // Promo banner
   banner: {
