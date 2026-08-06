@@ -9,6 +9,7 @@ import { Plus, X, Edit2, Trash2, Eye, EyeOff, Search, SlidersHorizontal } from '
 import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import { ImageUploader } from '../../components/ImageUploader';
+import { MultiImageUploader } from '../../components/MultiImageUploader';
 import { STORE_CATEGORIES } from '../../data/offlineStores';
 
 // ─── Add/Edit Store Modal ────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ export function StoreFormModal({ visible, onClose, store }: {
     openTime: s?.openTime || '10:00',
     closeTime: s?.closeTime || '22:00',
     logoUrl: s?.logoUrl || '',
+    images: Array.isArray(s?.images) ? s.images : [],
     userDiscountPercent: s?.userDiscountPercent?.toString() || '',
     platformCommissionPercent: s?.platformCommissionPercent?.toString() || '',
     maxDiscountCap: s?.maxDiscountCap?.toString() || '',
@@ -43,6 +45,8 @@ export function StoreFormModal({ visible, onClose, store }: {
     isActive: s?.isActive ?? true,
     isFeatured: s?.isFeatured || false,
     isVerified: s?.isVerified || false,
+    rating: s?.rating != null ? String(s.rating) : '',
+    reviewsCount: s?.reviewsCount != null ? String(s.reviewsCount) : '',
   });
 
   const [form, setForm] = useState(() => buildInitial(store));
@@ -74,6 +78,10 @@ export function StoreFormModal({ visible, onClose, store }: {
       Alert.alert('Validation', 'Please fill all required fields (name, short name, address, lat, lng, discount %, commission %)');
       return;
     }
+    if (form.rating && (Number.isNaN(parseFloat(form.rating)) || parseFloat(form.rating) < 0 || parseFloat(form.rating) > 5)) {
+      Alert.alert('Validation', 'Rating must be a number between 0 and 5.');
+      return;
+    }
     mutation.mutate({
       name: form.name,
       shortName: form.shortName,
@@ -88,6 +96,7 @@ export function StoreFormModal({ visible, onClose, store }: {
       openTime: form.openTime,
       closeTime: form.closeTime,
       logoUrl: form.logoUrl,
+      images: form.images,
       userDiscountPercent: parseFloat(form.userDiscountPercent),
       platformCommissionPercent: parseFloat(form.platformCommissionPercent),
       maxDiscountCap: form.maxDiscountCap ? parseFloat(form.maxDiscountCap) : 0,
@@ -96,6 +105,8 @@ export function StoreFormModal({ visible, onClose, store }: {
       isActive: form.isActive,
       isFeatured: form.isFeatured,
       isVerified: form.isVerified,
+      rating: form.rating ? parseFloat(form.rating) : 0,
+      reviewsCount: form.reviewsCount ? parseInt(form.reviewsCount, 10) : 0,
     });
   };
 
@@ -182,6 +193,20 @@ export function StoreFormModal({ visible, onClose, store }: {
               onChange={(url) => setForm({ ...form, logoUrl: url })}
               folder="chingiringi/stores"
             />
+
+            <Text style={styles.fieldLabel}>Photos (hero &amp; gallery)</Text>
+            <MultiImageUploader
+              value={form.images}
+              onChange={(urls) => setForm({ ...form, images: urls })}
+              folder="chingiringi/stores"
+              aspect={16 / 9}
+              thumbWidth={150}
+              coverLabel="Hero"
+            />
+            <Text style={styles.note}>
+              Landscape 16:9 works best — ≈1600×900 (min 1200×675). The Hero photo is the full-width
+              banner on the store detail page; the rest fill the gallery strip.
+            </Text>
 
             {/* ── Location ── */}
             <Text style={styles.groupLabel}>Location</Text>
@@ -331,6 +356,34 @@ export function StoreFormModal({ visible, onClose, store }: {
                 <Text style={[styles.segmentText, form.settlementCycle === 'monthly' && styles.segmentTextActive]}>Monthly</Text>
               </TouchableOpacity>
             </View>
+
+            {/* ── Ratings (shown on the shopper card) ── */}
+            <Text style={styles.groupLabel}>Ratings</Text>
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldHalf}>
+                <Text style={styles.fieldLabel}>Rating (0–5)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="4.5"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  value={form.rating}
+                  onChangeText={(v) => setForm({ ...form, rating: v })}
+                />
+              </View>
+              <View style={styles.fieldHalf}>
+                <Text style={styles.fieldLabel}>Reviews (count)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="128"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  value={form.reviewsCount}
+                  onChangeText={(v) => setForm({ ...form, reviewsCount: v })}
+                />
+              </View>
+            </View>
+            <Text style={styles.note}>Manually set until in-app reviews go live.</Text>
 
             {/* ── Visibility ── */}
             <Text style={styles.groupLabel}>Visibility</Text>
