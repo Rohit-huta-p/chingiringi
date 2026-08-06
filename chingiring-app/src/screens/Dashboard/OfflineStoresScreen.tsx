@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import {
   Search,
@@ -20,11 +21,13 @@ import {
   Star,
   Navigation,
   Clock,
-  ChevronRight,
   SlidersHorizontal,
   Plus,
   Minus,
+  Check,
+  X,
 } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -43,20 +46,45 @@ import {
 
 type SortKey = 'near' | 'discount' | 'rating';
 type ViewMode = 'list' | 'map';
+type StoreFilters = { openNow: boolean; minDiscount: number; minRating: number };
+
+const DEFAULT_FILTERS: StoreFilters = { openNow: false, minDiscount: 0, minRating: 0 };
+const DISCOUNT_STEPS = [0, 10, 20, 30];
+const RATING_STEPS = [0, 4, 4.5];
 
 const PRIMARY = Colors.primary;
 
 export const OfflineStoresScreen: React.FC = () => {
   const { width } = useWindowDimensions();
-  const isNarrow = width < 1100;
-  const user = useAuthStore((st) => st.user);
+  // Match the navigator: desktop two-pane only on web ≥768; native stays mobile.
+  const isNarrow = Platform.OS !== 'web' || width < 768;
   const navigation = useNavigation<any>();
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
   const [sort, setSort] = useState<SortKey>('near');
-  const [viewMode, setViewMode] = useState<ViewMode>('map');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<StoreFilters>(DEFAULT_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Ask for GPS once so "Near" sorts by the shopper's real distance; fall back
+  // to the city center (BENGALURU_CENTER) on denial/error.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } catch {
+        /* permission denied or unavailable — keep city-center fallback */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['stores'],
@@ -70,12 +98,13 @@ export const OfflineStoresScreen: React.FC = () => {
   const sharesCap = quotaRes?.data?.cap;
 
   const stores: Store[] = useMemo(() => {
+    const origin = coords ?? BENGALURU_CENTER;
     const list = (data?.data?.stores ?? []) as Store[];
     return list.map((s) => ({
       ...s,
-      distanceKm: haversineKm(BENGALURU_CENTER, { lat: s.lat, lng: s.lng }),
+      distanceKm: haversineKm(origin, { lat: s.lat, lng: s.lng }),
     }));
-  }, [data]);
+  }, [data, coords]);
 
   const filtered = useMemo(() => {
     let list = [...stores];
@@ -91,11 +120,17 @@ export const OfflineStoresScreen: React.FC = () => {
           s.address.toLowerCase().includes(q),
       );
     }
+    if (filters.openNow) list = list.filter((s) => s.isOpen);
+    if (filters.minDiscount > 0) list = list.filter((s) => s.userDiscountPercent >= filters.minDiscount);
+    if (filters.minRating > 0) list = list.filter((s) => s.rating >= filters.minRating);
     if (sort === 'near') list.sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
     if (sort === 'discount') list.sort((a, b) => b.userDiscountPercent - a.userDiscountPercent);
     if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
     return list;
-  }, [stores, search, activeCategory, sort]);
+  }, [stores, search, activeCategory, sort, filters]);
+
+  const filterCount =
+    (filters.openNow ? 1 : 0) + (filters.minDiscount > 0 ? 1 : 0) + (filters.minRating > 0 ? 1 : 0);
 
   const openCount = filtered.filter((s) => s.isOpen).length;
   const showMap = !isNarrow || viewMode === 'map';
@@ -113,41 +148,21 @@ export const OfflineStoresScreen: React.FC = () => {
         <>
           <MobileAuthHeader
             hideBack
-            title="Offline Stores"
-            subtitle="Bengaluru, Karnataka"
+            title="Nearby Stores"
             align="left"
-            rightSlot={
-              <View style={styles.headerAvatarMobile}>
-                {user?.avatarUrl ? (
-                  <View style={styles.headerAvatarImgWrap}>
-                    {/* Image deferred — using initials fallback to keep
-                        bundle import small here. */}
-                    <Text style={styles.headerAvatarTxt}>
-                      {(user?.name?.[0] ?? 'D').toUpperCase()}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.headerAvatarTxt}>
-                    {(user?.name?.[0] ?? 'D').toUpperCase()}
-                  </Text>
-                )}
-              </View>
-            }
-          />
-
-          {/* Search bar */}
-          <View style={styles.mobileSearchRow}>
-            <View style={styles.searchWrap}>
-              <Search size={16} color={Colors.textSecondary} />
+          >
+            {/* Search bar inside the header — matches the Home search pill */}
+            <View style={styles.mobileSearchBar}>
+              <Search size={18} color={Colors.primary} />
               <TextInput
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Search stores, categories..."
-                placeholderTextColor={Colors.textSecondary}
-                style={styles.searchInput}
+                placeholderTextColor="#9ca3af"
+                style={styles.mobileSearchInput}
               />
             </View>
-          </View>
+          </MobileAuthHeader>
 
           {/* List/Map + Sort pills */}
           <View style={styles.mobileControlsRow}>
@@ -173,9 +188,9 @@ export const OfflineStoresScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.sortGroup}
             >
-              <SortPill label="Near"     icon={Navigation} active={sort === 'near'}     onPress={() => setSort('near')} />
-              <SortPill label="Discount" icon={Tag}        active={sort === 'discount'} onPress={() => setSort('discount')} />
-              <SortPill label="Rating"   icon={Star}       active={sort === 'rating'}   onPress={() => setSort('rating')} />
+              <SortPill label="Near" icon={Navigation} active={sort === 'near'} onPress={() => setSort('near')} />
+              <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
+              <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
             </ScrollView>
           </View>
         </>
@@ -183,7 +198,7 @@ export const OfflineStoresScreen: React.FC = () => {
         // ── Desktop: existing horizontal header (unchanged) ─────────────
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.title}>Offline Stores</Text>
+            <Text style={styles.title}>Nearby Stores</Text>
             <View style={styles.locationRow}>
               <MapPin size={13} color={Colors.textSecondary} />
               <Text style={styles.locationText}>Bengaluru, Karnataka</Text>
@@ -267,9 +282,14 @@ export const OfflineStoresScreen: React.FC = () => {
           <Text style={styles.statusSep}>·</Text>
           <Text style={styles.statusText}>{filtered.length} near you</Text>
         </View>
-        <Pressable style={styles.filtersBtn}>
+        <Pressable style={styles.filtersBtn} onPress={() => setFilterOpen(true)}>
           <SlidersHorizontal size={13} color={PRIMARY} />
           <Text style={styles.filtersText}>Filters</Text>
+          {filterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeTxt}>{filterCount}</Text>
+            </View>
+          )}
         </Pressable>
       </View>
 
@@ -325,7 +345,7 @@ export const OfflineStoresScreen: React.FC = () => {
 
         {showList && (
           <ScrollView
-            style={[styles.listCol, isNarrow && { flex: 1, maxWidth: '100%' }]}
+            style={isNarrow ? styles.listColMobile : styles.listColDesktop}
             contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
             showsVerticalScrollIndicator={false}
           >
@@ -349,6 +369,86 @@ export const OfflineStoresScreen: React.FC = () => {
           </ScrollView>
         )}
       </View>
+
+      {/* ── Filter sheet ──────────────────────────────────────────── */}
+      <Modal
+        visible={filterOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFilterOpen(false)}
+      >
+        <Pressable style={styles.sheetOverlay} onPress={() => setFilterOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => { }}>
+            <View style={styles.sheetGrabber} />
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>Filters</Text>
+              <View style={styles.sheetHeadRight}>
+                {filterCount > 0 && (
+                  <Pressable onPress={() => setFilters(DEFAULT_FILTERS)} hitSlop={8}>
+                    <Text style={styles.sheetClear}>Clear all</Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={() => setFilterOpen(false)} hitSlop={8} accessibilityLabel="Close">
+                  <X size={20} color={Colors.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Open now */}
+            <Pressable
+              style={styles.toggleRow}
+              onPress={() => setFilters((f) => ({ ...f, openNow: !f.openNow }))}
+            >
+              <Text style={styles.toggleRowLabel}>Open now</Text>
+              <View style={[styles.check, filters.openNow && styles.checkOn]}>
+                {filters.openNow && <Check size={14} color="#fff" strokeWidth={3} />}
+              </View>
+            </Pressable>
+
+            {/* Minimum discount */}
+            <Text style={styles.sheetGroupLabel}>Minimum discount</Text>
+            <View style={styles.sheetChipWrap}>
+              {DISCOUNT_STEPS.map((d) => {
+                const active = filters.minDiscount === d;
+                return (
+                  <Pressable
+                    key={d}
+                    style={[styles.sheetChip, active && styles.sheetChipActive]}
+                    onPress={() => setFilters((f) => ({ ...f, minDiscount: d }))}
+                  >
+                    <Text style={[styles.sheetChipTxt, active && styles.sheetChipTxtActive]}>
+                      {d === 0 ? 'Any' : `${d}%+`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Minimum rating */}
+            <Text style={[styles.sheetGroupLabel, { marginTop: 18 }]}>Minimum rating</Text>
+            <View style={styles.sheetChipWrap}>
+              {RATING_STEPS.map((r) => {
+                const active = filters.minRating === r;
+                return (
+                  <Pressable
+                    key={r}
+                    style={[styles.sheetChip, active && styles.sheetChipActive]}
+                    onPress={() => setFilters((f) => ({ ...f, minRating: r }))}
+                  >
+                    <Text style={[styles.sheetChipTxt, active && styles.sheetChipTxtActive]}>
+                      {r === 0 ? 'Any' : `${r}★+`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable style={styles.sheetDone} onPress={() => setFilterOpen(false)}>
+              <Text style={styles.sheetDoneTxt}>Show {filtered.length} stores</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -436,10 +536,6 @@ const StoreCard: React.FC<{
           <Tag size={11} color="#fff" />
           <Text style={styles.coinBadgeText}>{store.userDiscountPercent}% OFF</Text>
         </View>
-        {/* open/closed badge top-right */}
-        <View style={[styles.statusBadge, !store.isOpen && styles.statusBadgeClosed]}>
-          <Text style={styles.statusBadgeText}>{store.isOpen ? 'Open' : 'Closed'}</Text>
-        </View>
         {/* hottest badge */}
         {store.isFeatured && (
           <View style={styles.hotBadge}>
@@ -454,7 +550,12 @@ const StoreCard: React.FC<{
           <Text style={styles.storeName} numberOfLines={1}>
             {store.name}
           </Text>
-          <ChevronRight size={16} color={Colors.textSecondary} />
+          <View style={[styles.ocPill, store.isOpen ? styles.ocOpen : styles.ocClosed]}>
+            <View style={[styles.ocDot, { backgroundColor: store.isOpen ? '#0F9D6E' : '#64748B' }]} />
+            <Text style={[styles.ocText, { color: store.isOpen ? '#0F9D6E' : '#64748B' }]}>
+              {store.isOpen ? 'Open' : 'Closed'}
+            </Text>
+          </View>
         </View>
         <View
           style={[
@@ -473,10 +574,6 @@ const StoreCard: React.FC<{
             <Text style={styles.metaText}>
               {store.rating} <Text style={styles.metaMuted}>({store.reviewsCount})</Text>
             </Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Navigation size={12} color={Colors.textSecondary} />
-            <Text style={styles.metaText}>{store.distanceKm} km</Text>
           </View>
           <View style={styles.metaItem}>
             <Clock size={12} color={Colors.textSecondary} />
@@ -534,32 +631,32 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
 
-  // Mobile-only header avatar (inside MobileAuthHeader's rightSlot)
-  headerAvatarMobile: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.35)',
-    justifyContent: 'center',
+  // Mobile search pill — mirrors the Home search bar (white, rounded, 44px).
+  mobileSearchBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    overflow: 'hidden',
+    gap: 9,
+    backgroundColor: '#fff',
+    borderRadius: 13,
+    paddingHorizontal: 13,
+    height: 44,
   },
-  headerAvatarImgWrap: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
-  headerAvatarTxt: { fontSize: 15, fontFamily: Fonts.extraBold, color: '#fff' },
+  mobileSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: Colors.text,
+    height: 44,
+    outlineStyle: 'none' as any,
+  },
 
   // Mobile control rows that sit below the gradient header
-  mobileSearchRow: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
-  },
   mobileControlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 12,
   },
 
@@ -678,10 +775,98 @@ const styles = StyleSheet.create({
   statusSep: { color: Colors.textSecondary, fontSize: 12 },
   filtersBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   filtersText: { fontSize: 12, color: PRIMARY, fontWeight: '700' },
+  filterBadge: {
+    minWidth: 16,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: PRIMARY,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    marginLeft: 2,
+  },
+  filterBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '700' },
   shareQuotaText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10 },
 
+  // Filter bottom-sheet
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 24,
+  },
+  sheetGrabber: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.border,
+    marginBottom: 12,
+  },
+  sheetHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sheetTitle: { fontSize: 17, fontFamily: Fonts.extraBold, color: Colors.text },
+  sheetHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  sheetClear: { fontSize: 13, fontFamily: Fonts.semiBold, color: PRIMARY },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: 16,
+  },
+  toggleRowLabel: { fontSize: 15, fontFamily: Fonts.semiBold, color: Colors.text },
+  check: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkOn: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  sheetGroupLabel: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 10,
+  },
+  sheetChipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sheetChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  sheetChipActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  sheetChipTxt: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  sheetChipTxtActive: { color: '#fff' },
+  sheetDone: {
+    marginTop: 22,
+    backgroundColor: PRIMARY,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  sheetDoneTxt: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold },
+
   // Body
-  body: { flex: 1, flexDirection: 'row', gap: 14 },
+  // desktop: list on the left, map on the right (mobile overrides to column)
+  body: { flex: 1, flexDirection: 'row-reverse', gap: 14 },
   mapCol: { flex: 1, minHeight: 400 },
   mapInner: {
     flex: 1,
@@ -692,7 +877,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F8F6',
     position: 'relative',
   },
-  listCol: { flex: 1, maxWidth: 460 },
+  // Desktop: fixed-width left list (RN-Web ScrollView won't grow reliably with flex).
+  listColDesktop: { width: 420, flexGrow: 0, flexShrink: 0 },
+  listColMobile: { flex: 1, width: '100%' },
   listContent: { paddingRight: 4, paddingBottom: 30, gap: 12 },
 
   // Map overlays
@@ -796,17 +983,19 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   coinBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  statusBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: '#10B981',
+  ocPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
+    flexShrink: 0,
   },
-  statusBadgeClosed: { backgroundColor: '#94A3B8' },
-  statusBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  ocOpen: { backgroundColor: 'rgba(16,185,129,0.12)' },
+  ocClosed: { backgroundColor: 'rgba(148,163,184,0.16)' },
+  ocDot: { width: 6, height: 6, borderRadius: 3 },
+  ocText: { fontSize: 10.5, fontWeight: '700' },
   hotBadge: {
     position: 'absolute',
     bottom: 6,

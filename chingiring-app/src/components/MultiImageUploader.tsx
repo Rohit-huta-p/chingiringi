@@ -18,6 +18,12 @@ interface Props {
   disabled?: boolean;
   /** Max images allowed. Default 6. */
   max?: number;
+  /** Thumbnail aspect ratio (width / height). Default square. Pass 16/9 for banners. */
+  aspect?: number;
+  /** Thumbnail width in px. Default 84. Bump it for landscape previews. */
+  thumbWidth?: number;
+  /** Label shown on the first (cover) thumb. Default "Cover". */
+  coverLabel?: string;
 }
 
 /**
@@ -29,8 +35,10 @@ interface Props {
  * to promote it to cover; the ✕ removes a thumb.
  */
 export const MultiImageUploader: React.FC<Props> = ({
-  value, onChange, folder, disabled, max = 6,
+  value, onChange, folder, disabled, max = 6, aspect, thumbWidth, coverLabel = 'Cover',
 }) => {
+  const tw = thumbWidth ?? THUMB;
+  const th = aspect ? Math.round(tw / aspect) : tw;
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
   const { uploading, error, isConfigured, pick } = useImageUpload(folder);
@@ -69,7 +77,7 @@ export const MultiImageUploader: React.FC<Props> = ({
         {value.map((url, i) => (
           <TouchableOpacity
             key={`${url}-${i}`}
-            style={styles.thumb}
+            style={[styles.thumb, { width: tw, height: th }]}
             activeOpacity={0.85}
             onPress={() => makeCover(i)}
             disabled={disabled}
@@ -79,11 +87,11 @@ export const MultiImageUploader: React.FC<Props> = ({
             {/* Cover badge on the first image */}
             {i === 0 ? (
               <View style={styles.coverBadge}>
-                <Text style={styles.coverBadgeText}>Cover</Text>
+                <Text style={styles.coverBadgeText}>{coverLabel}</Text>
               </View>
             ) : (
               <View style={styles.makeCoverHint}>
-                <Text style={styles.makeCoverHintText}>Set cover</Text>
+                <Text style={styles.makeCoverHintText}>Set {coverLabel.toLowerCase()}</Text>
               </View>
             )}
 
@@ -102,7 +110,7 @@ export const MultiImageUploader: React.FC<Props> = ({
         {/* Add tile */}
         {!atMax ? (
           <TouchableOpacity
-            style={[styles.addTile, uploading && styles.addTileBusy]}
+            style={[styles.addTile, { width: tw, height: th }, uploading && styles.addTileBusy]}
             onPress={() => pick(append)}
             disabled={disabled || uploading}
             activeOpacity={0.85}

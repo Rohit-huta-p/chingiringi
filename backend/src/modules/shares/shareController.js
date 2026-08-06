@@ -96,3 +96,16 @@ export const getShareQuota = async (req, res) => {
     usedToday, remaining: Math.max(0, settings.maxSharesPerDay - usedToday), cap: settings.maxSharesPerDay,
   }});
 };
+
+// GET /api/shares/stats?itemType=product&itemId=X
+// Social proof for the detail page. The unique (userId,itemType,itemId,day)
+// index means one ShareEvent per user per item per day, so a plain count of
+// today's events = distinct users who shared this item today.
+export const getShareStats = async (req, res) => {
+  const { itemType, itemId } = req.query;
+  if (!MODEL_BY_TYPE[itemType]) { res.status(400); throw new Error("itemType must be 'product' or 'store'"); }
+  if (!mongoose.Types.ObjectId.isValid(itemId)) { res.status(400); throw new Error('Invalid itemId'); }
+  const day = istDayBucket();
+  const todayCount = await ShareEvent.countDocuments({ itemType, itemId, day });
+  res.json({ status: 'success', data: { todayCount } });
+};

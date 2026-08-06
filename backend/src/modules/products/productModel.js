@@ -27,6 +27,14 @@ const productSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Maximum retail price — strike-through reference. When mrp > price the
+    // detail page shows the strikethrough, "You save ₹X (Y%)" and an off-badge.
+    // 0 = unset → detail page shows a single clean price (no fake discount).
+    mrp: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     // Primary/cover image. Kept as the single source every card surface reads
     // (home grid, category grid, admin lists). Always mirrors images[0].
     imageUrl: {

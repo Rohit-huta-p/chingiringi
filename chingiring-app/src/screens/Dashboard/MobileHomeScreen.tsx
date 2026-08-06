@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, ChevronRight, ChevronDown, Coins } from 'lucide-react-native';
+import { Search, ChevronRight, ChevronDown } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -21,11 +21,9 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
-import { walletAPI } from '../../api/wallet';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock, interleaveBanners } from '../../components/BannerBlock';
-import { tint } from '../../utils/color';
 import {
   applyProductControls,
   DEFAULT_CONTROLS,
@@ -76,7 +74,6 @@ export const MobileHomeScreen = () => {
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
   const user = useAuthStore((s) => s.user);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const refresh = usePullToRefresh();
 
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -96,11 +93,6 @@ export const MobileHomeScreen = () => {
     queryKey: ['categories'],
     queryFn: () => categoriesAPI.getCategories(),
   });
-  const { data: walletRes } = useQuery({
-    queryKey: ['wallet'],
-    queryFn: () => walletAPI.getWallet(),
-    enabled: isAuthenticated,
-  });
 
   // Normalise responses
   const allProducts: Product[] =
@@ -109,8 +101,6 @@ export const MobileHomeScreen = () => {
     bannersRes?.data?.banners ?? [];
   const apiCategories: Category[] =
     categoriesRes?.data?.categories ?? categoriesRes?.categories ?? [];
-  const coinBalance: number =
-    walletRes?.data?.wallet?.coins ?? walletRes?.data?.coins ?? 0;
 
   // Category chips: "All" + only categories that actually have a product.
   const categories = useMemo(() => {
@@ -131,12 +121,6 @@ export const MobileHomeScreen = () => {
     for (const c of apiCategories) if (c.imageUrl) m[c.name] = c.imageUrl;
     return m;
   }, [apiCategories]);
-
-  // Theme: shades of the selected category's color (empty → default header).
-  const themeColor = apiCategories.find((c) => c.name === selectedCategory)?.color || '';
-  const headerColors: [string, string] = themeColor
-    ? [tint(themeColor, 0.86), tint(themeColor, 0.72)]
-    : ['#E9F4FF', '#DCEBFF'];
 
   // Filter + search
   const filteredProducts = useMemo(() => {
@@ -227,27 +211,22 @@ export const MobileHomeScreen = () => {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl {...refresh} />}
     >
-      {/* ── Header (light-blue) ─────────────────────────────────────── */}
-      <LinearGradient colors={headerColors} style={st.header}>
+      {/* ── Header (brand-blue gradient, matches other mobile screens) ── */}
+      <LinearGradient
+        colors={['#1E3A8A', '#4784E2', '#91BDFF']}
+        locations={[0, 0.6, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={st.header}
+      >
         <View style={st.hrow}>
-          <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={st.greetWrap}>
             <Text style={st.greet}>{greeting()}</Text>
             <TouchableOpacity style={st.locRow} activeOpacity={0.7}>
               <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
-              <ChevronDown size={14} color="#1e293b" />
+              <ChevronDown size={14} color="#fff" />
             </TouchableOpacity>
           </View>
-          <View style={st.coins}>
-            <Coins size={13} color="#a86b06" />
-            <Text style={st.coinsText}>{coinBalance.toLocaleString('en-IN')}</Text>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={st.avatar} activeOpacity={0.8}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={st.avatarImg} resizeMode="cover" />
-            ) : (
-              <Text style={st.avatarInitial}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
-            )}
-          </TouchableOpacity>
         </View>
 
         <View style={st.searchRow}>
@@ -261,10 +240,9 @@ export const MobileHomeScreen = () => {
               onChangeText={setSearchQuery}
             />
           </View>
-          <TouchableOpacity style={st.shortcut} onPress={() => navigation.navigate('Wallet')} activeOpacity={0.85}>
-            <Coins size={16} color="#a86b06" />
-            <Text style={st.shortcutText}>Coins</Text>
-          </TouchableOpacity>
+          <View style={st.controlsWrap}>
+            <ProductControlsBar state={controls} onChange={setControls} compact />
+          </View>
         </View>
 
         <View style={st.chipsRow}>
@@ -285,15 +263,12 @@ export const MobileHomeScreen = () => {
                       <Text style={st.chipEmoji}>{emojiFor(cat)}</Text>
                     )}
                   </View>
-                  <Text style={[st.chipLabel, on && st.chipLabelOn, on && themeColor ? { color: themeColor } : null]} numberOfLines={1}>{cat}</Text>
-                  {on ? <View style={[st.chipUnderline, themeColor ? { backgroundColor: themeColor } : null]} /> : null}
+                  <Text style={[st.chipLabel, on && st.chipLabelOn]} numberOfLines={1}>{cat}</Text>
+                  {on ? <View style={st.chipUnderline} /> : null}
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-          <View style={st.controlsWrap}>
-            <ProductControlsBar state={controls} onChange={setControls} compact />
-          </View>
         </View>
       </LinearGradient>
 
@@ -349,40 +324,22 @@ const st = StyleSheet.create({
   hrow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     paddingHorizontal: 16,
   },
-  greet: { fontSize: 12.5, fontFamily: Fonts.regular, color: '#475569' },
+  greetWrap: { alignItems: 'flex-start' },
+  greet: { fontSize: 12.5, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.9)' },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
-  locText: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#1e293b', maxWidth: 180 },
-  coins: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#fdf3e0', borderWidth: 1, borderColor: '#f6e2b8',
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
-  },
-  coinsText: { fontSize: 12.5, fontFamily: Fonts.extraBold, color: '#a86b06' },
-  avatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#c9ddf7',
-    justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
-  },
-  avatarImg: { width: '100%', height: '100%' },
-  avatarInitial: { fontSize: 15, fontFamily: Fonts.extraBold, color: Colors.primary },
+  locText: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#fff', maxWidth: 220 },
 
-  searchRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 12 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 12 },
   searchBar: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9,
     backgroundColor: '#fff', borderRadius: 13, paddingHorizontal: 13, height: 44,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: Fonts.regular, color: Colors.text, height: 44 },
-  shortcut: {
-    width: 74, backgroundColor: '#fff', borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center', gap: 2,
-  },
-  shortcutText: { fontSize: 10.5, fontFamily: Fonts.bold, color: '#4a5568' },
 
   chipsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 13, paddingRight: 10 },
-  controlsWrap: { paddingBottom: 8, paddingLeft: 4 },
+  controlsWrap: {},
   chipsContent: { paddingHorizontal: 14, alignItems: 'flex-end', gap: 18 },
   chip: { alignItems: 'center', paddingBottom: 8 },
   chipIcon: {
@@ -393,9 +350,9 @@ const st = StyleSheet.create({
   chipIconOn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#bcd8fb' },
   chipEmoji: { fontSize: 22 },
   chipImg: { width: '100%', height: '100%', borderRadius: 14 },
-  chipLabel: { fontSize: 11, fontFamily: Fonts.medium, color: '#475569', maxWidth: 64, textAlign: 'center' },
-  chipLabelOn: { color: '#2E6BD0', fontFamily: Fonts.bold },
-  chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 5 },
+  chipLabel: { fontSize: 11, fontFamily: Fonts.medium, color: 'rgba(255,255,255,0.85)', maxWidth: 64, textAlign: 'center' },
+  chipLabelOn: { color: '#fff', fontFamily: Fonts.bold },
+  chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: '#fff', marginTop: 5 },
 
   // Placed banner wrapper — full-bleed (no side padding) so banners run
   // edge-to-edge; BannerBlock supplies the card itself.

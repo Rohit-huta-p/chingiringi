@@ -21,6 +21,9 @@ import { WriteReviewModal } from '../../components/WriteReviewModal';
 import { ShareSheet } from '../../components/ShareSheet';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { Button } from '../../components/Button';
+import { ProductShareCard } from '../../components/ProductShareCard';
+import { RatingBars } from '../../components/RatingBars';
+import { discountPct, savingsAmt, splitDescription } from '../../utils/product';
 import { dealsAPI } from '../../api/deals';
 import { clicksAPI } from '../../api/clicks';
 import { productsAPI } from '../../api/products';
@@ -109,6 +112,7 @@ function ProductDetailMobile({
   reviewCount,
   averageRating,
   onWriteReview,
+  onOpenProduct,
 }: {
   product: any;
   onBack: () => void;
@@ -119,6 +123,7 @@ function ProductDetailMobile({
   reviewCount: number;
   averageRating: number;
   onWriteReview: () => void;
+  onOpenProduct: (p: any) => void;
 }) {
   const { width: winW } = useWindowDimensions();
   const [imgIndex, setImgIndex] = React.useState(0);
@@ -152,6 +157,31 @@ function ProductDetailMobile({
   // Admin-set rating wins; else the live in-app review average.
   const headlineRating = pRating > 0 ? pRating : averageRating;
   const headlineCount  = pRatingCount > 0 ? pRatingCount : reviewCount;
+
+  // Price markdown (real only when admin set an MRP above price).
+  const mrp   = Number(product?.mrp ?? 0);
+  const off   = discountPct(mrp, price);
+  const saved = savingsAmt(mrp, price);
+  // About (prose) vs Highlights (bullets) from the single description field.
+  const { about, highlights } = splitDescription(description);
+
+  // Live "shared today" count (real) — drives the share card's social proof.
+  const { data: statsRes } = useQuery({
+    queryKey: ['shareStats', 'product', product?._id],
+    queryFn: () => sharesAPI.getStats('product', product._id),
+    enabled: !!product?._id && product._id !== 'sample',
+  });
+  const sharedToday = statsRes?.data?.todayCount ?? 0;
+
+  // "You may also like" — same category, current product filtered out.
+  const { data: simRes } = useQuery({
+    queryKey: ['products', 'similar', category],
+    queryFn: () => productsAPI.getProducts({ category, limit: 12 }),
+    enabled: !!category,
+  });
+  const similar = (simRes?.data?.products ?? [])
+    .filter((p: any) => p?._id && p._id !== product?._id)
+    .slice(0, 8);
 
   // Hero pages are inset by the 16px heroBox margin on each side.
   const pageW = Math.max(1, winW - 32);
@@ -197,6 +227,10 @@ function ProductDetailMobile({
             <Share2 size={18} color={Colors.text} strokeWidth={2} />
           </TouchableOpacity>
 
+          {off ? (
+            <View style={pStyles.offBadge}><Text style={pStyles.offBadgeT}>{off}% OFF</Text></View>
+          ) : null}
+
           {gallery.length > 1 ? (
             <View style={pStyles.dots}>
               {gallery.map((_, i) => (
@@ -229,35 +263,53 @@ function ProductDetailMobile({
             </View>
           ) : null}
 
-          {/* Price */}
-          <Text style={pStyles.price}>{fmtPrice(price)}</Text>
+          {/* Price + savings (savings only render when a real MRP was set) */}
+          <View style={pStyles.priceRow}>
+            <Text style={pStyles.price}>{fmtPrice(price)}</Text>
+            {mrp > price ? <Text style={pStyles.was}>{fmtPrice(mrp)}</Text> : null}
+            {off ? <Text style={pStyles.offInline}>{off}% off</Text> : null}
+          </View>
+          {saved ? <Text style={pStyles.save}>You save {fmtPrice(saved)}</Text> : null}
 
-          {/* Trust row — rating · merchant · reward (Direction A, 3-up) */}
-          <View style={pStyles.trustRow}>
-            {headlineRating > 0 && headlineCount > 0 ? (
-              <View style={pStyles.trustPill}>
-                <Text style={pStyles.trustN}>{'★'} {headlineRating.toFixed(1)}</Text>
-                <Text style={pStyles.trustS}>{headlineCount.toLocaleString('en-IN')} {headlineCount === 1 ? 'review' : 'reviews'}</Text>
+          {/* Merchant trust card */}
+          {merchant ? (
+            <View style={pStyles.mcard}>
+              <View style={pStyles.mlogo}><Text style={pStyles.mlogoT}>{merchant.slice(0, 1).toUpperCase()}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={pStyles.m1}>Sold by {merchant}</Text>
+                <Text style={pStyles.m2}>Secure checkout — you complete the purchase on {merchant}.</Text>
               </View>
-            ) : null}
-            {merchant ? (
-              <View style={pStyles.trustPill}>
-                <Text style={pStyles.trustN} numberOfLines={1}>{merchant}</Text>
-                <Text style={pStyles.trustS}>available at</Text>
-              </View>
-            ) : null}
-            <View style={pStyles.trustPill}>
-              <Text style={[pStyles.trustN, pStyles.trustNGold]}>+100 CR</Text>
-              <Text style={pStyles.trustS}>per share</Text>
             </View>
+          ) : null}
+
+          {/* Share card — the signature Chingiringi block */}
+          <View style={{ marginBottom: 14 }}>
+            <ProductShareCard
+              sharedToday={sharedToday}
+              sharesLeft={sharesLeft}
+              sharesCap={sharesCap}
+              onShare={onShare}
+            />
           </View>
 
-          {/* About this item — renders the description product mode previously
-              dropped. Hidden when the product has no description. */}
-          {description ? (
+          {/* Highlights — bullets parsed from a line-separated description */}
+          {highlights.length ? (
+            <View style={pStyles.hl}>
+              <Text style={pStyles.hlH}>Highlights</Text>
+              {highlights.map((h, i) => (
+                <View key={i} style={pStyles.hlRow}>
+                  <Text style={pStyles.hlTick}>✓</Text>
+                  <Text style={pStyles.hlT}>{h}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* About this item (prose) — shown when the description is a paragraph */}
+          {about ? (
             <View style={pStyles.aboutSection}>
               <Text style={pStyles.aboutHeader}>About this item</Text>
-              <Text style={pStyles.aboutText}>{description}</Text>
+              <Text style={pStyles.aboutText}>{about}</Text>
             </View>
           ) : null}
         </View>
@@ -273,6 +325,19 @@ function ProductDetailMobile({
               <Text style={styles.writeReviewText}>Write Review</Text>
             </TouchableOpacity>
           </View>
+
+          {reviews.length >= 3 ? (
+            <View style={pStyles.reviewSummary}>
+              <View style={pStyles.reviewScore}>
+                <Text style={pStyles.reviewScoreN}>{averageRating.toFixed(1)}</Text>
+                <Text style={pStyles.reviewScoreStar}>★★★★★</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <RatingBars reviews={reviews} />
+                <Text style={pStyles.reviewSummaryNote}>from {reviews.length} app {reviews.length === 1 ? 'review' : 'reviews'}</Text>
+              </View>
+            </View>
+          ) : null}
 
           {reviews.length === 0 ? (
             <Text style={{ color: Colors.textSecondary, fontSize: 13, paddingHorizontal: 16, paddingBottom: 8 }}>
@@ -314,6 +379,35 @@ function ProductDetailMobile({
             </ScrollView>
           )}
         </View>
+
+        {/* You may also like — same category, current product filtered out */}
+        {similar.length ? (
+          <View style={pStyles.simSection}>
+            <Text style={pStyles.simTitle}>You may also like</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={pStyles.simScroll}>
+              {similar.map((p: any) => (
+                <TouchableOpacity key={p._id} activeOpacity={0.85} style={pStyles.simCard} onPress={() => onOpenProduct(p)}>
+                  <View style={pStyles.simImg}>
+                    {p.mobileImageUrl || p.imageUrl ? (
+                      <Image source={{ uri: p.mobileImageUrl || p.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                      <Text style={{ fontSize: 26 }}>🛍️</Text>
+                    )}
+                  </View>
+                  <View style={pStyles.simBody}>
+                    <Text style={pStyles.simName} numberOfLines={2}>{p.name}</Text>
+                    {p.description ? <Text style={pStyles.simDesc} numberOfLines={2}>{p.description}</Text> : null}
+                    <View style={pStyles.simPriceRow}>
+                      <Text style={pStyles.simPrice}>{fmtPrice(Number(p.price) || 0)}</Text>
+                      {Number(p.mrp) > (Number(p.price) || 0) ? <Text style={pStyles.simWas}>{fmtPrice(Number(p.mrp))}</Text> : null}
+                      {discountPct(Number(p.mrp), Number(p.price)) ? <Text style={pStyles.simOff}>{discountPct(Number(p.mrp), Number(p.price))}% off</Text> : null}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
       </ScrollView>
 
       {/* Sticky bottom CTA — Buy Now primary; Share secondary (Direction A) */}
@@ -348,9 +442,6 @@ function ProductDetailMobile({
             </TouchableOpacity>
           )}
         </View>
-        {sharesLeft != null && (
-          <Text style={pStyles.hint}>{sharesLeft}/{sharesCap} shares left today</Text>
-        )}
       </View>
     </View>
   );
@@ -427,6 +518,7 @@ export const MobileProductDetailScreen = () => {
           reviewCount={reviewCount}
           averageRating={averageRating}
           onWriteReview={() => setReviewOpen(true)}
+          onOpenProduct={(p) => (navigation as any).navigate('ProductDetail', { productId: p._id, product: p })}
         />
         <WriteReviewModal
           visible={reviewOpen}
@@ -969,7 +1061,7 @@ const pStyles = StyleSheet.create({
   },
 
   // Price
-  price: { fontSize: 28, fontWeight: '800', color: Colors.text, marginTop: 8, marginBottom: 18 },
+  price: { fontSize: 28, fontWeight: '800', color: Colors.text },
 
   // Stat cards row
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
@@ -1070,9 +1162,54 @@ const pStyles = StyleSheet.create({
   trustS: { fontSize: 10.5, color: Colors.textSecondary, marginTop: 1 },
 
   // About this item
-  aboutSection: { marginTop: 18 },
+  aboutSection: { marginTop: 4, marginBottom: 4 },
   aboutHeader: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 8 },
   aboutText: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21 },
+
+  // Hero off-badge
+  offBadge: { position: 'absolute', bottom: 12, left: 12, backgroundColor: '#ef4444', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8 },
+  offBadgeT: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
+
+  // Price row + savings
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 4 },
+  was: { fontSize: 15, color: Colors.textSecondary, textDecorationLine: 'line-through' },
+  offInline: { fontSize: 13, fontWeight: '800', color: '#ef4444' },
+  save: { fontSize: 13, fontWeight: '700', color: '#10b981', marginBottom: 14 },
+
+  // Merchant trust card
+  mcard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5', borderRadius: 14, padding: 12, marginBottom: 14 },
+  mlogo: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#232f3e', alignItems: 'center', justifyContent: 'center' },
+  mlogoT: { color: '#ff9900', fontWeight: '800', fontSize: 16 },
+  m1: { fontSize: 13, fontWeight: '800', color: Colors.text },
+  m2: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+
+  // Highlights
+  hl: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5', borderRadius: 14, padding: 14, marginBottom: 14 },
+  hlH: { fontSize: 15, fontWeight: '800', color: Colors.text, marginBottom: 10 },
+  hlRow: { flexDirection: 'row', gap: 9, marginBottom: 8 },
+  hlTick: { color: Colors.primary, fontWeight: '800', fontSize: 13 },
+  hlT: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+
+  // Review summary + bars
+  reviewSummary: { flexDirection: 'row', gap: 14, alignItems: 'center', paddingHorizontal: 16, marginBottom: 16 },
+  reviewScore: { alignItems: 'center', minWidth: 54 },
+  reviewScoreN: { fontSize: 32, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  reviewScoreStar: { color: '#f59e0b', fontSize: 10, letterSpacing: 1 },
+  reviewSummaryNote: { fontSize: 11, color: Colors.textSecondary, marginTop: 6 },
+
+  // You may also like
+  simSection: { marginTop: 22 },
+  simTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 12, paddingHorizontal: 16 },
+  simScroll: { gap: 12, paddingHorizontal: 16, paddingBottom: 4 },
+  simCard: { width: 160, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5', borderRadius: 12, overflow: 'hidden' },
+  simImg: { width: '100%', height: 120, backgroundColor: '#e8ecf0', alignItems: 'center', justifyContent: 'center' },
+  simBody: { padding: 10 },
+  simName: { fontSize: 12, fontWeight: '700', color: Colors.text, lineHeight: 16, minHeight: 32 },
+  simDesc: { fontSize: 11, color: Colors.textSecondary, lineHeight: 14, marginTop: 3, minHeight: 28 },
+  simPriceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 5, marginTop: 5 },
+  simPrice: { fontSize: 13, fontWeight: '800', color: Colors.text },
+  simWas: { fontSize: 11, color: Colors.textSecondary, textDecorationLine: 'line-through' },
+  simOff: { fontSize: 10.5, fontWeight: '800', color: '#ef4444' },
 
   // Sticky CTA
   ctaBar: {

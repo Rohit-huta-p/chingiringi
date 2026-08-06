@@ -1,17 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Image,
-  Linking, Platform, Alert, ActivityIndicator, useWindowDimensions,
+  Linking, Alert, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, BadgeCheck, Star, MapPin, Navigation, Clock, Phone, Wallet,
+  ChevronLeft, BadgeCheck, Star, MapPin, Navigation, Clock, Phone, Share2,
 } from 'lucide-react-native';
-import { Colors, Fonts, Gradient } from '../../constants/theme';
+import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
+import { sharesAPI } from '../../api/shares';
+import { ShareSheet } from '../../components/ShareSheet';
+import { useAuthStore } from '../../store';
 import type { StoreCategory } from '../../data/offlineStores';
 
 // Category accent colors — mirrors the map/list on OfflineStoresScreen.
@@ -26,8 +29,11 @@ const CATEGORY_COLOR: Record<StoreCategory, string> = {
   Beauty: '#EC4899',
 };
 
-// "HH:mm" (24h) → "h:mm AM/PM". Empty string if malformed. (Client mirror of
-// the backend storeHours.formatTime — the API sends opensAt but not a closes-at.)
+// Deal gradient — matches the approved mockup (deep indigo → periwinkle).
+const DEAL_GRADIENT = ['#26307F', '#3E5BC8', '#5B84F0'] as const;
+const DEAL_LOCATIONS = [0, 0.46, 1] as const;
+
+// "HH:mm" (24h) → "h:mm AM/PM". Empty string if malformed.
 function fmt12(hhmm?: string): string {
   if (!hhmm) return '';
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
@@ -40,19 +46,16 @@ function fmt12(hhmm?: string): string {
   return `${h}:${String(min).padStart(2, '0')} ${ampm}`;
 }
 
-const comingSoon = () => {
-  const title = 'Coming soon';
-  const msg = 'Paying your bill in the app — with your discount applied instantly — is coming soon.';
-  if (Platform.OS === 'web') window.alert(`${title}\n\n${msg}`);
-  else Alert.alert(title, msg);
-};
-
 export const StoreDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+
+  const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const storeId: string | undefined = route.params?.storeId;
   const passed: Store | undefined = route.params?.store;
@@ -65,8 +68,6 @@ export const StoreDetailScreen: React.FC = () => {
     initialData: passed ? { status: 'success', data: { store: passed } } : undefined,
     enabled: !!storeId,
   });
-  // distanceKm is computed client-side in the list, so the refetched copy lacks
-  // it — carry it over from the passed object so it doesn't flicker away.
   const fetched: Store | undefined = data?.data?.store;
   const store: Store | undefined = fetched
     ? { ...fetched, distanceKm: fetched.distanceKm ?? passed?.distanceKm }
@@ -81,12 +82,15 @@ export const StoreDetailScreen: React.FC = () => {
   }
 
   const cat = CATEGORY_COLOR[store.category] ?? Colors.primary;
-  const hours = `${fmt12(store.openTime)} – ${fmt12(store.closeTime)}`;
-  const photos = (store.images?.length ? store.images : store.logoUrl ? [store.logoUrl] : []).slice(0, 6);
+  const openStr = fmt12(store.openTime);
+  const closeStr = fmt12(store.closeTime);
+  const hasHours = !!(openStr && closeStr);
+  const heroImg = store.images?.[0];              // real photo only (logo isn't a good hero)
+  const photos = (store.images ?? []).slice(0, 8);
+  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
 
   const openDirections = () => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lng}`;
-    Linking.openURL(url).catch(() => {});
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lng}`).catch(() => {});
   };
   const callStore = () => {
     if (store.phone) Linking.openURL(`tel:${store.phone.replace(/\s+/g, '')}`).catch(() => {});
@@ -94,129 +98,156 @@ export const StoreDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.backBtn}>
-          <ChevronLeft size={24} color={Colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{store.name}</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[styles.body, isWide && styles.bodyWide]}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Deal hero — the headline ── */}
-        <LinearGradient colors={Gradient.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <Text style={styles.heroLabel}>YOU SAVE</Text>
-          <Text style={styles.heroBig}>
-            {store.userDiscountPercent}%<Text style={styles.heroBigSm}> OFF</Text>
-          </Text>
-          <Text style={styles.heroSub}>on your total bill — every visit</Text>
-          <View style={styles.heroPill}>
-            <BadgeCheck size={13} color="#fff" />
-            <Text style={styles.heroPillText}>Pay through the app · no coupon needed</Text>
+        {/* ── Hero: full-bleed photo (or brand gradient), name overlaid ── */}
+        <View style={[styles.hero, { height: isWide ? 300 : 236 }]}>
+          {heroImg ? (
+            <Image source={{ uri: heroImg }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+            <LinearGradient colors={DEAL_GRADIENT} locations={DEAL_LOCATIONS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient
+            colors={['transparent', 'rgba(8,12,22,0.15)', 'rgba(8,12,22,0.75)']}
+            style={StyleSheet.absoluteFill}
+          />
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={10}
+            style={[styles.backFab, { top: insets.top + 10 }]}
+          >
+            <ChevronLeft size={22} color="#fff" />
+          </Pressable>
+
+          <View style={styles.heroBottom}>
+            {store.logoUrl ? (
+              <Image source={{ uri: store.logoUrl }} style={[styles.heroLogo, isWide && styles.heroLogoWide]} resizeMode="cover" />
+            ) : (
+              <View style={[styles.heroLogo, isWide && styles.heroLogoWide, styles.heroLogoFallback, { backgroundColor: cat }]}>
+                <Text style={styles.heroLogoInitial}>{(store.shortName || store.name)[0]?.toUpperCase()}</Text>
+              </View>
+            )}
+            <View style={styles.heroText}>
+              <Text style={[styles.heroName, isWide && { fontSize: 32 }]} numberOfLines={2}>{store.name}</Text>
+              <View style={styles.heroMeta}>
+                <View style={styles.catPillOnPhoto}>
+                  <Text style={styles.catPillTextOnPhoto}>{store.category}</Text>
+                </View>
+                <View style={styles.heroMetaItem}>
+                  <Star size={13} color="#FBBF24" fill="#FBBF24" />
+                  <Text style={styles.heroMetaText}>{store.rating} <Text style={{ opacity: 0.8 }}>({store.reviewsCount})</Text></Text>
+                </View>
+                {store.isVerified && (
+                  <View style={styles.heroMetaItem}>
+                    <BadgeCheck size={14} color="#fff" />
+                    <Text style={styles.heroMetaText}>Verified</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Deal band ── */}
+        <LinearGradient
+          colors={DEAL_GRADIENT}
+          locations={DEAL_LOCATIONS}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={[styles.band, isWide ? styles.bandRow : styles.bandCol]}
+        >
+          <View style={isWide ? { flex: 1 } : undefined}>
+            <View style={styles.bandOff}>
+              <Text style={[styles.bandBig, isWide && { fontSize: 40 }]}>{store.userDiscountPercent}%</Text>
+              <Text style={styles.bandOffSm}> OFF</Text>
+            </View>
+            <Text style={styles.bandText}>on every bill — pay through the app, no coupon needed</Text>
+          </View>
+          <View style={styles.bandActions}>
+            {!!store.phone && (
+              <Pressable onPress={callStore} style={[styles.btn, styles.btnGhost]}>
+                <Phone size={16} color="#fff" />
+                <Text style={styles.btnGhostText}>Call</Text>
+              </Pressable>
+            )}
+            <Pressable onPress={() => setShareOpen(true)} style={[styles.btn, styles.btnShare, !isWide && { flex: 1 }]}>
+              <Share2 size={16} color={Colors.primary} />
+              <Text style={styles.btnShareText}>Share &amp; Earn 100 CR</Text>
+            </Pressable>
           </View>
         </LinearGradient>
 
-        {/* ── Identity ── */}
-        <View style={styles.card}>
-          <View style={styles.idRow}>
-            {store.logoUrl ? (
-              <Image source={{ uri: store.logoUrl }} style={styles.logo} />
-            ) : (
-              <View style={[styles.logo, { backgroundColor: cat, alignItems: 'center', justifyContent: 'center' }]}>
-                <Text style={styles.logoInitial}>{(store.shortName || store.name)[0]?.toUpperCase()}</Text>
-              </View>
-            )}
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name} numberOfLines={2}>{store.name}</Text>
-                {store.isVerified && <BadgeCheck size={16} color={Colors.primary} />}
-              </View>
-              <View style={styles.metaRow}>
-                <View style={[styles.catPill, { backgroundColor: `${cat}1A` }]}>
-                  <Text style={[styles.catPillText, { color: cat }]}>{store.category}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                  <Text style={styles.metaText}>{store.rating} <Text style={styles.metaMuted}>({store.reviewsCount})</Text></Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Navigation size={12} color={Colors.textSecondary} />
-                  <Text style={styles.metaText}>{store.distanceKm ?? '—'} km</Text>
-                </View>
-              </View>
+        {/* ── Content — flowing, single column ── */}
+        <View style={[styles.content, isWide && styles.contentWide]}>
+          {!!store.description && (
+            <View style={styles.sec}>
+              <Text style={styles.eye}>About</Text>
+              <Text style={styles.about}>{store.description}</Text>
             </View>
-          </View>
-        </View>
+          )}
 
-        {/* ── Photos (only if the store has any) ── */}
-        {photos.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStrip}>
-            {photos.map((uri, i) => (
-              <Image key={`${uri}-${i}`} source={{ uri }} style={styles.photo} />
-            ))}
-          </ScrollView>
-        )}
+          {photos.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStrip}>
+              {photos.map((uri, i) => (
+                <Image key={`${uri}-${i}`} source={{ uri }} style={styles.photo} />
+              ))}
+            </ScrollView>
+          )}
 
-        {/* ── About ── */}
-        {!!store.description && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>About</Text>
-            <Text style={styles.about}>{store.description}</Text>
-          </View>
-        )}
-
-        {/* ── Hours ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Hours</Text>
-          <View style={styles.infoRow}>
-            <View style={styles.infoIcon}><Clock size={16} color={Colors.primary} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.infoStatus, { color: store.isOpen ? '#0a7a58' : Colors.textSecondary }]}>
-                {store.isOpen ? 'Open now' : 'Closed'}
+          <View style={styles.rule} />
+          <View style={styles.sec}>
+            <Text style={styles.eye}>Hours</Text>
+            <View style={styles.infoline}>
+              <Clock size={16} color={Colors.primary} />
+              <Text style={styles.infoText}>
+                <Text style={{ color: store.isOpen ? '#0a7a58' : Colors.textSecondary, fontFamily: Fonts.bold }}>
+                  {store.isOpen ? 'Open now' : 'Closed'}
+                </Text>
+                {hasHours ? ` · ${openStr} – ${closeStr}` : ''}
               </Text>
-              {!!hours.trim().replace('–', '').trim() && <Text style={styles.infoSub}>{hours}</Text>}
             </View>
           </View>
-        </View>
 
-        {/* ── Location ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Location</Text>
-          <View style={styles.infoRow}>
-            <View style={styles.infoIcon}><MapPin size={16} color={Colors.primary} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.infoStatus}>{store.address}</Text>
-              {!!(store.area || store.city) && (
-                <Text style={styles.infoSub}>{[store.area, store.city].filter(Boolean).join(', ')}</Text>
-              )}
+          <View style={styles.rule} />
+          <View style={styles.sec}>
+            <Text style={styles.eye}>Location</Text>
+            <View style={styles.infoline}>
+              <MapPin size={16} color={Colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoText}>{store.address}</Text>
+                {!!(store.area || store.city) && (
+                  <Text style={styles.infoSub}>{[store.area, store.city].filter(Boolean).join(', ')}</Text>
+                )}
+              </View>
             </View>
+            <Pressable onPress={openDirections} style={styles.dirLink}>
+              <Navigation size={15} color={Colors.primary} />
+              <Text style={styles.dirLinkText}>Get directions</Text>
+            </Pressable>
           </View>
-          <Pressable onPress={openDirections} style={styles.dirBtn}>
-            <Navigation size={15} color={Colors.primary} />
-            <Text style={styles.dirBtnText}>Get directions</Text>
-          </Pressable>
         </View>
       </ScrollView>
 
-      {/* ── Sticky actions ── */}
-      <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {!!store.phone && (
-          <Pressable onPress={callStore} style={[styles.actionBtn, styles.actionGhost]}>
-            <Phone size={17} color={Colors.text} />
-            <Text style={styles.actionGhostText}>Call</Text>
-          </Pressable>
-        )}
-        <Pressable onPress={comingSoon} style={[styles.actionBtn, styles.actionPrimary]}>
-          <Wallet size={17} color="#fff" />
-          <Text style={styles.actionPrimaryText}>Pay &amp; save</Text>
-          <View style={styles.soon}><Text style={styles.soonText}>SOON</Text></View>
-        </Pressable>
-      </View>
+      <ShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={store.name}
+        url={shareUrl}
+        onShared={async () => {
+          try {
+            const { data: res } = await sharesAPI.postShare('store', store._id);
+            qc.invalidateQueries({ queryKey: ['wallet'] });
+            qc.invalidateQueries({ queryKey: ['walletSummary'] });
+            qc.invalidateQueries({ queryKey: ['shareQuota'] });
+            Alert.alert(
+              res.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
+              res.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
+            );
+          } catch { /* cap/offline — no credit */ }
+        }}
+      />
     </View>
   );
 };
@@ -225,76 +256,57 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   loading: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
 
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 12,
-    backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  backBtn: { width: 24, alignItems: 'flex-start' },
-  headerTitle: { flex: 1, fontSize: 16, fontFamily: Fonts.bold, color: Colors.text },
-
-  body: { padding: 16, paddingBottom: 24, gap: 14 },
-  bodyWide: { maxWidth: 520, width: '100%', alignSelf: 'center' },
-
   // Hero
-  hero: { borderRadius: 18, padding: 20 },
-  heroLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontFamily: Fonts.bold, letterSpacing: 1.2 },
-  heroBig: { color: '#fff', fontSize: 52, fontFamily: Fonts.extraBold, lineHeight: 56, marginTop: 2 },
-  heroBigSm: { fontSize: 20, fontFamily: Fonts.bold },
-  heroSub: { color: '#fff', fontSize: 14, fontFamily: Fonts.semiBold, marginTop: 6, opacity: 0.96 },
-  heroPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    marginTop: 14, backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9,
+  hero: { width: '100%', justifyContent: 'flex-end', overflow: 'hidden' },
+  backFab: {
+    position: 'absolute', left: 14, width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center',
   },
-  heroPillText: { color: '#fff', fontSize: 11.5, fontFamily: Fonts.semiBold },
+  heroBottom: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20 },
+  heroText: { flex: 1, minWidth: 0 },
+  heroLogo: { width: 54, height: 54, borderRadius: 14, backgroundColor: '#fff', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)' },
+  heroLogoWide: { width: 64, height: 64, borderRadius: 16 },
+  heroLogoFallback: { alignItems: 'center', justifyContent: 'center' },
+  heroLogoInitial: { color: '#fff', fontSize: 22, fontFamily: Fonts.extraBold },
+  heroName: { fontSize: 26, fontFamily: Fonts.extraBold, color: '#fff', letterSpacing: -0.3 },
+  heroMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 9, flexWrap: 'wrap' },
+  heroMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  heroMetaText: { color: '#fff', fontSize: 13, fontFamily: Fonts.semiBold },
+  catPillOnPhoto: { backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+  catPillTextOnPhoto: { color: '#fff', fontSize: 11, fontFamily: Fonts.bold },
 
-  // Card
-  card: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 13 },
-  idRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  logo: { width: 52, height: 52, borderRadius: 13, backgroundColor: '#F1F5F9' },
-  logoInitial: { color: '#fff', fontSize: 20, fontFamily: Fonts.extraBold },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  name: { fontSize: 16, fontFamily: Fonts.extraBold, color: Colors.text, flexShrink: 1 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 },
-  catPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  catPillText: { fontSize: 10, fontFamily: Fonts.bold },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  metaText: { fontSize: 12, color: Colors.text, fontFamily: Fonts.semiBold },
-  metaMuted: { color: Colors.textSecondary, fontFamily: Fonts.regular },
+  // Deal band
+  band: { paddingHorizontal: 20, paddingVertical: 16 },
+  bandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 20 },
+  bandCol: { flexDirection: 'column', gap: 14 },
+  bandOff: { flexDirection: 'row', alignItems: 'baseline' },
+  bandBig: { color: '#fff', fontSize: 34, fontFamily: Fonts.extraBold, lineHeight: 38 },
+  bandOffSm: { color: '#fff', fontSize: 16, fontFamily: Fonts.bold },
+  bandText: { color: '#fff', fontSize: 13, fontFamily: Fonts.semiBold, opacity: 0.95, marginTop: 2 },
+  bandActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
-  // Photos
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 18, borderRadius: 12 },
+  btnGhost: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'transparent' },
+  btnGhostText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+  btnShare: { backgroundColor: '#fff' },
+  btnShareText: { color: Colors.primary, fontSize: 14.5, fontFamily: Fonts.bold },
+
+  // Content
+  content: { paddingHorizontal: 16, paddingTop: 20, gap: 20 },
+  contentWide: { maxWidth: 820, width: '100%', alignSelf: 'center', paddingHorizontal: 24, paddingTop: 26 },
+  sec: { gap: 10 },
+  eye: { fontSize: 11, fontFamily: Fonts.extraBold, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' },
+  about: { fontSize: 14, fontFamily: Fonts.regular, color: '#475569', lineHeight: 21 },
+  rule: { height: 1, backgroundColor: Colors.border },
+
   photoStrip: { gap: 8, paddingVertical: 2 },
-  photo: { width: 132, height: 96, borderRadius: 12, backgroundColor: '#F1F5F9' },
+  photo: { width: 150, height: 110, borderRadius: 12, backgroundColor: '#F1F5F9' },
 
-  // Sections
-  section: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 14 },
-  sectionLabel: { fontSize: 11, fontFamily: Fonts.extraBold, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },
-  about: { fontSize: 13, fontFamily: Fonts.regular, color: '#475569', lineHeight: 20 },
-
-  infoRow: { flexDirection: 'row', gap: 11, alignItems: 'flex-start' },
-  infoIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: Colors.primaryLight10, alignItems: 'center', justifyContent: 'center' },
-  infoStatus: { fontSize: 13, fontFamily: Fonts.bold, color: Colors.text },
-  infoSub: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
-
-  dirBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    marginTop: 12, paddingVertical: 11, borderRadius: 11, borderWidth: 1, borderColor: Colors.primary, backgroundColor: Colors.primaryLight10,
-  },
-  dirBtnText: { color: Colors.primary, fontSize: 13.5, fontFamily: Fonts.bold },
-
-  // Actions
-  actionBar: {
-    flexDirection: 'row', gap: 10, alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 12,
-    backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border,
-  },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 13, borderRadius: 13 },
-  actionGhost: { flex: 0, paddingHorizontal: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
-  actionGhostText: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.text },
-  actionPrimary: { flex: 1, backgroundColor: Colors.primary },
-  actionPrimaryText: { fontSize: 14.5, fontFamily: Fonts.bold, color: '#fff' },
-  soon: { backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, marginLeft: 2 },
-  soonText: { fontSize: 9, fontFamily: Fonts.extraBold, color: '#fff', letterSpacing: 0.5 },
+  infoline: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  infoText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
+  infoSub: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+  dirLink: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2, alignSelf: 'flex-start' },
+  dirLinkText: { color: Colors.primary, fontSize: 13.5, fontFamily: Fonts.bold },
 });
 
 export default StoreDetailScreen;

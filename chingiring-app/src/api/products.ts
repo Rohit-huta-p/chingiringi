@@ -6,6 +6,7 @@ export interface Product {
   description: string;
   category: string;
   price: number;
+  mrp?: number;         // max retail price (strike-through ref); 0/undefined = unset
   coinsPrice: number;
   imageUrl: string;    // cover image (mirrors images[0])
   mobileImageUrl?: string; // optional mobile-specific cover (mirrors mobileImages[0])

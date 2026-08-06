@@ -29,6 +29,7 @@ export interface ProductFormValues {
   description: string;
   category: string;
   price: number;
+  mrp: number;         // max retail price (strike-through ref); 0 = unset
   coinsPrice: number;
   imageUrl: string;    // cover image (mirrors images[0]) — read by every card surface
   mobileImageUrl: string; // mobile cover (mirrors mobileImages[0]) — back-compat
@@ -120,6 +121,7 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
         description:  form.description.trim(),
         category:     form.category.trim(),
         price:        priceN,
+        mrp:          Number(form.mrp) || 0,
         coinsPrice:   Number(form.coinsPrice) || 0, // set by the share system, not the admin
         images,
         imageUrl:     images[0] ?? '',   // cover mirrors the first gallery image
@@ -144,6 +146,7 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     description: form.description,
     category: form.category,
     price: Number(form.price) || 0,
+    mrp: Number(form.mrp) || 0,
     coinsPrice: Number(form.coinsPrice) || 0,
     imageUrl: form.images[0] || form.mobileImages[0] || '',
     mobileImageUrl: form.mobileImages[0] || undefined,
@@ -327,6 +330,16 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                       onChangeText={(v) => update('price', v.replace(/[^0-9.]/g, ''))}
                     />
                   </Field>
+                  <Field label="MRP (₹)" style={st.col3}>
+                    <TextInput
+                      style={[st.input, !!form.mrp && st.inputFocus]}
+                      placeholder="4999"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={form.mrp}
+                      onChangeText={(v) => update('mrp', v.replace(/[^0-9.]/g, ''))}
+                    />
+                  </Field>
                   <Field label="Coins" style={st.col3}>
                     <TextInput
                       style={[st.input, st.inputDisabled]}
@@ -335,9 +348,9 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                       value={form.coinsPrice}
                       editable={false}
                     />
-                    <Text style={st.fieldHint}>Since coins are based on the share system right now.</Text>
                   </Field>
                 </View>
+                <Text style={st.fieldHint}>MRP shows as a strikethrough with the savings % on the product page when it's above the price. Coins are set by the share system. Leave MRP blank for a single clean price.</Text>
               </FormSection>
 
               {/* Category — inline picker with create / edit / delete */}
@@ -407,6 +420,7 @@ function buildInitial(p?: ProductFormSeed | null) {
     description:  p?.description  ?? '',
     category:     p?.category     ?? '',
     price:        p?.price         != null ? String(p.price)       : '',
+    mrp:          p?.mrp           != null ? String(p.mrp)         : '',
     coinsPrice:   p?.coinsPrice    != null ? String(p.coinsPrice)  : '',
     imageUrl:     p?.imageUrl     ?? '',
     mobileImageUrl: p?.mobileImageUrl ?? '',

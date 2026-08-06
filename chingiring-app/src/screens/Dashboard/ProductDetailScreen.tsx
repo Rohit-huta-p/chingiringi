@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Image, Dimensions, Alert, Platform, Share, Linking } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { BadgeCheck, Lock, Coins } from 'lucide-react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { reviewsAPI, toUiReview, UiReview } from '../../api/reviews';
 import { WriteReviewModal } from '../../components/WriteReviewModal';
@@ -8,6 +9,9 @@ import { ShareSheet } from '../../components/ShareSheet';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { ProductShareCard } from '../../components/ProductShareCard';
+import { RatingBars } from '../../components/RatingBars';
+import { discountPct, savingsAmt, splitDescription } from '../../utils/product';
 import { dealsAPI } from '../../api/deals';
 import { productsAPI } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
@@ -289,6 +293,33 @@ export const ProductDetailScreen = () => {
   const headlineRating = productRating && productRating > 0 ? productRating : averageRating;
   const headlineRatingCount = productRatingCount && productRatingCount > 0 ? productRatingCount : reviewCount;
 
+  // Price markdown — prefer the real `mrp` field; fall back to a template
+  // oldPrice (HomeScreen items) so both shapes still show a strikethrough.
+  const productMrp = product?.mrp ?? 0;
+  const strike = productMrp > productPrice ? productMrp : (productOldPrice > productPrice ? productOldPrice : 0);
+  const off = discountPct(strike, productPrice);
+  const saved = savingsAmt(strike, productPrice);
+  // About (prose) vs Highlights (bullets) from the single description field.
+  const { about: productAbout, highlights: productHighlights } = splitDescription(productDescription);
+
+  // Live "shared today" count (real) — social proof for the share card.
+  const { data: shareStatsRes } = useQuery({
+    queryKey: ['shareStats', 'product', targetProductId],
+    queryFn: () => sharesAPI.getStats('product', targetProductId),
+    enabled: !!targetProductId && targetProductId !== 'sample',
+  });
+  const sharedToday = shareStatsRes?.data?.todayCount ?? 0;
+
+  // "You may also like" — same category, current product filtered out.
+  const { data: simRes } = useQuery({
+    queryKey: ['products', 'similar', productCategory],
+    queryFn: () => productsAPI.getProducts({ category: productCategory, limit: 12 }),
+    enabled: !!productCategory,
+  });
+  const similar = (simRes?.data?.products ?? [])
+    .filter((p: any) => p?._id && p._id !== targetProductId)
+    .slice(0, 5);
+
   const priceFmt = (n: number) => `\u20B9${(n || 0).toLocaleString('en-IN')}`;
 
   // Image + identity used by the shared image panel. Product mode supports a
@@ -351,6 +382,7 @@ export const ProductDetailScreen = () => {
         <TouchableOpacity style={styles.shareButton} activeOpacity={0.7} onPress={handleShare}>
           <Text style={styles.shareButtonText}>{'↗'}</Text>
         </TouchableOpacity>
+        {off ? <View style={styles.offBadgeDesk}><Text style={styles.offBadgeDeskT}>{off}% OFF</Text></View> : null}
       </View>
       {thumbStrip}
     </View>
@@ -394,6 +426,19 @@ export const ProductDetailScreen = () => {
       contentContainerStyle={styles.detailsContent}
       showsVerticalScrollIndicator={false}
     >
+      {/* Breadcrumb */}
+      <View style={styles.crumb}>
+        <Text style={styles.crumbItem}>Home</Text>
+        {productCategory ? (
+          <>
+            <Text style={styles.crumbSep}>{'›'}</Text>
+            <Text style={styles.crumbItem}>{productCategory}</Text>
+          </>
+        ) : null}
+        <Text style={styles.crumbSep}>{'›'}</Text>
+        <Text style={styles.crumbCur} numberOfLines={1}>{productName}</Text>
+      </View>
+
       {/* Tags: Category */}
       {productCategory ? (
         <View style={styles.tagsRow}>
@@ -426,51 +471,24 @@ export const ProductDetailScreen = () => {
         </View>
       ) : null}
 
-      {/* ── Buy card (Direction A — purchase-first) ─────────────── */}
+      {/* ── Buy card (purchase-first) ─────────────── */}
       <Card style={styles.buyCard}>
         <View>
           <View style={styles.buyPriceRow}>
             <Text style={styles.buyPrice}>{priceFmt(productPrice)}</Text>
-            {productOldPrice > 0 && productOldPrice > productPrice ? (
-              <Text style={styles.buyOldPrice}>{priceFmt(productOldPrice)}</Text>
+            {strike > productPrice ? (
+              <Text style={styles.buyOldPrice}>{priceFmt(strike)}</Text>
             ) : null}
+            {off ? <Text style={styles.buyOff}>{off}% off</Text> : null}
           </View>
+          {saved ? <Text style={styles.buySave}>You save {priceFmt(saved)}</Text> : null}
           <Text style={styles.buyTax}>Inclusive of all taxes</Text>
-        </View>
-
-        {/* Trust row — rating · merchant · reward (Direction A, 3-up). Each
-            pill renders only when its data exists; the reward always shows. */}
-        <View style={styles.trustRow}>
-          {headlineRating > 0 && headlineRatingCount > 0 ? (
-            <View style={styles.trustPill}>
-              <Text style={styles.trustN}>{'★'} {headlineRating.toFixed(1)}</Text>
-              <Text style={styles.trustS}>{headlineRatingCount.toLocaleString('en-IN')} {headlineRatingCount === 1 ? 'review' : 'reviews'}</Text>
-            </View>
-          ) : null}
-          {productMerchant ? (
-            <View style={styles.trustPill}>
-              <Text style={styles.trustN} numberOfLines={1}>{productMerchant}</Text>
-              <Text style={styles.trustS}>available at</Text>
-            </View>
-          ) : null}
-          <View style={styles.trustPill}>
-            <Text style={[styles.trustN, styles.trustNGold]}>+100 CR</Text>
-            <Text style={styles.trustS}>per share</Text>
-          </View>
         </View>
 
         {/* Buy Now is primary; Share is the secondary. No buy link → Share
             becomes the primary full-width action. */}
         {productAffiliateUrl ? (
-          <>
-            <Button title="Buy Now →" onPress={handleBuyNow} style={styles.buyBtnMain} />
-            <Button
-              title="Share & Earn 100 CR ↗"
-              variant="outline"
-              onPress={() => setShareOpen(true)}
-              style={styles.buyBtnAlt}
-            />
-          </>
+          <Button title="Buy Now →" onPress={handleBuyNow} style={styles.buyBtnMain} />
         ) : (
           <Button
             title="Share & Earn 100 CR ↗"
@@ -478,15 +496,51 @@ export const ProductDetailScreen = () => {
             style={styles.buyBtnMain}
           />
         )}
-
-        <Text style={styles.buyHelper}>
-          Earn 100 CR every time you share · once per item per day
-          {sharesLeft != null ? `  ·  ${sharesLeft}/${sharesCap} left today` : ''}
-        </Text>
       </Card>
 
-      {/* About this item */}
-      {productDescription ? (
+      {/* Merchant trust card */}
+      {productMerchant ? (
+        <View style={styles.mcard}>
+          <View style={styles.mlogo}><Text style={styles.mlogoT}>{productMerchant.slice(0, 1).toUpperCase()}</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.m1}>Sold by {productMerchant}</Text>
+            <Text style={styles.m2}>Secure checkout — you complete the purchase on {productMerchant}.</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Share card — the signature Chingiringi block */}
+      <View style={{ marginBottom: 12 }}>
+        <ProductShareCard
+          sharedToday={sharedToday}
+          sharesLeft={sharesLeft}
+          sharesCap={sharesCap}
+          onShare={() => setShareOpen(true)}
+        />
+      </View>
+
+      {/* Trust badges */}
+      <View style={styles.trust3}>
+        <View style={styles.tb}><BadgeCheck size={18} color="#10b981" strokeWidth={2.2} /><Text style={styles.tbLb}>Verified merchant</Text></View>
+        <View style={styles.tb}><Lock size={17} color={Colors.primary} strokeWidth={2.2} /><Text style={styles.tbLb}>Secure checkout</Text></View>
+        <View style={styles.tb}><Coins size={17} color="#d98a12" strokeWidth={2.2} /><Text style={styles.tbLb}>Earn on every share</Text></View>
+      </View>
+
+      {/* Highlights — bullets parsed from a line-separated description */}
+      {productHighlights.length ? (
+        <Card style={styles.card}>
+          <Text style={styles.hlH}>Highlights</Text>
+          {productHighlights.map((h, i) => (
+            <View key={i} style={styles.hlRow}>
+              <Text style={styles.hlTick}>{'✓'}</Text>
+              <Text style={styles.hlT}>{h}</Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
+      {/* About this item (prose) */}
+      {productAbout ? (
         <Card style={styles.card}>
           <View style={styles.termsHeader}>
             <View style={styles.termsIconCircle}>
@@ -495,7 +549,7 @@ export const ProductDetailScreen = () => {
             <Text style={styles.termsTitle}>About this item</Text>
           </View>
           <Text style={[styles.termText, { marginLeft: 0 }]}>
-            {productDescription}
+            {productAbout}
           </Text>
         </Card>
       ) : null}
@@ -535,6 +589,20 @@ export const ProductDetailScreen = () => {
           <Text style={styles.writeReviewText}>{'✎'}  Write Review</Text>
         </TouchableOpacity>
       </View>
+
+      {reviews.length >= 3 ? (
+        <View style={styles.reviewSummary}>
+          <View style={styles.reviewScore}>
+            <Text style={styles.reviewScoreN}>{averageRating.toFixed(1)}</Text>
+            <Text style={styles.reviewScoreStar}>{'★★★★★'}</Text>
+            <Text style={styles.reviewScoreC}>{reviewCount.toLocaleString('en-IN')} reviews</Text>
+          </View>
+          <View style={styles.reviewBarsWrap}>
+            <RatingBars reviews={reviews} />
+            <Text style={styles.reviewNote}>from {reviews.length} app {reviews.length === 1 ? 'review' : 'reviews'}</Text>
+          </View>
+        </View>
+      ) : null}
 
       {isDesktop ? (
         <View style={styles.reviewsGrid}>
@@ -707,6 +775,38 @@ export const ProductDetailScreen = () => {
         {/* Reviews always rendered full-width below on desktop — matches
             Figma 395:1104. Same placeholder data drives deal + product modes. */}
         <View style={styles.desktopReviewsWrap}>{reviewsBlock}</View>
+        {isProductMode && similar.length ? (
+          <View style={styles.simWrap}>
+            <Text style={styles.simTitle}>You may also like</Text>
+            <View style={styles.simGrid}>
+              {similar.map((p: any) => (
+                <TouchableOpacity
+                  key={p._id}
+                  activeOpacity={0.85}
+                  style={styles.simCard}
+                  onPress={() => (navigation as any).navigate('ProductDetail', { productId: p._id, product: p })}
+                >
+                  <View style={styles.simImg}>
+                    {p.imageUrl || p.mobileImageUrl ? (
+                      <Image source={{ uri: p.imageUrl || p.mobileImageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                      <Text style={{ fontSize: 30 }}>🛍️</Text>
+                    )}
+                  </View>
+                  <View style={styles.simBody}>
+                    <Text style={styles.simName} numberOfLines={2}>{p.name}</Text>
+                    {p.description ? <Text style={styles.simDesc} numberOfLines={2}>{p.description}</Text> : null}
+                    <View style={styles.simPriceRow}>
+                      <Text style={styles.simPrice}>{priceFmt(Number(p.price) || 0)}</Text>
+                      {Number(p.mrp) > (Number(p.price) || 0) ? <Text style={styles.simWas}>{priceFmt(Number(p.mrp))}</Text> : null}
+                      {discountPct(Number(p.mrp), Number(p.price)) ? <Text style={styles.simOff}>{discountPct(Number(p.mrp), Number(p.price))}% off</Text> : null}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
     );
   }
@@ -1255,6 +1355,60 @@ const styles = StyleSheet.create({
   buyBtnMain: { borderRadius: 12 },
   buyBtnAlt: { borderRadius: 12 },
   buyHelper: { fontSize: 11.5, color: Colors.textSecondary, textAlign: 'center' },
+  buyOff: { fontSize: 14, fontWeight: '800', color: '#ef4444' },
+  buySave: { fontSize: 13, fontWeight: '700', color: '#10b981', marginTop: 4 },
+
+  // ─── Breadcrumb ─────────────────────────────────────────────────────
+  crumb: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+  crumbItem: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
+  crumbSep: { fontSize: 12.5, color: '#cbd5e1' },
+  crumbCur: { fontSize: 12.5, color: Colors.text, fontWeight: '700', flexShrink: 1 },
+
+  // ─── Image off-badge ────────────────────────────────────────────────
+  offBadgeDesk: { position: 'absolute', top: 20, left: 72, backgroundColor: '#ef4444', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  offBadgeDeskT: { color: '#fff', fontSize: 11.5, fontWeight: '800', letterSpacing: 0.2 },
+
+  // ─── Merchant trust card ────────────────────────────────────────────
+  mcard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5', borderRadius: 14, padding: 14, marginBottom: 12 },
+  mlogo: { width: 42, height: 42, borderRadius: 10, backgroundColor: '#232f3e', alignItems: 'center', justifyContent: 'center' },
+  mlogoT: { color: '#ff9900', fontWeight: '800', fontSize: 17 },
+  m1: { fontSize: 13.5, fontWeight: '800', color: Colors.text },
+  m2: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+
+  // ─── Trust badges ───────────────────────────────────────────────────
+  trust3: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  tb: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5', borderRadius: 11, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center' },
+  tbIc: { fontSize: 15 },
+  tbLb: { fontSize: 10.5, fontWeight: '700', color: Colors.text, marginTop: 3, textAlign: 'center', lineHeight: 13 },
+
+  // ─── Highlights ─────────────────────────────────────────────────────
+  hlH: { fontSize: 15, fontWeight: '800', color: Colors.text, marginBottom: 10 },
+  hlRow: { flexDirection: 'row', gap: 9, marginBottom: 8, alignItems: 'flex-start' },
+  hlTick: { color: Colors.primary, fontWeight: '800', fontSize: 13, lineHeight: 19 },
+  hlT: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+
+  // ─── Review summary + bars ──────────────────────────────────────────
+  reviewSummary: { flexDirection: 'row', gap: 24, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' },
+  reviewScore: { alignItems: 'center', minWidth: 90 },
+  reviewScoreN: { fontSize: 42, fontWeight: '800', color: Colors.text, letterSpacing: -0.5, lineHeight: 46 },
+  reviewScoreStar: { color: '#f59e0b', fontSize: 14, letterSpacing: 1 },
+  reviewScoreC: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  reviewBarsWrap: { flex: 1, minWidth: 240, maxWidth: 380 },
+  reviewNote: { fontSize: 11, color: Colors.textSecondary, marginTop: 6 },
+
+  // ─── You may also like ──────────────────────────────────────────────
+  simWrap: { paddingHorizontal: 28, paddingBottom: 44, backgroundColor: '#F0F4F8' },
+  simTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 14 },
+  simGrid: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
+  simCard: { width: 180, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5', borderRadius: 14, overflow: 'hidden' },
+  simImg: { width: '100%', height: 150, backgroundColor: '#e8ecf0', alignItems: 'center', justifyContent: 'center' },
+  simBody: { padding: 12 },
+  simName: { fontSize: 13, fontWeight: '700', color: Colors.text, lineHeight: 17, minHeight: 34 },
+  simDesc: { fontSize: 11.5, color: Colors.textSecondary, lineHeight: 15, marginTop: 4, minHeight: 30 },
+  simPriceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  simPrice: { fontSize: 15, fontWeight: '800', color: Colors.text },
+  simWas: { fontSize: 11.5, color: Colors.textSecondary, textDecorationLine: 'line-through' },
+  simOff: { fontSize: 11, fontWeight: '800', color: '#ef4444' },
 
   // ─── Reviews ────────────────────────────────────────────────────────
   reviewsSection: {
