@@ -83,7 +83,7 @@ export const MobileHomeScreen = () => {
   // Data fetching
   const { data: productsRes, isLoading: productsLoading } = useQuery({
     queryKey: ['products', 'home'],
-    queryFn: () => productsAPI.getProducts({ limit: 24 }),
+    queryFn: () => productsAPI.getProducts({ limit: 100 }),
   });
   const { data: bannersRes } = useQuery({
     queryKey: ['banners'],

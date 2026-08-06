@@ -91,6 +91,7 @@ function ProductGrid({
   onSeeAll,
   products = [],
   hasFilter = false,
+  showAll = false,
 }: {
   title: string;
   count?: string;
@@ -101,20 +102,22 @@ function ProductGrid({
   onSeeAll?: () => void;
   products?: Product[];
   hasFilter?: boolean;
+  showAll?: boolean;
 }) {
   const gap = 16;
   const cardW = (containerWidth - gap * (cols - 1)) / cols;
   const limit = cols * 2;
 
-  // Real products only — no template/demo tiles. Each section shows a
-  // different window via startIdx so a small catalog doesn't repeat
-  // identically across sections.
-  const windowed: Product[] = products.length
-    ? Array.from(
-      { length: Math.min(products.length, limit) },
-      (_, i) => products[(startIdx + i) % products.length],
-    )
-    : [];
+  // Curated sections preview up to `limit` cards (2 rows) via startIdx. The
+  // filtered listing passes showAll so selecting a category lists every match.
+  const windowed: Product[] = showAll
+    ? products
+    : products.length
+      ? Array.from(
+        { length: Math.min(products.length, limit) },
+        (_, i) => products[(startIdx + i) % products.length],
+      )
+      : [];
   const rows = chunk(windowed, cols);
 
   return (
@@ -387,7 +390,7 @@ export const HomeScreen = () => {
   // Fetch all products (paginated from server, default page size)
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['products'],
-    queryFn: () => productsAPI.getProducts({ limit: 24 }),
+    queryFn: () => productsAPI.getProducts({ limit: 100 }),
     staleTime: 60_000,
   });
 
@@ -619,6 +622,7 @@ export const HomeScreen = () => {
                 onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
                 hasFilter={hasFilter}
                 products={listingProducts}
+                showAll
               />
             </>
           ) : (
