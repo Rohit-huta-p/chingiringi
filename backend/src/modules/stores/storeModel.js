@@ -62,9 +62,9 @@ const storeSchema = new mongoose.Schema(
     isFeatured: { type: Boolean, default: false },
     isVerified: { type: Boolean, default: false },
 
-    // ── Denormalised stats (Tier 3 fills these) ──────────────
-    rating: { type: Number, default: 0 },
-    reviewsCount: { type: Number, default: 0 },
+    // ── Ratings/reviews: admin-seeded for now (Tier 3 will auto-compute) ──
+    rating: { type: Number, default: 0, min: 0, max: 5 },
+    reviewsCount: { type: Number, default: 0, min: 0 },
     totalGmv: { type: Number, default: 0 },
     totalTxns: { type: Number, default: 0 },
   },
