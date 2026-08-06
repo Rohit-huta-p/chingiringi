@@ -7,12 +7,11 @@ import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
+import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
 
 export const LoginScreen = ({ navigation }: any) => {
-  const [tab, setTab] = useState<'password' | 'otp'>('password');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   const hydrate = useAuthStore((state) => state.hydrate);
@@ -28,24 +27,11 @@ export const LoginScreen = ({ navigation }: any) => {
     }
   });
 
-  const sendOtpMutation = useMutation({
-    mutationFn: authAPI.sendOtp,
-    onSuccess: () => {
-      setErrorMsg('');
-      navigation.navigate('OTPVerification', { identifier: phone });
-    },
-    onError: (error: any) => {
-      setErrorMsg(error.message || 'Failed to send OTP.');
-    }
-  });
+  const { signIn: googleSignIn, loading: googleLoading } = useGoogleSignIn(setErrorMsg);
 
   const handleLogin = () => {
     setErrorMsg('');
-    if (tab === 'password') {
-      loginMutation.mutate({ identifier, password });
-    } else {
-      sendOtpMutation.mutate({ phone });
-    }
+    loginMutation.mutate({ identifier, password });
   };
 
   const Header = (
@@ -61,67 +47,36 @@ export const LoginScreen = ({ navigation }: any) => {
 
   return (
     <AuthLayout title={Header} subtitle={Subtitle}>
-      <View style={styles.tabsContainer}>
-        <Button 
-          title="Username / Password" 
-          variant={tab === 'password' ? 'pillActive' : 'pillInactive'} 
-          onPress={() => setTab('password')}
-          style={{ flex: 1, marginRight: 4, backgroundColor: tab === 'password' ? Colors.surface : '#f3f4f6' }}
-          textStyle={{ color: Colors.text, fontWeight: tab === 'password' ? '700' : '500' }}
-        />
-        <Button 
-          title="OTP Login" 
-          variant={tab === 'otp' ? 'pillActive' : 'pillInactive'} 
-          onPress={() => setTab('otp')}
-          style={{ flex: 1, marginLeft: 4, backgroundColor: tab === 'otp' ? Colors.surface : '#f3f4f6' }}
-          textStyle={{ color: Colors.text, fontWeight: tab === 'otp' ? '700' : '500' }}
+      <Input
+        label="Username or Email"
+        placeholder="your username"
+        value={identifier}
+        onChangeText={setIdentifier}
+      />
+      <Input
+        label="Password"
+        placeholder="Enter your password"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
+      <View style={styles.forgotContainer}>
+        <Button
+          title="Forgot Password?"
+          variant="text"
+          onPress={() => navigation.navigate('ForgotPassword')}
+          textStyle={styles.forgotText}
         />
       </View>
-
-      {tab === 'password' ? (
-        <>
-          <Input 
-            label="Username or Email" 
-            placeholder="your username" 
-            value={identifier}
-            onChangeText={setIdentifier}
-          />
-          <Input 
-            label="Password" 
-            placeholder="Enter your password" 
-            secureTextEntry 
-            value={password}
-            onChangeText={setPassword}
-          />
-          <View style={styles.forgotContainer}>
-            <Button 
-              title="Forgot Password?" 
-              variant="text" 
-              onPress={() => navigation.navigate('ForgotPassword')} 
-              textStyle={styles.forgotText}
-            />
-          </View>
-        </>
-      ) : (
-        <>
-          <Input 
-            label="Phone Number" 
-            placeholder="Enter 10-digit mobile number" 
-            keyboardType="phone-pad" 
-            value={phone}
-            onChangeText={setPhone}
-          />
-        </>
-      )}
 
       {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
       <Button
-        title={tab === 'password' ? 'Sign In ->' : 'Send OTP ->'}
+        title="Sign In ->"
         onPress={handleLogin}
         style={styles.mainButton}
-        loading={loginMutation.isPending || sendOtpMutation.isPending}
-        disabled={loginMutation.isPending || sendOtpMutation.isPending}
+        loading={loginMutation.isPending}
+        disabled={loginMutation.isPending}
       />
 
       <View style={styles.dividerContainer}>
@@ -130,8 +85,15 @@ export const LoginScreen = ({ navigation }: any) => {
         <View style={styles.divider} />
       </View>
 
-      <Button title="Continue with Google" variant="outline" onPress={() => {}} style={styles.googleButton} />
-      
+      <Button
+        title="Continue with Google"
+        variant="outline"
+        onPress={googleSignIn}
+        loading={googleLoading}
+        disabled={googleLoading}
+        style={styles.googleButton}
+      />
+
       <View style={styles.footerContainer}>
         <Text style={styles.footerText}>Don't have an account? </Text>
         <Button title="Sign up" variant="text" onPress={() => navigation.navigate('Signup')} textStyle={styles.signupText} />
@@ -161,13 +123,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: 16,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 24,
   },
   forgotContainer: {
     alignItems: 'flex-end',
