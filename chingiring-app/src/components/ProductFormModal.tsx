@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  X, Package, Image as ImageIcon, Type as TypeIcon, Link2, Coins, Tag,
+  X, Package, Image as ImageIcon, Type as TypeIcon, Link2, Coins, Tag, Star,
 } from 'lucide-react-native';
 import { MultiImageUploader } from './MultiImageUploader';
 import { CategoryPicker } from './CategoryPicker';
@@ -29,12 +29,16 @@ export interface ProductFormValues {
   description: string;
   category: string;
   price: number;
+  mrp: number;         // max retail price (strike-through ref); 0 = unset
   coinsPrice: number;
   imageUrl: string;    // cover image (mirrors images[0]) — read by every card surface
   mobileImageUrl: string; // mobile cover (mirrors mobileImages[0]) — back-compat
   images: string[];    // full gallery, cover first
   mobileImages: string[]; // mobile-specific gallery, cover first
   affiliateUrl: string;
+  merchant: string;    // store where it's sold (e.g. "Amazon")
+  rating: number;      // admin-set headline rating (0–5)
+  ratingCount: number; // admin-set review/rating count
 }
 
 export interface ProductFormSeed extends Partial<ProductFormValues> {
@@ -53,6 +57,7 @@ interface Props {
 interface FormErrors {
   name?: string;
   price?: string;
+  rating?: string;
 }
 
 // ─── Section wrapper (mirrors the banner form) ───────────────────────────────
@@ -99,6 +104,9 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     const priceN = Number(form.price);
     if (!form.price.trim() || Number.isNaN(priceN) || priceN < 0) errs.price = '₹ ≥ 0';
 
+    const ratingN = Number(form.rating);
+    if (form.rating.trim() && (Number.isNaN(ratingN) || ratingN < 0 || ratingN > 5)) errs.rating = '0–5';
+
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -113,12 +121,16 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
         description:  form.description.trim(),
         category:     form.category.trim(),
         price:        priceN,
+        mrp:          Number(form.mrp) || 0,
         coinsPrice:   Number(form.coinsPrice) || 0, // set by the share system, not the admin
         images,
         imageUrl:     images[0] ?? '',   // cover mirrors the first gallery image
         mobileImages,
         mobileImageUrl: mobileImages[0] ?? '', // mobile cover mirrors first mobile image
         affiliateUrl: form.affiliateUrl.trim(),
+        merchant:     form.merchant.trim(),
+        rating:       Number(form.rating) || 0,
+        ratingCount:  Number(form.ratingCount) || 0,
       });
       onClose();
     } finally {
@@ -134,11 +146,15 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
     description: form.description,
     category: form.category,
     price: Number(form.price) || 0,
+    mrp: Number(form.mrp) || 0,
     coinsPrice: Number(form.coinsPrice) || 0,
     imageUrl: form.images[0] || form.mobileImages[0] || '',
     mobileImageUrl: form.mobileImages[0] || undefined,
     images: form.images,
     mobileImages: form.mobileImages,
+    merchant: form.merchant,
+    rating: Number(form.rating) || 0,
+    ratingCount: Number(form.ratingCount) || 0,
     sold: 0,
     isActive: true,
     isFeatured: false,
@@ -247,8 +263,7 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                 </Field>
               </FormSection>
 
-              {/* Product link — optional buy / affiliate URL. When set, the
-                  product's "Buy Now" opens it (subid-tracked, like deals). */}
+              {/* Product link — optional buy / affiliate URL + merchant. */}
               <FormSection icon={Link2} title="Product link">
                 <Field label="Buy / affiliate URL">
                   <TextInput
@@ -262,6 +277,43 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                     keyboardType="url"
                   />
                 </Field>
+                <Field label="Merchant">
+                  <TextInput
+                    style={[st.input, !!form.merchant && st.inputFocus]}
+                    placeholder="e.g., Amazon, Flipkart, Myntra"
+                    placeholderTextColor="#94a3b8"
+                    value={form.merchant}
+                    onChangeText={(v) => update('merchant', v)}
+                  />
+                  <Text style={st.fieldHint}>Shown on the product page as “Available at …”.</Text>
+                </Field>
+              </FormSection>
+
+              {/* Ratings — admin-set headline rating shown on the product page. */}
+              <FormSection icon={Star} title="Ratings">
+                <View style={st.row3}>
+                  <Field label="Rating (0–5)" error={errors.rating} style={st.col3}>
+                    <TextInput
+                      style={[st.input, errors.rating && st.inputErr]}
+                      placeholder="4.5"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={form.rating}
+                      onChangeText={(v) => update('rating', v.replace(/[^0-9.]/g, ''))}
+                    />
+                  </Field>
+                  <Field label="Reviews (count)" style={st.col3}>
+                    <TextInput
+                      style={st.input}
+                      placeholder="128"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={form.ratingCount}
+                      onChangeText={(v) => update('ratingCount', v.replace(/[^0-9]/g, ''))}
+                    />
+                  </Field>
+                </View>
+                <Text style={st.fieldHint}>Optional — the headline rating shown on the product page (e.g. the merchant's aggregate). In-app reviews stay separate.</Text>
               </FormSection>
 
               {/* Pricing — coins are set by the share system, so the field is
@@ -278,6 +330,16 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                       onChangeText={(v) => update('price', v.replace(/[^0-9.]/g, ''))}
                     />
                   </Field>
+                  <Field label="MRP (₹)" style={st.col3}>
+                    <TextInput
+                      style={[st.input, !!form.mrp && st.inputFocus]}
+                      placeholder="4999"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={form.mrp}
+                      onChangeText={(v) => update('mrp', v.replace(/[^0-9.]/g, ''))}
+                    />
+                  </Field>
                   <Field label="Coins" style={st.col3}>
                     <TextInput
                       style={[st.input, st.inputDisabled]}
@@ -286,9 +348,9 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                       value={form.coinsPrice}
                       editable={false}
                     />
-                    <Text style={st.fieldHint}>Since coins are based on the share system right now.</Text>
                   </Field>
                 </View>
+                <Text style={st.fieldHint}>MRP shows as a strikethrough with the savings % on the product page when it's above the price. Coins are set by the share system. Leave MRP blank for a single clean price.</Text>
               </FormSection>
 
               {/* Category — inline picker with create / edit / delete */}
@@ -358,12 +420,16 @@ function buildInitial(p?: ProductFormSeed | null) {
     description:  p?.description  ?? '',
     category:     p?.category     ?? '',
     price:        p?.price         != null ? String(p.price)       : '',
+    mrp:          p?.mrp           != null ? String(p.mrp)         : '',
     coinsPrice:   p?.coinsPrice    != null ? String(p.coinsPrice)  : '',
     imageUrl:     p?.imageUrl     ?? '',
     mobileImageUrl: p?.mobileImageUrl ?? '',
     images:       p?.images?.length ? p.images : (p?.imageUrl ? [p.imageUrl] : []),
     mobileImages: p?.mobileImages?.length ? p.mobileImages : (p?.mobileImageUrl ? [p.mobileImageUrl] : []),
     affiliateUrl: p?.affiliateUrl ?? '',
+    merchant:     p?.merchant     ?? '',
+    rating:       p?.rating        != null ? String(p.rating)       : '',
+    ratingCount:  p?.ratingCount   != null ? String(p.ratingCount)  : '',
   };
 }
 

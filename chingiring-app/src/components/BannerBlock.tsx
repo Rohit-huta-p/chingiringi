@@ -39,7 +39,7 @@ export function bannerNavigate(
     // Anything else that looks like a web address → open in the browser
     // (new tab on web, system browser on native). Handles a missing protocol.
     const url = /^https?:\/\//i.test(v) ? v : v.includes('.') ? `https://${v}` : '';
-    if (url) Linking.openURL(url).catch(() => {});
+    if (url) Linking.openURL(url).catch(() => { });
   }
 }
 
@@ -155,7 +155,7 @@ export function BannerBlock({
       gradient={gradient}
       isMobile={isMobile}
       height={isMobile ? 150 : 220}
-      radius={isMobile ? 16 : 20}
+      radius={0}//{isMobile ? 16 : 20}
       style={st.fullWidth}
       onPress={() => bannerNavigate(navigation, banner)}
     />

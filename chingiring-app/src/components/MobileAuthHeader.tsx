@@ -43,6 +43,19 @@ interface Props {
    * card) and accept that the header will become taller than the rest.
    */
   extraBottomSpace?: number;
+  /**
+   * Override the standard 60px bottom padding. Use a small value for a
+   * compact header on screens with NO overlapping card (e.g. Nearby Stores),
+   * so the title sits vertically centred in the blue band instead of near
+   * the top. Defaults to 60.
+   */
+  bottomPad?: number;
+  /**
+   * Extra content rendered INSIDE the gradient, directly below the title row
+   * (e.g. a search bar). When present, the title row uses a slim bottom pad so
+   * the content sits snug under the title instead of the overlap-card gap.
+   */
+  children?: React.ReactNode;
 }
 
 // Standard bottom padding inside every mobile header. Picked to match the
@@ -52,7 +65,7 @@ const HEADER_BOTTOM_PAD = 60;
 
 export const MobileAuthHeader: React.FC<Props> = ({
   title, onBack, hideBack = false, subtitle, kicker, align = 'center',
-  rightSlot, extraBottomSpace = 0,
+  rightSlot, extraBottomSpace = 0, bottomPad = HEADER_BOTTOM_PAD, children,
 }) => {
   const navigation = useNavigation<any>();
   const handleBack = onBack ?? (() => navigation.goBack());
@@ -73,9 +86,10 @@ export const MobileAuthHeader: React.FC<Props> = ({
         <View style={styles.blobLeft} pointerEvents="none" />
         <View style={styles.blobRight} pointerEvents="none" />
 
-        <View style={[styles.row, { paddingBottom: HEADER_BOTTOM_PAD + extraBottomSpace }]}>
+        <View style={[styles.row, { paddingBottom: children ? 12 : bottomPad + extraBottomSpace }]}>
           {hideBack ? (
-            <View style={styles.iconBtn} />
+
+            <View />
           ) : (
             <TouchableOpacity
               onPress={handleBack}
@@ -103,6 +117,8 @@ export const MobileAuthHeader: React.FC<Props> = ({
               optically centred. */}
           {rightSlot ?? <View style={styles.iconBtn} />}
         </View>
+
+        {children ? <View style={styles.belowRow}>{children}</View> : null}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -121,6 +137,10 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   safe: {},
+  belowRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -6,11 +6,15 @@ export interface Product {
   description: string;
   category: string;
   price: number;
+  mrp?: number;         // max retail price (strike-through ref); 0/undefined = unset
   coinsPrice: number;
   imageUrl: string;    // cover image (mirrors images[0])
   mobileImageUrl?: string; // optional mobile-specific cover (mirrors mobileImages[0])
   images?: string[];   // full gallery, cover first
   mobileImages?: string[]; // mobile-specific gallery, cover first; mobile surfaces prefer it
+  merchant?: string;    // where it's sold (e.g. "Amazon") — shown as "Available at …"
+  rating?: number;      // admin-set headline rating (0–5)
+  ratingCount?: number; // admin-set review/rating count
   sold: number;
   isActive: boolean;
   isFeatured: boolean;

@@ -99,7 +99,6 @@ export const MobileProfileScreen = () => {
     (walletRes as any)?.data;
 
   const confirmed = wallet?.confirmedCashback ?? 0;
-  const pending   = wallet?.pendingCashback ?? 0;
   const coins     = wallet?.coins ?? 0;
 
   // Referral stats — backend has no aggregated endpoint yet (Phase 2 work,
@@ -164,12 +163,6 @@ export const MobileProfileScreen = () => {
               value={inr(confirmed)}
               action="Withdraw  ›"
               onAction={() => nav.navigate('TransactionHistory')}
-            />
-            <StatCard
-              label="PENDING"
-              value={inr(pending)}
-              action="Processing..."
-              actionColor={Colors.textSecondary}
             />
             <StatCard
               label="COINS"

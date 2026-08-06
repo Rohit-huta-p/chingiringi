@@ -27,6 +27,14 @@ const productSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Maximum retail price — strike-through reference. When mrp > price the
+    // detail page shows the strikethrough, "You save ₹X (Y%)" and an off-badge.
+    // 0 = unset → detail page shows a single clean price (no fake discount).
+    mrp: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     // Primary/cover image. Kept as the single source every card surface reads
     // (home grid, category grid, admin lists). Always mirrors images[0].
     imageUrl: {
@@ -58,6 +66,26 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+    },
+    // Merchant / store where the product is sold (e.g. "Amazon"). Shown on the
+    // product detail brand card as "Available at …".
+    merchant: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // Admin-set headline rating + count (e.g. the merchant's aggregate). Detail
+    // surfaces prefer these over the in-app review average when set.
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    ratingCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     sold: {
       type: Number,

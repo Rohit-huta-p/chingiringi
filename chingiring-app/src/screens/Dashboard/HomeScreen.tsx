@@ -91,6 +91,7 @@ function ProductGrid({
   onSeeAll,
   products = [],
   hasFilter = false,
+  showAll = false,
 }: {
   title: string;
   count?: string;
@@ -101,20 +102,22 @@ function ProductGrid({
   onSeeAll?: () => void;
   products?: Product[];
   hasFilter?: boolean;
+  showAll?: boolean;
 }) {
   const gap = 16;
   const cardW = (containerWidth - gap * (cols - 1)) / cols;
   const limit = cols * 2;
 
-  // Real products only — no template/demo tiles. Each section shows a
-  // different window via startIdx so a small catalog doesn't repeat
-  // identically across sections.
-  const windowed: Product[] = products.length
-    ? Array.from(
+  // Curated sections preview up to `limit` cards (2 rows) via startIdx. The
+  // filtered listing passes showAll so selecting a category lists every match.
+  const windowed: Product[] = showAll
+    ? products
+    : products.length
+      ? Array.from(
         { length: Math.min(products.length, limit) },
         (_, i) => products[(startIdx + i) % products.length],
       )
-    : [];
+      : [];
   const rows = chunk(windowed, cols);
 
   return (
@@ -387,7 +390,7 @@ export const HomeScreen = () => {
   // Fetch all products (paginated from server, default page size)
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['products'],
-    queryFn: () => productsAPI.getProducts({ limit: 24 }),
+    queryFn: () => productsAPI.getProducts({ limit: 100 }),
     staleTime: 60_000,
   });
 
@@ -502,6 +505,14 @@ export const HomeScreen = () => {
     navigation.navigate('CategoryProducts', { category });
   };
 
+  // Banners render full-bleed: the negative horizontal margin cancels the body's
+  // 32px side padding so they run edge-to-edge, while product grids stay padded.
+  const renderBanner = (b: BannerModel) => (
+    <View key={`banner-${b._id}`} style={s.bannerFull}>
+      <BannerBlock banner={b} navigation={navigation} />
+    </View>
+  );
+
   // Curated home = product sections in a fixed order. Placed banners are
   // interleaved by rowIndex (see interleaveBanners). Only built when no
   // search/category/sort filter is active.
@@ -600,9 +611,7 @@ export const HomeScreen = () => {
               {/* Placed banners stay visible while browsing a category or
                   filtering — stacked above the results. They used to vanish
                   the moment any chip / search / sort flipped isListing true. */}
-              {interleaveBanners([], allBanners, (b) => (
-                <BannerBlock key={`banner-${b._id}`} banner={b} navigation={navigation} />
-              ))}
+              {interleaveBanners([], allBanners, renderBanner)}
               <ProductGrid
                 title={categoryActive ? selectedCategory : 'All Products'}
                 count={listingProducts.length ? `${listingProducts.length} items` : undefined}
@@ -613,12 +622,11 @@ export const HomeScreen = () => {
                 onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
                 hasFilter={hasFilter}
                 products={listingProducts}
+                showAll
               />
             </>
           ) : (
-            interleaveBanners(buildCuratedBlocks(), allBanners, (b) => (
-              <BannerBlock key={`banner-${b._id}`} banner={b} navigation={navigation} />
-            ))
+            interleaveBanners(buildCuratedBlocks(), allBanners, renderBanner)
           )}
         </View>
       </ScrollView>
@@ -835,9 +843,16 @@ const s = StyleSheet.create({
     paddingBottom: 64,
   },
   body: {
-    padding: 32,
+    // No top padding: the first block (a placed banner) sits flush under the
+    // top nav / category row. Horizontal + bottom padding and inter-block gap
+    // stay; full-bleed banners still cancel the side padding via bannerFull.
+    paddingHorizontal: 32,
+    paddingBottom: 32,
     gap: 32,
   },
+  // Full-bleed banner: cancels the body's 32px side padding so banners run
+  // edge-to-edge while the product grids stay padded.
+  bannerFull: { marginHorizontal: -32 },
 
   // ── Hero banner
   heroBanner: {

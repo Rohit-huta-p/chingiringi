@@ -22,6 +22,8 @@ import {
   SORT_OPTIONS,
   PRICE_PRESETS,
   COINS_PRESETS,
+  DISCOUNT_STEPS,
+  RATING_STEPS,
 } from '../utils/productFilters';
 
 // Sort + Filter buttons that open bottom sheets. Rendered inline — it sits on
@@ -111,7 +113,10 @@ export function ProductControlsBar({
   const sortLabel = SORT_OPTIONS.find((o) => o.id === state.sort)?.label ?? 'Sort';
   const sortActive = state.sort !== null;
   const filterCount =
-    (state.priceRange !== 'all' ? 1 : 0) + (state.coinsRange !== 'all' ? 1 : 0);
+    (state.priceRange !== 'all' ? 1 : 0) +
+    (state.coinsRange !== 'all' ? 1 : 0) +
+    (state.minDiscount > 0 ? 1 : 0) +
+    (state.minRating > 0 ? 1 : 0);
 
   const btnStyle = compact ? s.iconBtn : s.btn;
 
@@ -191,7 +196,9 @@ export function ProductControlsBar({
         headerAction={
           filterCount > 0 ? (
             <TouchableOpacity
-              onPress={() => onChange({ ...state, priceRange: 'all', coinsRange: 'all' })}
+              onPress={() =>
+                onChange({ ...state, priceRange: 'all', coinsRange: 'all', minDiscount: 0, minRating: 0 })
+              }
               hitSlop={8}
             >
               <Text style={s.clearTxt}>Clear all</Text>
@@ -200,7 +207,21 @@ export function ProductControlsBar({
         }
       >
         <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
-          <Text style={s.groupLabel}>Price</Text>
+          <Text style={s.groupLabel}>Discount</Text>
+          <RangeChips
+            items={DISCOUNT_STEPS}
+            activeId={String(state.minDiscount)}
+            onPress={(id) => onChange({ ...state, minDiscount: Number(id) })}
+          />
+
+          <Text style={[s.groupLabel, { marginTop: 18 }]}>Rating</Text>
+          <RangeChips
+            items={RATING_STEPS}
+            activeId={String(state.minRating)}
+            onPress={(id) => onChange({ ...state, minRating: Number(id) })}
+          />
+
+          <Text style={[s.groupLabel, { marginTop: 18 }]}>Price</Text>
           <RangeChips
             items={PRICE_PRESETS}
             activeId={state.priceRange}
