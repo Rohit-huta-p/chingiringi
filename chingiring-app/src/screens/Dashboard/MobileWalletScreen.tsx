@@ -13,7 +13,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { ArrowDownToLine, QrCode, Clock, X, ChevronRight, Wallet as WalletIcon } from 'lucide-react-native';
+import { ArrowDownToLine, Clock, X, ChevronRight } from 'lucide-react-native';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { Fonts } from '../../constants/theme';
 // expo-camera v17 incompatible with SDK 54 in Expo Go — disabled until version aligned
@@ -23,13 +23,15 @@ import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
+import { ShareToEarnCard } from '../../components/ShareToEarnCard';
 
 // ─── Data ───────────────────────────────────────────────────────────
 
-const FILTER_TABS = ['All', 'Cashback', 'Coins', 'Withdrawal'] as const;
+const FILTER_TABS = ['All', 'Shares', 'Withdrawals'] as const;
 const FILTER_MAP: Record<string, string | undefined> = {
-  All: undefined, Cashback: 'cashback', Coins: 'coin_credit', Withdrawal: 'withdrawal',
+  All: undefined, Shares: 'coin_credit', Withdrawals: 'withdrawal',
 };
+const COINS_PER_RUPEE = 1000; // mirrors AdminSettings.coinsPerRupee default
 // Zero-state wallet used before the API responds — all zeros, never fake
 // balances (which masked failures and read as real money).
 const EMPTY_WALLET: Wallet = { _id: '', userId: '', confirmedCashback: 0, pendingCashback: 0, coins: 0, pendingCoins: 0, lifetimeEarned: 0 };
@@ -378,192 +380,7 @@ const ws = StyleSheet.create({
   },
 });
 
-// ─── Scanner Sheet ──────────────────────────────────────────────────
-
-function ScannerSheet({ visible, onClose, balance }: { visible: boolean; onClose: () => void; balance: number }) {
-  const FRAME_SIZE = 220;
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={sc.overlay}>
-        <View style={sc.sheet}>
-          <View style={sc.handleBar} />
-
-          <View style={sc.header}>
-            <Text style={sc.title}>Scan QR Code</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <X size={20} color="#64748b" strokeWidth={2} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={sc.balCard}>
-            <View>
-              <Text style={sc.balLabel}>AVAILABLE BALANCE</Text>
-              <Text style={sc.balAmt}>₹{balance}</Text>
-            </View>
-            <View style={sc.balIcon}>
-              <WalletIcon size={22} color={Colors.primary} strokeWidth={1.8} />
-            </View>
-          </View>
-
-          <View style={sc.scanArea}>
-            <View style={[sc.cameraPlaceholder, { width: FRAME_SIZE, height: FRAME_SIZE }]}>
-              <QrCode size={64} color="#c5d5ea" strokeWidth={1.2} />
-              <Text style={sc.permTxt}>QR scanning coming soon</Text>
-            </View>
-            <Text style={sc.scanHint}>Position the QR code within the frame to scan</Text>
-          </View>
-
-          <Text style={sc.supportsText}>Supports UPI, PayTM, PhonePe, Google Pay & more</Text>
-
-          {/* Bottom scan button */}
-          <TouchableOpacity style={sc.scanBtn} activeOpacity={0.8} onPress={() => Alert.alert('Coming Soon', 'QR scanning will be available in the next update.')}>
-            <QrCode size={18} color="#64748b" strokeWidth={2} />
-            <Text style={sc.scanBtnTxt}>Scan QR code</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const sc = StyleSheet.create({
-  // Layout
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#d1d5db',
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-
-  // Balance
-  balCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight10,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 24,
-  },
-  balLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.primary,
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  balAmt: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: Colors.primary,
-  },
-  balIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Scanner
-  scanArea: {
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 20,
-    paddingVertical: 28,
-    marginBottom: 16,
-  },
-  camera: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  cameraPlaceholder: {
-    borderRadius: 16,
-    backgroundColor: '#e8eef6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderStyle: 'dashed',
-  },
-  permTxt: {
-    fontSize: 13,
-    color: '#94a3b8',
-    marginTop: 10,
-    fontWeight: '500',
-  },
-  corner: {
-    position: 'absolute',
-    top: 16,
-    alignSelf: 'center',
-    borderWidth: 3,
-    borderColor: Colors.primary,
-    borderRadius: 20,
-  },
-  cornerTL: {},
-  scanHint: {
-    fontSize: 13,
-    color: '#94a3b8',
-    marginTop: 18,
-    textAlign: 'center',
-  },
-
-  // Supports
-  supportsText: {
-    fontSize: 13,
-    color: '#b0b8c4',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-
-  // Bottom button
-  scanBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 14,
-    height: 52,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  scanBtnTxt: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-});
+// QR scan removed (offline-pay is a separate, unlaunched feature).
 
 // ─── Main ───────────────────────────────────────────────────────────
 
@@ -572,7 +389,6 @@ export const MobileWalletScreen = () => {
   const user = useAuthStore((s) => s.user);
   const [filter, setFilter] = useState<string>('All');
   const [showWithdraw, setShowWithdraw] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
 
   const { data: wRes, isLoading: wL } = useQuery({ queryKey: ['wallet'], queryFn: () => walletAPI.getWallet() });
   const { data: tRes, isLoading: tL } = useQuery({
@@ -616,21 +432,15 @@ export const MobileWalletScreen = () => {
         />
         {/* Balance card */}
         <View style={m.balCard}>
-          <Text style={m.balWm}>₹</Text>
-          <Text style={m.balLabel}>Confirmed Balance</Text>
-          <Text style={m.balAmt}>₹{w.confirmedCashback}</Text>
+          <Text style={m.balLabel}>Coin Balance</Text>
+          <Text style={[m.balAmt, { marginBottom: 4 }]}>{(w.coins ?? 0).toLocaleString('en-IN')}</Text>
+          <Text style={m.balSub}>{'≈ ₹'}{Math.floor((w.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}{' available to withdraw'}</Text>
 
-          {/* Buttons */}
+          {/* Withdraw (full-width) */}
           <View style={m.btnRow}>
-            {/* Withdraw */}
             <TouchableOpacity style={m.withdrawBtn} onPress={() => setShowWithdraw(true)}>
               <ArrowDownToLine size={15} color="#fff" strokeWidth={2.5} />
               <Text style={m.withdrawTxt}>Withdraw</Text>
-            </TouchableOpacity>
-            {/* Scan QR */}
-            <TouchableOpacity style={m.scanBtn} onPress={() => setShowScanner(true)}>
-              <QrCode size={15} color="#fff" strokeWidth={2.5} />
-              <Text style={m.scanTxt}>Scan QR</Text>
             </TouchableOpacity>
           </View>
 
@@ -641,32 +451,9 @@ export const MobileWalletScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* ── STATS (Coins available + Pending coins) ─────
-            Coin-economy: imported rewards land in pendingCoins (locked for
-            the return window), then move to coins (withdrawable) once the
-            lock expires. Both surfaced so users see rewards immediately. */}
-        <View style={m.statsRow}>
-          <View style={m.statCard}>
-            <View style={m.statLabelRow}>
-              <View style={m.statDot}><Text style={{ fontSize: 12 }}>🪙</Text></View>
-              <Text style={m.statLabel}>Coins</Text>
-            </View>
-            <Text style={m.statVal}>{w.coins ?? 0}</Text>
-          </View>
-          <View style={m.statCard}>
-            <View style={m.statLabelRow}>
-              <View style={m.statDot}><Clock size={12} color="#d97706" strokeWidth={2} /></View>
-              <Text style={m.statLabel}>Pending Coins</Text>
-            </View>
-            <Text style={[m.statVal, { color: '#d97706' }]}>{w.pendingCoins ?? 0}</Text>
-          </View>
-          <View style={m.statCard}>
-            <View style={m.statLabelRow}>
-              <View style={m.statDot}><Clock size={12} color="#94a3b8" strokeWidth={2} /></View>
-              <Text style={m.statLabel}>Pending ₹</Text>
-            </View>
-            <Text style={m.statVal}>₹{w.pendingCashback ?? 0}</Text>
-          </View>
+        {/* Earn coins by sharing — the daily earning loop */}
+        <View style={m.shareWrap}>
+          <ShareToEarnCard />
         </View>
 
         {/* ── ACTIVITY ────────────────────────────────── */}
@@ -694,24 +481,15 @@ export const MobileWalletScreen = () => {
                 <Text style={m.txDesc} numberOfLines={1}>{tx.description}</Text>
                 <Text style={m.txTime}>{timeAgo(tx.createdAt)}</Text>
               </View>
-              <Text style={[m.txAmt, { color: amtColor(tx.type) }]}>{amtPrefix(tx.type)}₹{tx.amount}</Text>
+              <Text style={[m.txAmt, { color: amtColor(tx.type) }]}>{amtPrefix(tx.type)}{(tx.type === 'coin_credit' || tx.type === 'coin_debit') ? tx.amount + ' coins' : '₹' + tx.amount}</Text>
               <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* ── BOTTOM QR SECTION ───────────────────────── */}
-        <View style={m.qrSection}>
-          <TouchableOpacity style={m.qrBtn} activeOpacity={0.8} onPress={() => setShowScanner(true)}>
-            <QrCode size={16} color="#fff" strokeWidth={2} />
-            <Text style={m.qrBtnTxt}>Scan QR</Text>
-          </TouchableOpacity>
-        </View>
-
       </ScrollView>
 
       <WithdrawSheet visible={showWithdraw} onClose={() => setShowWithdraw(false)} coinBalance={w.coins ?? 0} />
-      <ScannerSheet visible={showScanner} onClose={() => setShowScanner(false)} balance={w.confirmedCashback} />
     </View>
   );
 };
@@ -754,9 +532,9 @@ const m = StyleSheet.create({
     width: '90%',
     alignSelf: "center"
   },
-  balWm: { position: 'absolute', top: 0, right: 18, fontSize: 56, fontWeight: '800', color: '#eef2f8', zIndex: 0 },
   balLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 2, zIndex: 1 },
   balAmt: { fontSize: 40, fontWeight: '800', color: '#1e293b', marginBottom: 20, zIndex: 1 },
+  balSub: { fontSize: 13, color: Colors.textSecondary, marginBottom: 18, zIndex: 1 },
   // buttons
   btnRow: { flexDirection: 'row', gap: 2, marginBottom: 14, zIndex: 1, width: "100%", justifyContent: 'space-evenly' },
   withdrawBtn: {
@@ -767,13 +545,6 @@ const m = StyleSheet.create({
     flexGrow: 1,
   },
   withdrawTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  scanBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: '#6366f1', borderRadius: 12,
-    paddingHorizontal: 22, paddingVertical: 11,
-    flexGrow: 1,
-  },
-  scanTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
   historyRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 6, zIndex: 1,
     backgroundColor: Colors.primaryLight10,
@@ -782,16 +553,8 @@ const m = StyleSheet.create({
   },
   historyTxt: { textAlign: 'center', fontSize: 13, fontWeight: '600', color: '#3b82f6', textDecorationStyle: 'dashed' },
 
-  // Stats
-  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginTop: 16, marginBottom: 20 },
-  statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 13,
-    shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 1,
-  },
-  statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  statDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
-  statLabel: { fontSize: 11, color: '#94a3b8', fontWeight: '500', flexShrink: 1 },
-  statVal: { fontSize: 20, fontWeight: '800', color: '#1e293b' },
+  // Share-to-earn wrapper
+  shareWrap: { paddingHorizontal: 20, marginTop: 16, marginBottom: 4 },
 
   // Activity
   activity: { paddingHorizontal: 20 },
@@ -813,11 +576,4 @@ const m = StyleSheet.create({
   txDesc: { fontSize: 15, fontWeight: '600', color: '#1e293b' },
   txTime: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
   txAmt: { fontSize: 16, fontWeight: '700', marginRight: 4 },
-
-  // QR
-  qrSection: { paddingHorizontal: 20, marginTop: 24 },
-  qrBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#e0edff', borderRadius: 14, padding: 14, marginBottom: 10 },
-  qrBannerTxt: { fontSize: 14, fontWeight: '600', color: '#3b82f6' },
-  qrBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#3b82f6', borderRadius: 14, height: 50 },
-  qrBtnTxt: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });

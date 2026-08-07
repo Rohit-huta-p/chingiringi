@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { walletAPI, Transaction } from '../../api/wallet';
 
-const TRANSACTION_TYPES = ['All', 'Cashback', 'Withdrawal', 'Coins', 'Referral'];
+const TRANSACTION_TYPES = ['All', 'Shares', 'Withdrawals'];
 const TIME_PERIODS = ['All Time', 'Last 7 Days', 'Last 30 Days', 'Last 90 Days'];
 
 const PERIOD_MAP: Record<string, string | undefined> = {
@@ -17,11 +17,11 @@ const PERIOD_MAP: Record<string, string | undefined> = {
 
 const TYPE_MAP: Record<string, string | undefined> = {
   'All': undefined,
-  'Cashback': 'cashback',
-  'Withdrawal': 'withdrawal',
-  'Coins': 'coin_credit',
-  'Referral': 'referral',
+  'Shares': 'coin_credit',
+  'Withdrawals': 'withdrawal',
 };
+
+const COINS_PER_RUPEE = 1000; // 1,000 coins = 1 rupee (mirrors AdminSettings default)
 
 function formatTimeAgo(dateStr: string): string {
   const now = new Date();
@@ -42,7 +42,7 @@ export const TransactionHistoryScreen = () => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const navigation = useNavigation();
-  const [activeType, setActiveType] = useState('Cashback');
+  const [activeType, setActiveType] = useState('All');
   const [activePeriod, setActivePeriod] = useState('All Time');
 
   const { data: txResponse, isLoading } = useQuery({
@@ -55,10 +55,14 @@ export const TransactionHistoryScreen = () => {
   });
 
   const transactions: Transaction[] = txResponse?.data?.transactions ?? [];
+  // Net value in rupees. Coin transactions are converted at the coin rate so
+  // we don't add coins and rupees together as if they were the same unit.
   const totalAmount = useMemo(() =>
     transactions.reduce((sum, tx) => {
       const isIncome = ['cashback', 'referral', 'bonus', 'coin_credit'].includes(tx.type);
-      return sum + (isIncome ? tx.amount : -tx.amount);
+      const isCoin = tx.type === 'coin_credit' || tx.type === 'coin_debit';
+      const rupees = isCoin ? tx.amount / COINS_PER_RUPEE : tx.amount;
+      return sum + (isIncome ? rupees : -rupees);
     }, 0),
     [transactions]
   );
@@ -132,7 +136,7 @@ export const TransactionHistoryScreen = () => {
       {/* Summary Card */}
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>Total Net Amount ({transactions.length} transactions)</Text>
-        <Text style={styles.summaryAmount}>{'\u20B9'}{totalAmount}</Text>
+        <Text style={styles.summaryAmount}>{'\u20B9'}{totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Text>
       </View>
 
       {/* Transaction List */}
@@ -149,6 +153,7 @@ export const TransactionHistoryScreen = () => {
           </View>
         ) : transactions.map((tx) => {
           const isIncome = ['cashback', 'referral', 'bonus', 'coin_credit'].includes(tx.type);
+          const isCoin = tx.type === 'coin_credit' || tx.type === 'coin_debit';
           const brandName = tx.metadata?.brand || tx.description || tx.type;
           const categoryLabel = tx.type.charAt(0).toUpperCase() + tx.type.slice(1).replace('_', ' ');
           return (
@@ -177,7 +182,7 @@ export const TransactionHistoryScreen = () => {
                     styles.txAmount,
                     { color: isIncome ? Colors.success : Colors.danger },
                   ]}>
-                    {isIncome ? '+' : '-'}{'\u20B9'}{tx.amount}
+                    {isIncome ? '+' : '-'}{isCoin ? tx.amount + ' coins' : '\u20B9' + tx.amount}
                   </Text>
                   <Text style={styles.txDate}>{formatDate(tx.createdAt)}</Text>
                   <View style={[

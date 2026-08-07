@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Modal, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, CheckCircle2, Wallet as WalletIcon, Clock, Coins, TrendingUp, ArrowDownLeft, ArrowUpRight, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
+import { X, CheckCircle2, Wallet as WalletIcon, TrendingUp, ArrowDownLeft, ArrowUpRight, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
+import { ShareToEarnCard } from '../../components/ShareToEarnCard';
 
 // Coins→₹ conversion. Mirrors AdminSettings.coinsPerRupee default (1000);
 // 100 coins = 10 paise. The exact rate is re-locked server-side at request time.
@@ -13,12 +14,11 @@ const MIN_WITHDRAW_RUPEES = 100;
 const QUICK_AMOUNTS = [100, 500, 1000];
 type WithdrawMethod = 'UPI' | 'Bank' | 'Paytm';
 
-const FILTER_TABS = ['All', 'Cashback', 'Coins', 'Withdrawals'] as const;
+const FILTER_TABS = ['All', 'Shares', 'Withdrawals'] as const;
 
 const FILTER_TYPE_MAP: Record<string, string | undefined> = {
   All: undefined,
-  Cashback: 'cashback',
-  Coins: 'coin_credit',
+  Shares: 'coin_credit',
   Withdrawals: 'withdrawal',
 };
 
@@ -351,8 +351,9 @@ export const WalletScreen = () => {
             <View style={[styles.iconChip, { backgroundColor: 'rgba(255,255,255,0.22)' }]}>
               <WalletIcon size={22} color="#ffffff" strokeWidth={2} />
             </View>
-            <Text style={styles.confirmedLabel}>Available to Withdraw</Text>
-            <Text style={styles.confirmedAmount}>{'\u20B9'}{Math.floor((wallet.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
+            <Text style={styles.confirmedLabel}>Coin Balance</Text>
+            <Text style={styles.confirmedAmount}>{(wallet.coins ?? 0).toLocaleString('en-IN')}</Text>
+            <Text style={styles.confirmedSubText}>{'\u2248 \u20B9'}{Math.floor((wallet.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}{' \u00B7 Available to withdraw'}</Text>
            
             <TouchableOpacity style={styles.withdrawBtn} onPress={() => setShowWithdraw(true)}>
               <ArrowDownToLine size={15} color="#3b82f6" strokeWidth={2.5} />
@@ -361,27 +362,7 @@ export const WalletScreen = () => {
           </View>
 
           <View style={{ flex: 2, gap: 20, flexDirection: 'column' }}>
-            <View style={[styles.cardsRow_Pending_Coins_Card, isMobile && { flexDirection: 'row' }]}>
-              {/* Pending Card */}
-              <View style={styles.balanceCard}>
-                <View style={[styles.iconChip, { backgroundColor: '#fef3c7' }]}>
-                  <Clock size={20} color="#d97706" strokeWidth={2.2} />
-                </View>
-                <Text style={styles.cardLabel}>Pending Coins</Text>
-                <Text style={styles.cardAmount}>{(wallet.pendingCoins ?? 0).toLocaleString('en-IN')}</Text>
-                <Text style={styles.cardSubText}>In lock period {'\u00B7 \u2248 \u20B9'}{Math.floor((wallet.pendingCoins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}</Text>
-              </View>
-
-              {/* Coins Card */}
-              <View style={styles.balanceCard}>
-                <View style={[styles.iconChip, { backgroundColor: '#ede9fe' }]}>
-                  <Coins size={20} color="#7c3aed" strokeWidth={2.2} />
-                </View>
-                <Text style={styles.cardLabel}>Total Coins</Text>
-                <Text style={styles.cardAmount}>{(wallet.coins ?? 0).toLocaleString('en-IN')}</Text>
-                <Text style={styles.cardSubText}>Reward points</Text>
-              </View>
-            </View>
+            <ShareToEarnCard />
             {/* Total Earned Row */}
             <View style={styles.totalEarnedRow}>
               <View style={styles.totalEarnedLeft}>
@@ -389,7 +370,7 @@ export const WalletScreen = () => {
                   <TrendingUp size={17} color="#16a34a" strokeWidth={2.2} />
                 </View>
                 <Text style={styles.totalEarnedLabel}>Total Earned (Lifetime)</Text>
-                <Text style={styles.totalEarnedAmount}>{'₹'}{(wallet.lifetimeEarned ?? 0).toLocaleString('en-IN')}</Text>
+                <Text style={styles.totalEarnedAmount}>{(wallet.lifetimeEarned ?? 0).toLocaleString('en-IN')} coins</Text>
               </View>
               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                 <Text style={styles.allTimeLink}>All time</Text>
@@ -433,6 +414,7 @@ export const WalletScreen = () => {
         ) : (
           transactions.map((tx) => {
             const displayType = getTxDisplayType(tx);
+            const isCoin = tx.type === 'coin_credit' || tx.type === 'coin_debit';
             const label = tx.metadata?.brand || tx.description;
             return (
               <View key={tx._id} style={styles.transactionItem}>
@@ -453,7 +435,7 @@ export const WalletScreen = () => {
                     styles.txAmount,
                     { color: displayType === 'income' ? Colors.success : Colors.danger },
                   ]}>
-                    {displayType === 'income' ? '+' : '-'}{'\u20B9'}{tx.amount}
+                    {displayType === 'income' ? '+' : '-'}{isCoin ? tx.amount + ' coins' : '\u20B9' + tx.amount}
                   </Text>
                   <Text style={styles.txChevron}>{'›'}</Text>
                 </View>
@@ -508,12 +490,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'stretch',
   },
-  cardsRow_Pending_Coins_Card: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 14,
-    flexWrap: 'wrap',
-  },
   confirmedCard: {
     flex: 1,
     borderRadius: 20,
@@ -536,15 +512,6 @@ const styles = StyleSheet.create({
   globBottomLeft: {
     bottom: -80,
     left: -50,
-  },
-  balanceCard: {
-    flex: 1,
-    minWidth: 200,
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   iconChip: {
     width: 44,
@@ -585,22 +552,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#3b82f6',
-  },
-  cardLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
-  cardAmount: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  cardSubText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
   },
   totalEarnedRow: {
     flexDirection: 'row',
