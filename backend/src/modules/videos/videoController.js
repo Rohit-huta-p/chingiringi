@@ -2,7 +2,8 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import Video from './videoModel.js';
 import { createDirectUpload, verifyWebhookSignature } from '../../services/cloudflareStream.js';
-import { buildFeedQuery, nextCursor } from './videoRanking.js';
+import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
+import VideoInteraction from './videoInteractionModel.js';
 
 const STORE_FIELDS = 'name shortName slug logoUrl isVerified';
 const PRODUCT_FIELDS = 'name price mrp images slug';
@@ -113,4 +114,40 @@ export const getStoreVideos = async (req, res) => {
     store: req.params.storeId, status: 'ready', 'moderation.state': 'approved',
   }).sort({ _id: -1 }).limit(60).populate('taggedProducts', PRODUCT_FIELDS).lean();
   res.status(200).json({ status: 'success', data: { videos } });
+};
+
+// @desc  Count a view + add watch seconds  @route POST /:id/view  @access optional
+export const trackView = async (req, res) => {
+  const video = await Video.findById(req.params.id).select('durationSec');
+  if (!video) { res.status(404); throw new Error('Video not found'); }
+  const watch = clampWatchSec(req.body?.watchSec, video.durationSec);
+  await Video.updateOne({ _id: video._id }, { $inc: { 'stats.views': 1, 'stats.watchSec': watch } });
+  res.status(200).json({ status: 'success', data: { ok: true } });
+};
+
+// Shared like/save toggle. delta +1 on create, -1 on remove; keeps stats counter in sync.
+async function toggle(req, res, type, counter) {
+  const videoId = req.params.id;
+  const existing = await VideoInteraction.findOne({ user: req.user._id, video: videoId, type });
+  let active;
+  if (existing) {
+    await existing.deleteOne();
+    await Video.updateOne({ _id: videoId }, { $inc: { [counter]: -1 } });
+    active = false;
+  } else {
+    await VideoInteraction.create({ user: req.user._id, video: videoId, type });
+    await Video.updateOne({ _id: videoId }, { $inc: { [counter]: 1 } });
+    active = true;
+  }
+  res.status(200).json({ status: 'success', data: { active } });
+}
+
+export const toggleLike = (req, res) => toggle(req, res, 'like', 'stats.likes');
+export const toggleSave = (req, res) => toggle(req, res, 'save', 'stats.saves');
+
+// @desc  Count a share  @route POST /:id/share  @access optional
+export const trackShare = async (req, res) => {
+  const r = await Video.updateOne({ _id: req.params.id }, { $inc: { 'stats.shares': 1 } });
+  if (r.matchedCount === 0) { res.status(404); throw new Error('Video not found'); }
+  res.status(200).json({ status: 'success', data: { ok: true } });
 };

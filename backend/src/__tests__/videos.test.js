@@ -120,3 +120,20 @@ describe('GET /api/videos/:id', () => {
     expect([404, 500]).toContain(res.statusCode);
   });
 });
+
+describe('video engagement auth', () => {
+  it('view works anonymously (200/404/skip)', async () => {
+    try {
+      const res = await request(app).post('/api/videos/000000000000000000000000/view').send({ watchSec: 5 });
+      expect([200, 404, 500]).toContain(res.statusCode);
+    } catch (e) { if (/ECONNREFUSED|MongoNotConnected|buffering/.test(e.message)) return; throw e; }
+  });
+  it('like requires auth', async () => {
+    const res = await request(app).post('/api/videos/000000000000000000000000/like');
+    expect(res.statusCode).toBe(401);
+  });
+  it('save requires auth', async () => {
+    const res = await request(app).post('/api/videos/000000000000000000000000/save');
+    expect(res.statusCode).toBe(401);
+  });
+});
