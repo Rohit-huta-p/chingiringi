@@ -2,6 +2,10 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import Video from './videoModel.js';
 import { createDirectUpload, verifyWebhookSignature } from '../../services/cloudflareStream.js';
+import { buildFeedQuery, nextCursor } from './videoRanking.js';
+
+const STORE_FIELDS = 'name shortName slug logoUrl isVerified';
+const PRODUCT_FIELDS = 'name price mrp images slug';
 
 // @desc  Mint a Cloudflare direct-upload URL   @route POST /api/videos/upload-url  @access admin
 export const createUploadUrl = async (req, res) => {
@@ -79,4 +83,34 @@ export const handleStreamWebhook = async (req, res) => {
   }
   await video.save();
   res.status(200).json({ status: 'success', data: { uid: payload.uid, status: video.status } });
+};
+
+// @desc  Ranked shoppable feed  @route GET /api/videos/feed  @access public
+export const getFeed = async (req, res) => {
+  const { filter, sort, limit } = buildFeedQuery(req.query);
+  const videos = await Video.find(filter)
+    .sort(sort)
+    .limit(limit)
+    .populate('store', STORE_FIELDS)
+    .populate('taggedProducts', PRODUCT_FIELDS)
+    .lean();
+  res.status(200).json({ status: 'success', data: { videos, nextCursor: nextCursor(videos) } });
+};
+
+// @desc  Single video  @route GET /api/videos/:id  @access public
+export const getVideo = async (req, res) => {
+  const video = await Video.findById(req.params.id)
+    .populate('store', STORE_FIELDS)
+    .populate('taggedProducts', PRODUCT_FIELDS)
+    .lean();
+  if (!video) { res.status(404); throw new Error('Video not found'); }
+  res.status(200).json({ status: 'success', data: { video } });
+};
+
+// @desc  A store's ready videos (profile grid)  @route GET /api/videos/store/:storeId  @access public
+export const getStoreVideos = async (req, res) => {
+  const videos = await Video.find({
+    store: req.params.storeId, status: 'ready', 'moderation.state': 'approved',
+  }).sort({ _id: -1 }).limit(60).populate('taggedProducts', PRODUCT_FIELDS).lean();
+  res.status(200).json({ status: 'success', data: { videos } });
 };
