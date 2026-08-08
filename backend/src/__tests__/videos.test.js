@@ -6,6 +6,7 @@ import { verifyWebhookSignature } from '../services/cloudflareStream.js';
 import Video from '../modules/videos/videoModel.js';
 import mongoose from 'mongoose';
 import { buildFeedQuery, nextCursor, clampWatchSec } from '../modules/videos/videoRanking.js';
+import { isStuck } from '../scripts/reconcileVideos.js';
 
 // ponytail: this sandbox has no DB egress and app.js never calls connectDB() in
 // tests, so an unconnected query buffers for ~10s (mongoose default) before
@@ -150,5 +151,16 @@ describe('admin video moderation auth', () => {
   it('delete requires auth', async () => {
     const res = await request(app).delete('/api/videos/000000000000000000000000');
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('reconcileVideos.isStuck', () => {
+  const now = new Date('2026-08-08T12:00:00Z');
+  it('flags processing videos older than the threshold', () => {
+    expect(isStuck({ status: 'processing', createdAt: new Date('2026-08-08T11:40:00Z') }, now, 15)).toBe(true);
+  });
+  it('ignores recent or non-processing videos', () => {
+    expect(isStuck({ status: 'processing', createdAt: new Date('2026-08-08T11:55:00Z') }, now, 15)).toBe(false);
+    expect(isStuck({ status: 'ready', createdAt: new Date('2026-08-08T10:00:00Z') }, now, 15)).toBe(false);
   });
 });

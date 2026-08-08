@@ -13,6 +13,7 @@
     "seed:stores": "node src/scripts/seedStores.js",
     "seed:test-flow": "node src/scripts/seedTestFlow.js",
     "cron:confirm-locks": "node src/scripts/confirmExpiredLocks.js",
+    "cron:reconcile-videos": "node src/scripts/reconcileVideos.js",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --forceExit --detectOpenHandles"
   },
   "keywords": [],
