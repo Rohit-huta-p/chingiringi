@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, ScrollView, Platform, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Heart, Share2, Volume2, VolumeX } from 'lucide-react-native';
+import { Heart, Share2, Volume2, VolumeX, ExternalLink } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { FeedVideo, TaggedProduct, VideoStore } from '../api/videos';
 
@@ -111,15 +111,27 @@ export const VideoFeedItem: React.FC<Props> = ({
   );
 };
 
-const ProductCard: React.FC<{ product: TaggedProduct; compact?: boolean }> = ({ product, compact }) => (
-  <View style={[s.card, compact && s.cardCompact]}>
-    <View style={s.cardTop}>
-      <Text style={s.cardName} numberOfLines={1}>{product.title}</Text>
-      <Text style={s.price}>{inr(product.price)}</Text>
-    </View>
-    {!!product.description && <Text style={s.cardDesc} numberOfLines={2}>{product.description}</Text>}
-  </View>
-);
+const ProductCard: React.FC<{ product: TaggedProduct; compact?: boolean }> = ({ product, compact }) => {
+  const buyable = !!product.url;
+  return (
+    <Pressable
+      style={[s.card, compact && s.cardCompact]}
+      onPress={buyable ? () => Linking.openURL(product.url!) : undefined}
+    >
+      <View style={s.cardTop}>
+        <Text style={s.cardName} numberOfLines={1}>{product.title}</Text>
+        <Text style={s.price}>{inr(product.price)}</Text>
+      </View>
+      {!!product.description && <Text style={s.cardDesc} numberOfLines={2}>{product.description}</Text>}
+      {buyable && (
+        <View style={s.shopRow}>
+          <Text style={s.shopTxt}>Shop now</Text>
+          <ExternalLink size={13} color={Colors.primaryLight} />
+        </View>
+      )}
+    </Pressable>
+  );
+};
 
 /** Dev-only fixture so the item renders before the backend is live. */
 export const SAMPLE_VIDEOS: FeedVideo[] = [
@@ -131,7 +143,7 @@ export const SAMPLE_VIDEOS: FeedVideo[] = [
     hashtags: [], cta: { type: 'shop' }, publishedAt: new Date(0).toISOString(),
     stats: { views: 1200, likes: 1200, shares: 88, saves: 340 },
     store: { name: 'Brew & Co', logoUrl: 'https://picsum.photos/seed/brewlogo/80' },
-    taggedProducts: [{ title: 'Signature Cold Brew', description: 'Slow-steeped 18 hours, served over ice.', price: 180 }],
+    taggedProducts: [{ title: 'Signature Cold Brew', description: 'Slow-steeped 18 hours, served over ice.', price: 180, url: 'https://example.com/cold-brew' }],
   },
   {
     _id: 'sample2', streamUid: 'y', status: 'ready',
@@ -177,6 +189,8 @@ const s = StyleSheet.create({
   cardName: { color: '#fff', fontFamily: Fonts.bold, fontSize: 14, flexShrink: 1 },
   price: { color: Colors.primaryLight, fontFamily: Fonts.extraBold, fontSize: 15 },
   cardDesc: { color: 'rgba(255,255,255,0.72)', fontFamily: Fonts.regular, fontSize: 12, lineHeight: 16 },
+  shopRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, alignSelf: 'flex-start', backgroundColor: 'rgba(71,132,226,0.22)', paddingVertical: 5, paddingHorizontal: 11, borderRadius: 9 },
+  shopTxt: { color: Colors.primaryLight, fontFamily: Fonts.bold, fontSize: 12 },
 });
 
 export default VideoFeedItem;

@@ -5,6 +5,7 @@ export interface TaggedProduct {
   title: string;
   description?: string;
   price: number;
+  url?: string; // optional buy link — tapping the card opens it
 }
 
 // Store is free-text per video (not linked to the offline-stores list).

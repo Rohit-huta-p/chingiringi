@@ -9,8 +9,8 @@ import { Colors, Fonts } from '../../constants/theme';
 import { useVideoUpload, PickedVideo } from '../../components/useVideoUpload';
 import { videosAPI } from '../../api/videos';
 
-type ProductForm = { title: string; description: string; price: string };
-const blankProduct = (): ProductForm => ({ title: '', description: '', price: '' });
+type ProductForm = { title: string; description: string; price: string; url: string };
+const blankProduct = (): ProductForm => ({ title: '', description: '', price: '', url: '' });
 
 export const AdminVideoUploadScreen = () => {
   const { uploading, pickVideo, uploadVideo } = useVideoUpload();
@@ -42,7 +42,7 @@ export const AdminVideoUploadScreen = () => {
     }
     const tagged = products
       .filter((p) => p.title.trim() && p.price.trim())
-      .map((p) => ({ title: p.title.trim(), description: p.description.trim() || undefined, price: Number(p.price) || 0 }));
+      .map((p) => ({ title: p.title.trim(), description: p.description.trim() || undefined, price: Number(p.price) || 0, url: p.url.trim() || undefined }));
 
     try {
       const streamUid = await uploadVideo(video, storeName.trim());
@@ -167,6 +167,15 @@ export const AdminVideoUploadScreen = () => {
                   keyboardType="number-pad"
                 />
               </View>
+              <TextInput
+                style={s.prodInput}
+                value={p.url}
+                onChangeText={(v) => updateProduct(i, 'url', v)}
+                placeholder="Buy link (optional)"
+                placeholderTextColor={Colors.textSecondary}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
             </View>
           ))}
 
