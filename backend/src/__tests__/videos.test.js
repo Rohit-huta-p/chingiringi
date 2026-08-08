@@ -82,3 +82,13 @@ describe('POST /api/videos', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('POST /api/webhooks/cloudflare-stream', () => {
+  it('401s when the signature is missing or invalid', async () => {
+    const res = await request(app)
+      .post('/api/webhooks/cloudflare-stream')
+      .set('Content-Type', 'application/json')
+      .send({ uid: 'abc', status: { state: 'ready' } });
+    expect(res.statusCode).toBe(401);
+  });
+});
