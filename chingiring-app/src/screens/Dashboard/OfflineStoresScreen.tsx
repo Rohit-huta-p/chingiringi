@@ -314,7 +314,7 @@ export const OfflineStoresScreen: React.FC = () => {
         isNarrow && { flexDirection: 'column', paddingHorizontal: 16 },
       ]}>
         {showMap && (
-          <View style={[styles.mapCol, isNarrow && { flex: 0, height: 360 }]}>
+          <View style={[styles.mapCol, isNarrow && { flex: 1, minHeight: 0, marginBottom: 96 }]}>
             <View style={styles.mapInner}>
               <StoreMap
                 stores={filtered}
