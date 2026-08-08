@@ -16,6 +16,7 @@ const productSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
   price: { type: Number, default: 0 },
+  url: { type: String, default: '' }, // optional buy link
 }, { _id: false });
 
 const videoSchema = new mongoose.Schema({

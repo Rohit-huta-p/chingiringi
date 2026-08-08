@@ -28,6 +28,7 @@ const createSchema = z.object({
     title: z.string().min(1, 'product title is required'),
     description: z.string().optional().default(''),
     price: z.number().nonnegative().optional().default(0),
+    url: z.string().optional().default(''),
   })).optional().default([]),
   cta: z.object({
     type: z.enum(['shop', 'store', 'none']).default('shop'),
