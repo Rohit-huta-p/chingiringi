@@ -11,8 +11,19 @@ const statsSchema = new mongoose.Schema({
   storeTaps: { type: Number, default: 0 },
 }, { _id: false });
 
+// Products are entered inline per video (not linked to the products catalog).
+const productSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true },
+  description: { type: String, default: '' },
+  price: { type: Number, default: 0 },
+}, { _id: false });
+
 const videoSchema = new mongoose.Schema({
-  store: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true, index: true },
+  // Store is free-text per video (not linked to the offline-stores catalog).
+  store: {
+    name: { type: String, required: true, trim: true },
+    logoUrl: { type: String, default: '' },
+  },
   createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   streamUid: { type: String, required: true, unique: true, index: true },
   status: {
@@ -26,10 +37,9 @@ const videoSchema = new mongoose.Schema({
   durationSec: { type: Number, default: 0 },
   caption: { type: String, default: '', maxlength: 300 },
   hashtags: [{ type: String }],
-  taggedProducts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+  taggedProducts: [productSchema],
   cta: {
     type: { type: String, enum: ['shop', 'store', 'none'], default: 'shop' },
-    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     url: { type: String, default: '' },
   },
   stats: { type: statsSchema, default: () => ({}) },
@@ -45,6 +55,6 @@ const videoSchema = new mongoose.Schema({
 
 // Feed reads: ready + approved, newest first.
 videoSchema.index({ status: 1, 'moderation.state': 1, _id: -1 });
-videoSchema.index({ store: 1, status: 1 });
+videoSchema.index({ 'store.name': 1, status: 1 });
 
 export default mongoose.model('Video', videoSchema);

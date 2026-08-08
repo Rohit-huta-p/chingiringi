@@ -33,21 +33,30 @@ describe('cloudflareStream.verifyWebhookSignature', () => {
 });
 
 describe('Video model', () => {
-  it('requires store and streamUid', () => {
+  it('requires store.name and streamUid', () => {
     const err = new Video({}).validateSync();
-    expect(err.errors.store).toBeDefined();
+    expect(err.errors['store.name']).toBeDefined();
     expect(err.errors.streamUid).toBeDefined();
   });
   it('defaults status=processing, moderation.state=pending, zeroed stats', () => {
-    const v = new Video({ store: new mongoose.Types.ObjectId(), streamUid: 'uid1' });
+    const v = new Video({ store: { name: 'Brew & Co' }, streamUid: 'uid1' });
     expect(v.validateSync()).toBeUndefined();
     expect(v.status).toBe('processing');
     expect(v.moderation.state).toBe('pending');
     expect(v.stats.views).toBe(0);
     expect(v.cta.type).toBe('shop');
   });
+  it('accepts inline tagged products (title/description/price)', () => {
+    const v = new Video({
+      store: { name: 'Brew & Co' }, streamUid: 'uid2',
+      taggedProducts: [{ title: 'Cold Brew', description: 'Iced', price: 180 }],
+    });
+    expect(v.validateSync()).toBeUndefined();
+    expect(v.taggedProducts[0].title).toBe('Cold Brew');
+    expect(v.taggedProducts[0].price).toBe(180);
+  });
   it('rejects an invalid status enum', () => {
-    const v = new Video({ store: new mongoose.Types.ObjectId(), streamUid: 'u', status: 'nope' });
+    const v = new Video({ store: { name: 'X' }, streamUid: 'u', status: 'nope' });
     expect(v.validateSync().errors.status).toBeDefined();
   });
 });

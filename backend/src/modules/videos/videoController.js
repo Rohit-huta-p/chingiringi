@@ -1,36 +1,36 @@
 import { z } from 'zod';
-import mongoose from 'mongoose';
 import Video from './videoModel.js';
 import { createDirectUpload, verifyWebhookSignature, deleteStreamVideo } from '../../services/cloudflareStream.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
 
-const STORE_FIELDS = 'name shortName slug logoUrl isVerified';
-const PRODUCT_FIELDS = 'name price mrp images slug';
-
 // @desc  Mint a Cloudflare direct-upload URL   @route POST /api/videos/upload-url  @access admin
 export const createUploadUrl = async (req, res) => {
-  const { storeId } = req.body;
-  if (!mongoose.isValidObjectId(storeId)) {
-    res.status(400);
-    throw new Error('A valid storeId is required');
-  }
+  const { storeName } = req.body;
   const { uid, uploadURL } = await createDirectUpload({
     maxDurationSeconds: 120,
-    meta: { storeId: String(storeId), createdBy: String(req.user._id) },
+    meta: { storeName: String(storeName || ''), createdBy: String(req.user._id) },
   });
   res.status(201).json({ status: 'success', data: { streamUid: uid, uploadURL } });
 };
 
 const createSchema = z.object({
   streamUid: z.string().min(1),
-  storeId: z.string().refine(mongoose.isValidObjectId, 'invalid storeId'),
+  // Free-text store (not linked to the offline-stores catalog).
+  store: z.object({
+    name: z.string().min(1, 'store name is required'),
+    logoUrl: z.string().optional().default(''),
+  }),
   caption: z.string().max(300).optional().default(''),
   hashtags: z.array(z.string()).optional().default([]),
-  taggedProducts: z.array(z.string().refine(mongoose.isValidObjectId, 'bad id')).optional().default([]),
+  // Inline products (not linked to the products catalog).
+  taggedProducts: z.array(z.object({
+    title: z.string().min(1, 'product title is required'),
+    description: z.string().optional().default(''),
+    price: z.number().nonnegative().optional().default(0),
+  })).optional().default([]),
   cta: z.object({
     type: z.enum(['shop', 'store', 'none']).default('shop'),
-    productId: z.string().refine(mongoose.isValidObjectId, 'bad id').optional(),
     url: z.string().optional().default(''),
   }).optional(),
 });
@@ -44,7 +44,7 @@ export const createVideo = async (req, res) => {
   }
   const d = parsed.data;
   const video = await Video.create({
-    store: d.storeId,
+    store: d.store,
     createdByAdmin: req.user._id,
     streamUid: d.streamUid,
     caption: d.caption,
@@ -92,27 +92,22 @@ export const getFeed = async (req, res) => {
   const videos = await Video.find(filter)
     .sort(sort)
     .limit(limit)
-    .populate('store', STORE_FIELDS)
-    .populate('taggedProducts', PRODUCT_FIELDS)
     .lean();
   res.status(200).json({ status: 'success', data: { videos, nextCursor: nextCursor(videos) } });
 };
 
 // @desc  Single video  @route GET /api/videos/:id  @access public
 export const getVideo = async (req, res) => {
-  const video = await Video.findById(req.params.id)
-    .populate('store', STORE_FIELDS)
-    .populate('taggedProducts', PRODUCT_FIELDS)
-    .lean();
+  const video = await Video.findById(req.params.id).lean();
   if (!video) { res.status(404); throw new Error('Video not found'); }
   res.status(200).json({ status: 'success', data: { video } });
 };
 
-// @desc  A store's ready videos (profile grid)  @route GET /api/videos/store/:storeId  @access public
+// @desc  A store's ready videos, by store name  @route GET /api/videos/store/:storeId  @access public
 export const getStoreVideos = async (req, res) => {
   const videos = await Video.find({
-    store: req.params.storeId, status: 'ready', 'moderation.state': 'approved',
-  }).sort({ _id: -1 }).limit(60).populate('taggedProducts', PRODUCT_FIELDS).lean();
+    'store.name': req.params.storeId, status: 'ready', 'moderation.state': 'approved',
+  }).sort({ _id: -1 }).limit(60).lean();
   res.status(200).json({ status: 'success', data: { videos } });
 };
 
@@ -155,7 +150,7 @@ export const trackShare = async (req, res) => {
 // @desc  Moderation queue (pending, newest first)  @route GET /api/videos/admin/queue  @access admin
 export const listPending = async (req, res) => {
   const videos = await Video.find({ 'moderation.state': 'pending' })
-    .sort({ _id: -1 }).limit(100).populate('store', STORE_FIELDS).lean();
+    .sort({ _id: -1 }).limit(100).lean();
   res.status(200).json({ status: 'success', data: { videos } });
 };
 
