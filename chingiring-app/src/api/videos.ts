@@ -59,4 +59,22 @@ export const videosAPI = {
   toggleLike: async (id: string) => (await apiClient.post(`/api/videos/${id}/like`)).data,
   toggleSave: async (id: string) => (await apiClient.post(`/api/videos/${id}/save`)).data,
   trackShare: async (id: string) => (await apiClient.post(`/api/videos/${id}/share`)).data,
+
+  // ── admin authoring (protect + admin) ──────────────────────────────────
+  /** Mint a one-time Cloudflare Stream direct-upload URL for a store. */
+  createUploadUrl: async (storeId: string) => {
+    const res = await apiClient.post('/api/videos/upload-url', { storeId });
+    return res.data as { status: string; data: { streamUid: string; uploadURL: string } };
+  },
+  /** Save video metadata after the file is uploaded to Cloudflare. */
+  createVideo: async (payload: {
+    streamUid: string;
+    storeId: string;
+    caption?: string;
+    taggedProducts?: string[];
+    cta?: { type: 'shop' | 'store' | 'none'; productId?: string; url?: string };
+  }) => {
+    const res = await apiClient.post('/api/videos', payload);
+    return res.data as { status: string; data: { video: FeedVideo } };
+  },
 };
