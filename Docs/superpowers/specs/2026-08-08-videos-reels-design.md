@@ -218,13 +218,13 @@ Video {
 |---|---|---|---|
 | POST | `/api/videos/upload-url` | admin | Create Cloudflare direct-upload URL |
 | POST | `/api/videos` | admin | Create Video metadata (post-upload) |
-| POST | `/api/videos/webhook` | Cloudflare sig | Encode status callbacks |
+| POST | `/api/webhooks/cloudflare-stream` | Cloudflare sig | Encode status callbacks (mounted before `express.json()` for raw-body signature verify) |
 | GET | `/api/videos/feed?cursor=` | public | Ranked, paginated feed |
 | GET | `/api/videos/:id` | public | Single video |
 | GET | `/api/videos/store/:storeId` | public | A store's clips (grid) |
 | POST | `/api/videos/:id/view` | user/anon | Increment view + report watch-seconds |
 | POST | `/api/videos/:id/like` · `/save` · `/share` | user | Engagement |
-| PATCH | `/api/admin/videos/:id` | admin | Moderation state / feature |
+| PATCH | `/api/videos/admin/:id` | admin | Moderation state / feature |
 | DELETE | `/api/videos/:id` | admin | Remove (also best-effort delete from Cloudflare) |
 
 Module layout mirrors existing backend: `backend/src/modules/videos/{videoModel,videoController,videoRoutes}.js` + `services/cloudflareStream.js` (thin REST client using Node's built-in `fetch`).
@@ -287,7 +287,7 @@ Monthly delivery = views × watch_min × $0.001      (≈ MAU × video-min-watch
 
 ## 11. Moderation & trust/safety
 - **v1 is inherently safer:** only admin publishes, only for verified stores → brand-safe by construction.
-- **Queue:** every upload lands `processing` → admin approves to `ready`/feed. `PATCH /admin/videos/:id` sets `flagged`/`removed`; removal pulls from feed instantly and best-effort deletes the Cloudflare asset.
+- **Queue:** every upload lands `processing` → admin approves to `ready`/feed. `PATCH /api/videos/admin/:id` sets `flagged`/`removed`; removal pulls from feed instantly and best-effort deletes the Cloudflare asset.
 - **Phase 3 (UGC) prerequisites:** in-app reporting, rate limits, automated screening (Cloudflare/3rd-party moderation or a review SLA), and a strike system. UGC does **not** ship until these exist.
 
 ---
