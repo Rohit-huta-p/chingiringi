@@ -137,3 +137,18 @@ describe('video engagement auth', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('admin video moderation auth', () => {
+  it('queue requires auth', async () => {
+    const res = await request(app).get('/api/videos/admin/queue');
+    expect(res.statusCode).toBe(401);
+  });
+  it('moderate requires auth', async () => {
+    const res = await request(app).patch('/api/videos/admin/000000000000000000000000').send({ action: 'approve' });
+    expect(res.statusCode).toBe(401);
+  });
+  it('delete requires auth', async () => {
+    const res = await request(app).delete('/api/videos/000000000000000000000000');
+    expect(res.statusCode).toBe(401);
+  });
+});

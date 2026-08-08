@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import Video from './videoModel.js';
-import { createDirectUpload, verifyWebhookSignature } from '../../services/cloudflareStream.js';
+import { createDirectUpload, verifyWebhookSignature, deleteStreamVideo } from '../../services/cloudflareStream.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
 
@@ -150,4 +150,37 @@ export const trackShare = async (req, res) => {
   const r = await Video.updateOne({ _id: req.params.id }, { $inc: { 'stats.shares': 1 } });
   if (r.matchedCount === 0) { res.status(404); throw new Error('Video not found'); }
   res.status(200).json({ status: 'success', data: { ok: true } });
+};
+
+// @desc  Moderation queue (pending, newest first)  @route GET /api/videos/admin/queue  @access admin
+export const listPending = async (req, res) => {
+  const videos = await Video.find({ 'moderation.state': 'pending' })
+    .sort({ _id: -1 }).limit(100).populate('store', STORE_FIELDS).lean();
+  res.status(200).json({ status: 'success', data: { videos } });
+};
+
+// @desc  Approve/reject/feature  @route PATCH /api/videos/admin/:id  @access admin
+export const moderateVideo = async (req, res) => {
+  const { action, reason, featured } = req.body;
+  const video = await Video.findById(req.params.id);
+  if (!video) { res.status(404); throw new Error('Video not found'); }
+  if (action === 'approve') {
+    video.moderation = { state: 'approved', reviewedBy: req.user._id, reason: '', at: new Date() };
+    if (video.status === 'ready' && !video.publishedAt) video.publishedAt = new Date();
+  } else if (action === 'reject') {
+    video.moderation = { state: 'rejected', reviewedBy: req.user._id, reason: reason || '', at: new Date() };
+    video.status = 'removed';
+  }
+  if (typeof featured === 'boolean') video.isFeatured = featured;
+  await video.save();
+  res.status(200).json({ status: 'success', data: { video } });
+};
+
+// @desc  Hard remove (also best-effort delete from Cloudflare)  @route DELETE /api/videos/:id  @access admin
+export const deleteVideo = async (req, res) => {
+  const video = await Video.findById(req.params.id);
+  if (!video) { res.status(404); throw new Error('Video not found'); }
+  try { await deleteStreamVideo(video.streamUid); } catch { /* best effort */ }
+  await video.deleteOne();
+  res.status(200).json({ status: 'success', data: { deleted: true } });
 };
