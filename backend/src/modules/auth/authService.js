@@ -36,6 +36,42 @@ export const createUser = async (userData) => {
   return user;
 };
 
+export const findOrCreateGoogleUser = async ({ sub, email, name, picture }) => {
+  // Match by googleId first; otherwise link Google to an existing email account.
+  let user = await User.findOne({ $or: [{ googleId: sub }, { email }] });
+
+  if (user) {
+    let dirty = false;
+    if (!user.googleId) { user.googleId = sub; dirty = true; }        // link on first Google login
+    if (!user.isEmailVerified) { user.isEmailVerified = true; dirty = true; }
+    if (!user.avatarUrl && picture) { user.avatarUrl = picture; dirty = true; }
+    if (dirty) await user.save({ validateBeforeSave: false });
+    return { user, isNew: false };
+  }
+
+  // New Google user — no password. Derive a unique username from the email local part.
+  const base = (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20) || 'user';
+  let username = base;
+  while (await User.exists({ username })) {
+    username = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+
+  user = await User.create({
+    name: name || 'User',
+    email,
+    username,
+    googleId: sub,
+    isEmailVerified: true,
+    avatarUrl: picture || '',
+  });
+
+  const wallet = await Wallet.create({ userId: user._id });
+  user.walletId = wallet._id;
+  await user.save();
+
+  return { user, isNew: true };
+};
+
 export const verifyPassword = async (identifier, password) => {
   const user = await User.findOne({
     $or: [{ email: identifier }, { username: identifier }],

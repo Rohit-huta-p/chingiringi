@@ -8,6 +8,7 @@ export type StoreMapProps = {
   stores: Store[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  userLocation?: { lat: number; lng: number } | null;
 };
 
 export const StoreMap: React.FC<StoreMapProps> = (props) => {

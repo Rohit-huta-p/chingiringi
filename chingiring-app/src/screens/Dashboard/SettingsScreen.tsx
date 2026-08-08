@@ -4,112 +4,42 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Switch,
   TouchableOpacity,
   Alert,
-  useWindowDimensions,
+  Image,
 } from 'react-native';
+import {
+  Bell, ShieldCheck, LifeBuoy, UserCog, Lock, LogOut, ChevronRight,
+  IndianRupee, Banknote, Users, Mail, HelpCircle, FileText, ScrollText, Star,
+} from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Colors, Spacing } from '../../constants/theme';
+import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
-import { Card } from '../../components/Card';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { ChangePasswordModal } from '../../components/ChangePasswordModal';
+import { SettingsSection, SettingRow, SettingToggle, Tint } from '../../components/SettingsList';
 import { profileAPI } from '../../api/profile';
 import { notificationsAPI } from '../../api/notifications';
 import { registerForPush, unregisterForPush } from '../../lib/push';
 
 // ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-const SectionHeader = ({
-  icon,
-  title,
-  titleColor,
-}: {
-  icon: string;
-  title: string;
-  titleColor?: string;
-}) => (
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionIcon}>{icon}</Text>
-    <Text style={[styles.sectionTitle, titleColor ? { color: titleColor } : undefined]}>
-      {title}
-    </Text>
-  </View>
-);
-
-const ToggleItem = ({
-  title,
-  subtitle,
-  value,
-  onValueChange,
-}: {
-  title: string;
-  subtitle: string;
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-}) => (
-  <View style={styles.toggleItem}>
-    <View style={styles.toggleTextBlock}>
-      <Text style={styles.toggleTitle}>{title}</Text>
-      <Text style={styles.toggleSubtitle}>{subtitle}</Text>
-    </View>
-    <Switch
-      value={value}
-      onValueChange={onValueChange}
-      trackColor={{ false: '#e2e8f0', true: Colors.primary }}
-      thumbColor="#ffffff"
-    />
-  </View>
-);
-
-const ListItem = ({
-  icon,
-  title,
-  rightLabel,
-  onPress,
-}: {
-  icon: string;
-  title: string;
-  rightLabel?: string;
-  onPress?: () => void;
-}) => (
-  <TouchableOpacity
-    style={styles.listItem}
-    onPress={onPress}
-    disabled={!onPress}
-    activeOpacity={0.7}
-  >
-    <View style={styles.listItemLeft}>
-      <Text style={styles.listItemIcon}>{icon}</Text>
-      <Text style={styles.listItemTitle}>{title}</Text>
-    </View>
-    <View style={styles.listItemRight}>
-      {rightLabel ? <Text style={styles.listItemLabel}>{rightLabel}</Text> : null}
-      <Text style={styles.chevron}>{'›'}</Text>
-    </View>
-  </TouchableOpacity>
-);
-
-// ---------------------------------------------------------------------------
-// SettingsScreen
+// SettingsScreen (desktop / wide web)
 // ---------------------------------------------------------------------------
 
 export const SettingsScreen = () => {
-  const { width } = useWindowDimensions();
-  const isMobile = width < 768;
+  const navigation = useNavigation<any>();
   const { logout } = useAuthStore();
 
   const { data: profileData } = useQuery({
     queryKey: ['profile'],
     queryFn: () => profileAPI.getProfile(),
   });
-  const prefs = profileData?.data?.user?.notificationPrefs;
+  const user = profileData?.data?.user;
+  const prefs = user?.notificationPrefs;
 
   // Notification toggle states
   const [cashbackUpdates, setCashbackUpdates] = useState(true);
-  const [dealAlerts, setDealAlerts] = useState(true);
   const [referralUpdates, setReferralUpdates] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [withdrawalUpdates, setWithdrawalUpdates] = useState(true);
@@ -137,6 +67,7 @@ export const SettingsScreen = () => {
   // Modal states
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   const deleteAccountMutation = useMutation({
     mutationFn: profileAPI.deleteAccount,
@@ -155,114 +86,121 @@ export const SettingsScreen = () => {
     await logout();
   };
 
-  const handleDeleteAccount = () => {
-    deleteAccountMutation.mutate();
-  };
-
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scrollContent, { padding: isMobile ? 16 : Spacing.lg }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} activeOpacity={0.7}>
-            <Text style={styles.backArrow}>{'←'}</Text>
-          </TouchableOpacity>
-          <View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.column}>
+          {/* Header */}
+          <View style={styles.header}>
             <Text style={styles.headerLabel}>ACCOUNT</Text>
             <Text style={styles.headerTitle}>Settings</Text>
           </View>
-        </View>
 
-        {/* Notifications */}
-        <Card style={styles.card}>
-          <SectionHeader icon="🔔" title="Notifications" />
-          <ToggleItem
-            title="Cashback Updates"
-            subtitle="Get notified when cashback is confirmed"
-            value={cashbackUpdates}
-            onValueChange={onToggleCashback}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            title="Withdrawal Updates"
-            subtitle="When a withdrawal is submitted, paid, or rejected"
-            value={withdrawalUpdates}
-            onValueChange={onToggleWithdrawals}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            title="Push Notifications"
-            subtitle="Get alerts on your device"
-            value={pushEnabled}
-            onValueChange={onTogglePush}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            title="Deal Alerts"
-            subtitle="Notify about new deals and offers"
-            value={dealAlerts}
-            onValueChange={setDealAlerts}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            title="Referral Updates"
-            subtitle="Updates about your referrals"
-            value={referralUpdates}
-            onValueChange={setReferralUpdates}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            title="Email Notifications"
-            subtitle="Receive updates via email"
-            value={emailNotifications}
-            onValueChange={setEmailNotifications}
-          />
-        </Card>
+          {/* Profile strip */}
+          {user && (
+            <TouchableOpacity
+              style={styles.profileStrip}
+              onPress={() => navigation.navigate('EditProfile')}
+              activeOpacity={0.75}
+            >
+              <View style={styles.profileAvatar}>
+                {user.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={styles.profileAvatarImg} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.profileAvatarTxt}>
+                    {user.name ? user.name[0].toUpperCase() : 'U'}
+                  </Text>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.profileName}>{user.name}</Text>
+                <Text style={styles.profileSub}>{user.email || user.phone || 'Edit profile →'}</Text>
+              </View>
+              <View style={styles.editPill}>
+                <Text style={styles.editPillTxt}>Edit</Text>
+                <ChevronRight size={14} color={Colors.primary} strokeWidth={2.4} />
+              </View>
+            </TouchableOpacity>
+          )}
 
-        {/* Security & Privacy */}
-        <Card style={styles.card}>
-          <SectionHeader icon="🛡️" title="Security & Privacy" />
-          <ListItem icon="🔒" title="Change Password" onPress={() => {}} />
-          <View style={styles.divider} />
-          <ListItem
-            icon="📱"
-            title="Two-Factor Authentication"
-            rightLabel="Disabled"
-            onPress={() => {}}
-          />
-          <View style={styles.divider} />
-          <ListItem icon="🔗" title="Linked Accounts" onPress={() => {}} />
-        </Card>
+          {/* Notifications */}
+          <SettingsSection title="Notifications" icon={Bell} {...Tint.primary}>
+            <SettingToggle
+              icon={IndianRupee} {...Tint.green}
+              label="Cashback Updates"
+              sublabel="When cashback is confirmed"
+              value={cashbackUpdates}
+              onValueChange={onToggleCashback}
+            />
+            <SettingToggle
+              icon={Banknote} {...Tint.blue}
+              label="Withdrawal Updates"
+              sublabel="Submitted, paid or rejected"
+              value={withdrawalUpdates}
+              onValueChange={onToggleWithdrawals}
+            />
+            <SettingToggle
+              icon={Bell} {...Tint.primary}
+              label="Push Notifications"
+              sublabel="Get alerts on your device"
+              value={pushEnabled}
+              onValueChange={onTogglePush}
+            />
+            <SettingToggle
+              icon={Users} {...Tint.purple}
+              label="Referral Updates"
+              sublabel="Updates about your referrals"
+              value={referralUpdates}
+              onValueChange={setReferralUpdates}
+            />
+            <SettingToggle
+              icon={Mail} {...Tint.amber}
+              label="Email Notifications"
+              sublabel="Receive updates via email"
+              value={emailNotifications}
+              onValueChange={setEmailNotifications}
+            />
+          </SettingsSection>
 
-        {/* Account Actions */}
-        <Card style={styles.card}>
+          {/* Security & Privacy */}
+          <SettingsSection title="Security & Privacy" icon={ShieldCheck} {...Tint.purple}>
+            <SettingRow
+              icon={Lock} {...Tint.slate}
+              label="Change Password"
+              sublabel="Reset via email code"
+              onPress={() => setChangePwOpen(true)}
+            />
+          </SettingsSection>
+
+          {/* Support */}
+          <SettingsSection title="Support" icon={LifeBuoy} {...Tint.teal}>
+            <SettingRow icon={HelpCircle} {...Tint.sky} label="Help & Support" onPress={() => {}} />
+            <SettingRow icon={FileText} {...Tint.slate} label="Terms of Service" onPress={() => {}} />
+            <SettingRow icon={ScrollText} {...Tint.teal} label="Privacy Policy" onPress={() => {}} />
+            <SettingRow icon={Star} {...Tint.amber} label="Rate the App" onPress={() => {}} />
+          </SettingsSection>
+
+          {/* Account */}
+          <SettingsSection title="Account" icon={UserCog} {...Tint.slate}>
+            <SettingRow
+              icon={LogOut} {...Tint.slate}
+              label="Logout"
+              onPress={() => setLogoutModalVisible(true)}
+              hideChevron
+            />
+          </SettingsSection>
+
+          {/* Delete account — quiet, low-emphasis text link */}
           <TouchableOpacity
-            style={styles.listItem}
-            onPress={() => setLogoutModalVisible(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.listItemLeft}>
-              <Text style={styles.listItemIcon}>🚪</Text>
-              <Text style={[styles.listItemTitle, { color: Colors.danger }]}>Logout</Text>
-            </View>
-          </TouchableOpacity>
-        </Card>
-
-        {/* Danger Zone */}
-        <Card style={[styles.card, styles.dangerCard]}>
-          <SectionHeader icon="⚠️" title="Danger Zone" titleColor={Colors.danger} />
-          <Text style={styles.dangerText}>
-            Once you delete your account, there is no going back. All your data including
-            cashback, coins, and transaction history will be permanently deleted.
-          </Text>
-          <TouchableOpacity
-            style={styles.deleteButton}
+            style={styles.deleteLink}
             onPress={() => setDeleteModalVisible(true)}
-            activeOpacity={0.8}
+            activeOpacity={0.6}
           >
-            <Text style={styles.deleteButtonText}>Delete Account</Text>
+            <Text style={styles.deleteLinkText}>Delete account</Text>
           </TouchableOpacity>
-        </Card>
+
+          <Text style={styles.versionTxt}>ChingiRingi v1.0.0</Text>
+        </View>
       </ScrollView>
 
       {/* Modals */}
@@ -279,12 +217,18 @@ export const SettingsScreen = () => {
       <ConfirmationModal
         visible={deleteModalVisible}
         onClose={() => setDeleteModalVisible(false)}
-        onConfirm={handleDeleteAccount}
+        onConfirm={() => deleteAccountMutation.mutate()}
         title="Delete Account"
         message="This action is irreversible. All your data including cashback, coins, and transaction history will be permanently deleted."
         confirmText="Delete Account"
         confirmColor={Colors.danger}
         icon="warning"
+      />
+
+      <ChangePasswordModal
+        visible={changePwOpen}
+        onClose={() => setChangePwOpen(false)}
+        email={user?.email}
       />
     </View>
   );
@@ -295,159 +239,73 @@ export const SettingsScreen = () => {
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollContent: {
-    paddingBottom: 60,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  scrollContent: { padding: 24, paddingBottom: 60, alignItems: 'center' },
+  // Constrain content on wide screens so cards don't stretch edge-to-edge.
+  column: { width: '100%', maxWidth: 640 },
 
   // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  backArrow: {
-    fontSize: 20,
-    color: Colors.text,
-  },
+  header: { marginBottom: 20, paddingHorizontal: 4 },
   headerLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.bold,
     color: Colors.textSecondary,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 26,
+    fontFamily: Fonts.extraBold,
     color: Colors.text,
     marginTop: 2,
   },
 
-  // Card
-  card: {
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    borderRadius: 12,
-  },
-
-  // Section header
-  sectionHeader: {
+  // Profile strip
+  profileStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  sectionIcon: {
-    fontSize: 18,
-    marginRight: Spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-
-  // Toggle item
-  toggleItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  toggleTextBlock: {
-    flex: 1,
-    marginRight: Spacing.md,
-  },
-  toggleTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  toggleSubtitle: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-
-  // List item
-  listItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  listItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  listItemIcon: {
-    fontSize: 18,
-    marginRight: Spacing.sm,
-  },
-  listItemTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  listItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  listItemLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginRight: Spacing.xs,
-  },
-  chevron: {
-    fontSize: 22,
-    color: Colors.textSecondary,
-    lineHeight: 22,
-  },
-
-  // Divider
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-
-  // Danger zone
-  dangerCard: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 22,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#eef2f7',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
-  dangerText: {
-    fontSize: 13,
-    color: '#991B1B',
-    lineHeight: 20,
-    marginBottom: Spacing.md,
+  profileAvatar: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: Colors.primaryLight10,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 14, overflow: 'hidden',
   },
-  deleteButton: {
-    backgroundColor: Colors.danger,
-    borderRadius: 8,
-    height: 44,
+  profileAvatarImg: { width: '100%', height: '100%' },
+  profileAvatarTxt: { fontSize: 20, fontFamily: Fonts.extraBold, color: Colors.primary },
+  profileName: { fontSize: 16, fontFamily: Fonts.bold, color: Colors.text },
+  profileSub: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+  editPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    backgroundColor: Colors.primaryLight10,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+  },
+  editPillTxt: { fontSize: 12, fontFamily: Fonts.bold, color: Colors.primary },
+
+  // Delete account — quiet destructive text link (least-important action)
+  deleteLink: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 14,
+    marginTop: 4,
+    marginBottom: 14,
   },
-  deleteButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
+  deleteLinkText: { fontSize: 13, fontFamily: Fonts.medium, color: Colors.danger },
+
+  versionTxt: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontFamily: Fonts.regular,
+    color: '#cbd5e1',
   },
 });

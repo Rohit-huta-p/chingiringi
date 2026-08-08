@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ChevronRight, CreditCard, Settings, Info, HelpCircle, MessageCircle,
+  ChevronRight, Info, HelpCircle, MessageCircle,
   Shield, FileText, Copy, Share2, Gift,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -152,6 +152,7 @@ export const MobileProfileScreen = () => {
           name={user?.name || 'Guest'}
           avatarUrl={user?.avatarUrl}
           onEditPress={() => nav.navigate('EditProfile')}
+          onSettingsPress={() => nav.navigate('Settings')}
         />
 
         <View style={s.body}>
@@ -225,31 +226,6 @@ export const MobileProfileScreen = () => {
               </TouchableOpacity>
             </View>
           </LinearGradient>
-
-          {/* ── Quick Actions ─────────────────────────────────────────────── */}
-          <Text style={s.sectionHeader}>QUICK ACTIONS</Text>
-
-          <QuickAction
-            icon={CreditCard}
-            iconColor="#8b5cf6"
-            iconBg="#ede9fe"
-            title="Withdraw Money"
-            subtitle="Transfer to bank or UPI"
-            onPress={() => nav.navigate('TransactionHistory')}
-            rightSlot={
-              <View style={s.amountChip}>
-                <Text style={s.amountChipText}>{inr(confirmed)}</Text>
-              </View>
-            }
-          />
-          <QuickAction
-            icon={Settings}
-            iconColor="#0d9488"
-            iconBg="#ccfbf1"
-            title="Account Settings"
-            subtitle="Notifications, security & more"
-            onPress={() => nav.navigate('Settings')}
-          />
 
           {/* ── Legal & Support ───────────────────────────────────────────── */}
           <Text style={s.sectionHeader}>LEGAL & SUPPORT</Text>
@@ -412,12 +388,6 @@ const s = StyleSheet.create({
   },
   actionTitle: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.text },
   actionSub:   { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
-
-  amountChip: {
-    paddingHorizontal: 10, paddingVertical: 4,
-    backgroundColor: Colors.primaryLight10, borderRadius: 8,
-  },
-  amountChipText: { fontSize: 12, fontFamily: Fonts.bold, color: Colors.primary },
 });
 
 export default MobileProfileScreen;

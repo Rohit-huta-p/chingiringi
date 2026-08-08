@@ -69,6 +69,9 @@ export const createShare = async (req, res) => {
   // ShareEvent with no credit (user short 100 coins), recoverable, not a loss.
   const wallet = await ensureWallet(userId);
   wallet.coins += coinsPerShare;
+  // Lifetime coins earned — same unit (coins) as the lock-expiry path in
+  // confirmExpiredLocks.js, and what the wallet's "Total Earned" tile reads.
+  wallet.lifetimeEarned += coinsPerShare;
   await wallet.save();
 
   await Transaction.create({

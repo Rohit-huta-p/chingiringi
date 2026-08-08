@@ -16,18 +16,18 @@ import { walletAPI, Transaction } from '../../api/wallet';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 // ─── Filter chip groups ─────────────────────────────────────────────────────
-// "Coins" maps to BOTH backend types because credits + debits live separately.
+// "Shares" = coin_credit (share rewards); "Withdrawals" = the rupee payouts.
 
-type TypeFilter = 'all' | 'cashback' | 'withdrawal' | 'coins' | 'referral';
+type TypeFilter = 'all' | 'shares' | 'withdrawal';
 type PeriodFilter = 'all' | '7d' | '30d' | '90d';
 
 const TYPE_CHIPS: { key: TypeFilter; label: string }[] = [
   { key: 'all',        label: 'All' },
-  { key: 'cashback',   label: 'Cashback' },
-  { key: 'withdrawal', label: 'Withdrawal' },
-  { key: 'coins',      label: 'Coins' },
-  { key: 'referral',   label: 'Referral' },
+  { key: 'shares',     label: 'Shares' },
+  { key: 'withdrawal', label: 'Withdrawals' },
 ];
+
+const COINS_PER_RUPEE = 1000; // 1,000 coins = 1 rupee (mirrors AdminSettings default)
 
 const PERIOD_CHIPS: { key: PeriodFilter; label: string }[] = [
   { key: 'all',  label: 'All Time' },
@@ -63,7 +63,7 @@ function matchesPeriod(iso: string, period: PeriodFilter): boolean {
 
 function matchesType(tx: Transaction, t: TypeFilter): boolean {
   if (t === 'all') return true;
-  if (t === 'coins') return tx.type === 'coin_credit' || tx.type === 'coin_debit';
+  if (t === 'shares') return tx.type === 'coin_credit';
   return tx.type === t;
 }
 
@@ -154,7 +154,7 @@ function TxnRow({ tx }: { tx: Transaction }) {
           ]}
           numberOfLines={1}
         >
-          {visual.sign}{inr(tx.amount)}
+          {visual.sign}{tx.type.startsWith('coin') ? `${tx.amount.toLocaleString('en-IN')} coins` : inr(tx.amount)}
         </Text>
         <View style={[css.statusPill, { backgroundColor: s.bg }]}>
           <Text style={[css.statusPillText, { color: s.text }]}>{tx.status}</Text>
@@ -215,7 +215,8 @@ export const MobileTransactionHistoryScreen = () => {
   const netAmount = useMemo(() => {
     return filtered.reduce((sum, t) => {
       const visual = rowVisual(t);
-      return sum + (visual.isDebit ? -t.amount : t.amount);
+      const rupees = t.type.startsWith('coin') ? t.amount / COINS_PER_RUPEE : t.amount;
+      return sum + (visual.isDebit ? -rupees : rupees);
     }, 0);
   }, [filtered]);
 
@@ -224,7 +225,7 @@ export const MobileTransactionHistoryScreen = () => {
     // so the button is functional and users see the count + total.
     const lines = filtered.slice(0, 50).map((t) => {
       const v = rowVisual(t);
-      return `${new Date(t.createdAt).toISOString().slice(0, 10)} · ${t.type} · ${v.sign}₹${t.amount} · ${t.status}`;
+      return `${new Date(t.createdAt).toISOString().slice(0, 10)} · ${t.type} · ${v.sign}${t.type.startsWith('coin') ? t.amount + ' coins' : '₹' + t.amount} · ${t.status}`;
     });
     const body =
       `Chingiringi — Transaction History (${filtered.length} txns, net ${inr(netAmount)})\n\n` +
@@ -325,7 +326,7 @@ export const MobileTransactionHistoryScreen = () => {
               <Inbox size={36} color="#cbd5e1" strokeWidth={1.5} />
               <Text style={css.emptyText}>
                 {txns.length === 0
-                  ? 'No transactions yet. Earn cashback by shopping through Chingiringi!'
+                  ? 'No transactions yet. Share products & stores to earn coins!'
                   : 'No transactions match these filters.'}
               </Text>
             </View>

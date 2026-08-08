@@ -27,6 +27,11 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     avatarUrl: {
       type: String,
       default: '',

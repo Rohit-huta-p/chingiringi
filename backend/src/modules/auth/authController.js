@@ -1,8 +1,20 @@
 import { z } from 'zod';
-import { createUser, verifyPassword, generateAndStoreOTP, verifyUserOTP } from './authService.js';
+import { OAuth2Client } from 'google-auth-library';
+import { createUser, verifyPassword, generateAndStoreOTP, verifyUserOTP, findOrCreateGoogleUser } from './authService.js';
 import { generateTokens } from '../../utils/generateToken.js';
 import User from '../users/userModel.js';
 import jwt from 'jsonwebtoken';
+
+// Google Sign-In: verify the id_token the app obtained via expo-auth-session.
+// Any of the Web/iOS/Android client IDs is an acceptable audience.
+const googleClient = new OAuth2Client();
+// Read at request time (not once at module load) so a newly-set env var is
+// picked up after a normal backend restart — no reliance on import ordering.
+const googleAudiences = () => [
+  process.env.GOOGLE_WEB_CLIENT_ID,
+  process.env.GOOGLE_IOS_CLIENT_ID,
+  process.env.GOOGLE_ANDROID_CLIENT_ID,
+].filter(Boolean);
 
 export const signup = async (req, res) => {
   const schema = z.object({
@@ -24,6 +36,7 @@ export const signup = async (req, res) => {
     status: 'success',
     message: 'Account created efficiently',
     tokens,
+    isNewUser: true,
   });
 };
 
@@ -55,6 +68,40 @@ export const login = async (req, res) => {
     status: 'success',
     message: 'Logged in successfully',
     tokens,
+  });
+};
+
+export const googleAuth = async (req, res) => {
+  const { idToken } = z.object({ idToken: z.string().min(1) }).parse(req.body);
+
+  const audiences = googleAudiences();
+  if (audiences.length === 0) {
+    res.status(503);
+    throw new Error('Google sign-in is not configured on the server.');
+  }
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken, audience: audiences });
+    payload = ticket.getPayload();
+  } catch {
+    res.status(401);
+    throw new Error('Invalid Google token');
+  }
+
+  if (!payload?.email || !payload.email_verified) {
+    res.status(401);
+    throw new Error('Google account email is not verified');
+  }
+
+  const { user, isNew } = await findOrCreateGoogleUser(payload);
+  const tokens = await generateTokens(res, user);
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Logged in with Google',
+    tokens,
+    isNewUser: isNew,
   });
 };
 

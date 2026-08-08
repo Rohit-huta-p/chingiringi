@@ -8,6 +8,8 @@ type Props = {
   stores: Store[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** Accepted for API parity with the live map; the static preview ignores it. */
+  userLocation?: { lat: number; lng: number } | null;
 };
 
 /**

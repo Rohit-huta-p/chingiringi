@@ -18,18 +18,15 @@ import { DiagonalImageScroll } from '../../components/DiagonalImageScroll';
 import { Colors, Fonts } from '../../constants/theme';
 import { authAPI } from '../../api/auth';
 import { useAuthStore } from '../../store';
+import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
 
 const logo = require('../../../assets/chingi-logo.png');
-
-type AuthMode = 'password' | 'otp';
 
 export const MobileLoginScreen = ({ navigation }: any) => {
   const hydrate = useAuthStore((s) => s.hydrate);
 
-  const [mode, setMode] = useState<AuthMode>('password');
   const [identifier, setIdentifier] = useState('');   // username or email
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -46,36 +43,19 @@ export const MobileLoginScreen = ({ navigation }: any) => {
     },
   });
 
-  const sendOtpMutation = useMutation({
-    mutationFn: authAPI.sendOtp,
-    onSuccess: () => {
-      setErrorMsg('');
-      navigation.navigate('OTPVerification', { identifier: phone });
-    },
-    onError: (err: any) => {
-      setErrorMsg(err?.response?.data?.message || err?.message || 'Failed to send OTP');
-    },
-  });
+  const { signIn: googleSignIn, loading: googleLoading } = useGoogleSignIn(setErrorMsg);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleSignIn = () => {
     setErrorMsg('');
-    if (mode === 'password') {
-      if (!identifier.trim() || !password) {
-        setErrorMsg('Enter username and password');
-        return;
-      }
-      loginMutation.mutate({ identifier: identifier.trim(), password });
-    } else {
-      if (phone.length !== 10) {
-        setErrorMsg('Enter a valid 10-digit mobile number');
-        return;
-      }
-      sendOtpMutation.mutate({ phone });
+    if (!identifier.trim() || !password) {
+      setErrorMsg('Enter username and password');
+      return;
     }
+    loginMutation.mutate({ identifier: identifier.trim(), password });
   };
 
-  const isLoading = loginMutation.isPending || sendOtpMutation.isPending;
+  const isLoading = loginMutation.isPending;
 
   return (
     <KeyboardAvoidingView
@@ -126,89 +106,46 @@ export const MobileLoginScreen = ({ navigation }: any) => {
           Indian's largest passive{'\n'}income earning ecosystem
         </Text>
 
-        {/* ── Tab segment ────────────────────────────────────────────────── */}
-        <View style={st.segment}>
-          <TouchableOpacity
-            style={[st.segmentBtn, mode === 'password' && st.segmentBtnActive]}
-            onPress={() => { setMode('password'); setErrorMsg(''); }}
-            activeOpacity={0.85}
-          >
-            <Text style={[st.segmentText, mode === 'password' && st.segmentTextActive]}>
-              Username / Password
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[st.segmentBtn, mode === 'otp' && st.segmentBtnActive]}
-            onPress={() => { setMode('otp'); setErrorMsg(''); }}
-            activeOpacity={0.85}
-          >
-            <Text style={[st.segmentText, mode === 'otp' && st.segmentTextActive]}>
-              OTP Login
-            </Text>
+        {/* ── Form ───────────────────────────────────────────────────────── */}
+        <Text style={st.label}>Username</Text>
+        <View style={st.field}>
+          <Mail size={16} color="#9ca3af" />
+          <TextInput
+            style={st.input}
+            placeholder="your username"
+            placeholderTextColor="#9ca3af"
+            value={identifier}
+            onChangeText={setIdentifier}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        <Text style={st.label}>Password</Text>
+        <View style={st.field}>
+          <Lock size={16} color="#9ca3af" />
+          <TextInput
+            style={st.input}
+            placeholder="Enter your password"
+            placeholderTextColor="#9ca3af"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity onPress={() => setShowPassword((v) => !v)}>
+            {showPassword
+              ? <EyeOff size={16} color="#9ca3af" />
+              : <Eye size={16} color="#9ca3af" />}
           </TouchableOpacity>
         </View>
 
-        {/* ── Form ───────────────────────────────────────────────────────── */}
-        {mode === 'password' ? (
-          <>
-            <Text style={st.label}>Username</Text>
-            <View style={st.field}>
-              <Mail size={16} color="#9ca3af" />
-              <TextInput
-                style={st.input}
-                placeholder="your username"
-                placeholderTextColor="#9ca3af"
-                value={identifier}
-                onChangeText={setIdentifier}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            <Text style={st.label}>Password</Text>
-            <View style={st.field}>
-              <Lock size={16} color="#9ca3af" />
-              <TextInput
-                style={st.input}
-                placeholder="Enter your password"
-                placeholderTextColor="#9ca3af"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity onPress={() => setShowPassword((v) => !v)}>
-                {showPassword
-                  ? <EyeOff size={16} color="#9ca3af" />
-                  : <Eye size={16} color="#9ca3af" />}
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={st.forgotWrap}
-              onPress={() => navigation.navigate('ForgotPassword')}
-            >
-              <Text style={st.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Text style={st.label}>Mobile Number</Text>
-            <View style={st.field}>
-              <Text style={st.countryCode}>+91</Text>
-              <TextInput
-                style={st.input}
-                placeholder="Enter mobile number"
-                placeholderTextColor="#9ca3af"
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={phone}
-                onChangeText={setPhone}
-              />
-            </View>
-            <View style={{ height: 20 }} />
-          </>
-        )}
+        <TouchableOpacity
+          style={st.forgotWrap}
+          onPress={() => navigation.navigate('ForgotPassword')}
+        >
+          <Text style={st.forgotText}>Forgot Password?</Text>
+        </TouchableOpacity>
 
         {errorMsg ? <Text style={st.errorText}>{errorMsg}</Text> : null}
 
@@ -221,16 +158,19 @@ export const MobileLoginScreen = ({ navigation }: any) => {
         >
           {isLoading
             ? <ActivityIndicator color="#fff" />
-            : <Text style={st.signinText}>{mode === 'password' ? 'Signin' : 'Send OTP'}</Text>}
+            : <Text style={st.signinText}>Signin</Text>}
         </TouchableOpacity>
 
         {/* ── Continue with Google ──────────────────────────────────────── */}
         <TouchableOpacity
-          style={st.googleBtn}
+          style={[st.googleBtn, googleLoading && { opacity: 0.7 }]}
           activeOpacity={0.85}
-          onPress={() => setErrorMsg('Google sign-in coming soon')}
+          onPress={googleSignIn}
+          disabled={googleLoading}
         >
-          <Text style={st.googleText}>Continue with Google</Text>
+          {googleLoading
+            ? <ActivityIndicator color="#0f172a" />
+            : <Text style={st.googleText}>Continue with Google</Text>}
         </TouchableOpacity>
 
         {/* ── Sign up link ──────────────────────────────────────────────── */}
@@ -307,39 +247,6 @@ const st = StyleSheet.create({
     marginBottom: 24,
   },
 
-  // ── Tab segment ───────────────────────────────────────────────────────────
-  segment: {
-    flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
-    padding: 6,
-    marginBottom: 22,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  segmentBtnActive: {
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  segmentText: {
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: '#64748b',
-  },
-  segmentTextActive: {
-    color: '#101828',
-    fontFamily: Fonts.bold,
-  },
-
   // ── Form ──────────────────────────────────────────────────────────────────
   label: {
     fontSize: 13,
@@ -366,15 +273,6 @@ const st = StyleSheet.create({
     color: '#0f172a',
     height: '100%',
     padding: 0,
-  },
-  countryCode: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: '#0f172a',
-    paddingRight: 8,
-    borderRightWidth: 1,
-    borderRightColor: '#e2e8f0',
-    marginRight: 4,
   },
   forgotWrap: {
     alignSelf: 'flex-end',

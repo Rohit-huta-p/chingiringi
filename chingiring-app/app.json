@@ -2,6 +2,7 @@
   "expo": {
     "name": "chingiring-app",
     "slug": "chingiring-app",
+    "scheme": "chingiring",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -44,7 +45,8 @@
           "cameraPermission": "Chingiringi needs access to your camera so you can take a profile picture."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

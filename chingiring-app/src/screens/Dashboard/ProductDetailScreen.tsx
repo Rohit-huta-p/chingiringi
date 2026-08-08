@@ -439,17 +439,6 @@ export const ProductDetailScreen = () => {
         <Text style={styles.crumbCur} numberOfLines={1}>{productName}</Text>
       </View>
 
-      {/* Tags: Category */}
-      {productCategory ? (
-        <View style={styles.tagsRow}>
-          <View style={[styles.tagPill, styles.tagBlue]}>
-            <Text style={[styles.tagText, styles.tagBlueText]}>
-              {'◇'} {productCategory}
-            </Text>
-          </View>
-        </View>
-      ) : null}
-
       {/* Title */}
       <Text style={styles.productTitle}>{productName}</Text>
 
@@ -1030,19 +1019,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginBottom: 20,
-    marginTop: -14,
     flexWrap: 'wrap',
   },
   ratingPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#fffbeb',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#fde68a',
   },
   ratingStar: { fontSize: 13, color: '#f59e0b' },
   ratingValue: { fontSize: 13, fontWeight: '800', color: '#b45309' },

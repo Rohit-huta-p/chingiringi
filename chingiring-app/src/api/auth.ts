@@ -9,6 +9,10 @@ export const authAPI = {
     const response = await apiClient.post('/auth/login', data);
     return response.data;
   },
+  google: async (data: { idToken: string }) => {
+    const response = await apiClient.post('/auth/google', data);
+    return response.data;
+  },
   sendOtp: async (data: { phone?: string; email?: string }) => {
     const response = await apiClient.post('/auth/send-otp', data);
     return response.data;

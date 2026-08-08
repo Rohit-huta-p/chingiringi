@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pencil } from 'lucide-react-native';
+import { Pencil, Settings } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 
 /**
@@ -15,6 +15,7 @@ interface Props {
   name: string;
   avatarUrl?: string;
   onEditPress: () => void;
+  onSettingsPress?: () => void;
 }
 
 // Mirrors MobileAuthHeader so both gradients match.
@@ -29,7 +30,7 @@ function initialsFor(name?: string | null): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export const MobileProfileHeader: React.FC<Props> = ({ name, avatarUrl, onEditPress }) => {
+export const MobileProfileHeader: React.FC<Props> = ({ name, avatarUrl, onEditPress, onSettingsPress }) => {
   return (
     <LinearGradient
       colors={HEADER_GRADIENT_COLORS}
@@ -42,6 +43,20 @@ export const MobileProfileHeader: React.FC<Props> = ({ name, avatarUrl, onEditPr
         {/* Decorative blobs */}
         <View style={styles.blobLeft} pointerEvents="none" />
         <View style={styles.blobRight} pointerEvents="none" />
+
+        {/* Settings gear top-left */}
+        {onSettingsPress ? (
+          <TouchableOpacity
+            style={styles.settingsBtn}
+            activeOpacity={0.85}
+            onPress={onSettingsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Settings size={16} color="#fff" strokeWidth={2.2} />
+          </TouchableOpacity>
+        ) : null}
 
         {/* Edit pencil top-right */}
         <TouchableOpacity
@@ -105,6 +120,14 @@ const styles = StyleSheet.create({
   editBtn: {
     position: 'absolute',
     top: 16, right: 16,
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    justifyContent: 'center', alignItems: 'center',
+    zIndex: 2,
+  },
+  settingsBtn: {
+    position: 'absolute',
+    top: 16, left: 16,
     width: 36, height: 36, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.22)',
     justifyContent: 'center', alignItems: 'center',

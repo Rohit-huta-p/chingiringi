@@ -18,11 +18,13 @@ export const SignupScreen = ({ navigation }: any) => {
   const [errorMsg, setErrorMsg] = useState('');
 
   const hydrate = useAuthStore((state) => state.hydrate);
+  const setShowWelcome = useAuthStore((state) => state.setShowWelcome);
 
   const signupMutation = useMutation({
     mutationFn: authAPI.signup,
-    onSuccess: async () => {
+    onSuccess: async (data: any) => {
       setErrorMsg('');
+      if (data?.isNewUser) setShowWelcome(true);
       await hydrate();
     },
     onError: (error: any) => {

@@ -20,6 +20,9 @@ interface AuthState {
   isAuthenticated: boolean;
   isReady: boolean;
   user: UserType | null;
+  showWelcome: boolean;
+  setShowWelcome: (v: boolean) => void;
+  dismissWelcome: () => void;
   hydrate: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -28,6 +31,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isReady: false,
   user: null,
+  showWelcome: false,
+
+  // First-sign-in welcome. Set true only on account creation (see backend
+  // `isNewUser`), consumed once by WelcomeModal, then dismissed.
+  setShowWelcome: (v) => set({ showWelcome: v }),
+  dismissWelcome: () => set({ showWelcome: false }),
 
   hydrate: async () => {
     // ─── 1. Offline-first on native: show cached user immediately if token exists ───
@@ -83,6 +92,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     await unregisterForPush();
     // Clear stored tokens + cached user (native) and purge state
     await clearTokens();
-    set({ isAuthenticated: false, user: null });
+    set({ isAuthenticated: false, user: null, showWelcome: false });
   },
 }));

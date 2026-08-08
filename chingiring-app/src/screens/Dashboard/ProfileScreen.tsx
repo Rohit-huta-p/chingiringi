@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mail, Phone, MapPin, Pencil, Gift, IndianRupee, Clock, Coins,
-  ArrowUpRight, ChevronRight, MapPinHouse, Wallet as WalletIcon, UserCog,
+  ArrowUpRight, ChevronRight, MapPinHouse, Settings as SettingsIcon,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { profileAPI } from '../../api/profile';
@@ -21,8 +21,6 @@ const QUICK_ACTIONS: Array<{
   route?: string;
 }> = [
   { label: 'Manage Addresses', icon: MapPinHouse, route: 'MyAddress' },
-  { label: 'Withdraw Money', icon: WalletIcon, route: 'Wallet' },
-  { label: 'Account Settings', icon: UserCog, route: 'Settings' },
 ];
 
 // Legal & support items (2 cols + 1 full row)
@@ -85,8 +83,19 @@ export const ProfileScreen = () => {
     <ScrollView style={s.root} contentContainerStyle={s.rootContent}>
       {/* Top header */}
       <View style={s.topHeader}>
-        <Text style={s.eyebrow}>ACCOUNT</Text>
-        <Text style={s.pageTitle}>Profile</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.eyebrow}>ACCOUNT</Text>
+          <Text style={s.pageTitle}>Profile</Text>
+        </View>
+        <TouchableOpacity
+          style={s.settingsBtn}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('Settings')}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          <SettingsIcon size={20} color={Colors.text} strokeWidth={2} />
+        </TouchableOpacity>
       </View>
 
       {/* Body grid */}
@@ -309,7 +318,16 @@ const s = StyleSheet.create({
   rootContent: { padding: 24, paddingBottom: 60 },
 
   // Top header
-  topHeader: { marginBottom: 24, paddingHorizontal: 4 },
+  topHeader: {
+    marginBottom: 24, paddingHorizontal: 4,
+    flexDirection: 'row', alignItems: 'center',
+  },
+  settingsBtn: {
+    width: 42, height: 42, borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#e8ecf2',
+    justifyContent: 'center', alignItems: 'center',
+  },
   eyebrow: {
     fontSize: 11,
     fontWeight: '700',

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TextInput,
   Pressable,
+  Image,
   useWindowDimensions,
   Platform,
   ActivityIndicator,
@@ -68,6 +69,7 @@ export const OfflineStoresScreen: React.FC = () => {
   const [filters, setFilters] = useState<StoreFilters>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationLabel, setLocationLabel] = useState('Bengaluru, Karnataka');
 
   // Ask for GPS once so "Near" sorts by the shopper's real distance; fall back
   // to the city center (BENGALURU_CENTER) on denial/error.
@@ -85,6 +87,28 @@ export const OfflineStoresScreen: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Reverse-geocode the GPS fix into a "City, Region" header label (Mapbox — web + native).
+  useEffect(() => {
+    if (!coords) return;
+    const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+    if (!token) { setLocationLabel('Near you'); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?types=place,region&limit=1&access_token=${token}`,
+        );
+        const json = await res.json();
+        const name: string | undefined = json?.features?.[0]?.place_name;
+        if (cancelled) return;
+        setLocationLabel(name ? name.split(',').slice(0, 2).map((p: string) => p.trim()).join(', ') : 'Near you');
+      } catch {
+        if (!cancelled) setLocationLabel('Near you');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [coords]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['stores'],
@@ -201,7 +225,7 @@ export const OfflineStoresScreen: React.FC = () => {
             <Text style={styles.title}>Nearby Stores</Text>
             <View style={styles.locationRow}>
               <MapPin size={13} color={Colors.textSecondary} />
-              <Text style={styles.locationText}>Bengaluru, Karnataka</Text>
+              <Text style={styles.locationText}>{locationLabel}</Text>
             </View>
           </View>
 
@@ -217,22 +241,7 @@ export const OfflineStoresScreen: React.FC = () => {
           </View>
 
           <View style={styles.headerRight}>
-            <View style={styles.viewToggle}>
-              <Pressable
-                onPress={() => setViewMode('list')}
-                style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
-              >
-                <List size={14} color={viewMode === 'list' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setViewMode('map')}
-                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
-              >
-                <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
-              </Pressable>
-            </View>
+
 
             <View style={styles.sortGroup}>
               <SortPill label="Near" icon={Navigation} active={sort === 'near'} onPress={() => setSort('near')} />
@@ -305,12 +314,13 @@ export const OfflineStoresScreen: React.FC = () => {
         isNarrow && { flexDirection: 'column', paddingHorizontal: 16 },
       ]}>
         {showMap && (
-          <View style={[styles.mapCol, isNarrow && { flex: 0, height: 360 }]}>
+          <View style={[styles.mapCol, isNarrow && { flex: 1, minHeight: 0, marginBottom: 96 }]}>
             <View style={styles.mapInner}>
               <StoreMap
                 stores={filtered}
                 selectedId={selectedId}
                 onSelect={(id) => setSelectedId(id)}
+                userLocation={coords}
               />
 
               {/* Top-left Stores Nearby badge */}
@@ -478,6 +488,14 @@ const CATEGORY_COLOR: Record<StoreCategory, string> = {
   Beauty: '#EC4899',
 };
 
+// Deterministic tile color from the store id/name — stable per store, varied across.
+const AVATAR_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#0EA5E9', '#EF4444', '#F97316'];
+function avatarColor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
 const CategoryChip: React.FC<{
   label: string;
   active: boolean;
@@ -523,14 +541,23 @@ const StoreCard: React.FC<{
   const user = useAuthStore((s) => s.user);
   const [shareOpen, setShareOpen] = useState(false);
   const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+  const initial = (store.shortName || store.name || '?').trim().charAt(0).toUpperCase() || '?';
+  const tileColor = avatarColor(store._id || store.name || '');
 
   return (
     <Pressable
       onPress={onPress}
       style={[styles.storeCard, isSelected && styles.storeCardSelected]}
     >
-      {/* Image placeholder */}
-      <View style={styles.storeImage}>
+      {/* Logo, or a colored tile with the store initial */}
+      <View style={[styles.storeImage, !store.logoUrl && { backgroundColor: tileColor }]}>
+        {store.logoUrl ? (
+          <Image source={{ uri: store.logoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <View style={styles.storeInitialWrap}>
+            <Text style={styles.storeInitial}>{initial}</Text>
+          </View>
+        )}
         {/* coin badge top-left */}
         <View style={styles.coinBadge}>
           <Tag size={11} color="#fff" />
@@ -970,6 +997,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
+  storeInitialWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  storeInitial: { color: '#fff', fontSize: 30, fontFamily: Fonts.extraBold },
   coinBadge: {
     position: 'absolute',
     top: 6,

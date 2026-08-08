@@ -1,5 +1,12 @@
 import jwt from 'jsonwebtoken';
 
+// Refresh-token lifetime in days — single source of truth so the JWT `exp`
+// claim, the cookie maxAge, and the DB expiresAt can't drift apart. They used
+// to: the JWT read JWT_REFRESH_EXPIRATION while the cookie/DB were hardcoded to
+// 30 days. Override with JWT_REFRESH_DAYS; defaults to 7.
+const REFRESH_DAYS = Number(process.env.JWT_REFRESH_DAYS) || 7;
+const REFRESH_MAX_AGE_MS = REFRESH_DAYS * 24 * 60 * 60 * 1000;
+
 export const generateTokens = async (res, user) => {
   const accessToken = jwt.sign(
     { id: user._id, role: user.role },
@@ -10,7 +17,7 @@ export const generateTokens = async (res, user) => {
   const refreshToken = jwt.sign(
     { id: user._id },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRATION || '30d' }
+    { expiresIn: `${REFRESH_DAYS}d` }
   );
 
   // Access Token Cookie
@@ -26,14 +33,14 @@ export const generateTokens = async (res, user) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    maxAge: REFRESH_MAX_AGE_MS,
   });
 
   // Keep track of refresh tokens in DB
   if (user) {
     user.refreshTokens.push({
       token: refreshToken,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + REFRESH_MAX_AGE_MS)
     });
     // Truncate to keep db clean (optional but good practice)
     if (user.refreshTokens.length > 5) {
