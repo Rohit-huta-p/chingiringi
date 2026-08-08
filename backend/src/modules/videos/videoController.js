@@ -53,6 +53,10 @@ export const createVideo = async (req, res) => {
     taggedProducts: d.taggedProducts,
     cta: d.cta || { type: 'shop' },
     status: 'processing',
+    // v1 is admin-curated: the admin IS the trusted publisher, so auto-approve.
+    // The clip enters the feed the moment encoding finishes. A review queue is a
+    // Phase-3 concern (open/UGC posting), not v1.
+    moderation: { state: 'approved', reviewedBy: req.user._id, at: new Date() },
   });
   res.status(201).json({ status: 'success', data: { video } });
 };
