@@ -69,3 +69,16 @@ describe('videoRanking helpers', () => {
     expect(clampWatchSec(99999, 0)).toBe(3600);
   });
 });
+
+describe('POST /api/videos/upload-url', () => {
+  it('401s without auth', async () => {
+    const res = await request(app).post('/api/videos/upload-url').send({ storeId: 'x' });
+    expect(res.statusCode).toBe(401);
+  });
+});
+describe('POST /api/videos', () => {
+  it('401s without auth', async () => {
+    const res = await request(app).post('/api/videos').send({ streamUid: 'u', storeId: 'x' });
+    expect(res.statusCode).toBe(401);
+  });
+});

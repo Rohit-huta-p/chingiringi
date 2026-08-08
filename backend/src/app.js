@@ -26,6 +26,7 @@ import clickRoutes from './modules/clicks/clickRoutes.js';
 import notificationRoutes from './modules/notifications/notificationRoutes.js';
 import storeRoutes from './modules/stores/storeRoutes.js';
 import paymentsWebhookRoutes from './modules/payments/paymentsRoutes.js';
+import videoRoutes from './modules/videos/videoRoutes.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
@@ -105,6 +106,7 @@ app.use('/api/products', reviewRoutes);
 app.use('/api/clicks', clickRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stores', storeRoutes);
+app.use('/api/videos', videoRoutes);
 
 // Unhandled routes
 app.all('*', notFound);
