@@ -8,7 +8,7 @@ import { PlaySquare } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
-import { FeedVideo, TaggedProduct, VideoStore } from '../../api/videos';
+import { FeedVideo, VideoStore } from '../../api/videos';
 
 export const MobileVideosScreen = () => {
   const { height } = useWindowDimensions();
@@ -43,10 +43,6 @@ export const MobileVideosScreen = () => {
   });
   const viewConfigRef = useRef({ itemVisiblePercentThreshold: 80 });
 
-  const onProductPress = useCallback((p: TaggedProduct) => {
-    navigation.navigate('ProductDetail', { productId: p._id, product: p });
-  }, [navigation]);
-
   const onStorePress = useCallback((_store: VideoStore) => {
     navigation.navigate('Stores');
   }, [navigation]);
@@ -76,12 +72,11 @@ export const MobileVideosScreen = () => {
       liked={likedIds.has(item._id)}
       likeCount={(item.stats?.likes || 0) + (likedIds.has(item._id) ? 1 : 0)}
       onToggleMute={() => setMuted((m) => !m)}
-      onProductPress={onProductPress}
       onStorePress={onStorePress}
       onLike={() => onLike(item)}
       onShare={() => onShare(item)}
     />
-  ), [activeIndex, muted, height, likedIds, onProductPress, onStorePress, onLike, onShare]);
+  ), [activeIndex, muted, height, likedIds, onStorePress, onLike, onShare]);
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;

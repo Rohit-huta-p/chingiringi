@@ -71,11 +71,11 @@ export function useVideoUpload() {
     };
   };
 
-  const uploadVideo = async (file: PickedVideo, storeId: string): Promise<string> => {
+  const uploadVideo = async (file: PickedVideo, storeName?: string): Promise<string> => {
     setError(null);
     setUploading(true);
     try {
-      const { data } = await videosAPI.createUploadUrl(storeId);
+      const { data } = await videosAPI.createUploadUrl(storeName);
       const fd = new FormData();
       fd.append('file', (file._file ?? { uri: file.uri, name: file.name, type: file.type }) as any);
       const res = await fetch(data.uploadURL, { method: 'POST', body: fd });

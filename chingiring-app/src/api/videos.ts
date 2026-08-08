@@ -1,21 +1,16 @@
 import apiClient from './client';
 
+// Products are entered inline per video (not linked to the products catalog).
 export interface TaggedProduct {
-  _id: string;
-  name: string;
+  title: string;
+  description?: string;
   price: number;
-  mrp?: number;
-  images?: string[];
-  slug?: string;
 }
 
+// Store is free-text per video (not linked to the offline-stores list).
 export interface VideoStore {
-  _id: string;
   name: string;
-  shortName: string;
-  slug?: string;
   logoUrl?: string;
-  isVerified?: boolean;
 }
 
 export interface FeedVideo {
@@ -61,18 +56,18 @@ export const videosAPI = {
   trackShare: async (id: string) => (await apiClient.post(`/api/videos/${id}/share`)).data,
 
   // ── admin authoring (protect + admin) ──────────────────────────────────
-  /** Mint a one-time Cloudflare Stream direct-upload URL for a store. */
-  createUploadUrl: async (storeId: string) => {
-    const res = await apiClient.post('/api/videos/upload-url', { storeId });
+  /** Mint a one-time Cloudflare Stream direct-upload URL. */
+  createUploadUrl: async (storeName?: string) => {
+    const res = await apiClient.post('/api/videos/upload-url', { storeName });
     return res.data as { status: string; data: { streamUid: string; uploadURL: string } };
   },
   /** Save video metadata after the file is uploaded to Cloudflare. */
   createVideo: async (payload: {
     streamUid: string;
-    storeId: string;
+    store: VideoStore;
     caption?: string;
-    taggedProducts?: string[];
-    cta?: { type: 'shop' | 'store' | 'none'; productId?: string; url?: string };
+    taggedProducts?: TaggedProduct[];
+    cta?: { type: 'shop' | 'store' | 'none'; url?: string };
   }) => {
     const res = await apiClient.post('/api/videos', payload);
     return res.data as { status: string; data: { video: FeedVideo } };
