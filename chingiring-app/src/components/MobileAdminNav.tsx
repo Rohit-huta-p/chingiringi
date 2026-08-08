@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Wallet, CreditCard, Users, Package, Store,
-  Image as ImageIcon, Ticket,
+  Image as ImageIcon, Ticket, PlaySquare,
 } from 'lucide-react-native';
 import { useAuthStore } from '../store';
 
@@ -18,6 +18,7 @@ export const ADMIN_NAV_ITEMS = [
   { key: 'AdminUsers',       label: 'Users',      icon: Users },
   { key: 'AdminAllProducts', label: 'Products',   icon: Package },
   { key: 'AdminStores',      label: 'Stores',     icon: Store },
+  { key: 'AdminVideos',      label: 'Videos',     icon: PlaySquare },
   { key: 'AdminBanners',     label: 'Banners',    icon: ImageIcon },
   { key: 'AdminCoupons',     label: 'Coupons',    icon: Ticket },
 ];

@@ -15,6 +15,7 @@ import { createAdminPlaceholder } from '../screens/Admin/AdminPlaceholderScreen'
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
+import { AdminVideoUploadScreen } from '../screens/Admin/AdminVideoUploadScreen';
 
 // Mobile layout when native, OR on a narrow web viewport (sm). Mirrors the
 // user-facing DrawerNavigator so admin renders its mobile screens on small
@@ -65,6 +66,7 @@ function MobileAdminNavigator() {
       <Tab.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
       <Tab.Screen name="AdminAllProducts" component={MobileAdminProducts} options={{ title: 'Products' }} />
       <Tab.Screen name="AdminStores" component={MobileAdminStores} options={{ title: 'Offline Stores' }} />
+      <Tab.Screen name="AdminVideos" component={AdminVideoUploadScreen} options={{ title: 'Videos' }} />
       <Tab.Screen name="AdminOrders" component={AdminOrdersScreen} options={{ title: 'Orders' }} />
       <Tab.Screen name="AdminInventory" component={AdminInventoryScreen} options={{ title: 'Inventory' }} />
       <Tab.Screen name="AdminBanners" component={MobileAdminBanners} options={{ title: 'Banners' }} />
