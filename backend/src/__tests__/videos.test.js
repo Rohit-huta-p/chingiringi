@@ -5,6 +5,7 @@ import app from '../app.js';
 import { verifyWebhookSignature } from '../services/cloudflareStream.js';
 import Video from '../modules/videos/videoModel.js';
 import mongoose from 'mongoose';
+import { buildFeedQuery, nextCursor, clampWatchSec } from '../modules/videos/videoRanking.js';
 
 describe('cloudflareStream.verifyWebhookSignature', () => {
   const secret = 'whsec_test';
@@ -40,5 +41,31 @@ describe('Video model', () => {
   it('rejects an invalid status enum', () => {
     const v = new Video({ store: new mongoose.Types.ObjectId(), streamUid: 'u', status: 'nope' });
     expect(v.validateSync().errors.status).toBeDefined();
+  });
+});
+
+describe('videoRanking helpers', () => {
+  it('buildFeedQuery filters ready+approved and clamps limit to 20', () => {
+    const q = buildFeedQuery({ limit: 999 });
+    expect(q.filter.status).toBe('ready');
+    expect(q.filter['moderation.state']).toBe('approved');
+    expect(q.limit).toBe(20);
+    expect(q.sort).toEqual({ _id: -1 });
+    expect(q.filter._id).toBeUndefined();
+  });
+  it('buildFeedQuery adds an _id cursor when provided', () => {
+    const q = buildFeedQuery({ cursor: '650000000000000000000001', limit: 5 });
+    expect(q.filter._id.$lt.toString()).toBe('650000000000000000000001');
+    expect(q.limit).toBe(5);
+  });
+  it('nextCursor returns the last id or null', () => {
+    expect(nextCursor([{ _id: 'a' }, { _id: 'b' }])).toBe('b');
+    expect(nextCursor([])).toBeNull();
+  });
+  it('clampWatchSec bounds the value', () => {
+    expect(clampWatchSec(-5, 30)).toBe(0);
+    expect(clampWatchSec(45, 30)).toBe(30);
+    expect(clampWatchSec(10, 30)).toBe(10);
+    expect(clampWatchSec(99999, 0)).toBe(3600);
   });
 });
