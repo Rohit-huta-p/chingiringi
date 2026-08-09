@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, Platform, Linking } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Image, Pressable, ScrollView, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import VideoLayer from './VideoLayer';
 import { Heart, Share2, Volume2, VolumeX, ExternalLink } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { FeedVideo, TaggedProduct, VideoStore } from '../api/videos';
@@ -21,27 +21,6 @@ interface Props {
 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
-/**
- * Native-only player layer. Never mounted on web — browsers outside Safari have
- * no native HLS and expo-video stalls the web renderer, so web shows the poster
- * only. Isolating the hook here keeps expo-video entirely off the web path.
- */
-const VideoLayer: React.FC<{ source: string | null; isActive: boolean; muted: boolean }> = ({ source, isActive, muted }) => {
-  const player = useVideoPlayer(source, (p) => { p.loop = true; p.muted = muted; });
-  useEffect(() => { player.muted = muted; }, [muted, player]);
-  useEffect(() => { isActive ? player.play() : player.pause(); }, [isActive, player]);
-  return (
-    <VideoView
-      player={player}
-      style={StyleSheet.absoluteFill}
-      contentFit="cover"
-      nativeControls={false}
-      allowsFullscreen={false}
-      allowsPictureInPicture={false}
-    />
-  );
-};
-
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
   onToggleMute, onStorePress, onLike, onShare,
@@ -57,9 +36,7 @@ export const VideoFeedItem: React.FC<Props> = ({
       {!!video.thumbnailUrl && (
         <Image source={{ uri: video.thumbnailUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       )}
-      {Platform.OS !== 'web' && (
-        <VideoLayer source={video.hlsUrl || null} isActive={isActive} muted={muted} />
-      )}
+      <VideoLayer source={video.hlsUrl || null} isActive={isActive} muted={muted} />
       {/* legibility scrim */}
       <LinearGradient
         colors={['rgba(0,0,0,0.35)', 'transparent', 'transparent', 'rgba(0,0,0,0.75)']}
