@@ -27,6 +27,8 @@ const videoSchema = new mongoose.Schema({
   },
   createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   streamUid: { type: String, required: true, unique: true, index: true },
+  provider: { type: String, enum: ['cloudflare', 'mux'], default: 'cloudflare' },
+  providerAssetId: { type: String, default: '' }, // provider's asset id for delete/poll (Mux: set on ready)
   status: {
     type: String,
     enum: ['processing', 'ready', 'error', 'flagged', 'removed'],

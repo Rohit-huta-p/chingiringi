@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import Video from '../modules/videos/videoModel.js';
-import { fetchStreamStatus } from '../services/cloudflareStream.js';
+import { videoProvider } from '../services/videoProvider.js';
 
 export function isStuck(video, now = new Date(), thresholdMin = 15) {
   if (video.status !== 'processing') return false;
@@ -9,17 +9,19 @@ export function isStuck(video, now = new Date(), thresholdMin = 15) {
 }
 
 export async function reconcileOnce(now = new Date()) {
+  const p = videoProvider();
   const candidates = await Video.find({ status: 'processing' });
   let fixed = 0;
   for (const v of candidates) {
     if (!isStuck(v, now)) continue;
-    const s = await fetchStreamStatus(v.streamUid);
+    const s = await p.pollStatus(v);
     if (!s) continue;
-    if (s.state === 'ready' || s.readyToStream) {
+    if (s.state === 'ready') {
       v.status = 'ready';
-      v.hlsUrl = s.hls || v.hlsUrl;
-      v.thumbnailUrl = s.thumbnail || v.thumbnailUrl;
-      v.durationSec = Math.round(s.duration || v.durationSec);
+      v.hlsUrl = s.hlsUrl || v.hlsUrl;
+      v.thumbnailUrl = s.thumbnailUrl || v.thumbnailUrl;
+      v.durationSec = Math.round(s.durationSec || v.durationSec);
+      if (s.assetId) v.providerAssetId = s.assetId;
       if (!v.publishedAt) v.publishedAt = new Date();
       await v.save(); fixed++;
     } else if (s.state === 'error') {

@@ -1,17 +1,17 @@
 import { z } from 'zod';
 import Video from './videoModel.js';
-import { createDirectUpload, verifyWebhookSignature, deleteStreamVideo } from '../../services/cloudflareStream.js';
+import { videoProvider, PROVIDER } from '../../services/videoProvider.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
 
-// @desc  Mint a Cloudflare direct-upload URL   @route POST /api/videos/upload-url  @access admin
+// @desc  Mint a direct-upload URL (Cloudflare or Mux)  @route POST /api/videos/upload-url  @access admin
 export const createUploadUrl = async (req, res) => {
   const { storeName } = req.body;
-  const { uid, uploadURL } = await createDirectUpload({
+  const { uid, uploadURL, uploadMethod } = await videoProvider().createDirectUpload({
     maxDurationSeconds: 120,
     meta: { storeName: String(storeName || ''), createdBy: String(req.user._id) },
   });
-  res.status(201).json({ status: 'success', data: { streamUid: uid, uploadURL } });
+  res.status(201).json({ status: 'success', data: { streamUid: uid, uploadURL, uploadMethod, provider: PROVIDER } });
 };
 
 const createSchema = z.object({
@@ -48,6 +48,7 @@ export const createVideo = async (req, res) => {
     store: d.store,
     createdByAdmin: req.user._id,
     streamUid: d.streamUid,
+    provider: PROVIDER,
     caption: d.caption,
     hashtags: d.hashtags,
     taggedProducts: d.taggedProducts,
@@ -61,34 +62,33 @@ export const createVideo = async (req, res) => {
   res.status(201).json({ status: 'success', data: { video } });
 };
 
-// @desc  Cloudflare Stream status callback  @route POST /api/webhooks/cloudflare-stream  @access signed
+// @desc  Video-provider status callback (Cloudflare or Mux)  @route POST /api/webhooks/video  @access signed
 export const handleStreamWebhook = async (req, res) => {
+  const p = videoProvider();
   const raw = req.body; // Buffer (mounted with express.raw)
-  const ok = verifyWebhookSignature(
-    raw,
-    req.headers['webhook-signature'],
-    process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET,
-  );
-  if (!ok) {
+  if (!p.verifyWebhook(raw, req.headers)) {
     res.status(401);
     throw new Error('Invalid webhook signature');
   }
   const payload = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
-  const video = await Video.findOne({ streamUid: payload.uid });
+  const ev = p.parseWebhook(payload);
+  if (!ev || !ev.matchUid) return res.status(200).json({ status: 'success', data: { ignored: true } });
+
+  const video = await Video.findOne({ streamUid: ev.matchUid });
   if (!video) return res.status(200).json({ status: 'success', data: { ignored: true } });
 
-  const state = payload.status?.state;
-  if (state === 'ready' || payload.readyToStream) {
+  if (ev.state === 'ready') {
     video.status = 'ready';
-    video.hlsUrl = payload.playback?.hls || video.hlsUrl;
-    video.thumbnailUrl = payload.thumbnail || video.thumbnailUrl;
-    video.durationSec = Math.round(payload.duration || video.durationSec);
+    video.hlsUrl = ev.hlsUrl || video.hlsUrl;
+    video.thumbnailUrl = ev.thumbnailUrl || video.thumbnailUrl;
+    video.durationSec = Math.round(ev.durationSec || video.durationSec);
+    if (ev.assetId) video.providerAssetId = ev.assetId;
     if (!video.publishedAt) video.publishedAt = new Date();
-  } else if (state === 'error') {
+  } else if (ev.state === 'error') {
     video.status = 'error';
   }
   await video.save();
-  res.status(200).json({ status: 'success', data: { uid: payload.uid, status: video.status } });
+  res.status(200).json({ status: 'success', data: { status: video.status } });
 };
 
 // @desc  Ranked shoppable feed  @route GET /api/videos/feed  @access public
@@ -180,7 +180,7 @@ export const moderateVideo = async (req, res) => {
 export const deleteVideo = async (req, res) => {
   const video = await Video.findById(req.params.id);
   if (!video) { res.status(404); throw new Error('Video not found'); }
-  try { await deleteStreamVideo(video.streamUid); } catch { /* best effort */ }
+  try { await videoProvider().deleteAsset(video); } catch { /* best effort */ }
   await video.deleteOne();
   res.status(200).json({ status: 'success', data: { deleted: true } });
 };
