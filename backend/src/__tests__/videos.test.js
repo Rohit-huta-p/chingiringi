@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import request from 'supertest';
 import app from '../app.js';
 import { verifyWebhookSignature } from '../services/cloudflareStream.js';
+import * as muxProvider from '../services/muxVideo.js';
 import Video from '../modules/videos/videoModel.js';
 import mongoose from 'mongoose';
 import { buildFeedQuery, nextCursor, clampWatchSec } from '../modules/videos/videoRanking.js';
@@ -171,5 +172,33 @@ describe('reconcileVideos.isStuck', () => {
   it('ignores recent or non-processing videos', () => {
     expect(isStuck({ status: 'processing', createdAt: new Date('2026-08-08T11:55:00Z') }, now, 15)).toBe(false);
     expect(isStuck({ status: 'ready', createdAt: new Date('2026-08-08T10:00:00Z') }, now, 15)).toBe(false);
+  });
+});
+
+describe('muxVideo provider', () => {
+  it('verifyWebhook accepts a valid Mux-Signature and rejects tampering', () => {
+    process.env.MUX_WEBHOOK_SECRET = 'muxsecret';
+    const body = JSON.stringify({ type: 'video.asset.ready', data: { id: 'a1', upload_id: 'u1' } });
+    const t = '1700000000';
+    const sig = crypto.createHmac('sha256', 'muxsecret').update(`${t}.${body}`).digest('hex');
+    expect(muxProvider.verifyWebhook(Buffer.from(body), { 'mux-signature': `t=${t},v1=${sig}` })).toBe(true);
+    expect(muxProvider.verifyWebhook(Buffer.from(body + 'x'), { 'mux-signature': `t=${t},v1=${sig}` })).toBe(false);
+    expect(muxProvider.verifyWebhook(Buffer.from(body), { 'mux-signature': 'garbage' })).toBe(false);
+    delete process.env.MUX_WEBHOOK_SECRET;
+  });
+  it('parseWebhook normalizes video.asset.ready → hls + thumbnail + matchUid', () => {
+    const ev = muxProvider.parseWebhook({
+      type: 'video.asset.ready',
+      data: { id: 'asset1', upload_id: 'up1', duration: 30.4, playback_ids: [{ id: 'pb1' }] },
+    });
+    expect(ev.matchUid).toBe('up1');
+    expect(ev.assetId).toBe('asset1');
+    expect(ev.state).toBe('ready');
+    expect(ev.hlsUrl).toBe('https://stream.mux.com/pb1.m3u8');
+    expect(ev.thumbnailUrl).toBe('https://image.mux.com/pb1/thumbnail.jpg');
+    expect(ev.durationSec).toBe(30);
+  });
+  it('parseWebhook returns null for unrelated events', () => {
+    expect(muxProvider.parseWebhook({ type: 'video.upload.created', data: {} })).toBeNull();
   });
 });

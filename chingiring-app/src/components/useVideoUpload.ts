@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { videosAPI } from '../api/videos';
 
 // RN file descriptor, plus (on web) the underlying File for the actual upload.
@@ -76,12 +77,28 @@ export function useVideoUpload() {
     setUploading(true);
     try {
       const { data } = await videosAPI.createUploadUrl(storeName);
-      const fd = new FormData();
-      fd.append('file', (file._file ?? { uri: file.uri, name: file.name, type: file.type }) as any);
-      const res = await fetch(data.uploadURL, { method: 'POST', body: fd });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Upload failed (${res.status}): ${text.slice(0, 120)}`);
+
+      if (data.uploadMethod === 'PUT') {
+        // Mux direct upload: PUT the raw bytes.
+        if (Platform.OS === 'web') {
+          const res = await fetch(data.uploadURL, { method: 'PUT', body: file._file as any });
+          if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        } else {
+          const r = await uploadAsync(data.uploadURL, file.uri, {
+            httpMethod: 'PUT',
+            uploadType: FileSystemUploadType.BINARY_CONTENT,
+          });
+          if (r.status < 200 || r.status >= 300) throw new Error(`Upload failed (${r.status})`);
+        }
+      } else {
+        // Cloudflare direct upload: multipart POST with a `file` field.
+        const fd = new FormData();
+        fd.append('file', (file._file ?? { uri: file.uri, name: file.name, type: file.type }) as any);
+        const res = await fetch(data.uploadURL, { method: 'POST', body: fd });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`Upload failed (${res.status}): ${text.slice(0, 120)}`);
+        }
       }
       return data.streamUid;
     } catch (e: any) {

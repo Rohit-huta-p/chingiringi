@@ -15,7 +15,7 @@ export async function createDirectUpload({ maxDurationSeconds = 120, meta = {} }
   if (!res.ok || !json.success) {
     throw new Error(`Cloudflare direct_upload failed: ${JSON.stringify(json.errors || json)}`);
   }
-  return { uid: json.result.uid, uploadURL: json.result.uploadURL };
+  return { uid: json.result.uid, uploadURL: json.result.uploadURL, uploadMethod: 'POST' };
 }
 
 export async function deleteStreamVideo(uid) {
@@ -61,4 +61,45 @@ export function verifyWebhookSignature(rawBody, signatureHeader, secret) {
   } catch {
     return false;
   }
+}
+
+// ── Unified provider interface (shared shape with muxVideo.js) ───────────────
+export const name = 'cloudflare';
+
+/** Verify using the env secret + the Cloudflare header. */
+export function verifyWebhook(rawBody, headers = {}) {
+  return verifyWebhookSignature(rawBody, headers['webhook-signature'], process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET);
+}
+
+/** Normalize a Cloudflare webhook → { matchUid, assetId, state, hlsUrl, thumbnailUrl, durationSec } | null. */
+export function parseWebhook(payload) {
+  const state = payload?.status?.state;
+  const norm = (state === 'ready' || payload?.readyToStream) ? 'ready' : state === 'error' ? 'error' : 'other';
+  if (norm === 'other') return null;
+  return {
+    matchUid: payload.uid,
+    assetId: payload.uid,
+    state: norm,
+    hlsUrl: payload.playback?.hls || '',
+    thumbnailUrl: payload.thumbnail || '',
+    durationSec: Math.round(payload.duration || 0),
+  };
+}
+
+/** Reconcile poll for a stored video (Cloudflare's asset id === streamUid). */
+export async function pollStatus(video) {
+  const s = await fetchStreamStatus(video.streamUid);
+  if (!s) return null;
+  return {
+    state: (s.state === 'ready' || s.readyToStream) ? 'ready' : s.state === 'error' ? 'error' : 'processing',
+    assetId: video.streamUid,
+    hlsUrl: s.hls || '',
+    thumbnailUrl: s.thumbnail || '',
+    durationSec: Math.round(s.duration || 0),
+  };
+}
+
+/** Best-effort delete (Cloudflare deletes by the stream uid). */
+export async function deleteAsset(video) {
+  return deleteStreamVideo(video.streamUid);
 }

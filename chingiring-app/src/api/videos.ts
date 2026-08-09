@@ -57,10 +57,13 @@ export const videosAPI = {
   trackShare: async (id: string) => (await apiClient.post(`/api/videos/${id}/share`)).data,
 
   // ── admin authoring (protect + admin) ──────────────────────────────────
-  /** Mint a one-time Cloudflare Stream direct-upload URL. */
+  /** Mint a one-time direct-upload URL (Cloudflare = POST form, Mux = PUT raw). */
   createUploadUrl: async (storeName?: string) => {
     const res = await apiClient.post('/api/videos/upload-url', { storeName });
-    return res.data as { status: string; data: { streamUid: string; uploadURL: string } };
+    return res.data as {
+      status: string;
+      data: { streamUid: string; uploadURL: string; uploadMethod: 'POST' | 'PUT'; provider: string };
+    };
   },
   /** Save video metadata after the file is uploaded to Cloudflare. */
   createVideo: async (payload: {
