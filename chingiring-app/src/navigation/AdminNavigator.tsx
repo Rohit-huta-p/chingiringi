@@ -16,6 +16,7 @@ import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 import { AdminVideoUploadScreen } from '../screens/Admin/AdminVideoUploadScreen';
+import { MobileAdminTabBar } from '../components/MobileAdminTabBar';
 
 // Mobile layout when native, OR on a narrow web viewport (sm). Mirrors the
 // user-facing DrawerNavigator so admin renders its mobile screens on small
@@ -32,8 +33,9 @@ const DesktopAdminDrawer = lazy(() => import('./DesktopAdminDrawer'));
 
 const Tab = createBottomTabNavigator();
 
-// Mobile admin uses a BOTTOM-TAB navigator with its tab bar hidden (each screen
-// draws its own MobileAdminNav). Tabs keep every section mounted after first
+// Mobile admin uses a BOTTOM-TAB navigator with a custom tab bar
+// (MobileAdminTabBar: primary sections + a "More" sheet); each screen draws its
+// own MobileAdminNav title header. Tabs keep every section mounted after first
 // visit, so tapping a nav tab switches instantly — scroll position and
 // already-fetched data are preserved, with no slide, spinner, or refetch. A
 // stack (the old setup) instead pushed + remounted + refetched on every tap,
@@ -57,8 +59,8 @@ const Tab = createBottomTabNavigator();
 // draws its own <MobileAdminNav/>, so headerShown stays false (screenOptions).
 function MobileAdminNavigator() {
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['bottom', 'left', 'right']}>
-    <Tab.Navigator tabBar={() => null} backBehavior="history" screenOptions={{ headerShown: false, lazy: false }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['left', 'right']}>
+    <Tab.Navigator tabBar={(props) => <MobileAdminTabBar {...props} />} backBehavior="history" screenOptions={{ headerShown: false, lazy: false }}>
       <Tab.Screen name="AdminDashboard" component={MobileAdminDashboard} options={{ title: 'Admin Dashboard' }} />
       <Tab.Screen name="AdminDeals" component={MobileAdminDeals} options={{ title: 'Deals' }} />
       <Tab.Screen name="AdminWalletOps" component={WalletOperationsScreen} options={{ title: 'Wallet Operations' }} />
