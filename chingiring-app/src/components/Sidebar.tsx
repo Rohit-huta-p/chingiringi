@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
-import { Home, Wallet, Users, Bell, Settings, ChevronLeft, ChevronRight, Store } from 'lucide-react-native';
+import { Home, Wallet, Users, Bell, Settings, ChevronLeft, ChevronRight, Store, PlaySquare } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Colors, Spacing } from '../constants/theme';
 import { useUIStore } from '../store/uiStore';
@@ -101,6 +101,13 @@ export const Sidebar: React.FC<DrawerContentComponentProps> = (props) => {
           icon={Home}
           isActive={currentRouteName === 'Home'}
           onPress={() => navigateTo('Home')}
+          isCollapsed={isSidebarCollapsed}
+        />
+        <NavItem
+          label="Videos"
+          icon={PlaySquare}
+          isActive={currentRouteName === 'Videos'}
+          onPress={() => navigateTo('Videos')}
           isCollapsed={isSidebarCollapsed}
         />
         {/* Deals page hidden from the user nav (route + deal module kept; deals

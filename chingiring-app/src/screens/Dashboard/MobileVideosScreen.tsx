@@ -1,17 +1,17 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable,
-  useWindowDimensions, Share, ViewToken,
+  useWindowDimensions, Share, Platform, ViewToken,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { PlaySquare } from 'lucide-react-native';
+import { PlaySquare, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
 import { FeedVideo, VideoStore } from '../../api/videos';
 
 export const MobileVideosScreen = () => {
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const navigation = useNavigation<any>();
   const { videos, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useVideoFeed();
   const { like, share, view } = useVideoEngagement();
@@ -19,19 +19,25 @@ export const MobileVideosScreen = () => {
   // Dev fallback so the feed renders before the backend/Cloudflare are live.
   const data: FeedVideo[] = videos.length ? videos : (__DEV__ ? SAMPLE_VIDEOS : []);
 
+  // Desktop web = centered 9:16 stage; native + narrow web = full-screen swipe.
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+  const frameH = Math.round(height * 0.92);
+  const frameW = Math.round(frameH * 9 / 16);
+
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(true);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
-  // Refs so the stable viewability callback reads fresh values (avoids stale closures).
+  const listRef = useRef<FlatList>(null);
+  // Refs so the stable viewability + keyboard callbacks read fresh values.
   const dataRef = useRef(data); dataRef.current = data;
+  const activeRef = useRef(0); activeRef.current = activeIndex;
   const watchRef = useRef<{ index: number; start: number }>({ index: 0, start: Date.now() });
   const viewMutateRef = useRef(view.mutate); viewMutateRef.current = view.mutate;
 
   const onViewRef = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
     if (first?.index == null) return;
-    // Flush watch-time for the item leaving focus.
     const prev = watchRef.current;
     if (prev.index !== first.index) {
       const secs = Math.round((Date.now() - prev.start) / 1000);
@@ -42,6 +48,22 @@ export const MobileVideosScreen = () => {
     }
   });
   const viewConfigRef = useRef({ itemVisiblePercentThreshold: 80 });
+
+  const goTo = useCallback((index: number) => {
+    const clamped = Math.max(0, Math.min(index, dataRef.current.length - 1));
+    listRef.current?.scrollToIndex({ index: clamped, animated: true });
+  }, []);
+
+  // Keyboard navigation on desktop web (↑/↓).
+  useEffect(() => {
+    if (!isDesktopWeb || typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); goTo(activeRef.current + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); goTo(activeRef.current - 1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDesktopWeb, goTo]);
 
   const onStorePress = useCallback((_store: VideoStore) => {
     navigation.navigate('Stores');
@@ -63,20 +85,30 @@ export const MobileVideosScreen = () => {
     } catch { /* user dismissed */ }
   }, [share]);
 
-  const renderItem = useCallback(({ item, index }: { item: FeedVideo; index: number }) => (
-    <VideoFeedItem
-      video={item}
-      isActive={index === activeIndex}
-      muted={muted}
-      height={height}
-      liked={likedIds.has(item._id)}
-      likeCount={(item.stats?.likes || 0) + (likedIds.has(item._id) ? 1 : 0)}
-      onToggleMute={() => setMuted((m) => !m)}
-      onStorePress={onStorePress}
-      onLike={() => onLike(item)}
-      onShare={() => onShare(item)}
-    />
-  ), [activeIndex, muted, height, likedIds, onStorePress, onLike, onShare]);
+  const renderItem = useCallback(({ item, index }: { item: FeedVideo; index: number }) => {
+    const feedItem = (h: number) => (
+      <VideoFeedItem
+        video={item}
+        isActive={index === activeIndex}
+        muted={muted}
+        height={h}
+        liked={likedIds.has(item._id)}
+        likeCount={(item.stats?.likes || 0) + (likedIds.has(item._id) ? 1 : 0)}
+        onToggleMute={() => setMuted((m) => !m)}
+        onStorePress={onStorePress}
+        onLike={() => onLike(item)}
+        onShare={() => onShare(item)}
+      />
+    );
+    if (isDesktopWeb) {
+      return (
+        <View style={[s.stage, { height }]}>
+          <View style={[s.frame, { width: frameW, height: frameH }]}>{feedItem(frameH)}</View>
+        </View>
+      );
+    }
+    return feedItem(height);
+  }, [activeIndex, muted, height, frameH, frameW, isDesktopWeb, likedIds, onStorePress, onLike, onShare]);
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;
@@ -100,8 +132,9 @@ export const MobileVideosScreen = () => {
   }
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, isDesktopWeb && s.rootWeb]}>
       <FlatList
+        ref={listRef}
         data={data}
         keyExtractor={(v) => v._id}
         renderItem={renderItem}
@@ -120,12 +153,30 @@ export const MobileVideosScreen = () => {
         maxToRenderPerBatch={2}
         initialNumToRender={2}
       />
+      {isDesktopWeb && (
+        <View style={s.navCol} pointerEvents="box-none">
+          <Pressable style={s.navBtn} onPress={() => goTo(activeIndex - 1)} disabled={activeIndex === 0}>
+            <ChevronUp size={22} color="#fff" />
+          </Pressable>
+          <Pressable style={s.navBtn} onPress={() => goTo(activeIndex + 1)} disabled={activeIndex >= data.length - 1}>
+            <ChevronDown size={22} color="#fff" />
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 };
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
+  rootWeb: { backgroundColor: '#0b0d12' },
+  stage: { width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b0d12' },
+  frame: { borderRadius: 22, overflow: 'hidden', backgroundColor: '#000' },
+  navCol: { position: 'absolute', right: 28, top: 0, bottom: 0, justifyContent: 'center', gap: 14 },
+  navBtn: {
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
   center: { flex: 1, backgroundColor: '#0b0f16', alignItems: 'center', justifyContent: 'center', padding: 32 },
   iconBox: {
     width: 82, height: 82, borderRadius: 24, backgroundColor: 'rgba(71,132,226,0.15)',
