@@ -5,7 +5,7 @@ import * as mux from './muxVideo.js';
 // interface: createDirectUpload, verifyWebhook, parseWebhook, pollStatus, deleteAsset.
 const impls = { cloudflare, mux };
 
-export const PROVIDER = (process.env.VIDEO_PROVIDER || 'cloudflare').toLowerCase();
+export const PROVIDER = (process.env.VIDEO_PROVIDER || 'cloudflare').trim().toLowerCase();
 
 export function videoProvider() {
   return impls[PROVIDER] || cloudflare;
