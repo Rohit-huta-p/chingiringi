@@ -1,8 +1,9 @@
 import apiClient from './client';
+import type { DashboardData } from '../components/dashboard/parts';
 
 export const adminAPI = {
   // ─── Dashboard ─────────────────────────────────────────────────────────────
-  getDashboardStats: async () => {
+  getDashboardStats: async (): Promise<{ status: string; data: DashboardData }> => {
     const response = await apiClient.get('/api/admin/dashboard');
     return response.data;
   },

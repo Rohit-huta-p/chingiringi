@@ -73,9 +73,9 @@ export function TrendChart({ data, color = '#5b4be6', fillOpacity = 0.12 }: {
           {pts.map((d, i) => (i % xEvery === 0 || i === n - 1 ? (
             <SvgText key={`x${i}`} x={xFor(i)} y={VB_H - 8} fontSize={10} fill={AXIS_TXT} textAnchor="middle">{d.label}</SvgText>
           ) : null))}
-          {n > 0 && <Path d={area} fill={color} fillOpacity={fillOpacity} />}
-          {n > 0 && <Path d={line} stroke={color} strokeWidth={2.5} fill="none" />}
-          {n > 0 && end && <Circle cx={end.x} cy={end.y} r={4} fill={color} stroke="#fff" strokeWidth={2} />}
+          {hasData && <Path d={area} fill={color} fillOpacity={fillOpacity} />}
+          {hasData && <Path d={line} stroke={color} strokeWidth={2.5} fill="none" />}
+          {hasData && end && <Circle cx={end.x} cy={end.y} r={4} fill={color} stroke="#fff" strokeWidth={2} />}
         </Svg>
       )}
       {!hasData && <Text style={st.empty}>No shares in the last 30 days yet — the trend fills in as users share.</Text>}

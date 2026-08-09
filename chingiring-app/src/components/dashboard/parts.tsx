@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Polyline, Circle } from 'react-native-svg';
-import { TrendChart } from '../TrendChart';
+import Svg, { Polyline } from 'react-native-svg';
 
 export interface Delta { value: number; deltaPct: number | null; }
 export interface DashboardData {
@@ -12,6 +11,7 @@ export interface DashboardData {
   topSharers: { name: string; email: string; shares: number; coins: number }[];
   topSharedItems: { itemType: 'product' | 'store'; name: string; brand?: string; shares: number }[];
   revenue: { clicks: number; purchases: number; commission: number };
+  activeUsers: number;
 }
 
 export const EMPTY_DASHBOARD: DashboardData = {
@@ -23,6 +23,7 @@ export const EMPTY_DASHBOARD: DashboardData = {
   coinsEconomy: { issued: 0, redeemed: 0, circulation: 0 },
   shareTrend: [], topSharers: [], topSharedItems: [],
   revenue: { clicks: 0, purchases: 0, commission: 0 },
+  activeUsers: 0,
 };
 
 export const M = {
@@ -143,7 +144,7 @@ const s = StyleSheet.create({
   heroBig: { color: '#fff', fontSize: 40, fontWeight: '800', marginTop: 4, fontVariant: ['tabular-nums'] },
   heroRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   heroPill: { backgroundColor: 'rgba(43,209,134,0.16)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  heroPillTxt: { color: '#4ade9a', fontSize: 12, fontWeight: '700' },
+  heroPillTxt: { color: '#4ade9a', fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
   heroSubRow: { flexDirection: 'row', gap: 28, marginTop: 16 },
   heroSubK: { color: M.heroSub, fontSize: 11 },
   heroSubV: { color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] },
@@ -154,7 +155,7 @@ const s = StyleSheet.create({
   metricV: { fontSize: 22, fontWeight: '800', color: M.ink, marginTop: 6, fontVariant: ['tabular-nums'] },
   metricL: { fontSize: 11, color: M.ink2, marginTop: 2 },
   pill: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
-  pillTxt: { fontSize: 11, fontWeight: '700' },
+  pillTxt: { fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
   lr: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9, borderTopWidth: 1, borderTopColor: M.line },
   avatar: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },

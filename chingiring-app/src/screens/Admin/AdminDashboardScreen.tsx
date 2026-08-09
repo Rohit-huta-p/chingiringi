@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, Coins } from 'lucide-react-native';
 import { adminAPI } from '../../api/admin';
@@ -10,9 +10,13 @@ import {
 } from '../../components/dashboard/parts';
 
 export function AdminDashboardScreen() {
-  const { data } = useQuery({ queryKey: ['admin', 'dashboard'], queryFn: adminAPI.getDashboardStats });
+  const { data, isLoading } = useQuery({ queryKey: ['admin', 'dashboard'], queryFn: adminAPI.getDashboardStats });
   const d: DashboardData = data?.data ?? EMPTY_DASHBOARD;
   const isDesktop = Dimensions.get('window').width >= 768;
+
+  if (isLoading) {
+    return <View style={[s.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color={M.indigo} /></View>;
+  }
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>

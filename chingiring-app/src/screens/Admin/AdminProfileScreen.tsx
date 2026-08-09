@@ -56,7 +56,7 @@ export function AdminProfileScreen() {
   });
 
   const coinsIssued  = dashRes?.data?.coinsEconomy?.issued ?? 0;
-  const activeUsers  = dashRes?.data?.stats?.activeUsers ?? 0;
+  const activeUsers  = dashRes?.data?.activeUsers ?? 0;
   const pendingItems = queueRes?.data?.pendingWithdrawals?.items ?? [];
   const pendingCount = queueRes?.data?.pendingWithdrawals?.count ?? 0;
   const pendingTotal = pendingItems.reduce((sum: number, w: any) => sum + Math.abs(w.amount || 0), 0);

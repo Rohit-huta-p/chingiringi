@@ -24,7 +24,7 @@ export const getDashboardStats = async (req, res) => {
     totalShares, sharesToday, sharesYesterday, shares30, sharesPrev30,
     uniq30, uniqPrev30, coinsAllAgg, coins30Agg, coinsPrev30Agg,
     wallets, creditAgg, debitAgg, trendRows, sharersRows, itemsRows,
-    clicks, purchases, commissionAgg,
+    clicks, purchases, commissionAgg, activeUsers,
   ] = await Promise.all([
     ShareEvent.estimatedDocumentCount(),
     ShareEvent.countDocuments({ day: today }),
@@ -51,6 +51,7 @@ export const getDashboardStats = async (req, res) => {
     ClickEvent.estimatedDocumentCount(),
     Transaction.countDocuments(notShare),
     Transaction.aggregate([{ $match: notShare }, { $group: { _id: null, c: { $sum: { $ifNull: ['$metadata.commissionPaid', 0] } } } }]),
+    User.countDocuments({ lastLoginAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } }),
   ]);
 
   let circulation = 0;
@@ -111,6 +112,7 @@ export const getDashboardStats = async (req, res) => {
       topSharers,
       topSharedItems,
       revenue: { clicks, purchases, commission: commissionAgg[0]?.c || 0 },
+      activeUsers,
     },
   });
 };
