@@ -8,12 +8,18 @@ export function isStuck(video, now = new Date(), thresholdMin = 15) {
   return (now - new Date(video.createdAt)) / 60000 >= thresholdMin;
 }
 
-export async function reconcileOnce(now = new Date()) {
+export async function reconcileOnce(
+  now = new Date(),
+  // Default 15 min so the cron doesn't hammer the provider for clips the webhook
+  // will handle. Override to 0 for local testing (no public webhook):
+  //   RECONCILE_THRESHOLD_MIN=0 npm run cron:reconcile-videos
+  thresholdMin = process.env.RECONCILE_THRESHOLD_MIN != null ? Number(process.env.RECONCILE_THRESHOLD_MIN) : 15,
+) {
   const p = videoProvider();
   const candidates = await Video.find({ status: 'processing' });
   let fixed = 0;
   for (const v of candidates) {
-    if (!isStuck(v, now)) continue;
+    if (!isStuck(v, now, thresholdMin)) continue;
     const s = await p.pollStatus(v);
     if (!s) continue;
     if (s.state === 'ready') {
