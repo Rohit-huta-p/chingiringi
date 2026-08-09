@@ -3,113 +3,114 @@ import Deal from '../deals/dealModel.js';
 import Wallet from '../wallet/walletModel.js';
 import Transaction from '../transactions/transactionModel.js';
 import ClickEvent from '../clicks/clickModel.js';
+import ShareEvent from '../shares/shareModel.js';
+import Product from '../products/productModel.js';
+import Store from '../stores/storeModel.js';
+import AdminSettings from './adminSettingsModel.js';
+import { pctDelta, dayWindows, trendDays, fillTrend } from './dashboardStats.js';
 
-// Every number here is aggregated live from the DB — no seed/mock fallbacks.
-// A fresh install reads as all-zeros, which is correct, not broken.
+// Every number is aggregated live — no seed/mock. Fresh install → all zeros.
 export const getDashboardStats = async (req, res) => {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const { today, yesterday, start30, start60 } = dayWindows(now);
+  const settings = await AdminSettings.get();
+  const coinsPerRupee = settings.coinsPerRupee || 1000;
 
-  const [totalUsers, activeUsers, totalDeals, totalClicks, conversions, wallets] =
-    await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({ lastLoginAt: { $gte: thirtyDaysAgo } }),
-      Deal.countDocuments(),
-      ClickEvent.countDocuments(),
-      Transaction.countDocuments({ type: 'coin_credit' }), // credited purchases
-      Wallet.find({}).lean(),
-    ]);
+  const last30 = { day: { $gte: start30 } };
+  const prior30 = { day: { $gte: start60, $lt: start30 } };
+  const notShare = { type: 'coin_credit', 'metadata.reason': { $ne: 'share' } };
 
-  // Current holdings, summed from real wallet fields.
-  let coinsCirculating = 0; // coins + pendingCoins held across all wallets
-  let cashbackIssued = 0;   // confirmed + pending ₹ cashback (legacy pool)
-  for (const w of wallets) {
-    coinsCirculating += (w.coins || 0) + (w.pendingCoins || 0);
-    cashbackIssued   += (w.confirmedCashback || 0) + (w.pendingCashback || 0);
-  }
-
-  // Coins issued vs redeemed straight from the transaction ledger.
-  const [creditAgg, debitAgg] = await Promise.all([
-    Transaction.aggregate([
-      { $match: { type: 'coin_credit' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+  const [
+    totalShares, sharesToday, sharesYesterday, shares30, sharesPrev30,
+    uniq30, uniqPrev30, coinsAllAgg, coins30Agg, coinsPrev30Agg,
+    wallets, creditAgg, debitAgg, trendRows, sharersRows, itemsRows,
+    clicks, purchases, commissionAgg,
+  ] = await Promise.all([
+    ShareEvent.estimatedDocumentCount(),
+    ShareEvent.countDocuments({ day: today }),
+    ShareEvent.countDocuments({ day: yesterday }),
+    ShareEvent.countDocuments(last30),
+    ShareEvent.countDocuments(prior30),
+    ShareEvent.distinct('userId', last30),
+    ShareEvent.distinct('userId', prior30),
+    ShareEvent.aggregate([{ $group: { _id: null, c: { $sum: '$coinsAwarded' } } }]),
+    ShareEvent.aggregate([{ $match: last30 }, { $group: { _id: null, c: { $sum: '$coinsAwarded' } } }]),
+    ShareEvent.aggregate([{ $match: prior30 }, { $group: { _id: null, c: { $sum: '$coinsAwarded' } } }]),
+    Wallet.find({}).select('coins pendingCoins').lean(),
+    Transaction.aggregate([{ $match: { type: 'coin_credit' } }, { $group: { _id: null, c: { $sum: '$amount' } } }]),
+    Transaction.aggregate([{ $match: { type: 'coin_debit' } }, { $group: { _id: null, c: { $sum: { $abs: '$amount' } } } }]),
+    ShareEvent.aggregate([{ $match: last30 }, { $group: { _id: '$day', shares: { $sum: 1 } } }]),
+    ShareEvent.aggregate([
+      { $group: { _id: '$userId', shares: { $sum: 1 }, coins: { $sum: '$coinsAwarded' } } },
+      { $sort: { shares: -1 } }, { $limit: 5 },
     ]),
-    Transaction.aggregate([
-      { $match: { type: 'coin_debit' } },
-      { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } },
+    ShareEvent.aggregate([
+      { $group: { _id: { itemType: '$itemType', itemId: '$itemId' }, shares: { $sum: 1 } } },
+      { $sort: { shares: -1 } }, { $limit: 5 },
     ]),
+    ClickEvent.estimatedDocumentCount(),
+    Transaction.countDocuments(notShare),
+    Transaction.aggregate([{ $match: notShare }, { $group: { _id: null, c: { $sum: { $ifNull: ['$metadata.commissionPaid', 0] } } } }]),
   ]);
-  const coinsIssued = creditAgg[0]?.total || 0;
-  const coinsRedeemed = debitAgg[0]?.total || 0;
 
-  // Top deals by real click volume (only ones that have any clicks).
-  const topDealsRaw = await Deal.find().sort({ clickCount: -1 }).limit(5).lean();
-  const topDeals = topDealsRaw
-    .filter((d) => (d.clickCount || 0) > 0)
-    .map((d) => ({ brand: d.brand, title: d.title, revenue: 0, orders: d.clickCount || 0 }));
+  let circulation = 0;
+  for (const w of wallets) circulation += (w.coins || 0) + (w.pendingCoins || 0);
 
-  // Top earners by lifetime earnings (excludes zero-earners).
-  const topWallets = await Wallet.find()
-    .sort({ lifetimeEarned: -1 })
-    .limit(5)
-    .populate('userId', 'name email')
-    .lean();
-  const topUsers = topWallets
-    .filter((w) => w.userId && (w.lifetimeEarned || 0) > 0)
-    .map((w) => ({ name: w.userId.name, email: w.userId.email, earned: w.lifetimeEarned || 0, orders: 0 }));
+  // Resolve top-sharer names.
+  const users = await User.find({ _id: { $in: sharersRows.map((r) => r._id).filter(Boolean) } })
+    .select('name email').lean();
+  const userById = new Map(users.map((u) => [String(u._id), u]));
+  const topSharers = sharersRows.map((r) => {
+    const u = userById.get(String(r._id)) || {};
+    return { name: u.name || 'Unknown', email: u.email || '', shares: r.shares, coins: r.coins };
+  });
 
-  // ── Revenue trend: last 30 days, one point per day (UTC) ──────────────────
-  // revenue     = merchant commission we earned that day (metadata.commissionPaid)
-  // conversions = number of credited purchases that day
-  const DAYS = 30;
-  const startDay = new Date();
-  startDay.setUTCHours(0, 0, 0, 0);
-  startDay.setUTCDate(startDay.getUTCDate() - (DAYS - 1));
-
-  const trendAgg = await Transaction.aggregate([
-    { $match: { type: 'coin_credit', createdAt: { $gte: startDay } } },
-    {
-      $group: {
-        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-        revenue: { $sum: { $ifNull: ['$metadata.commissionPaid', 0] } },
-        conversions: { $sum: 1 },
-      },
-    },
+  // Resolve top-item names (split by type, two batched finds).
+  const productIds = itemsRows.filter((r) => r._id.itemType === 'product').map((r) => r._id.itemId);
+  const storeIds = itemsRows.filter((r) => r._id.itemType === 'store').map((r) => r._id.itemId);
+  const [products, stores] = await Promise.all([
+    Product.find({ _id: { $in: productIds } }).select('name merchant').lean(),
+    Store.find({ _id: { $in: storeIds } }).select('name').lean(),
   ]);
-  const byDay = new Map(trendAgg.map((r) => [r._id, r]));
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const pad2 = (x) => String(x).padStart(2, '0');
-  const revenueTrend = [];
-  for (let i = 0; i < DAYS; i++) {
-    const dt = new Date(startDay);
-    dt.setUTCDate(startDay.getUTCDate() + i);
-    const key = `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
-    const rec = byDay.get(key);
-    revenueTrend.push({
-      label: `${MONTHS[dt.getUTCMonth()]} ${dt.getUTCDate()}`,
-      revenue: rec?.revenue || 0,
-      conversions: rec?.conversions || 0,
-    });
-  }
+  const prodById = new Map(products.map((p) => [String(p._id), p]));
+  const storeById = new Map(stores.map((s) => [String(s._id), s]));
+  const topSharedItems = itemsRows.map((r) => {
+    if (r._id.itemType === 'product') {
+      const p = prodById.get(String(r._id.itemId)) || {};
+      return { itemType: 'product', name: p.name || 'Unknown product', brand: p.merchant || '', shares: r.shares };
+    }
+    const s = storeById.get(String(r._id.itemId)) || {};
+    return { itemType: 'store', name: s.name || 'Unknown store', brand: '', shares: r.shares };
+  });
+
+  const uniq30Count = uniq30.length;
+  const coins30 = coins30Agg[0]?.c || 0;
+  const shareTrend = fillTrend(trendDays(now), trendRows);
 
   res.json({
     status: 'success',
     data: {
-      stats: {
-        totalClicks,
-        conversions,
-        cashbackIssued,
-        activeUsers,
+      hero: {
+        totalShares,
+        sharesToday,
+        coinsFromShares: coinsAllAgg[0]?.c || 0,
+        liabilityRupees: Math.round(circulation / coinsPerRupee),
+      },
+      cards: {
+        sharesToday:      { value: sharesToday,  deltaPct: pctDelta(sharesToday, sharesYesterday) },
+        shares30d:        { value: shares30,     deltaPct: pctDelta(shares30, sharesPrev30) },
+        uniqueSharers30d: { value: uniq30Count,  deltaPct: pctDelta(uniq30Count, uniqPrev30.length) },
+        coinsIssued30d:   { value: coins30,      deltaPct: pctDelta(coins30, coinsPrev30Agg[0]?.c || 0) },
       },
       coinsEconomy: {
-        issued: coinsIssued,
-        redeemed: coinsRedeemed,
-        circulation: coinsCirculating,
+        issued: creditAgg[0]?.c || 0,
+        redeemed: debitAgg[0]?.c || 0,
+        circulation,
       },
-      topDeals,
-      topUsers,
-      revenueTrend,
-      totalUsers,
-      totalDeals,
+      shareTrend,
+      topSharers,
+      topSharedItems,
+      revenue: { clicks, purchases, commission: commissionAgg[0]?.c || 0 },
     },
   });
 };

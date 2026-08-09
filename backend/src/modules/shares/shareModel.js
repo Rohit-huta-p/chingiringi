@@ -14,6 +14,7 @@ const shareEventSchema = new mongoose.Schema(
 
 shareEventSchema.index({ userId: 1, day: 1 });                                  // fast daily count
 shareEventSchema.index({ userId: 1, itemType: 1, itemId: 1, day: 1 }, { unique: true }); // idempotency: one credit per item per day
+shareEventSchema.index({ day: 1 }); // dashboard: bare day-bucket counts (not covered by the userId-prefixed compounds)
 
 const ShareEvent = mongoose.model('ShareEvent', shareEventSchema);
 export default ShareEvent;
