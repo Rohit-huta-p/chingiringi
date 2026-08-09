@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import Video from './videoModel.js';
-import { videoProvider, PROVIDER } from '../../services/videoProvider.js';
+import { videoProvider, activeProvider } from '../../services/videoProvider.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
 
@@ -11,7 +11,7 @@ export const createUploadUrl = async (req, res) => {
     maxDurationSeconds: 120,
     meta: { storeName: String(storeName || ''), createdBy: String(req.user._id) },
   });
-  res.status(201).json({ status: 'success', data: { streamUid: uid, uploadURL, uploadMethod, provider: PROVIDER } });
+  res.status(201).json({ status: 'success', data: { streamUid: uid, uploadURL, uploadMethod, provider: activeProvider() } });
 };
 
 const createSchema = z.object({
@@ -48,7 +48,7 @@ export const createVideo = async (req, res) => {
     store: d.store,
     createdByAdmin: req.user._id,
     streamUid: d.streamUid,
-    provider: PROVIDER,
+    provider: activeProvider(),
     caption: d.caption,
     hashtags: d.hashtags,
     taggedProducts: d.taggedProducts,

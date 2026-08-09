@@ -28,12 +28,12 @@ import storeRoutes from './modules/stores/storeRoutes.js';
 import paymentsWebhookRoutes from './modules/payments/paymentsRoutes.js';
 import videoRoutes from './modules/videos/videoRoutes.js';
 import videoWebhookRoutes from './modules/videos/videoWebhookRoutes.js';
-import { PROVIDER } from './services/videoProvider.js';
+import { activeProvider } from './services/videoProvider.js';
 
 const app = express();
 app.set('trust proxy', 1); // Enable trust proxy for Render load balancer to recognize HTTPS cookies
 
-console.log(`[videos] provider: ${PROVIDER}`); // confirms which host (cloudflare|mux) is active at boot
+console.log(`[videos] provider: ${activeProvider()}`); // confirms which host (cloudflare|mux) is active at boot
 
 
 // Security HTTP headers
