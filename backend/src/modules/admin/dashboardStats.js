@@ -21,8 +21,8 @@ export function dayWindows(now = new Date()) {
 }
 
 function labelFor(d) {
-  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
-  return `${MONTHS[ist.getUTCMonth()]} ${ist.getUTCDate()}`;
+  const [, m, day] = istDayBucket(d).split('-');
+  return `${MONTHS[Number(m) - 1]} ${Number(day)}`;
 }
 
 // count IST day-strings, oldest→newest, ending today.
