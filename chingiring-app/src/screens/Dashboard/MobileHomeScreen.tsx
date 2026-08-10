@@ -216,11 +216,11 @@ export const MobileHomeScreen = () => {
 
   return (
     <ScrollView
-      style={st.container}
+      style={[st.container, themeColor ? { backgroundColor: tint(themeColor, 0.94) } : null]}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl {...refresh} />}
     >
-      {/* ── Header (brand-blue gradient, matches other mobile screens) ── */}
+      {/* ── Header: gradient tinted to the selected category's theme color ── */}
       <LinearGradient
         colors={headerColors}
         locations={[0, 0.6, 1]}
