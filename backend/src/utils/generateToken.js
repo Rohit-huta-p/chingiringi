@@ -46,6 +46,10 @@ export const generateTokens = async (res, user) => {
     if (user.refreshTokens.length > 5) {
       user.refreshTokens = user.refreshTokens.slice(-5);
     }
+    // Stamp activity on every token issuance (login/google/otp/signup/refresh) —
+    // "active" counts silently-renewed sessions too. Piggybacks on the save
+    // below, so it costs no extra write. Powers the dashboard's activeUsers.
+    user.lastLoginAt = new Date();
     await user.save({ validateBeforeSave: false });
   }
 

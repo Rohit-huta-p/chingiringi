@@ -67,6 +67,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Last successful token issuance (login/google/otp/signup/refresh). Powers
+    // the admin dashboard's 30-day activeUsers metric. Written in generateTokens.
+    lastLoginAt: {
+      type: Date,
+    },
     refreshTokens: [
       {
         token: String,
