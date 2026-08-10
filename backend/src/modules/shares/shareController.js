@@ -51,6 +51,7 @@ export const createShare = async (req, res) => {
     throw err;
   }
 
+  // ponytail: check-then-act cap; a rare concurrent burst may under-count toward the cap (never over), enforced fail-closed by this post-insert re-count + delete.
   const after = await ShareEvent.countDocuments({ userId, day });
   if (after > maxSharesPerDay) {
     await ShareEvent.deleteOne({ userId, itemType, itemId, day });
