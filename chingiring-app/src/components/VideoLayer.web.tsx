@@ -27,17 +27,19 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted 
 
     let hls: Hls | undefined;
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = source; // Safari — native HLS
       video.addEventListener('loadedmetadata', playIfActive);
+      video.src = source; // Safari — native HLS
     } else if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: true });
-      hls.loadSource(source);
-      hls.attachMedia(video);
+      // Register listeners BEFORE loadSource — a cached manifest can parse
+      // synchronously and fire MANIFEST_PARSED before a later .on() attaches.
       hls.on(Hls.Events.MANIFEST_PARSED, playIfActive);
       if (__DEV__) hls.on(Hls.Events.ERROR, (_e, d) => console.warn('[hls]', d?.type, d?.details, d?.fatal));
+      hls.loadSource(source);
+      hls.attachMedia(video);
     } else {
-      video.src = source; // last resort
       video.addEventListener('loadedmetadata', playIfActive);
+      video.src = source; // last resort
     }
     return () => {
       hls?.destroy();
@@ -57,6 +59,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted 
   return (
     <video
       ref={ref}
+      autoPlay
       muted
       loop
       playsInline
