@@ -77,22 +77,18 @@ includes `'referral'`; the wallet earnings aggregation already counts it.
 `backend/src/modules/referrals/` — small: controller + routes + one pure helper.
 Reuses the existing wallet-credit primitive, `AdminSettings.get()`, `notify()`.
 
-### 1. `captureReferral(newUser, code)` — called from the signup paths
+### 1. `POST /api/referrals/apply { code }` (auth) — capture
 
-```
-if (!code) return;
-const referrer = await User.findOne({ referralCode: code.trim().toUpperCase() });
-if (!referrer) return;                          // unknown → ignore, signup still succeeds
-if (referrer._id.equals(newUser._id)) return;   // self-referral → ignore
-newUser.referredBy = referrer._id;
-newUser.referralStatus = 'pending';
-await newUser.save();
-```
-
-Wire it wherever a **new** user is created, passing the client-supplied code:
-- `signup` (`authController.js`) — add `referralCode: z.string().optional()` to the schema.
-- `googleAuth` — when `isNew`.
-- any phone/OTP signup path that mints a new user.
+Called by the client **right after a successful signup** (any method: email,
+Google, or phone-OTP). Keeping capture in its own endpoint means the referral
+logic never touches the shared auth/login paths (the mobile signup is phone-OTP,
+which auto-creates the user deep inside `verifyUserOTP` — threading a code
+through it is messy and risky). Guards live in the pure `canApplyReferral`
+helper: unknown code, self-referral, already-referred, and a 48h
+"applied within the signup window" check. On success it sets `referredBy` +
+`referralStatus:'pending'` on the caller (guarded by `{referredBy:{$exists:false}}`
+against a double-apply race). A bad/unknown code returns `{applied:false}`
+without erroring — signup UX is never blocked.
 
 ### 2. `POST /api/referrals/claim` (auth, app-only) — the confirm
 
@@ -129,7 +125,8 @@ Mounted `app.use('/r', referralRedirectRoutes)`. Best-effort, always responds.
 1. `pickStoreUrl(ua)` (pure) → App Store (iOS) / Play Store (Android) / web
    signup (desktop), URLs from env (placeholder until the apps are published).
 2. Return a tiny **interstitial** HTML page:
-   - attempt the app: `window.location = 'chingiring://refer/' + code`;
+   - attempt the app: `window.location = 'chingiring://signup?ref=' + code`
+     (reuses the existing `Signup` linking route);
    - after ~1.5s (not installed) → `pickStoreUrl(ua)`;
    - visible **"Open app / Get the app / Continue on web"** buttons — in-app
      browsers (WhatsApp/IG) block scheme redirects, so buttons are the escape.
@@ -149,11 +146,13 @@ set `referralStatus:'expired'` (plus reuse the `confirmExpiredLocks` sweep patte
 
 ## App (chingiring-app)
 
-- **SignupScreen:** optional "Referral code" field. **Autofill** when opened via
-  `chingiring://refer/<code>` — add a `refer/:code` route to
-  `src/navigation/linking.ts` that lands on Signup with the param. **Manual
-  entry** otherwise (the not-installed path). Send the code to `signup` /
-  Google / phone signup.
+- **SignupScreen:** optional "Referral code" field. **Autofill** from
+  `route.params.ref` when opened via `chingiring://signup?ref=<code>` (reuses the
+  existing `Signup` linking route — no new route; the app scheme is `chingiring`,
+  not `chingiringi`, so `linking.ts` `prefixes` need `chingiring://` added).
+  **Manual entry** otherwise (the not-installed path). On signup success, call
+  `referralsAPI.apply(code)` **before** `hydrate()` (so the pending referral
+  exists before the native `claim()` fires).
 - **Post-login:** call `POST /api/referrals/claim` once after a successful
   app login/signup (no-op unless pending). On `credited:true`, toast
   "You earned ₹5!".
@@ -178,8 +177,9 @@ Velocity/pattern flags for admin review stay a later option.
 
 ## Testing
 
-- `captureReferral`: unknown code → ignored (no `referredBy`), self-referral →
-  ignored, valid → `referredBy` set + `pending`.
+- `canApplyReferral` (pure): unknown code → `invalid_code`, self → `self`,
+  already-referred → `already_referred`, past the 48h window → `too_old`, else `ok`.
+- `pickStoreUrl` / `referralConfirmDecision` (pure): device routing + confirm/expire guards.
 - `claim`: pending → credits both correct amounts + flips confirmed; **double
   claim → credits once** (idempotent); non-pending → no-op.
 - `pickStoreUrl(ua)`: iOS UA → App Store, Android UA → Play Store, else web.
