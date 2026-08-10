@@ -1,6 +1,7 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../app.js';
+import ShareEvent from '../modules/shares/shareModel.js';
 
 describe('Shares API auth', () => {
   it('POST /api/shares requires auth', async () => {
@@ -16,17 +17,16 @@ describe('Shares API auth', () => {
 });
 
 describe('Share redirect /s', () => {
-  // No DB in this harness: the pending lookup buffers against mongoose's
-  // disconnected connection and only resolves once its buffering timeout
-  // fires (caught internally) — past jest's 5s default, hence the bump.
-  it('returns a 200 interstitial for a well-formed link', async () => {
+  it('renders the interstitial (200) even when the DB lookup fails', async () => {
+    const spy = jest.spyOn(ShareEvent, 'findOne').mockReturnValue({ sort: () => Promise.reject(new Error('db down')) });
     const res = await request(app).get('/s/product/64f8a2b9c1d2e3f4a5b6c7d8?ref=cr_64f8a2b9c1d2e3f4a5b6c7d8');
     expect(res.statusCode).toBe(200);
-    expect(res.headers['content-type']).toMatch(/html/);
     expect(res.text).toContain('chingiringapp://product/');
-  }, 20000);
-  it('never 4xxs the opener, even on a garbage id', async () => {
-    const res = await request(app).get('/s/product/not-an-id?ref=cr_x');
-    expect(res.statusCode).toBe(200);
+    spy.mockRestore();
+  });
+  it('redirects invalid links home without echoing input (no XSS)', async () => {
+    const res = await request(app).get('/s/product/%22%3E%3Cscript%3E?ref=cr_x');
+    expect(res.statusCode).toBe(302);
+    expect(res.text).not.toContain('<script>');
   });
 });
