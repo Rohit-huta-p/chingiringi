@@ -16,6 +16,7 @@ import categoryRoutes from './modules/categories/categoryRoutes.js';
 import bannerRoutes from './modules/banners/bannerRoutes.js';
 import walletRoutes from './modules/wallet/walletRoutes.js';
 import shareRoutes from './modules/shares/shareRoutes.js';
+import shareRedirectRoutes from './modules/shares/shareRedirectRoutes.js';
 import profileRoutes from './modules/users/profileRoutes.js';
 import addressRoutes from './modules/addresses/addressRoutes.js';
 import adminRoutes from './modules/admin/adminRoutes.js';
@@ -116,6 +117,7 @@ app.use('/api/clicks', clickRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/s', shareRedirectRoutes);
 
 // Unhandled routes
 app.all('*', notFound);
