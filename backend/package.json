@@ -14,6 +14,8 @@
     "seed:test-flow": "node src/scripts/seedTestFlow.js",
     "cron:confirm-locks": "node src/scripts/confirmExpiredLocks.js",
     "cron:reconcile-videos": "node src/scripts/reconcileVideos.js",
+    "cron:expire-shares": "node src/scripts/expirePendingShares.js",
+    "migrate:share-status": "node src/scripts/backfillShareStatus.js",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --forceExit --detectOpenHandles"
   },
   "keywords": [],
