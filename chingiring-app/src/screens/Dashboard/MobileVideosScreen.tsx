@@ -4,6 +4,7 @@ import {
   useWindowDimensions, Share, Platform, ViewToken,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaySquare, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
@@ -12,6 +13,7 @@ import { FeedVideo, VideoStore } from '../../api/videos';
 
 export const MobileVideosScreen = () => {
   const { height, width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { videos, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useVideoFeed();
   const { like, share, view } = useVideoEngagement();
@@ -23,6 +25,11 @@ export const MobileVideosScreen = () => {
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
   const frameH = Math.round(height * 0.92);
   const frameW = Math.round(frameH * 9 / 16);
+  // MobileTabBar height = paddingTop 8 + barInner 64 + paddingBottom max(insets.bottom, 8),
+  // and its centre Home circle pokes ~16px higher (marginTop -28). Clear all of that plus a
+  // gap so the caption/product block sits above the bar on mobile. Desktop (drawer, no bottom
+  // bar) keeps the original aesthetic gap.
+  const bottomOffset = isDesktopWeb ? 58 : 88 + Math.max(insets.bottom, 8) + 14;
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(true);
@@ -98,6 +105,7 @@ export const MobileVideosScreen = () => {
         onStorePress={onStorePress}
         onLike={() => onLike(item)}
         onShare={() => onShare(item)}
+        bottomOffset={bottomOffset}
       />
     );
     if (isDesktopWeb) {
@@ -108,7 +116,7 @@ export const MobileVideosScreen = () => {
       );
     }
     return feedItem(height);
-  }, [activeIndex, muted, height, frameH, frameW, isDesktopWeb, likedIds, onStorePress, onLike, onShare]);
+  }, [activeIndex, muted, height, frameH, frameW, isDesktopWeb, bottomOffset, likedIds, onStorePress, onLike, onShare]);
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;

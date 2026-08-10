@@ -17,13 +17,16 @@ interface Props {
   onStorePress: (store: VideoStore) => void;
   onLike: () => void;
   onShare: () => void;
+  /** Distance (px) to lift the caption+product block off the screen bottom so it
+   *  clears the mobile tab bar. Desktop passes the plain aesthetic gap. */
+  bottomOffset?: number;
 }
 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
-  onToggleMute, onStorePress, onLike, onShare,
+  onToggleMute, onStorePress, onLike, onShare, bottomOffset = 58,
 }) => {
   const products = video.taggedProducts ?? [];
   const primary = products[0];
@@ -71,7 +74,7 @@ export const VideoFeedItem: React.FC<Props> = ({
       </View>
 
       {/* Caption + product card(s) — bottom */}
-      <View style={s.bottom}>
+      <View style={[s.bottom, { bottom: bottomOffset }]}>
         {!!video.caption && <Text style={s.caption} numberOfLines={2}>{video.caption}</Text>}
 
         {products.length <= 1 ? (
@@ -153,7 +156,7 @@ const s = StyleSheet.create({
   rail: { position: 'absolute', right: 12, bottom: 150, alignItems: 'center', gap: 18 },
   railBtn: { alignItems: 'center', gap: 3 },
   railTxt: { color: '#fff', fontFamily: Fonts.semiBold, fontSize: 11, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
-  bottom: { position: 'absolute', left: 12, right: 12, bottom: 58 },
+  bottom: { position: 'absolute', left: 12, right: 12 },
   caption: { color: '#fff', fontFamily: Fonts.medium, fontSize: 13, lineHeight: 18, marginBottom: 10, marginRight: 70, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 5 },
   carousel: { gap: 10, paddingRight: 60 },
   carouselCard: { width: 240 },
