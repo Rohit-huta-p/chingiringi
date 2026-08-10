@@ -26,10 +26,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted 
     const playIfActive = () => { if (activeRef.current) video.play?.().catch(() => {}); };
 
     let hls: Hls | undefined;
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.addEventListener('loadedmetadata', playIfActive);
-      video.src = source; // Safari — native HLS
-    } else if (Hls.isSupported()) {
+    // hls.js FIRST whenever MSE is available. Chrome/Firefox/Edge/Electron
+    // report canPlayType('application/vnd.apple.mpegurl') === 'maybe' but CANNOT
+    // actually play HLS natively — only Safari can. Native src is the fallback.
+    if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: true });
       // Register listeners BEFORE loadSource — a cached manifest can parse
       // synchronously and fire MANIFEST_PARSED before a later .on() attaches.
@@ -37,6 +37,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted 
       if (__DEV__) hls.on(Hls.Events.ERROR, (_e, d) => console.warn('[hls]', d?.type, d?.details, d?.fatal));
       hls.loadSource(source);
       hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.addEventListener('loadedmetadata', playIfActive);
+      video.src = source; // Safari — native HLS
     } else {
       video.addEventListener('loadedmetadata', playIfActive);
       video.src = source; // last resort
