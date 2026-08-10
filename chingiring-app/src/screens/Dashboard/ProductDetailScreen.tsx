@@ -197,10 +197,10 @@ export const ProductDetailScreen = () => {
     const shareTitle = isProductMode
       ? (product?.title || product?.name || 'Check out this product')
       : (deal?.title || deal?.description || 'Check out this deal');
-    const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com';
+    const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com';
     const pid = product?._id || productId;
     const shareUrl = isProductMode
-      ? (pid && pid !== 'sample' ? `${base}/product/${pid}?ref=cr_${user?.id ?? ''}` : '')
+      ? (pid && pid !== 'sample' ? `${base}/s/product/${pid}?ref=cr_${user?.id ?? ''}` : '')
       : (deal?.affiliateUrl || '');
     const message = shareUrl ? `${shareTitle}\n${shareUrl}` : shareTitle;
 
@@ -228,14 +228,11 @@ export const ProductDetailScreen = () => {
 
     if (shared && isProductMode && pid && pid !== 'sample') {
       try {
-        const { data } = await sharesAPI.postShare('product', pid);
+        await sharesAPI.postShare('product', pid);
         queryClient.invalidateQueries({ queryKey: ['wallet'] });
         queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
         queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
-        Alert.alert(
-          data.coinsAwarded > 0 ? 'You earned 100 CR \u2728' : 'Shared!',
-          data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
-        );
+        Alert.alert('Shared!', `${quotaRes?.data?.coinsPerShare ?? 50} CR pending \u2014 it unlocks when a friend opens your link.`);
       } catch {
         /* cap reached or offline \u2014 the share already happened */
       }
@@ -548,18 +545,15 @@ export const ProductDetailScreen = () => {
         title={productName}
         imageUrl={productImage}
         discount={productDiscount ? `${productDiscount}% off` : undefined}
-        url={`${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com'}/product/${targetProductId}?ref=cr_${user?.id ?? ''}`}
+        url={`${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/product/${targetProductId}?ref=cr_${user?.id ?? ''}`}
         onShared={async () => {
           if (!targetProductId || targetProductId === 'sample') return;
           try {
-            const { data } = await sharesAPI.postShare('product', targetProductId);
+            await sharesAPI.postShare('product', targetProductId);
             queryClient.invalidateQueries({ queryKey: ['wallet'] });
             queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
             queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
-            Alert.alert(
-              data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
-              data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
-            );
+            Alert.alert('Shared!', `${quotaRes?.data?.coinsPerShare ?? 50} CR pending — it unlocks when a friend opens your link.`);
           } catch { /* cap/offline — no credit */ }
         }}
       />

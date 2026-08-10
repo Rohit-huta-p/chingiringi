@@ -540,7 +540,9 @@ const StoreCard: React.FC<{
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [shareOpen, setShareOpen] = useState(false);
-  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+  // Same query key the screen-level quota badge and the invalidate call below use.
+  const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
   const initial = (store.shortName || store.name || '?').trim().charAt(0).toUpperCase() || '?';
   const tileColor = avatarColor(store._id || store.name || '');
 
@@ -633,14 +635,11 @@ const StoreCard: React.FC<{
         url={shareUrl}
         onShared={async () => {
           try {
-            const { data } = await sharesAPI.postShare('store', store._id);
+            await sharesAPI.postShare('store', store._id);
             qc.invalidateQueries({ queryKey: ['wallet'] });
             qc.invalidateQueries({ queryKey: ['walletSummary'] });
             qc.invalidateQueries({ queryKey: ['shareQuota'] });
-            Alert.alert(
-              data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
-              data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
-            );
+            Alert.alert('Shared!', `${quotaRes?.data?.coinsPerShare ?? 50} CR pending — it unlocks when a friend opens your link.`);
           } catch { /* cap/offline — no credit */ }
         }}
       />

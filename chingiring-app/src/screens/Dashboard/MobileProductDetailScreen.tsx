@@ -490,7 +490,9 @@ export const MobileProductDetailScreen = () => {
     // once a channel link is actually opened (see onShared below), and only
     // for real products (not the 'sample' template rows).
     const canShare = !!reviewProductId && reviewProductId !== 'sample';
-    const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.com'}/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
+    const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
+    // Same query key ProductDetailMobile's badge and the invalidate calls below use.
+    const { data: shareQuotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
     // Buy Now — opens the product's buy/affiliate link (only shown when set).
     const buyUrl: string | undefined = productForView?.affiliateUrl;
     const handleBuy = async () => {
@@ -528,14 +530,11 @@ export const MobileProductDetailScreen = () => {
             url={shareUrl}
             onShared={async () => {
               try {
-                const { data } = await sharesAPI.postShare('product', reviewProductId);
+                await sharesAPI.postShare('product', reviewProductId);
                 queryClient.invalidateQueries({ queryKey: ['wallet'] });
                 queryClient.invalidateQueries({ queryKey: ['walletSummary'] });
                 queryClient.invalidateQueries({ queryKey: ['shareQuota'] });
-                Alert.alert(
-                  data.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
-                  data.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
-                );
+                Alert.alert('Shared!', `${shareQuotaRes?.data?.coinsPerShare ?? 50} CR pending — it unlocks when a friend opens your link.`);
               } catch { /* cap/offline — no credit */ }
             }}
           />

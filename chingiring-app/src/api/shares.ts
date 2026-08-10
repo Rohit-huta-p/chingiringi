@@ -1,7 +1,8 @@
 import apiClient from './client';
 
 export interface ShareResult {
-  coinsAwarded: number;
+  status: 'pending';
+  shareUrl: string;
   remainingToday: number;
   duplicate?: boolean;
 }
@@ -10,6 +11,7 @@ export interface ShareQuota {
   usedToday: number;
   remaining: number;
   cap: number;
+  coinsPerShare: number;
 }
 
 export interface ShareStats {

@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MessageCircle, Send, MessageSquare, Mail, ChevronRight } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
+import { sharesAPI } from '../api/shares';
 import { Colors, Fonts, Spacing } from '../constants/theme';
 
 type ShareSheetProps = {
@@ -57,6 +59,10 @@ export const ShareSheet: React.FC<ShareSheetProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const channels = buildChannels(title, url);
+  // Reward amount is server-configured (AdminSettings.coinsPerShare) — the
+  // `coins` prop above is only a fallback for before this query resolves.
+  const { data: quota } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota, staleTime: 60_000 });
+  const coinAmount = quota?.data?.coinsPerShare ?? coins;
 
   const handlePress = async (channel: Channel) => {
     try {
@@ -89,7 +95,7 @@ export const ShareSheet: React.FC<ShareSheetProps> = ({
               <Text style={styles.previewName} numberOfLines={1}>{title}</Text>
               <View style={styles.previewMeta}>
                 {discount ? <Text style={styles.off}>{discount}</Text> : null}
-                <Text style={styles.earn}>Earn {coins} CR</Text>
+                <Text style={styles.earn}>Earn {coinAmount} CR</Text>
               </View>
             </View>
           </View>

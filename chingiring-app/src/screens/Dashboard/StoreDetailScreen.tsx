@@ -73,6 +73,9 @@ export const StoreDetailScreen: React.FC = () => {
     ? { ...fetched, distanceKm: fetched.distanceKm ?? passed?.distanceKm }
     : passed;
 
+  // Daily share quota — same query key the share action invalidates.
+  const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
+
   if (!store) {
     return (
       <View style={styles.loading}>
@@ -87,7 +90,7 @@ export const StoreDetailScreen: React.FC = () => {
   const hasHours = !!(openStr && closeStr);
   const heroImg = store.images?.[0];              // real photo only (logo isn't a good hero)
   const photos = (store.images ?? []).slice(0, 8);
-  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiring.app'}/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+  const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/store/${store._id}?ref=cr_${user?.id ?? ''}`;
 
   const openDirections = () => {
     Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lng}`).catch(() => {});
@@ -237,14 +240,11 @@ export const StoreDetailScreen: React.FC = () => {
         url={shareUrl}
         onShared={async () => {
           try {
-            const { data: res } = await sharesAPI.postShare('store', store._id);
+            await sharesAPI.postShare('store', store._id);
             qc.invalidateQueries({ queryKey: ['wallet'] });
             qc.invalidateQueries({ queryKey: ['walletSummary'] });
             qc.invalidateQueries({ queryKey: ['shareQuota'] });
-            Alert.alert(
-              res.coinsAwarded > 0 ? 'You earned 100 CR ✨' : 'Shared!',
-              res.coinsAwarded > 0 ? 'Coins added to your wallet.' : "You've already earned for this today.",
-            );
+            Alert.alert('Shared!', `${quotaRes?.data?.coinsPerShare ?? 50} CR pending — it unlocks when a friend opens your link.`);
           } catch { /* cap/offline — no credit */ }
         }}
       />
