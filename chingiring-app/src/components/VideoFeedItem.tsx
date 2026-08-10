@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import VideoLayer from './VideoLayer';
-import { Heart, Share2, Volume2, VolumeX, ExternalLink } from 'lucide-react-native';
+import { Heart, Share2, Volume2, VolumeX, ExternalLink, Pause } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { FeedVideo, TaggedProduct, VideoStore } from '../api/videos';
 
@@ -20,6 +20,9 @@ interface Props {
   /** Distance (px) to lift the caption+product block off the screen bottom so it
    *  clears the mobile tab bar. Desktop passes the plain aesthetic gap. */
   bottomOffset?: number;
+  /** Tap-to-pause state + toggle for the active clip. */
+  paused?: boolean;
+  onTogglePause?: () => void;
 }
 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
@@ -27,6 +30,7 @@ const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
   onToggleMute, onStorePress, onLike, onShare, bottomOffset = 58,
+  paused = false, onTogglePause,
 }) => {
   const products = video.taggedProducts ?? [];
   const primary = products[0];
@@ -35,11 +39,14 @@ export const VideoFeedItem: React.FC<Props> = ({
 
   return (
     <View style={[s.page, { height }]}>
-      {/* Poster underlay (shows until the video paints, and on web where HLS may not play) */}
-      {!!video.thumbnailUrl && (
-        <Image source={{ uri: video.thumbnailUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      )}
-      <VideoLayer source={video.hlsUrl || null} isActive={isActive} muted={muted} />
+      {/* Tap layer — poster + video; a tap toggles play/pause on the active clip. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={onTogglePause}>
+        {/* Poster underlay (shows until the video paints, and on web where HLS may not play) */}
+        {!!video.thumbnailUrl && (
+          <Image source={{ uri: video.thumbnailUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        )}
+        <VideoLayer source={video.hlsUrl || null} isActive={isActive} muted={muted} paused={paused} />
+      </Pressable>
       {/* legibility scrim */}
       <LinearGradient
         colors={['rgba(0,0,0,0.35)', 'transparent', 'transparent', 'rgba(0,0,0,0.75)']}
@@ -47,6 +54,13 @@ export const VideoFeedItem: React.FC<Props> = ({
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
+
+      {/* Pause indicator — centre, while the active clip is held paused */}
+      {paused && (
+        <View style={s.pauseWrap} pointerEvents="none">
+          <View style={s.pauseCircle}><Pause size={38} color="#fff" fill="#fff" /></View>
+        </View>
+      )}
 
       {/* Store pill — top-left */}
       <Pressable style={s.storePill} onPress={() => onStorePress(store)} hitSlop={8}>
@@ -139,6 +153,11 @@ export const SAMPLE_VIDEOS: FeedVideo[] = [
 
 const s = StyleSheet.create({
   page: { width: '100%', backgroundColor: '#000', position: 'relative' },
+  pauseWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  pauseCircle: {
+    width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
   storePill: {
     position: 'absolute', top: 52, left: 14, flexDirection: 'row', alignItems: 'center', gap: 7,
     backgroundColor: 'rgba(20,20,25,0.5)', paddingVertical: 5, paddingLeft: 5, paddingRight: 11, borderRadius: 999,

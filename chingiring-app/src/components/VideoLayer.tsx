@@ -6,13 +6,15 @@ export interface VideoLayerProps {
   source: string | null;
   isActive: boolean;
   muted: boolean;
+  /** Tap-to-pause: when true, hold the active clip paused. */
+  paused?: boolean;
 }
 
 /** Native player (iOS/Android) — expo-video plays HLS directly. */
-export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted }) => {
+export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted, paused = false }) => {
   const player = useVideoPlayer(source, (p) => { p.loop = true; p.muted = muted; });
   useEffect(() => { player.muted = muted; }, [muted, player]);
-  useEffect(() => { isActive ? player.play() : player.pause(); }, [isActive, player]);
+  useEffect(() => { (isActive && !paused) ? player.play() : player.pause(); }, [isActive, paused, player]);
   return (
     <VideoView
       player={player}

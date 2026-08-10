@@ -5,6 +5,8 @@ export interface VideoLayerProps {
   source: string | null;
   isActive: boolean;
   muted: boolean;
+  /** Tap-to-pause: when true, hold the active clip paused. */
+  paused?: boolean;
 }
 
 /**
@@ -14,16 +16,17 @@ export interface VideoLayerProps {
  * reject and the video sits black. This file is web-only (Metro resolves .web.tsx on
  * web, VideoLayer.tsx on native).
  */
-export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted }) => {
+export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted, paused = false }) => {
   const ref = useRef<HTMLVideoElement>(null);
-  const activeRef = useRef(isActive);
-  activeRef.current = isActive;
+  const shouldPlay = isActive && !paused;
+  const shouldPlayRef = useRef(shouldPlay);
+  shouldPlayRef.current = shouldPlay;
 
   useEffect(() => {
     const video = ref.current;
     if (!video || !source) return;
     video.muted = true; // required for autoplay to be allowed
-    const playIfActive = () => { if (activeRef.current) video.play?.().catch(() => {}); };
+    const playIfActive = () => { if (shouldPlayRef.current) video.play?.().catch(() => {}); };
 
     let hls: Hls | undefined;
     // hls.js FIRST whenever MSE is available. Chrome/Firefox/Edge/Electron
@@ -55,9 +58,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted 
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
-    if (isActive) v.play?.().catch(() => {});
+    if (shouldPlay) v.play?.().catch(() => {});
     else v.pause?.();
-  }, [isActive]);
+  }, [shouldPlay]);
 
   return (
     <video

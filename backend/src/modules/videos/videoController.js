@@ -91,29 +91,42 @@ export const handleStreamWebhook = async (req, res) => {
   res.status(200).json({ status: 'success', data: { status: video.status } });
 };
 
-// @desc  Ranked shoppable feed  @route GET /api/videos/feed  @access public
+// Attach `likedByMe` for the authenticated user (all false when anonymous / no likes).
+async function withLikedByMe(videos, userId) {
+  if (!userId || !videos.length) return videos.map((v) => ({ ...v, likedByMe: false }));
+  const likes = await VideoInteraction.find({
+    user: userId, video: { $in: videos.map((v) => v._id) }, type: 'like',
+  }).select('video').lean();
+  const liked = new Set(likes.map((l) => String(l.video)));
+  return videos.map((v) => ({ ...v, likedByMe: liked.has(String(v._id)) }));
+}
+
+// @desc  Ranked shoppable feed  @route GET /api/videos/feed  @access public (optional auth)
 export const getFeed = async (req, res) => {
   const { filter, sort, limit } = buildFeedQuery(req.query);
   const videos = await Video.find(filter)
     .sort(sort)
     .limit(limit)
     .lean();
-  res.status(200).json({ status: 'success', data: { videos, nextCursor: nextCursor(videos) } });
+  const withLikes = await withLikedByMe(videos, req.user?._id);
+  res.status(200).json({ status: 'success', data: { videos: withLikes, nextCursor: nextCursor(withLikes) } });
 };
 
-// @desc  Single video  @route GET /api/videos/:id  @access public
+// @desc  Single video  @route GET /api/videos/:id  @access public (optional auth)
 export const getVideo = async (req, res) => {
   const video = await Video.findById(req.params.id).lean();
   if (!video) { res.status(404); throw new Error('Video not found'); }
-  res.status(200).json({ status: 'success', data: { video } });
+  const [withLike] = await withLikedByMe([video], req.user?._id);
+  res.status(200).json({ status: 'success', data: { video: withLike } });
 };
 
-// @desc  A store's ready videos, by store name  @route GET /api/videos/store/:storeId  @access public
+// @desc  A store's ready videos, by store name  @route GET /api/videos/store/:storeId  @access public (optional auth)
 export const getStoreVideos = async (req, res) => {
   const videos = await Video.find({
     'store.name': req.params.storeId, status: 'ready', 'moderation.state': 'approved',
   }).sort({ _id: -1 }).limit(60).lean();
-  res.status(200).json({ status: 'success', data: { videos } });
+  const withLikes = await withLikedByMe(videos, req.user?._id);
+  res.status(200).json({ status: 'success', data: { videos: withLikes } });
 };
 
 // @desc  Count a view + add watch seconds  @route POST /:id/view  @access optional

@@ -26,7 +26,11 @@ export const MobileVideosScreen = () => {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(true);
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [paused, setPaused] = useState(false);
+  // Optimistic like overrides keyed by video id. When a clip has no override we fall back to
+  // the server's `likedByMe` (from the optional-auth feed), so a refresh keeps the heart red
+  // for likes you already made.
+  const [likeOverrides, setLikeOverrides] = useState<Map<string, boolean>>(new Map());
   // Height of the list's OWN viewport, measured in onLayout. Pages are sized to THIS, not the
   // window height — the window is slightly taller than the scroll area (status bar / layout),
   // so window-sized pages overflow and let you drag a bit before snapping. Fallback to the
@@ -68,6 +72,9 @@ export const MobileVideosScreen = () => {
     listRef.current?.scrollToIndex({ index: clamped, animated: true });
   }, []);
 
+  // A newly-active clip always starts playing — clear any tap-pause from the previous one.
+  useEffect(() => { setPaused(false); }, [activeIndex]);
+
   // Keyboard navigation on desktop web (↑/↓).
   useEffect(() => {
     if (!isDesktopWeb || typeof window === 'undefined') return;
@@ -84,13 +91,10 @@ export const MobileVideosScreen = () => {
   }, [navigation]);
 
   const onLike = useCallback((v: FeedVideo) => {
-    setLikedIds((prev) => {
-      const next = new Set(prev);
-      next.has(v._id) ? next.delete(v._id) : next.add(v._id);
-      return next;
-    });
+    const current = likeOverrides.has(v._id) ? !!likeOverrides.get(v._id) : !!v.likedByMe;
+    setLikeOverrides((prev) => new Map(prev).set(v._id, !current));
     like.mutate(v._id);
-  }, [like]);
+  }, [likeOverrides, like]);
 
   const onShare = useCallback(async (v: FeedVideo) => {
     try {
@@ -100,19 +104,25 @@ export const MobileVideosScreen = () => {
   }, [share]);
 
   const renderItem = useCallback(({ item, index }: { item: FeedVideo; index: number }) => {
+    // Override wins if the user tapped this session; otherwise trust the server flag. The
+    // server count already includes the user's own like, so only adjust when display ≠ server.
+    const liked = likeOverrides.has(item._id) ? !!likeOverrides.get(item._id) : !!item.likedByMe;
+    const likeCount = (item.stats?.likes || 0) + (liked ? 1 : 0) - (item.likedByMe ? 1 : 0);
     const feedItem = (h: number) => (
       <VideoFeedItem
         video={item}
         isActive={index === activeIndex}
         muted={muted}
         height={h}
-        liked={likedIds.has(item._id)}
-        likeCount={(item.stats?.likes || 0) + (likedIds.has(item._id) ? 1 : 0)}
+        liked={liked}
+        likeCount={likeCount}
         onToggleMute={() => setMuted((m) => !m)}
         onStorePress={onStorePress}
         onLike={() => onLike(item)}
         onShare={() => onShare(item)}
         bottomOffset={bottomOffset}
+        paused={paused && index === activeIndex}
+        onTogglePause={() => setPaused((p) => !p)}
       />
     );
     if (isDesktopWeb) {
@@ -123,7 +133,7 @@ export const MobileVideosScreen = () => {
       );
     }
     return feedItem(itemH);
-  }, [activeIndex, muted, itemH, frameH, frameW, isDesktopWeb, bottomOffset, likedIds, onStorePress, onLike, onShare]);
+  }, [activeIndex, muted, paused, itemH, frameH, frameW, isDesktopWeb, bottomOffset, likeOverrides, onStorePress, onLike, onShare]);
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;

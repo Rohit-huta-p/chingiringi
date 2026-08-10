@@ -28,6 +28,8 @@ export interface FeedVideo {
   cta: { type: 'shop' | 'store' | 'none'; productId?: string; url?: string };
   stats: { views: number; likes: number; shares: number; saves: number };
   publishedAt: string;
+  /** True when the signed-in user has already liked this clip (feed is optional-auth). */
+  likedByMe?: boolean;
 }
 
 export interface FeedPage {

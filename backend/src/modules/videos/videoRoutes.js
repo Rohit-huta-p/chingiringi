@@ -13,9 +13,9 @@ const router = express.Router();
 router.post('/upload-url', protect, admin, createUploadUrl);
 router.post('/', protect, admin, createVideo);
 
-// public reads
-router.get('/feed', getFeed);
-router.get('/store/:storeId', getStoreVideos);
+// public reads (optional auth → so we can flag `likedByMe` for signed-in users)
+router.get('/feed', optionalProtect, getFeed);
+router.get('/store/:storeId', optionalProtect, getStoreVideos);
 
 // admin moderation — must be declared before /:id so /admin/queue isn't captured by getVideo
 router.get('/admin/queue', protect, admin, listPending);
@@ -28,7 +28,7 @@ router.post('/:id/like', protect, toggleLike);
 router.post('/:id/save', protect, toggleSave);
 
 // bare /:id routes LAST — a bare :id above would swallow /feed, /store/..., /admin/...
-router.get('/:id', getVideo);
+router.get('/:id', optionalProtect, getVideo);
 router.delete('/:id', protect, admin, deleteVideo);
 
 export default router;
