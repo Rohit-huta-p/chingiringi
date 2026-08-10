@@ -32,4 +32,19 @@ describe('evaluateShareConfirm', () => {
   it('rejects when no visitor IP is known', () => {
     expect(evaluateShareConfirm({ ...base, visitorIp: '' })).toEqual({ confirm: false, reason: 'no_visitor_ip' });
   });
+  it('returns the most-specific reason when several conditions fail at once', () => {
+    // confirmed beats bot+self_ip+too_soon
+    expect(evaluateShareConfirm({ ...base, status: 'confirmed', visitorUa: 'facebookexternalhit/1.1', visitorIp: base.sharerIp, ageSeconds: 1 }))
+      .toEqual({ confirm: false, reason: 'already_confirmed' });
+    // bot beats self_ip+too_soon
+    expect(evaluateShareConfirm({ ...base, visitorUa: 'WhatsApp/2', visitorIp: base.sharerIp, ageSeconds: 1 }))
+      .toEqual({ confirm: false, reason: 'bot' });
+  });
+  it('covers expired and unknown-status reasons', () => {
+    expect(evaluateShareConfirm({ ...base, status: 'expired' })).toEqual({ confirm: false, reason: 'expired' });
+    expect(evaluateShareConfirm({ ...base, status: 'weird' })).toEqual({ confirm: false, reason: 'not_found' });
+  });
+  it('fails closed when ageSeconds is missing/NaN', () => {
+    expect(evaluateShareConfirm({ ...base, ageSeconds: undefined })).toEqual({ confirm: false, reason: 'too_soon' });
+  });
 });

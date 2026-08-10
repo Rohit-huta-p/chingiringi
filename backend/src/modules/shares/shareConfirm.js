@@ -15,6 +15,6 @@ export function evaluateShareConfirm({ status, sharerIp, visitorIp, visitorUa, a
   if (isLikelyBot(visitorUa)) return { confirm: false, reason: 'bot' };
   if (!visitorIp)             return { confirm: false, reason: 'no_visitor_ip' };
   if (visitorIp === sharerIp) return { confirm: false, reason: 'self_ip' };
-  if (ageSeconds < minAgeSeconds) return { confirm: false, reason: 'too_soon' };
+  if (!Number.isFinite(ageSeconds) || ageSeconds < minAgeSeconds) return { confirm: false, reason: 'too_soon' };
   return { confirm: true, reason: 'ok' };
 }
