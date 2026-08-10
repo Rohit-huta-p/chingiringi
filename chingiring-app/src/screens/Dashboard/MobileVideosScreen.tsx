@@ -23,17 +23,24 @@ export const MobileVideosScreen = () => {
 
   // Desktop web = centered 9:16 stage; native + narrow web = full-screen swipe.
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
-  const frameH = Math.round(height * 0.92);
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [muted, setMuted] = useState(true);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  // Height of the list's OWN viewport, measured in onLayout. Pages are sized to THIS, not the
+  // window height — the window is slightly taller than the scroll area (status bar / layout),
+  // so window-sized pages overflow and let you drag a bit before snapping. Fallback to the
+  // window height until the first layout pass.
+  const [listH, setListH] = useState(0);
+  const itemH = listH || height;
+
+  const frameH = Math.round(itemH * 0.92);
   const frameW = Math.round(frameH * 9 / 16);
   // MobileTabBar height = paddingTop 8 + barInner 64 + paddingBottom max(insets.bottom, 8),
   // and its centre Home circle pokes ~16px higher (marginTop -28). Clear all of that plus a
   // gap so the caption/product block sits above the bar on mobile. Desktop (drawer, no bottom
   // bar) keeps the original aesthetic gap.
   const bottomOffset = isDesktopWeb ? 58 : 88 + Math.max(insets.bottom, 8) + 14;
-
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [muted, setMuted] = useState(true);
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
   const listRef = useRef<FlatList>(null);
   // Refs so the stable viewability + keyboard callbacks read fresh values.
@@ -110,13 +117,13 @@ export const MobileVideosScreen = () => {
     );
     if (isDesktopWeb) {
       return (
-        <View style={[s.stage, { height }]}>
+        <View style={[s.stage, { height: itemH }]}>
           <View style={[s.frame, { width: frameW, height: frameH }]}>{feedItem(frameH)}</View>
         </View>
       );
     }
-    return feedItem(height);
-  }, [activeIndex, muted, height, frameH, frameW, isDesktopWeb, bottomOffset, likedIds, onStorePress, onLike, onShare]);
+    return feedItem(itemH);
+  }, [activeIndex, muted, itemH, frameH, frameW, isDesktopWeb, bottomOffset, likedIds, onStorePress, onLike, onShare]);
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;
@@ -146,12 +153,16 @@ export const MobileVideosScreen = () => {
         data={data}
         keyExtractor={(v) => v._id}
         renderItem={renderItem}
-        pagingEnabled
+        onLayout={(e) => {
+          const h = Math.round(e.nativeEvent.layout.height);
+          if (h > 0 && h !== listH) setListH(h);
+        }}
         showsVerticalScrollIndicator={false}
-        snapToInterval={height}
+        snapToInterval={itemH}
         snapToAlignment="start"
         decelerationRate="fast"
-        getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
+        disableIntervalMomentum
+        getItemLayout={(_, index) => ({ length: itemH, offset: itemH * index, index })}
         onViewableItemsChanged={onViewRef.current}
         viewabilityConfig={viewConfigRef.current}
         onEndReachedThreshold={0.5}
