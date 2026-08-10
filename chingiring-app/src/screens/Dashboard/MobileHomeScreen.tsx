@@ -24,6 +24,7 @@ import { bannersAPI, Banner } from '../../api/banners';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock, interleaveBanners } from '../../components/BannerBlock';
+import { tint } from '../../utils/color';
 import {
   applyProductControls,
   DEFAULT_CONTROLS,
@@ -122,6 +123,14 @@ export const MobileHomeScreen = () => {
     return m;
   }, [apiCategories]);
 
+  // Header theme: the selected category's admin-set color tints the header
+  // gradient (shades of that color, kept bold so the white chips stay legible).
+  // "All" or a category with no color → the default brand-blue gradient.
+  const themeColor = apiCategories.find((c) => c.name === selectedCategory)?.color || '';
+  const headerColors: [string, string, string] = themeColor
+    ? [themeColor, tint(themeColor, 0.2), tint(themeColor, 0.5)]
+    : ['#1E3A8A', '#4784E2', '#91BDFF'];
+
   // Filter + search
   const filteredProducts = useMemo(() => {
     let p = allProducts;
@@ -213,7 +222,7 @@ export const MobileHomeScreen = () => {
     >
       {/* ── Header (brand-blue gradient, matches other mobile screens) ── */}
       <LinearGradient
-        colors={['#1E3A8A', '#4784E2', '#91BDFF']}
+        colors={headerColors}
         locations={[0, 0.6, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -318,8 +327,7 @@ const st = StyleSheet.create({
   header: {
     paddingTop: 10,
     paddingBottom: 6,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+
   },
   hrow: {
     flexDirection: 'row',
