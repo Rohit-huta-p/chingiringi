@@ -14,5 +14,13 @@ describe('GET /r/:code interstitial', () => {
     expect(res.statusCode).toBe(200);
     // non-alphanumerics stripped → no raw junk echoed into the scheme
     expect(res.text).not.toContain('!!bad');
+    // sanitised (uppercase, alphanumeric only) code appears in the app URL
+    expect(res.text).toContain('chingiring://signup?ref=BADCODE');
+  });
+  it('returns 200 even without User-Agent header', async () => {
+    const res = await request(app).get('/r/TEST123');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/html/);
+    expect(res.text).toContain('chingiring://signup?ref=TEST123');
   });
 });

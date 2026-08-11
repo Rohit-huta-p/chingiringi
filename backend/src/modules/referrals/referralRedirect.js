@@ -31,11 +31,21 @@ function page({ code, appUrl, storeUrl }) {
 
 // GET /r/:code — best-effort, always 200s.
 router.get('/:code', (req, res) => {
-  const code = String(req.params.code || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 16);
-  const storeUrl = pickStoreUrl(req.headers['user-agent'], STORES());
-  const appUrl = `chingiring://signup?ref=${code}`;
-  res.set('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:");
-  res.type('html').send(page({ code, appUrl, storeUrl }));
+  try {
+    const code = String(req.params.code || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 16);
+    const storeUrl = pickStoreUrl(req.headers['user-agent'], STORES());
+    const appUrl = `chingiring://signup?ref=${code}`;
+    res.set('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:");
+    res.type('html').send(page({ code, appUrl, storeUrl }));
+  } catch (err) {
+    // Fallback: if any helper fails, still return 200 with safe web fallback
+    const stores = STORES();
+    const fallbackStoreUrl = stores.web;
+    const code = '';
+    const appUrl = `chingiring://signup?ref=`;
+    res.set('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:");
+    res.type('html').send(page({ code, appUrl, storeUrl: fallbackStoreUrl }));
+  }
 });
 
 export default router;
