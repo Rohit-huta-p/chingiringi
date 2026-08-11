@@ -501,6 +501,7 @@ export const ProductDetailScreen = () => {
           sharedToday={sharedToday}
           sharesLeft={sharesLeft}
           sharesCap={sharesCap}
+          coinsPerShare={quotaRes?.data?.coinsPerShare ?? 50}
           onShare={() => setShareOpen(true)}
         />
       </View>

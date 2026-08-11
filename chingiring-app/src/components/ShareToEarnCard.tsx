@@ -5,11 +5,6 @@ import { useNavigation } from '@react-navigation/native';
 import { Share2 } from 'lucide-react-native';
 import { sharesAPI } from '../api/shares';
 
-// Flat coins per completed share. Display-only — the real award is locked
-// server-side; this mirrors AdminSettings.coinsPerShare's default, the same
-// way COINS_PER_RUPEE mirrors coinsPerRupee on the wallet screens.
-const COINS_PER_SHARE = 100;
-
 // The daily earning loop, surfaced on both wallet screens: how many of today's
 // shares are used, coins still on the table, and a jump to browse-and-share.
 export function ShareToEarnCard() {
@@ -17,6 +12,7 @@ export function ShareToEarnCard() {
   const { data } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
 
   const quota = data?.data ?? { usedToday: 0, remaining: 100, cap: 100 };
+  const coinsPerShare = data?.data?.coinsPerShare ?? 50;
   const pct = quota.cap > 0 ? Math.min(100, Math.round((quota.usedToday / quota.cap) * 100)) : 0;
   const maxed = quota.remaining <= 0;
 
@@ -35,7 +31,7 @@ export function ShareToEarnCard() {
       <View style={s.metaRow}>
         <Text style={s.metaLeft}>{quota.usedToday} of {quota.cap} shares today</Text>
         <Text style={[s.metaRight, maxed && { color: '#94a3b8' }]}>
-          {maxed ? 'Daily limit reached' : `+${(quota.remaining * COINS_PER_SHARE).toLocaleString('en-IN')} coins`}
+          {maxed ? 'Daily limit reached' : `+${(quota.remaining * coinsPerShare).toLocaleString('en-IN')} coins`}
         </Text>
       </View>
 

@@ -28,15 +28,18 @@ export function ProductShareCard({
   sharedToday = 0,
   sharesLeft,
   sharesCap,
+  coinsPerShare,
   onShare,
 }: {
   sharedToday?: number;
   sharesLeft?: number | null;
   sharesCap?: number | null;
+  coinsPerShare?: number;
   onShare: () => void;
 }) {
   const showProof = sharedToday >= PROOF_MIN;
   const extra = Math.max(0, sharedToday - AV.length);
+  const reward = coinsPerShare ?? 50;
 
   return (
     <LinearGradient
@@ -63,11 +66,11 @@ export function ProductShareCard({
         </>
       ) : null}
 
-      <Text style={s.head}>Your friends get the deal.{'\n'}You get 100 CR.</Text>
+      <Text style={s.head}>Your friends get the deal.{'\n'}You get {reward} CR.</Text>
 
       <TouchableOpacity activeOpacity={0.9} onPress={onShare} style={s.btn}>
         <Share2 size={16} color="#1e4fa0" strokeWidth={2.6} />
-        <Text style={s.btnT}>Share &amp; Earn 100 CR</Text>
+        <Text style={s.btnT}>Share &amp; Earn {reward} CR</Text>
       </TouchableOpacity>
 
       {sharesLeft != null ? (
