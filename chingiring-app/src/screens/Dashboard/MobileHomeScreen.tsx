@@ -128,7 +128,7 @@ export const MobileHomeScreen = () => {
   // "All" or a category with no color → the default brand-blue gradient.
   const themeColor = apiCategories.find((c) => c.name === selectedCategory)?.color || '';
   const headerColors: [string, string, string] = themeColor
-    ? [themeColor, tint(themeColor, 0.2), tint(themeColor, 0.5)]
+    ? [themeColor, tint(themeColor, 0.5), tint(themeColor, 1)]
     : ['#1E3A8A', '#4784E2', '#91BDFF'];
 
   // Filter + search
@@ -216,13 +216,13 @@ export const MobileHomeScreen = () => {
 
   return (
     <ScrollView
-      style={[st.container, themeColor ? { backgroundColor: tint(themeColor, 0.94) } : null]}
+      style={st.container}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl {...refresh} />}
     >
-      {/* ── Header: gradient tinted to the selected category's theme color ── */}
+      {/* ── Header (brand-blue gradient, matches other mobile screens) ── */}
       <LinearGradient
-        colors={headerColors}
+        colors={['#1E3A8A', '#4784E2', '#91BDFF']}
         locations={[0, 0.6, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}

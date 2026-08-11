@@ -100,16 +100,16 @@ export const MobileProfileScreen = () => {
     (walletRes as any)?.data;
 
   const confirmed = wallet?.confirmedCashback ?? 0;
-  const coins     = wallet?.coins ?? 0;
+  const coins = wallet?.coins ?? 0;
   const shareRewards = (walletRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
 
   // Referral stats — backend has no aggregated endpoint yet (Phase 2 work,
   // see Docs/PRD_GAP_ANALYSIS.md FR-019). Showing zeros until the
   // /api/referrals/stats endpoint ships.
   // TODO(backend): swap to a real useQuery once wired.
-  const referralCount    = 0;
+  const referralCount = 0;
   const referralEarnings = 0;
-  const referralCode     = user?.referralCode || '';
+  const referralCode = user?.referralCode || '';
 
   const handleCopyCode = async () => {
     if (!referralCode) return;
@@ -168,6 +168,12 @@ export const MobileProfileScreen = () => {
               onAction={() => nav.navigate('TransactionHistory')}
             />
             <StatCard
+              label="Pending Coins"
+              value={num(shareRewards.pending)}
+              action="Processing  ›"
+              actionColor="#f59e0b"
+            />
+            <StatCard
               label="COINS"
               value={num(coins)}
               action="Redeem  ›"
@@ -175,7 +181,6 @@ export const MobileProfileScreen = () => {
             />
           </View>
 
-          <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
 
           {/* ── Referral Program card (dark navy gradient) ─────────────────
               Figma spec: linear-gradient(140deg, #0F172A 3.67%, #1E293B
@@ -391,7 +396,7 @@ const s = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   actionTitle: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.text },
-  actionSub:   { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  actionSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
 });
 
 export default MobileProfileScreen;

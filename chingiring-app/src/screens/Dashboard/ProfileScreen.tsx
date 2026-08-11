@@ -21,8 +21,8 @@ const QUICK_ACTIONS: Array<{
   icon: React.ComponentType<any>;
   route?: string;
 }> = [
-  { label: 'Manage Addresses', icon: MapPinHouse, route: 'MyAddress' },
-];
+    { label: 'Manage Addresses', icon: MapPinHouse, route: 'MyAddress' },
+  ];
 
 // Legal & support items (2 cols + 1 full row)
 const LEGAL_ITEMS = [
@@ -66,16 +66,16 @@ export const ProfileScreen = () => {
 
   const profile = user
     ? {
-        name: user.name || '',
-        memberSince: user.createdAt
-          ? new Date(user.createdAt).getFullYear().toString()
-          : '',
-        email: user.email || '',
-        phone: user.phone || '',
-        location: '',
-        referralCode: user.referralCode || '',
-        avatarUrl: user.avatarUrl || '',
-      }
+      name: user.name || '',
+      memberSince: user.createdAt
+        ? new Date(user.createdAt).getFullYear().toString()
+        : '',
+      email: user.email || '',
+      phone: user.phone || '',
+      location: '',
+      referralCode: user.referralCode || '',
+      avatarUrl: user.avatarUrl || '',
+    }
     : { name: '', memberSince: '', email: '', phone: '', location: '', referralCode: '', avatarUrl: '' };
 
   const referralTxns: any[] = referralTxData?.data?.transactions ?? [];
@@ -224,7 +224,7 @@ export const ProfileScreen = () => {
                 </View>
                 <Text style={s.walletEyebrow}>PENDING</Text>
               </View>
-              <Text style={s.walletAmount}>₹{wallet.pendingCashback}</Text>
+              <Text style={s.walletAmount}>₹{shareRewards.pending}</Text>
               <Text style={s.walletSubtext}>Processing</Text>
             </View>
 
@@ -244,7 +244,7 @@ export const ProfileScreen = () => {
             </View>
           </View>
 
-          <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
+
 
           {/* Referral program — dark navy card */}
           <View style={s.referralCard}>
