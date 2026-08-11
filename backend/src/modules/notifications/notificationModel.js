@@ -16,6 +16,8 @@ const notificationSchema = new mongoose.Schema(
         'withdrawal_submitted',
         'withdrawal_paid',
         'withdrawal_rejected',
+        'share_pending',
+        'share_confirmed',
       ],
       required: true,
     },
