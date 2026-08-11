@@ -62,11 +62,12 @@ export const applyReferral = async (req, res) => {
 // The app calls this on launch/login (native only). No-op unless pending.
 export const claimReferral = async (req, res) => {
   const referee = await User.findById(req.user._id).select('_id referredBy referralStatus createdAt');
+  const s = await AdminSettings.get();
   const decision = referralConfirmDecision({
     status: referee?.referralStatus,
     refereeCreatedAtMs: new Date(referee?.createdAt).getTime(),
     nowMs: Date.now(),
-    lockDays: (await AdminSettings.get()).defaultLockDays,
+    lockDays: s.defaultLockDays,
   });
 
   if (!decision.confirm) {
@@ -84,9 +85,24 @@ export const claimReferral = async (req, res) => {
   );
   if (!flipped) return res.json({ status: 'success', data: { credited: false, reason: 'race' } });
 
-  const s = await AdminSettings.get();
-  if (flipped.referredBy) await creditReferralCoins(flipped.referredBy, s.coinsPerReferralReferrer, 'referrer');
-  await creditReferralCoins(flipped._id, s.coinsPerReferralReferee, 'referee');
+  // ponytail: no Mongo transaction across these two credits (needs a
+  // replica-set session — out of scope). referralStatus is already flipped
+  // to 'confirmed' above, so there's no automatic retry if one credit fails.
+  // Each is attempted independently (one failing must not skip the other),
+  // and a failure is logged greppable for manual reconcile via the admin
+  // wallet-adjust tool. Coins are best-effort here, same as notify().
+  if (flipped.referredBy) {
+    try {
+      await creditReferralCoins(flipped.referredBy, s.coinsPerReferralReferrer, 'referrer');
+    } catch (e) {
+      console.error('[referral] credit FAILED — manual reconcile needed', { refereeId: flipped._id, referrerId: flipped.referredBy, role: 'referrer', amount: s.coinsPerReferralReferrer, err: e?.message });
+    }
+  }
+  try {
+    await creditReferralCoins(flipped._id, s.coinsPerReferralReferee, 'referee');
+  } catch (e) {
+    console.error('[referral] credit FAILED — manual reconcile needed', { refereeId: flipped._id, referrerId: flipped.referredBy, role: 'referee', amount: s.coinsPerReferralReferee, err: e?.message });
+  }
 
   res.json({ status: 'success', data: { credited: true, refereeCoins: s.coinsPerReferralReferee } });
 };
