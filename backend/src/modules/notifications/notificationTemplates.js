@@ -41,13 +41,13 @@ export function buildTemplate(type, data) {
       };
     case 'share_pending':
       return {
-        title: 'Share registered ⏳',
-        body: `${data.coins} CR pending — unlocks when a friend opens your link.`,
+        title: 'Reward on the way 🚀',
+        body: `${data.coins} CR is pending — it unlocks the moment a friend opens your link.`,
       };
     case 'share_confirmed':
       return {
-        title: 'Your share paid off 🎉',
-        body: `Someone opened your shared ${data.itemType} — ${data.coins} CR added to your wallet.`,
+        title: `${data.coins} CR unlocked 🎉`,
+        body: `A friend opened your shared ${data.itemType} — the coins are in your wallet. Keep sharing to earn more!`,
       };
     default:
       throw new Error(`Unknown notification type: ${type}`);
