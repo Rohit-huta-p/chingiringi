@@ -15,6 +15,7 @@ import { useAuthStore } from '../../store';
 import { walletAPI, Wallet } from '../../api/wallet';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { MobileProfileHeader } from '../../components/MobileProfileHeader';
+import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -100,6 +101,7 @@ export const MobileProfileScreen = () => {
 
   const confirmed = wallet?.confirmedCashback ?? 0;
   const coins     = wallet?.coins ?? 0;
+  const shareRewards = (walletRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
 
   // Referral stats — backend has no aggregated endpoint yet (Phase 2 work,
   // see Docs/PRD_GAP_ANALYSIS.md FR-019). Showing zeros until the
@@ -172,6 +174,8 @@ export const MobileProfileScreen = () => {
               actionColor="#f59e0b"
             />
           </View>
+
+          <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
 
           {/* ── Referral Program card (dark navy gradient) ─────────────────
               Figma spec: linear-gradient(140deg, #0F172A 3.67%, #1E293B

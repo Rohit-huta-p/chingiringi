@@ -10,6 +10,8 @@ export interface Wallet {
   lifetimeEarned: number;
 }
 
+export interface ShareRewards { pending: number; confirmed: number; }
+
 export interface Transaction {
   _id: string;
   userId: string;

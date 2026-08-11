@@ -24,6 +24,7 @@ import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 import { ShareToEarnCard } from '../../components/ShareToEarnCard';
+import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
 
 // ─── Data ───────────────────────────────────────────────────────────
 
@@ -398,6 +399,7 @@ export const MobileWalletScreen = () => {
 
   const w: Wallet = wRes?.data?.wallet ?? wRes?.data ?? EMPTY_WALLET;
   const txns: Transaction[] = tRes?.data?.transactions ?? tRes?.data ?? [];
+  const shareRewards = (wRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
 
   if (wL) return <View style={[m.root, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#3b82f6" /></View>;
 
@@ -449,6 +451,10 @@ export const MobileWalletScreen = () => {
             <Clock size={14} color="#3b82f6" strokeWidth={2} />
             <Text style={m.historyTxt}>Transaction History</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={{ paddingHorizontal: 20 }}>
+          <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
         </View>
 
         {/* Earn coins by sharing — the daily earning loop */}

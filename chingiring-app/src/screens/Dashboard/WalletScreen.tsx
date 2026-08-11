@@ -6,6 +6,7 @@ import { X, CheckCircle2, Wallet as WalletIcon, TrendingUp, ArrowDownLeft, Arrow
 import { Colors } from '../../constants/theme';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 import { ShareToEarnCard } from '../../components/ShareToEarnCard';
+import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
 
 // Coins→₹ conversion. Mirrors AdminSettings.coinsPerRupee default (1000);
 // 100 coins = 10 paise. The exact rate is re-locked server-side at request time.
@@ -298,6 +299,12 @@ export const WalletScreen = () => {
     queryFn: walletAPI.getWalletSummary,
   });
 
+  // Not otherwise queried on this screen (it reads walletSummary for the
+  // wallet fields) — added to surface shareRewards; react-query dedupes
+  // this key with other ['wallet'] consumers (e.g. the withdraw modal's
+  // invalidation) so it's not a second network path.
+  const { data: walletRes } = useQuery({ queryKey: ['wallet'], queryFn: () => walletAPI.getWallet() });
+
   const filterType = FILTER_TYPE_MAP[activeFilter];
 
   const {
@@ -310,6 +317,7 @@ export const WalletScreen = () => {
   });
 
   const wallet: Wallet = summaryData?.data?.wallet ?? EMPTY_WALLET;
+  const shareRewards = (walletRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
   const transactions: Transaction[] =
     activeFilter === 'All'
       ? (summaryData?.data?.recentTransactions ?? [])
@@ -381,7 +389,7 @@ export const WalletScreen = () => {
         </View>
       )}
 
-
+      <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
 
       {/* Transaction History */}
       <View style={[styles.transactionSection, isMobile && { padding: 16 }]}>

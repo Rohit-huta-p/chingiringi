@@ -13,6 +13,7 @@ import {
 import { Colors } from '../../constants/theme';
 import { profileAPI } from '../../api/profile';
 import { walletAPI } from '../../api/wallet';
+import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
 
 // Quick action items
 const QUICK_ACTIONS: Array<{
@@ -46,6 +47,10 @@ export const ProfileScreen = () => {
     queryFn: walletAPI.getWalletSummary,
   });
 
+  // Screen otherwise reads walletSummary; queried separately to surface
+  // shareRewards (react-query dedupes ['wallet'] with other consumers).
+  const { data: walletRes } = useQuery({ queryKey: ['wallet'], queryFn: () => walletAPI.getWallet() });
+
   const { data: referralTxData } = useQuery({
     queryKey: ['transactions', 'referral'],
     queryFn: () => walletAPI.getTransactions({ type: 'referral', limit: 100 }),
@@ -57,6 +62,7 @@ export const ProfileScreen = () => {
     pendingCashback: 0,
     coins: 0,
   };
+  const shareRewards = (walletRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
 
   const profile = user
     ? {
@@ -237,6 +243,8 @@ export const ProfileScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
+
+          <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
 
           {/* Referral program — dark navy card */}
           <View style={s.referralCard}>
