@@ -5,6 +5,7 @@ import Product from '../products/productModel.js';
 import Store from '../stores/storeModel.js';
 import AdminSettings from '../admin/adminSettingsModel.js';
 import { evaluateShareQuota, istDayBucket } from './shareService.js';
+import { notify } from '../notifications/notificationService.js';
 
 // Object.create(null) — a plain `{...}` lets itemType:'__proto__'/'constructor'
 // resolve truthy off Object.prototype and skip the `if (!Model)` 400 guard below.
@@ -58,6 +59,8 @@ export const createShare = async (req, res) => {
     res.status(429);
     throw new Error('Daily share limit reached');
   }
+
+  notify({ userId, type: 'share_pending', data: { coins: coinsPerShare } }).catch(() => {});
 
   res.status(201).json({ status: 'success', data: {
     status: 'pending', shareUrl,

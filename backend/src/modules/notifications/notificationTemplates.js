@@ -39,6 +39,16 @@ export function buildTemplate(type, data) {
             ? `${data.amount} coins have been added to your wallet.`
             : `₹${data.amount} has been added to your wallet.`,
       };
+    case 'share_pending':
+      return {
+        title: 'Share registered ⏳',
+        body: `${data.coins} CR pending — unlocks when a friend opens your link.`,
+      };
+    case 'share_confirmed':
+      return {
+        title: 'Your share paid off 🎉',
+        body: `Someone opened your shared ${data.itemType} — ${data.coins} CR added to your wallet.`,
+      };
     default:
       throw new Error(`Unknown notification type: ${type}`);
   }

@@ -2,19 +2,27 @@ import Wallet from './walletModel.js';
 import Transaction from '../transactions/transactionModel.js';
 import AdminSettings from '../admin/adminSettingsModel.js';
 import { notify } from '../notifications/notificationService.js';
+import ShareEvent from '../shares/shareModel.js';
 
 // @desc    Get current user's wallet
 // @route   GET /api/wallet
 // @access  Private
 export const getWallet = async (req, res) => {
   let wallet = await Wallet.findOne({ userId: req.user._id }).lean();
-
   if (!wallet) {
     wallet = await Wallet.create({ userId: req.user._id });
     wallet = wallet.toObject();
   }
 
-  res.status(200).json({ status: 'success', data: { wallet } });
+  // Derived, display-only — never mutates wallet balances.
+  const agg = await ShareEvent.aggregate([
+    { $match: { userId: req.user._id } },
+    { $group: { _id: '$status', coins: { $sum: '$coinsAwarded' } } },
+  ]);
+  const byStatus = Object.fromEntries(agg.map((r) => [r._id, r.coins]));
+  const shareRewards = { pending: byStatus.pending || 0, confirmed: byStatus.confirmed || 0 };
+
+  res.status(200).json({ status: 'success', data: { wallet, shareRewards } });
 };
 
 // @desc    Get wallet summary (balances + recent transactions)

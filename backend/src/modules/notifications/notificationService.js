@@ -13,6 +13,8 @@ const CATEGORY = {
   withdrawal_submitted: 'withdrawals',
   withdrawal_paid: 'withdrawals',
   withdrawal_rejected: 'withdrawals',
+  share_pending: 'cashback',
+  share_confirmed: 'cashback',
 };
 
 /**

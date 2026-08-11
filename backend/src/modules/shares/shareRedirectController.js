@@ -62,7 +62,7 @@ async function confirmAndCredit(ev) {
     description: `Share reward — ${ev.itemType}`,
     metadata: { reason: 'share', itemType: ev.itemType, itemId: String(ev.itemId) },
   });
-  notify({ userId: ev.userId, type: 'wallet_credited', data: { amount: ev.coinsAwarded, currency: 'coins' } }).catch(() => {});
+  notify({ userId: ev.userId, type: 'share_confirmed', data: { coins: ev.coinsAwarded, itemType: ev.itemType } }).catch(() => {});
   return true;
 }
 
