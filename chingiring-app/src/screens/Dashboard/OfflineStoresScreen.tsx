@@ -625,7 +625,7 @@ const StoreCard: React.FC<{
           hitSlop={8}
           style={styles.shareBtn}
         >
-          <Text style={styles.shareCta}>Share &amp; Earn 100 CR</Text>
+          <Text style={styles.shareCta}>Share &amp; Earn {quotaRes?.data?.coinsPerShare ?? 50} CR</Text>
         </Pressable>
       </View>
       <ShareSheet

@@ -477,7 +477,7 @@ export const ProductDetailScreen = () => {
           <Button title="Buy Now →" onPress={handleBuyNow} style={styles.buyBtnMain} />
         ) : (
           <Button
-            title="Share & Earn 100 CR ↗"
+            title={`Share & Earn ${quotaRes?.data?.coinsPerShare ?? 50} CR ↗`}
             onPress={() => setShareOpen(true)}
             style={styles.buyBtnMain}
           />

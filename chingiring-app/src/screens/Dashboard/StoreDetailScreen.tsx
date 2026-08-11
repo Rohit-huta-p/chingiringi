@@ -177,7 +177,7 @@ export const StoreDetailScreen: React.FC = () => {
             )}
             <Pressable onPress={() => setShareOpen(true)} style={[styles.btn, styles.btnShare, !isWide && { flex: 1 }]}>
               <Share2 size={16} color={Colors.primary} />
-              <Text style={styles.btnShareText}>Share &amp; Earn 100 CR</Text>
+              <Text style={styles.btnShareText}>Share &amp; Earn {quotaRes?.data?.coinsPerShare ?? 50} CR</Text>
             </Pressable>
           </View>
         </LinearGradient>

@@ -430,7 +430,7 @@ function ProductDetailMobile({
                 end={{ x: 1, y: 0 }}
                 style={pStyles.ctaBtn}
               >
-                <Text style={pStyles.ctaText}>Share &amp; Earn 100 CR</Text>
+                <Text style={pStyles.ctaText}>Share &amp; Earn {quotaRes?.data?.coinsPerShare ?? 50} CR</Text>
               </LinearGradient>
             </TouchableOpacity>
           )}
@@ -486,8 +486,8 @@ export const MobileProductDetailScreen = () => {
   };
 
   if (isProductMode) {
-    // Share the product — opens the custom ShareSheet. Credits 100 CR only
-    // once a channel link is actually opened (see onShared below), and only
+    // Share the product — opens the custom ShareSheet. Coins are pending
+    // until a friend opens the shared link (see onShared below), and only
     // for real products (not the 'sample' template rows).
     const canShare = !!reviewProductId && reviewProductId !== 'sample';
     const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/product/${reviewProductId}?ref=cr_${user?.id ?? ''}`;
