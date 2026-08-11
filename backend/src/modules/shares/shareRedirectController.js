@@ -93,11 +93,16 @@ export const shareRedirect = async (req, res) => {
         });
         let confirmed = false;
         if (decision.confirm) confirmed = await confirmAndCredit(ev);
+        console.log(`[shareRedirect] ${type}/${id} sharer=${sharerId} reason=${decision.reason} confirmed=${confirmed} visitorIp=${visitorIp} sharerIp=${ev.sharerIp} age=${Math.round(ageSeconds)}s ua=${(visitorUa || '').slice(0, 40)}`);
         ShareClick.create({
           shareEventId: ev._id, sharerUserId: sharerId, itemType: type, itemId: id,
           visitorIp, visitorUa, confirmed, reason: decision.reason,
         }).catch(() => {});
+      } else {
+        console.log(`[shareRedirect] NO pending share matched: ${type}/${id} sharer=${sharerId}`);
       }
+    } else {
+      console.log(`[shareRedirect] invalid/absent ref (expected ?ref=cr_<userId>): ${req.query.ref}`);
     }
   } catch (err) {
     // Never fail the opener's landing on a logging/confirm error.
