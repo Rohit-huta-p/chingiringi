@@ -5,7 +5,7 @@ import { Share2 } from 'lucide-react-native';
 
 // ─── Product share card ──────────────────────────────────────────────────────
 // The signature Chingiringi block on the product detail page: reframes the
-// share action emotionally ("your friends get the deal, you get 100 CR") and
+// share action emotionally ("your friends get the deal, you get the current share reward") and
 // carries live social proof. Shared verbatim by the desktop + mobile screens.
 //
 // `sharedToday` is REAL (GET /api/shares/stats). The avatar cluster is
