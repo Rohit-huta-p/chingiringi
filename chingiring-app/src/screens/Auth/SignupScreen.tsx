@@ -16,7 +16,7 @@ export const SignupScreen = ({ navigation, route }: any) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [referralCode, setReferralCode] = useState(route?.params?.ref ?? '');
+  const [referralCode, setReferralCode] = useState(String(route?.params?.ref ?? ''));
   const [errorMsg, setErrorMsg] = useState('');
 
   const hydrate = useAuthStore((state) => state.hydrate);
