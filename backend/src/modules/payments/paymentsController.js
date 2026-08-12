@@ -6,6 +6,7 @@ import { verifyWebhookSignature as verifyRazorpaySignature } from './razorpaySer
 import {
   verifyWebhookSignature as verifyCashfreeSignature,
   outcomeFromStatus as cashfreeOutcome,
+  loadConfig as cashfreeLoadConfig,
 } from './cashfreeService.js';
 
 // Both provider webhooks flip a withdrawal's final state through the shared
@@ -79,7 +80,33 @@ export const cashfreeWebhook = async (req, res) => {
   const timestamp = req.headers['x-webhook-timestamp'];
 
   const ok = await verifyCashfreeSignature(raw, { signature, timestamp });
-  if (!ok) return res.status(400).json({ status: 'error', message: 'Invalid signature' });
+  if (!ok) {
+    // TEMP DIAGNOSTIC — remove once the webhook is verified. Logs WHY the
+    // signature failed so we can match Cashfree's actual scheme. Never logs the
+    // secret value, only whether one is configured; a sandbox test payload is
+    // dummy data.
+    let bodyKeys = [];
+    let hasBodySignature = false;
+    try {
+      const b = JSON.parse(raw.toString('utf8'));
+      bodyKeys = Object.keys(b);
+      hasBodySignature = !!(b.signature || b.data?.signature);
+    } catch { /* not JSON */ }
+    let secretConfigured = false;
+    let env = 'unknown';
+    try { const cfg = await cashfreeLoadConfig(); secretConfigured = !!cfg.webhookSecret; env = cfg.env; } catch { /* ignore */ }
+    console.warn('[cashfree-webhook] 400 invalid signature', JSON.stringify({
+      secretConfigured,
+      env,
+      hasSigHeader: !!signature,
+      hasTsHeader: !!timestamp,
+      xHeaders: Object.keys(req.headers).filter((h) => h.startsWith('x-')),
+      bodyKeys,
+      hasBodySignature,
+      rawPreview: raw.toString('utf8').slice(0, 500),
+    }));
+    return res.status(400).json({ status: 'error', message: 'Invalid signature' });
+  }
 
   let event;
   try { event = JSON.parse(raw.toString('utf8')); } catch { event = null; }
