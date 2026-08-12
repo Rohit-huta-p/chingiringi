@@ -208,10 +208,13 @@ export const requestWithdrawal = async (req, res) => {
         transaction.metadata = { ...transaction.metadata, paidInstant: true };
         await transaction.save();
         instant = true;
+        console.log('[withdraw] instant payout OK', JSON.stringify({ txId: String(transaction._id), payoutId: transaction.metadata?.payoutId, rupees }));
       } catch (e) {
         // Provider error / race — leave it pending for admin; firePayout has
-        // already refunded any coins it held.
+        // already refunded any coins it held. Log the reason — otherwise the
+        // failure is invisible (the request still returns 201, just pending).
         instant = false;
+        console.warn('[withdraw] instant payout FAILED -> pending:', e.message, JSON.stringify({ txId: String(transaction._id), rupees }));
       }
     }
   }
