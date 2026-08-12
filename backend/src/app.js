@@ -103,6 +103,19 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'success', message: 'API is running' });
 });
 
+// TEMP debug — reports THIS server's public egress IP (what Cashfree sees) so
+// you know the exact IP to whitelist. Render may use a small pool, so hit it a
+// few times to catch all of them. Remove after Cashfree IP whitelisting.
+app.get('/api/debug/outbound-ip', async (req, res) => {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json');
+    const j = await r.json();
+    res.json({ outboundIp: j.ip });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Routes
 app.use('/auth', authRoutes);
 app.use('/r', referralRedirectRoutes);
