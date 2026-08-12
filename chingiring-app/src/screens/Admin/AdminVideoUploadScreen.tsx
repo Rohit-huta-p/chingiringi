@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Film, UploadCloud, Store as StoreIcon, Plus, Trash2, RefreshCw } from 'lucide-react-native';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 import { Colors, Fonts } from '../../constants/theme';
+import { useQueryClient } from '@tanstack/react-query';
 import { useVideoUpload, PickedVideo } from '../../components/useVideoUpload';
 import { videosAPI } from '../../api/videos';
 
@@ -14,6 +15,7 @@ const blankProduct = (): ProductForm => ({ title: '', description: '', price: ''
 
 export const AdminVideoUploadScreen = () => {
   const { uploading, pickVideo, uploadVideo } = useVideoUpload();
+  const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const busy = uploading || saving;
 
@@ -54,7 +56,10 @@ export const AdminVideoUploadScreen = () => {
         taggedProducts: tagged,
         cta: tagged.length ? { type: 'shop' } : { type: 'store' },
       });
-      Alert.alert('Uploaded 🎬', 'Cloudflare is encoding it now. It appears in the feed once processing finishes.');
+      // Mark the feed stale so it refetches — combined with the feed's focus/interval
+      // refresh, the clip shows up on its own once encoding finishes (no manual reload).
+      qc.invalidateQueries({ queryKey: ['videoFeed'] });
+      Alert.alert('Uploaded 🎬', "It's encoding now — it'll appear in the feed automatically once that finishes.");
       reset();
     } catch (e: any) {
       Alert.alert('Upload failed', e?.message ?? 'Something went wrong.');
