@@ -17,7 +17,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
-import { walletAPI } from '../../api/wallet';
+import { referralsAPI } from '../../api/referrals';
 
 // ─── Static config ──────────────────────────────────────────────────────────
 
@@ -43,16 +43,16 @@ const STEPS = [
   },
   {
     num: '02',
-    title: 'They sign up',
-    sub: 'Friend registers and places their first order',
+    title: 'They join on the app',
+    sub: 'Friend installs the app and logs in',
     icon: UserPlus,
     iconBg: '#faf5ff',
     iconColor: '#a855f7',
   },
   {
     num: '03',
-    title: 'You earn ₹50',
-    sub: 'Cashback credited to your wallet instantly',
+    title: 'You earn ₹25',
+    sub: 'Your friend gets ₹5 too — paid when they open the app',
     icon: Gift,
     iconBg: '#ecfdf5',
     iconColor: '#16a34a',
@@ -69,18 +69,17 @@ export const ReferScreen = () => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const REFERRAL_CODE = user?.referralCode || 'DEV500';
 
-  const { data: txData } = useQuery({
-    queryKey: ['transactions', 'referral'],
-    queryFn: () => walletAPI.getTransactions({ type: 'referral', limit: 100 }),
+  const { data: statsData } = useQuery({
+    queryKey: ['referrals', 'stats'],
+    queryFn: () => referralsAPI.getStats(),
     enabled: isAuthenticated,
   });
 
-  const referralTransactions: any[] = txData?.data?.transactions ?? [];
-  const referralCount = referralTransactions.length;
-  const referralEarned = referralTransactions.reduce(
-    (sum: number, tx: any) => sum + (tx.amount || 0),
-    0,
-  );
+  // Authoritative counts + ₹ from the backend. earningsRupees is already
+  // converted server-side at the real coinsPerRupee, so no rate is hardcoded.
+  const stats = statsData?.data ?? {};
+  const referralCount = stats.confirmedCount ?? 0;
+  const referralEarned = stats.earningsRupees ?? 0;
 
   const handleCopy = () => {
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -124,7 +123,7 @@ export const ReferScreen = () => {
             <View style={s.cardHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Text style={s.cardTitle}>Your Referral Code</Text>
-                <Text style={s.cardSub}>Share this code and earn ₹50 per friend</Text>
+                <Text style={s.cardSub}>You get ₹25, your friend gets ₹5</Text>
               </View>
               <View style={s.giftCircleSm}>
                 <Gift size={18} color={Colors.primary} strokeWidth={2} />
@@ -227,20 +226,20 @@ export const ReferScreen = () => {
             </View>
           </View>
 
-          {/* ₹50 per referral info card */}
+          {/* ₹25 per referral info card */}
           <View style={s.infoCard}>
             <View style={s.infoTopRow}>
               <View style={s.infoIconBox}>
                 <Sparkles size={16} color={Colors.primary} strokeWidth={2.2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.infoTitle}>₹50 per referral</Text>
+                <Text style={s.infoTitle}>₹25 per referral</Text>
                 <Text style={s.infoSub}>No limit on earnings</Text>
               </View>
             </View>
             <Text style={s.infoBody}>
-              Earn ₹50 for every friend who signs up and completes their first
-              purchase. Credited within 24 hours.
+              Earn ₹25 for every friend who installs the app and logs in — they
+              get ₹5 too. Credited as soon as they open the app.
             </Text>
           </View>
 

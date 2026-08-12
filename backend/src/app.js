@@ -16,6 +16,8 @@ import categoryRoutes from './modules/categories/categoryRoutes.js';
 import bannerRoutes from './modules/banners/bannerRoutes.js';
 import walletRoutes from './modules/wallet/walletRoutes.js';
 import shareRoutes from './modules/shares/shareRoutes.js';
+import referralRoutes from './modules/referrals/referralRoutes.js';
+import referralRedirectRoutes from './modules/referrals/referralRedirect.js';
 import profileRoutes from './modules/users/profileRoutes.js';
 import addressRoutes from './modules/addresses/addressRoutes.js';
 import adminRoutes from './modules/admin/adminRoutes.js';
@@ -89,11 +91,13 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/r', referralRedirectRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/shares', shareRoutes);
+app.use('/api/referrals', referralRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/admin', adminRoutes);

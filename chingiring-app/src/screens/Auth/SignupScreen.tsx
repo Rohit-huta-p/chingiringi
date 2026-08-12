@@ -6,15 +6,17 @@ import { Colors } from '../../constants/theme';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
+import { referralsAPI } from '../../api/referrals';
 // Removed secureStore imports for HTTP only flow
 import { useAuthStore } from '../../store';
 
-export const SignupScreen = ({ navigation }: any) => {
+export const SignupScreen = ({ navigation, route }: any) => {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState(String(route?.params?.ref ?? ''));
   const [errorMsg, setErrorMsg] = useState('');
 
   const hydrate = useAuthStore((state) => state.hydrate);
@@ -23,6 +25,10 @@ export const SignupScreen = ({ navigation }: any) => {
     mutationFn: authAPI.signup,
     onSuccess: async () => {
       setErrorMsg('');
+      // Capture the referral BEFORE hydrate — hydrate() triggers the native
+      // claim(), which can only confirm a referral that's already pending.
+      const code = referralCode.trim();
+      if (code) { try { await referralsAPI.apply(code); } catch { /* bad code: ignore, signup still succeeds */ } }
       await hydrate();
     },
     onError: (error: any) => {
@@ -60,6 +66,7 @@ export const SignupScreen = ({ navigation }: any) => {
       <Input label="Email" placeholder="your@email.com" keyboardType="email-address" value={email} onChangeText={setEmail} />
       <Input label="Phone Number" placeholder="10-digit mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
       <Input label="Password" placeholder="At least 6 characters" secureTextEntry value={password} onChangeText={setPassword} />
+      <Input label="Referral code (optional)" placeholder="e.g. A1B2C3D4" autoCapitalize="characters" value={referralCode} onChangeText={setReferralCode} />
 
       {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
