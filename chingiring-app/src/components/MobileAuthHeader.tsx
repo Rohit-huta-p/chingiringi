@@ -88,7 +88,6 @@ export const MobileAuthHeader: React.FC<Props> = ({
 
         <View style={[styles.row, { paddingBottom: children ? 12 : bottomPad + extraBottomSpace }]}>
           {hideBack ? (
-
             <View />
           ) : (
             <TouchableOpacity

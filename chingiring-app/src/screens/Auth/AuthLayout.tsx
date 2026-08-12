@@ -2,6 +2,8 @@ import React from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, ScrollView, Platform, Text, TouchableOpacity } from 'react-native';
 import { Card } from '../../components/Card';
 import { Colors } from '../../constants/theme';
+import { DiagonalPillScroll } from '../../components/DiagonalPillScroll';
+import { LinearGradient } from 'expo-linear-gradient';
 // import { Ionicons } from '@expo/vector-icons';
 
 interface AuthLayoutProps {
@@ -20,8 +22,24 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   subtitle
 }) => {
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <View style={styles.root}>
+      {Platform.OS === 'web' && (
+        <>
+          <DiagonalPillScroll side="left" />
+          <DiagonalPillScroll side="right" />
+          <View style={styles.centerFade} pointerEvents="none">
+            <LinearGradient
+              colors={['rgba(240,244,248,0)', 'rgba(240,244,248,0.9)', 'rgba(240,244,248,0.9)', 'rgba(240,244,248,0)']}
+              locations={[0, 0.3, 0.7, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </View>
+        </>
+      )}
+      <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -44,13 +62,26 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
         
       </ScrollView>
     </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
     backgroundColor: '#F0F4F8', // Light blue background from designs
+  },
+  centerFade: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    marginLeft: -340,
+    width: 680,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
     flexGrow: 1,
