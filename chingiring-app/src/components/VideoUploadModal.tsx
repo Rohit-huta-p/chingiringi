@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Film, UploadCloud, Store as StoreIcon, Plus, Trash2, RefreshCw } from 'lucide-react-native';
+import { X, Film, UploadCloud, Store as StoreIcon, Globe, Plus, Trash2, RefreshCw, Save } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Colors, Fonts } from '../constants/theme';
 import { useVideoUpload, PickedVideo } from './useVideoUpload';
-import { videosAPI } from '../api/videos';
+import { videosAPI, FeedVideo } from '../api/videos';
+import { notify } from '../utils/dialog';
 
 type ProductForm = { title: string; description: string; price: string; url: string };
 const blankProduct = (): ProductForm => ({ title: '', description: '', price: '', url: '' });
@@ -16,16 +17,19 @@ const blankProduct = (): ProductForm => ({ title: '', description: '', price: ''
 interface Props {
   visible: boolean;
   onClose: () => void;
-  /** Called after a successful publish so the parent list can refetch. */
+  /** Called after a successful publish/save so the parent list can refetch. */
   onUploaded?: () => void;
+  /** When set, the modal edits this clip's metadata instead of uploading a new one. */
+  editing?: FeedVideo | null;
 }
 
 /**
- * "Post a video" form in a modal — pick a clip, tag a store + products, publish.
- * Extracted from the old AdminVideoUploadScreen so both admins and (later) users
- * can open it from a "Post Video" CTA above their video list.
+ * Post OR edit a shoppable video. Create mode picks a clip + uploads; edit mode
+ * prefills from `editing` and PATCHes just the metadata (store / caption /
+ * products) — the video file itself isn't re-uploadable here.
  */
-export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded }) => {
+export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded, editing }) => {
+  const isEdit = !!editing;
   const { uploading, pickVideo, uploadVideo } = useVideoUpload();
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
@@ -33,51 +37,64 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
 
   const [video, setVideo] = useState<PickedVideo | null>(null);
   const [storeName, setStoreName] = useState('');
+  const [website, setWebsite] = useState('');
   const [caption, setCaption] = useState('');
   const [products, setProducts] = useState<ProductForm[]>([]);
 
-  const onPick = async () => {
-    const f = await pickVideo();
-    if (f) setVideo(f);
-  };
+  const reset = () => { setVideo(null); setStoreName(''); setWebsite(''); setCaption(''); setProducts([]); };
 
+  // Prefill on open for edit; clear for a fresh post.
+  useEffect(() => {
+    if (!visible) return;
+    if (editing) {
+      setVideo(null);
+      setStoreName(editing.store?.name ?? '');
+      setWebsite(editing.store?.website ?? '');
+      setCaption(editing.caption ?? '');
+      setProducts((editing.taggedProducts ?? []).map((p) => ({
+        title: p.title, description: p.description ?? '', price: String(p.price ?? ''), url: p.url ?? '',
+      })));
+    } else {
+      reset();
+    }
+  }, [visible, editing]);
+
+  const onPick = async () => { const f = await pickVideo(); if (f) setVideo(f); };
   const addProduct = () => setProducts((p) => [...p, blankProduct()]);
   const updateProduct = (i: number, field: keyof ProductForm, value: string) =>
     setProducts((p) => p.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)));
   const removeProduct = (i: number) => setProducts((p) => p.filter((_, idx) => idx !== i));
 
-  const reset = () => { setVideo(null); setStoreName(''); setCaption(''); setProducts([]); };
-
   const close = () => { if (!busy) { reset(); onClose(); } };
 
-  const onPublish = async () => {
-    if (!video) return Alert.alert('Add a video', 'Pick a clip to upload first.');
-    if (!storeName.trim()) return Alert.alert('Add a store', 'Enter the store / business name.');
-    if (video.sizeMB && video.sizeMB > 200) {
-      return Alert.alert('Too large', `That clip is ${video.sizeMB.toFixed(0)} MB. Keep it under 200 MB.`);
+  const onSubmit = async () => {
+    if (!isEdit && !video) return notify('Add a video', 'Pick a clip to upload first.');
+    if (!storeName.trim()) return notify('Add a store', 'Enter the store / business name.');
+    if (!isEdit && video?.sizeMB && video.sizeMB > 200) {
+      return notify('Too large', `That clip is ${video.sizeMB.toFixed(0)} MB. Keep it under 200 MB.`);
     }
     const tagged = products
       .filter((p) => p.title.trim() && p.price.trim())
       .map((p) => ({ title: p.title.trim(), description: p.description.trim() || undefined, price: Number(p.price) || 0, url: p.url.trim() || undefined }));
+    const cta = (tagged.length ? { type: 'shop' } : { type: 'store' }) as { type: 'shop' | 'store' };
+    const store = { name: storeName.trim(), website: website.trim() || undefined };
 
     try {
-      const streamUid = await uploadVideo(video, storeName.trim());
+      let streamUid = '';
+      if (!isEdit) streamUid = await uploadVideo(video!, storeName.trim());
       setSaving(true);
-      await videosAPI.createVideo({
-        streamUid,
-        store: { name: storeName.trim() },
-        caption: caption.trim(),
-        taggedProducts: tagged,
-        cta: tagged.length ? { type: 'shop' } : { type: 'store' },
-      });
-      // Refresh the public feed + let the parent refetch its list.
+      if (isEdit) {
+        await videosAPI.adminUpdate(editing!._id, { store, caption: caption.trim(), taggedProducts: tagged, cta });
+      } else {
+        await videosAPI.createVideo({ streamUid, store, caption: caption.trim(), taggedProducts: tagged, cta });
+      }
       qc.invalidateQueries({ queryKey: ['videoFeed'] });
       onUploaded?.();
-      Alert.alert('Uploaded 🎬', "It's encoding now — it'll appear automatically once that finishes.");
+      notify(isEdit ? 'Saved ✓' : 'Uploaded 🎬', isEdit ? 'Your changes are live.' : "It's encoding now — it'll appear automatically once that finishes.");
       reset();
       onClose();
     } catch (e: any) {
-      Alert.alert('Upload failed', e?.message ?? 'Something went wrong.');
+      notify(isEdit ? 'Save failed' : 'Upload failed', e?.message ?? 'Something went wrong.');
     } finally {
       setSaving(false);
     }
@@ -86,9 +103,8 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={close} transparent={false}>
       <SafeAreaView style={s.root} edges={['top', 'left', 'right']}>
-        {/* Header */}
         <View style={s.header}>
-          <Text style={s.headerTitle}>Post a video</Text>
+          <Text style={s.headerTitle}>{isEdit ? 'Edit video' : 'Post a video'}</Text>
           <TouchableOpacity onPress={close} disabled={busy} style={s.closeBtn} hitSlop={8}>
             <X size={22} color={Colors.text} />
           </TouchableOpacity>
@@ -96,11 +112,20 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={s.sub}>Upload a shoppable clip. It goes live once encoding finishes.</Text>
+            <Text style={s.sub}>
+              {isEdit ? 'Update the store, caption and products for this clip.' : 'Upload a shoppable clip. It goes live once encoding finishes.'}
+            </Text>
 
             {/* Clip */}
             <Text style={s.label}>Clip</Text>
-            {!video ? (
+            {isEdit ? (
+              <View style={s.videoCard}>
+                {editing?.thumbnailUrl
+                  ? <Image source={{ uri: editing.thumbnailUrl }} style={s.currentThumb} resizeMode="cover" />
+                  : <View style={[s.currentThumb, s.videoThumb]}><Film size={20} color="#fff" /></View>}
+                <Text style={s.currentNote}>The video file can’t be changed here — edit its details below.</Text>
+              </View>
+            ) : !video ? (
               <TouchableOpacity style={s.picker} onPress={onPick} disabled={busy}>
                 <UploadCloud size={28} color={Colors.primary} />
                 <Text style={s.pickerTitle}>Choose a video</Text>
@@ -120,7 +145,7 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
               </View>
             )}
 
-            {/* Store — free text */}
+            {/* Store */}
             <Text style={s.label}>Store / business</Text>
             <View style={s.inputRow}>
               <StoreIcon size={18} color={Colors.textSecondary} />
@@ -131,6 +156,22 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
                 placeholder="e.g. Brew & Co"
                 placeholderTextColor={Colors.textSecondary}
                 maxLength={80}
+              />
+            </View>
+
+            {/* Website — links from the store name + shows at the caption end */}
+            <Text style={s.label}>Website <Text style={s.optional}>· optional</Text></Text>
+            <View style={s.inputRow}>
+              <Globe size={18} color={Colors.textSecondary} />
+              <TextInput
+                style={s.inputFlex}
+                value={website}
+                onChangeText={setWebsite}
+                placeholder="e.g. brewandco.com"
+                placeholderTextColor={Colors.textSecondary}
+                autoCapitalize="none"
+                keyboardType="url"
+                maxLength={200}
               />
             </View>
 
@@ -146,7 +187,7 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
               multiline
             />
 
-            {/* Products — inline entries */}
+            {/* Products */}
             <View style={s.prodHead}>
               <Text style={s.label}>Products <Text style={s.optional}>· optional</Text></Text>
               <TouchableOpacity style={s.addBtn} onPress={addProduct} disabled={busy}>
@@ -167,49 +208,23 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
                     <Trash2 size={16} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
-                <TextInput
-                  style={s.prodInput}
-                  value={p.title}
-                  onChangeText={(v) => updateProduct(i, 'title', v)}
-                  placeholder="Product title"
-                  placeholderTextColor={Colors.textSecondary}
-                />
-                <TextInput
-                  style={[s.prodInput, s.prodDesc]}
-                  value={p.description}
-                  onChangeText={(v) => updateProduct(i, 'description', v)}
-                  placeholder="Description"
-                  placeholderTextColor={Colors.textSecondary}
-                  multiline
-                />
+                <TextInput style={s.prodInput} value={p.title} onChangeText={(v) => updateProduct(i, 'title', v)} placeholder="Product title" placeholderTextColor={Colors.textSecondary} />
+                <TextInput style={[s.prodInput, s.prodDesc]} value={p.description} onChangeText={(v) => updateProduct(i, 'description', v)} placeholder="Description" placeholderTextColor={Colors.textSecondary} multiline />
                 <View style={s.priceRow}>
                   <Text style={s.rupee}>₹</Text>
-                  <TextInput
-                    style={s.priceInput}
-                    value={p.price}
-                    onChangeText={(v) => updateProduct(i, 'price', v.replace(/[^0-9]/g, ''))}
-                    placeholder="Price"
-                    placeholderTextColor={Colors.textSecondary}
-                    keyboardType="number-pad"
-                  />
+                  <TextInput style={s.priceInput} value={p.price} onChangeText={(v) => updateProduct(i, 'price', v.replace(/[^0-9]/g, ''))} placeholder="Price" placeholderTextColor={Colors.textSecondary} keyboardType="number-pad" />
                 </View>
-                <TextInput
-                  style={s.prodInput}
-                  value={p.url}
-                  onChangeText={(v) => updateProduct(i, 'url', v)}
-                  placeholder="Buy link (optional)"
-                  placeholderTextColor={Colors.textSecondary}
-                  autoCapitalize="none"
-                  keyboardType="url"
-                />
+                <TextInput style={s.prodInput} value={p.url} onChangeText={(v) => updateProduct(i, 'url', v)} placeholder="Buy link (optional)" placeholderTextColor={Colors.textSecondary} autoCapitalize="none" keyboardType="url" />
               </View>
             ))}
 
-            {/* Publish */}
-            <TouchableOpacity style={[s.publish, busy && s.publishBusy]} onPress={onPublish} disabled={busy}>
+            {/* Submit */}
+            <TouchableOpacity style={[s.publish, busy && s.publishBusy]} onPress={onSubmit} disabled={busy}>
               {busy
                 ? <><ActivityIndicator color="#fff" /><Text style={s.publishTxt}>{uploading ? 'Uploading…' : 'Saving…'}</Text></>
-                : <><UploadCloud size={18} color="#fff" /><Text style={s.publishTxt}>Publish video</Text></>}
+                : isEdit
+                  ? <><Save size={18} color="#fff" /><Text style={s.publishTxt}>Save changes</Text></>
+                  : <><UploadCloud size={18} color="#fff" /><Text style={s.publishTxt}>Publish video</Text></>}
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -241,6 +256,8 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
   },
   videoThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  currentThumb: { width: 44, height: 56, borderRadius: 8, backgroundColor: '#334155' },
+  currentNote: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
   videoName: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
   videoMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   replaceBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 9, backgroundColor: Colors.primaryLight10 },

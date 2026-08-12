@@ -20,6 +20,7 @@ const createSchema = z.object({
   store: z.object({
     name: z.string().min(1, 'store name is required'),
     logoUrl: z.string().optional().default(''),
+    website: z.string().optional().default(''),
   }),
   caption: z.string().max(300).optional().default(''),
   hashtags: z.array(z.string()).optional().default([]),
@@ -177,6 +178,21 @@ export const listPending = async (req, res) => {
 export const listAll = async (req, res) => {
   const videos = await Video.find({}).sort({ _id: -1 }).limit(200).lean();
   res.status(200).json({ status: 'success', data: { videos } });
+};
+
+// @desc  Edit a clip's metadata (store, caption, products, cta) — not the video file
+// @route PATCH /api/videos/:id  @access admin
+export const updateVideo = async (req, res) => {
+  const { store, caption, taggedProducts, cta } = req.body;
+  const video = await Video.findById(req.params.id);
+  if (!video) { res.status(404); throw new Error('Video not found'); }
+  if (store?.name != null) video.store.name = String(store.name).trim();
+  if (store?.website != null) video.store.website = String(store.website).trim();
+  if (typeof caption === 'string') video.caption = caption.trim();
+  if (Array.isArray(taggedProducts)) video.taggedProducts = taggedProducts;
+  if (cta?.type) video.cta = { type: cta.type, url: cta.url || '' };
+  await video.save();
+  res.status(200).json({ status: 'success', data: { video } });
 };
 
 // @desc  Approve/reject/feature  @route PATCH /api/videos/admin/:id  @access admin

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import VideoLayer from './VideoLayer';
@@ -26,6 +26,33 @@ interface Props {
 }
 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+const toUrl = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+const prettyUrl = (u: string) => u.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+
+/** Instagram-style caption: 2 lines with a "more"/"less" toggle when long, and
+ *  the store website appended as a tappable link at the end. */
+const CaptionBlock: React.FC<{ caption?: string; website?: string }> = ({ caption, website }) => {
+  const [expanded, setExpanded] = useState(false);
+  const text = (caption ?? '').trim();
+  if (!text && !website) return null;
+  const isLong = text.length > 80;
+  const showFull = expanded || !isLong;
+  return (
+    <View style={s.captionWrap}>
+      <Text style={s.caption} numberOfLines={showFull ? undefined : 2}>
+        {text}
+        {showFull && website ? (
+          <Text style={s.captionLink} onPress={() => Linking.openURL(toUrl(website)).catch(() => {})}>
+            {text ? '\n' : ''}🔗 {prettyUrl(website)}
+          </Text>
+        ) : null}
+      </Text>
+      {isLong && (
+        <Text style={s.more} onPress={() => setExpanded((e) => !e)}>{expanded ? 'less' : 'more'}</Text>
+      )}
+    </View>
+  );
+};
 
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
@@ -36,6 +63,10 @@ export const VideoFeedItem: React.FC<Props> = ({
   const primary = products[0];
   const store = video.store;
   const initial = (store?.name || '?').trim()[0]?.toUpperCase() ?? '?';
+  const openStore = () => {
+    if (store?.website) Linking.openURL(toUrl(store.website)).catch(() => {});
+    else onStorePress(store);
+  };
 
   return (
     <View style={[s.page, { height }]}>
@@ -63,11 +94,12 @@ export const VideoFeedItem: React.FC<Props> = ({
       )}
 
       {/* Store pill — top-left */}
-      <Pressable style={s.storePill} onPress={() => onStorePress(store)} hitSlop={8}>
+      <Pressable style={s.storePill} onPress={openStore} hitSlop={8}>
         {store?.logoUrl
           ? <Image source={{ uri: store.logoUrl }} style={s.storeLogo} />
           : <View style={[s.storeLogo, s.storeInitial]}><Text style={s.storeInitialTxt}>{initial}</Text></View>}
         <Text style={s.storeName} numberOfLines={1}>{store?.name}</Text>
+        {!!store?.website && <ExternalLink size={12} color="rgba(255,255,255,0.9)" />}
       </Pressable>
 
       {/* Mute — top-right */}
@@ -89,7 +121,7 @@ export const VideoFeedItem: React.FC<Props> = ({
 
       {/* Caption + product card(s) — bottom */}
       <View style={[s.bottom, { bottom: bottomOffset }]}>
-        {!!video.caption && <Text style={s.caption} numberOfLines={2}>{video.caption}</Text>}
+        <CaptionBlock caption={video.caption} website={store?.website} />
 
         {products.length <= 1 ? (
           primary && <ProductCard product={primary} />
@@ -176,7 +208,10 @@ const s = StyleSheet.create({
   railBtn: { alignItems: 'center', gap: 3 },
   railTxt: { color: '#fff', fontFamily: Fonts.semiBold, fontSize: 11, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
   bottom: { position: 'absolute', left: 12, right: 12 },
-  caption: { color: '#fff', fontFamily: Fonts.medium, fontSize: 13, lineHeight: 18, marginBottom: 10, marginRight: 70, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 5 },
+  captionWrap: { marginRight: 70, marginBottom: 10 },
+  caption: { color: '#fff', fontFamily: Fonts.medium, fontSize: 13, lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 5 },
+  captionLink: { color: Colors.primaryLight, fontFamily: Fonts.semiBold },
+  more: { color: 'rgba(255,255,255,0.75)', fontFamily: Fonts.semiBold, fontSize: 13, marginTop: 2 },
   carousel: { gap: 10, paddingRight: 60 },
   carouselCard: { width: 240 },
   card: {

@@ -12,6 +12,8 @@ export interface TaggedProduct {
 export interface VideoStore {
   name: string;
   logoUrl?: string;
+  /** Optional store website — the store name links here, and it's shown at the caption end. */
+  website?: string;
 }
 
 export interface FeedVideo {
@@ -87,5 +89,15 @@ export const videosAPI = {
   adminDelete: async (id: string) => {
     const res = await apiClient.delete(`/api/videos/${id}`);
     return res.data as { status: string; data: { deleted: boolean } };
+  },
+  /** Edit a clip's metadata (store / caption / products / cta) — not the file. */
+  adminUpdate: async (id: string, payload: {
+    store?: VideoStore;
+    caption?: string;
+    taggedProducts?: TaggedProduct[];
+    cta?: { type: 'shop' | 'store' | 'none'; url?: string };
+  }) => {
+    const res = await apiClient.patch(`/api/videos/${id}`, payload);
+    return res.data as { status: string; data: { video: FeedVideo } };
   },
 };
