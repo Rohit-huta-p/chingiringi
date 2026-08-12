@@ -192,7 +192,7 @@ export const ProfileScreen = () => {
 
           {/* Wallet stats row */}
           <View style={s.walletRow}>
-            {/* CONFIRMED — gradient */}
+            {/* COINS — gradient hero */}
             <View style={s.walletCardGradient}>
               <LinearGradient
                 colors={['#4784E2', '#2D6BC9']}
@@ -204,13 +204,13 @@ export const ProfileScreen = () => {
               <View pointerEvents="none" style={[s.glob, s.globBottomLeft]} />
 
               <View style={s.walletEyebrowRow}>
-                <View style={[s.walletDot, { backgroundColor: '#fb923c' }]}>
-                  <IndianRupee size={9} color="#fff" strokeWidth={3} />
+                <View style={[s.walletDot, { backgroundColor: '#facc15' }]}>
+                  <Coins size={9} color="#fff" strokeWidth={3} />
                 </View>
-                <Text style={[s.walletEyebrow, { color: 'rgba(255,255,255,0.85)' }]}>CONFIRMED</Text>
+                <Text style={[s.walletEyebrow, { color: 'rgba(255,255,255,0.85)' }]}>COINS</Text>
               </View>
-              <Text style={[s.walletAmount, { color: '#fff' }]}>₹{wallet.confirmedCashback}</Text>
-              <TouchableOpacity style={s.walletLinkRow} activeOpacity={0.8} onPress={() => navigation.navigate('Wallet')}>
+              <Text style={[s.walletAmount, { color: '#fff' }]}>{wallet.coins}</Text>
+              <TouchableOpacity style={s.walletLinkRow} activeOpacity={0.8} onPress={() => (navigation as any).navigate('Wallet', { openWithdraw: true })}>
                 <Text style={[s.walletLinkText, { color: 'rgba(255,255,255,0.95)' }]}>Withdraw</Text>
                 <ArrowUpRight size={13} color="rgba(255,255,255,0.95)" strokeWidth={2.4} />
               </TouchableOpacity>
@@ -228,20 +228,7 @@ export const ProfileScreen = () => {
               <Text style={s.walletSubtext}>Processing</Text>
             </View>
 
-            {/* COINS */}
-            <View style={s.walletCard}>
-              <View style={s.walletEyebrowRow}>
-                <View style={[s.walletDot, { backgroundColor: '#facc15' }]}>
-                  <Coins size={9} color="#fff" strokeWidth={3} />
-                </View>
-                <Text style={s.walletEyebrow}>COINS</Text>
-              </View>
-              <Text style={s.walletAmount}>{wallet.coins}</Text>
-              <TouchableOpacity style={s.walletLinkRow} activeOpacity={0.8}>
-                <Text style={[s.walletLinkText, { color: Colors.primary }]}>Redeem</Text>
-                <ArrowUpRight size={13} color={Colors.primary} strokeWidth={2.4} />
-              </TouchableOpacity>
-            </View>
+            {/* Cashback card removed; coins moved into the hero card above. */}
           </View>
 
 

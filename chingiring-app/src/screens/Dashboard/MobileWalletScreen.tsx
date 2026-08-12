@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { Fonts } from '../../constants/theme';
 // expo-camera v17 incompatible with SDK 54 in Expo Go — disabled until version aligned
 // import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
@@ -146,7 +146,7 @@ function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; on
             </View>
 
             {/* Amount in coins */}
-            <Text style={ws.secLabel}>Coins to redeem</Text>
+            <Text style={ws.secLabel}>Coins to withdraw</Text>
             <TextInput
               style={ws.input}
               placeholder={`Min 100 coins (₹${Math.round(100 / RATE * 100) / 100})`}
@@ -394,6 +394,18 @@ export const MobileWalletScreen = () => {
   const user = useAuthStore((s) => s.user);
   const [filter, setFilter] = useState<string>('All');
   const [showWithdraw, setShowWithdraw] = useState(false);
+
+  // Auto-open the withdraw sheet when navigated here with { openWithdraw: true }
+  // (e.g. tapping "Withdraw" on the profile Coins card). Clear the param after so
+  // returning and re-navigating re-triggers it.
+  const route = useRoute<any>();
+  const openWithdrawParam = route.params?.openWithdraw;
+  useEffect(() => {
+    if (openWithdrawParam) {
+      setShowWithdraw(true);
+      nav.setParams({ openWithdraw: undefined });
+    }
+  }, [openWithdrawParam, nav]);
 
   const { data: wRes, isLoading: wL } = useQuery({ queryKey: ['wallet'], queryFn: () => walletAPI.getWallet() });
   const { data: tRes, isLoading: tL } = useQuery({
