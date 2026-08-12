@@ -8,7 +8,7 @@ import VideoInteraction from './videoInteractionModel.js';
 export const createUploadUrl = async (req, res) => {
   const { storeName } = req.body;
   const { uid, uploadURL, uploadMethod } = await videoProvider().createDirectUpload({
-    maxDurationSeconds: 120,
+    maxDurationSeconds: 30, // 30s cap — provider rejects anything longer
     meta: { storeName: String(storeName || ''), createdBy: String(req.user._id) },
   });
   res.status(201).json({ status: 'success', data: { streamUid: uid, uploadURL, uploadMethod, provider: activeProvider() } });
@@ -45,9 +45,12 @@ export const createVideo = async (req, res) => {
     throw new Error(parsed.error.issues.map((i) => i.message).join('; '));
   }
   const d = parsed.data;
+  const isAdmin = req.user.role === 'admin';
   const video = await Video.create({
     store: d.store,
-    createdByAdmin: req.user._id,
+    createdBy: req.user._id,
+    creatorRole: isAdmin ? 'admin' : 'user',
+    ...(isAdmin ? { createdByAdmin: req.user._id } : {}),
     streamUid: d.streamUid,
     provider: activeProvider(),
     caption: d.caption,
@@ -55,10 +58,11 @@ export const createVideo = async (req, res) => {
     taggedProducts: d.taggedProducts,
     cta: d.cta || { type: 'shop' },
     status: 'processing',
-    // v1 is admin-curated: the admin IS the trusted publisher, so auto-approve.
-    // The clip enters the feed the moment encoding finishes. A review queue is a
-    // Phase-3 concern (open/UGC posting), not v1.
-    moderation: { state: 'approved', reviewedBy: req.user._id, at: new Date() },
+    // Admins are trusted publishers → auto-approve. User (UGC) posts go to the
+    // moderation queue (pending) and enter the feed only once an admin approves.
+    moderation: isAdmin
+      ? { state: 'approved', reviewedBy: req.user._id, at: new Date() }
+      : { state: 'pending' },
   });
   res.status(201).json({ status: 'success', data: { video } });
 };
@@ -180,12 +184,23 @@ export const listAll = async (req, res) => {
   res.status(200).json({ status: 'success', data: { videos } });
 };
 
+// @desc  The signed-in user's own posted clips (any status, newest first)
+// @route GET /api/videos/mine  @access protect
+export const getMine = async (req, res) => {
+  const videos = await Video.find({ createdBy: req.user._id }).sort({ _id: -1 }).limit(100).lean();
+  res.status(200).json({ status: 'success', data: { videos } });
+};
+
 // @desc  Edit a clip's metadata (store, caption, products, cta) — not the video file
 // @route PATCH /api/videos/:id  @access admin
+// Owner (createdBy) or any admin may manage a clip.
+const canManage = (video, user) => user?.role === 'admin' || String(video.createdBy || '') === String(user?._id);
+
 export const updateVideo = async (req, res) => {
   const { store, caption, taggedProducts, cta } = req.body;
   const video = await Video.findById(req.params.id);
   if (!video) { res.status(404); throw new Error('Video not found'); }
+  if (!canManage(video, req.user)) { res.status(403); throw new Error('Not your video'); }
   if (store?.name != null) video.store.name = String(store.name).trim();
   if (store?.website != null) video.store.website = String(store.website).trim();
   if (typeof caption === 'string') video.caption = caption.trim();
@@ -216,6 +231,7 @@ export const moderateVideo = async (req, res) => {
 export const deleteVideo = async (req, res) => {
   const video = await Video.findById(req.params.id);
   if (!video) { res.status(404); throw new Error('Video not found'); }
+  if (!canManage(video, req.user)) { res.status(403); throw new Error('Not your video'); }
   // Delete on the host the clip ACTUALLY lives on (video.provider), so retiring an
   // old Mux clip after switching VIDEO_PROVIDER=cloudflare still removes the Mux asset.
   try { await providerFor(video.provider).deleteAsset(video); } catch { /* best effort */ }

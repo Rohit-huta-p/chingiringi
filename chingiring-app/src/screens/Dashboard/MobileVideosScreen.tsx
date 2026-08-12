@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PlaySquare, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { PlaySquare, ChevronUp, ChevronDown, Plus } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
@@ -193,6 +193,14 @@ export const MobileVideosScreen = () => {
           </Pressable>
         </View>
       )}
+
+      {/* Floating "Post" — entry to the user's My Videos */}
+      <View style={[s.postFabWrap, { top: insets.top + 10 }]} pointerEvents="box-none">
+        <Pressable style={s.postFab} onPress={() => navigation.navigate('MyVideos')} hitSlop={6}>
+          <Plus size={15} color="#fff" strokeWidth={2.6} />
+          <Text style={s.postFabTxt}>Post</Text>
+        </Pressable>
+      </View>
     </View>
   );
 };
@@ -207,6 +215,12 @@ const s = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
   },
+  postFabWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 20 },
+  postFab: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 14, borderRadius: 999,
+    backgroundColor: 'rgba(20,20,25,0.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
+  postFabTxt: { color: '#fff', fontFamily: Fonts.bold, fontSize: 13 },
   center: { flex: 1, backgroundColor: '#0b0f16', alignItems: 'center', justifyContent: 'center', padding: 32 },
   iconBox: {
     width: 82, height: 82, borderRadius: 24, backgroundColor: 'rgba(71,132,226,0.15)',

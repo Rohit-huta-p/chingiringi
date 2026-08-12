@@ -59,7 +59,7 @@ export function useVideoUpload() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['videos'],
       quality: 1,
-      videoMaxDuration: 60,
+      videoMaxDuration: 30,
     });
     if (result.canceled || !result.assets?.[0]) return null;
     const a = result.assets[0];
