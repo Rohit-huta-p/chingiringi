@@ -23,7 +23,8 @@ import type { LinkingOptions } from '@react-navigation/native';
  */
 export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
   prefixes: [
-    'chingiringi://',
+    'chingiring://',            // real app.json scheme (OS registers this)
+    'chingiringi://',           // legacy, kept harmless
     'https://chingiringi.com',
     'https://www.chingiringi.com',
   ],

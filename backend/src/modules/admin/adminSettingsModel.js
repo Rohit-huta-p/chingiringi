@@ -26,6 +26,9 @@ const adminSettingsSchema = new mongoose.Schema(
     coinsPerRupee:      { type: Number, default: 1000, min: 1 }, // 100 coins = 10 paise
     // Share-to-earn economy.
     coinsPerShare:      { type: Number, default: 50,   min: 0 },
+    // Referral economy — separate knobs from coinsPerRupee. ₹25 / ₹5 at 1000.
+    coinsPerReferralReferrer: { type: Number, default: 25000, min: 0 },
+    coinsPerReferralReferee:  { type: Number, default: 5000,  min: 0 },
     maxSharesPerDay:    { type: Number, default: 100,  min: 0 }, // per user, products+stores combined
     defaultLockDays:    { type: Number, default: 30,   min: 0 },
 
