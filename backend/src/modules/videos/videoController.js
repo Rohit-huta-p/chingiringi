@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import Video from './videoModel.js';
-import { videoProvider, activeProvider } from '../../services/videoProvider.js';
+import { videoProvider, activeProvider, providerFor } from '../../services/videoProvider.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
 
@@ -200,7 +200,9 @@ export const moderateVideo = async (req, res) => {
 export const deleteVideo = async (req, res) => {
   const video = await Video.findById(req.params.id);
   if (!video) { res.status(404); throw new Error('Video not found'); }
-  try { await videoProvider().deleteAsset(video); } catch { /* best effort */ }
+  // Delete on the host the clip ACTUALLY lives on (video.provider), so retiring an
+  // old Mux clip after switching VIDEO_PROVIDER=cloudflare still removes the Mux asset.
+  try { await providerFor(video.provider).deleteAsset(video); } catch { /* best effort */ }
   await video.deleteOne();
   res.status(200).json({ status: 'success', data: { deleted: true } });
 };
