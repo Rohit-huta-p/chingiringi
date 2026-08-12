@@ -101,6 +101,7 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       About:              'about',
       Profile:            'profile',
       EditProfile:        'profile/edit',
+      MyVideos:           'my-videos',
       MyAddress:          'addresses',
       AddEditAddress:     'addresses/edit',
       TransactionHistory: 'transactions',

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { Trash2, Pencil, Play, Eye, Heart, Inbox } from 'lucide-react-native';
+import { Trash2, Pencil, Check, X, Play, Eye, Heart, Inbox } from 'lucide-react-native';
 import { Fonts } from '../constants/theme';
 import { FeedVideo } from '../api/videos';
 
@@ -19,6 +19,9 @@ export interface VideoListProps {
   onEdit?: (v: FeedVideo) => void;
   /** Admin passes this to show a Delete action; omit for a read-only list. */
   onDelete?: (v: FeedVideo) => void;
+  /** Admin moderation — Approve / Reject shown on `pending` clips. */
+  onApprove?: (v: FeedVideo) => void;
+  onReject?: (v: FeedVideo) => void;
   /** Optional tap handler on the thumbnail (e.g. preview / open). */
   onPress?: (v: FeedVideo) => void;
   emptyHint?: string;
@@ -29,7 +32,7 @@ export interface VideoListProps {
  * shopper-facing "my videos" screen can reuse this later with its own actions
  * (or none). Purely presentational — data + mutations live in the parent.
  */
-export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, onPress, emptyHint }) => {
+export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, onApprove, onReject, onPress, emptyHint }) => {
   const { width } = useWindowDimensions();
   const PAD = 16, GAP = 10;
   const colW = Math.min((width - PAD * 2 - GAP) / 2, 240);
@@ -47,7 +50,10 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, 
   return (
     <View style={s.grid}>
       {videos.map((v) => {
-        const st = STATUS[v.status] ?? STATUS.processing;
+        const modState = v.moderation?.state;
+        const st = modState === 'pending' ? { label: 'Under review', bg: '#fef3c7', fg: '#b45309' }
+          : modState === 'rejected' ? { label: 'Rejected', bg: '#fee2e2', fg: '#dc2626' }
+          : (STATUS[v.status] ?? STATUS.processing);
         const nProducts = v.taggedProducts?.length ?? 0;
         return (
           <View key={v._id} style={[s.card, { width: colW }]}>
@@ -73,6 +79,23 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, 
                 <View style={s.metaItem}><Heart size={12} color="#94a3b8" /><Text style={s.metaTxt}>{v.stats?.likes ?? 0}</Text></View>
                 {nProducts > 0 && <Text style={s.prodTag}>{nProducts} product{nProducts > 1 ? 's' : ''}</Text>}
               </View>
+
+              {modState === 'pending' && (onApprove || onReject) && (
+                <View style={s.actions}>
+                  {onApprove && (
+                    <TouchableOpacity style={s.approveBtn} onPress={() => onApprove(v)}>
+                      <Check size={13} color="#16a34a" strokeWidth={2.4} />
+                      <Text style={s.approveTxt}>Approve</Text>
+                    </TouchableOpacity>
+                  )}
+                  {onReject && (
+                    <TouchableOpacity style={s.rejectBtn} onPress={() => onReject(v)}>
+                      <X size={13} color="#dc2626" strokeWidth={2.4} />
+                      <Text style={s.rejectTxt}>Reject</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
               {(onEdit || onDelete) && (
                 <View style={s.actions}>
@@ -129,6 +152,16 @@ const s = StyleSheet.create({
     paddingVertical: 7, borderRadius: 8, backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fee2e2',
   },
   delTxt: { fontSize: 12, fontFamily: Fonts.bold, color: '#ef4444' },
+  approveBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 7, borderRadius: 8, backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#bbf7d0',
+  },
+  approveTxt: { fontSize: 12, fontFamily: Fonts.bold, color: '#16a34a' },
+  rejectBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 7, borderRadius: 8, backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fee2e2',
+  },
+  rejectTxt: { fontSize: 12, fontFamily: Fonts.bold, color: '#dc2626' },
 
   empty: { alignItems: 'center', paddingVertical: 56 },
   emptyTitle: { fontSize: 16, fontFamily: Fonts.bold, color: '#94a3b8', marginTop: 12 },

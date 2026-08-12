@@ -32,6 +32,10 @@ export interface FeedVideo {
   publishedAt: string;
   /** True when the signed-in user has already liked this clip (feed is optional-auth). */
   likedByMe?: boolean;
+  /** Owner (admin OR user) + moderation state — present on admin/mine reads. */
+  createdBy?: string;
+  creatorRole?: 'admin' | 'user';
+  moderation?: { state: 'pending' | 'approved' | 'rejected'; reason?: string };
 }
 
 export interface FeedPage {
@@ -84,6 +88,16 @@ export const videosAPI = {
   adminListAll: async () => {
     const res = await apiClient.get('/api/videos/admin/all');
     return res.data as { status: string; data: { videos: FeedVideo[] } };
+  },
+  /** The signed-in user's own posted clips (any status). */
+  getMine: async () => {
+    const res = await apiClient.get('/api/videos/mine');
+    return res.data as { status: string; data: { videos: FeedVideo[] } };
+  },
+  /** Admin: approve / reject a clip in the moderation queue. */
+  moderate: async (id: string, action: 'approve' | 'reject', reason?: string) => {
+    const res = await apiClient.patch(`/api/videos/admin/${id}`, { action, reason });
+    return res.data as { status: string; data: { video: FeedVideo } };
   },
   /** Delete a video (admin) — removes the provider asset + the record. */
   adminDelete: async (id: string) => {

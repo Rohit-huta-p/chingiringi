@@ -26,7 +26,9 @@ const videoSchema = new mongoose.Schema({
     logoUrl: { type: String, default: '' },
     website: { type: String, default: '' }, // optional — store name links here + shown at caption end
   },
-  createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, // owner (admin OR user)
+  createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },         // legacy — set only for admin posts
+  creatorRole: { type: String, enum: ['admin', 'user'], default: 'admin' },
   streamUid: { type: String, required: true, unique: true, index: true },
   provider: { type: String, enum: ['cloudflare', 'mux'], default: 'cloudflare' },
   providerAssetId: { type: String, default: '' }, // provider's asset id for delete/poll (Mux: set on ready)

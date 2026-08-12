@@ -129,7 +129,7 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
               <TouchableOpacity style={s.picker} onPress={onPick} disabled={busy}>
                 <UploadCloud size={28} color={Colors.primary} />
                 <Text style={s.pickerTitle}>Choose a video</Text>
-                <Text style={s.pickerHint}>Portrait 9:16 · ≤ 60s · ≤ 200 MB</Text>
+                <Text style={s.pickerHint}>Portrait 9:16 · ≤ 30s · ≤ 200 MB</Text>
               </TouchableOpacity>
             ) : (
               <View style={s.videoCard}>

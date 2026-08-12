@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, Info, HelpCircle, MessageCircle,
-  Shield, FileText, Copy, Share2, Gift,
+  Shield, FileText, Copy, Share2, Gift, PlaySquare,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -233,6 +233,17 @@ export const MobileProfileScreen = () => {
               </TouchableOpacity>
             </View>
           </LinearGradient>
+
+          {/* ── My content ────────────────────────────────────────────────── */}
+          <Text style={s.sectionHeader}>MY CONTENT</Text>
+          <QuickAction
+            icon={PlaySquare}
+            iconColor="#7c3aed"
+            iconBg="#f5f3ff"
+            title="My Videos"
+            subtitle="Post clips & manage your videos"
+            onPress={() => nav.navigate('MyVideos')}
+          />
 
           {/* ── Legal & Support ───────────────────────────────────────────── */}
           <Text style={s.sectionHeader}>LEGAL & SUPPORT</Text>

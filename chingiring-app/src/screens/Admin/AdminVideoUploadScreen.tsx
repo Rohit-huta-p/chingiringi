@@ -46,6 +46,18 @@ export const AdminVideoUploadScreen = () => {
     if (ok) deleteMutation.mutate(v._id);
   };
 
+  const moderateMutation = useMutation({
+    mutationFn: ({ id, action, reason }: { id: string; action: 'approve' | 'reject'; reason?: string }) =>
+      videosAPI.moderate(id, action, reason),
+    onSuccess: () => { invalidate(); qc.invalidateQueries({ queryKey: ['videoFeed'] }); },
+    onError: (e: any) => notify('Action failed', e?.response?.data?.message || 'Could not update the video.'),
+  });
+  const onApprove = (v: FeedVideo) => moderateMutation.mutate({ id: v._id, action: 'approve' });
+  const onReject = async (v: FeedVideo) => {
+    const ok = await confirmAsync('Reject video', `Reject this ${v.store?.name || ''} clip? It won’t enter the feed.`, { confirmLabel: 'Reject', destructive: true });
+    if (ok) moderateMutation.mutate({ id: v._id, action: 'reject' });
+  };
+
   const openCreate = () => { setEditing(null); setShowForm(true); };
   const onEdit = (v: FeedVideo) => { setEditing(v); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditing(null); };
@@ -81,7 +93,7 @@ export const AdminVideoUploadScreen = () => {
           {isLoading ? (
             <View style={s.loading}><ActivityIndicator size="large" color={Colors.primary} /></View>
           ) : (
-            <VideoList videos={videos} onEdit={onEdit} onDelete={onDelete} emptyHint='Tap “Post Video” to add your first clip.' />
+            <VideoList videos={videos} onEdit={onEdit} onDelete={onDelete} onApprove={onApprove} onReject={onReject} emptyHint='Tap “Post Video” to add your first clip.' />
           )}
         </View>
       </ScrollView>

@@ -2,16 +2,31 @@ import express from 'express';
 import {
   createUploadUrl, createVideo, getFeed, getVideo, getStoreVideos,
   trackView, toggleLike, toggleSave, trackShare,
-  listPending, listAll, moderateVideo, updateVideo, deleteVideo,
+  listPending, listAll, getMine, moderateVideo, updateVideo, deleteVideo,
 } from './videoController.js';
+import rateLimit from 'express-rate-limit';
 import { protect, optionalProtect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
 
 const router = express.Router();
 
-// Admin authoring
-router.post('/upload-url', protect, admin, createUploadUrl);
-router.post('/', protect, admin, createVideo);
+// Per-user daily posting cap (keyed by user id, not IP).
+const uploadLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24h
+  max: 10,                        // 10 new clips / user / day
+  keyGenerator: (req) => String(req.user?._id || req.ip),
+  message: { status: 'error', message: 'Daily upload limit reached — try again tomorrow.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Authoring — any signed-in user. Admins auto-approve; user (UGC) posts go to
+// the moderation queue (see createVideo).
+router.post('/upload-url', protect, uploadLimiter, createUploadUrl);
+router.post('/', protect, uploadLimiter, createVideo);
+
+// The signed-in user's own clips (declared before /:id so it isn't captured)
+router.get('/mine', protect, getMine);
 
 // public reads (optional auth → so we can flag `likedByMe` for signed-in users)
 router.get('/feed', optionalProtect, getFeed);
@@ -30,7 +45,7 @@ router.post('/:id/save', protect, toggleSave);
 
 // bare /:id routes LAST — a bare :id above would swallow /feed, /store/..., /admin/...
 router.get('/:id', optionalProtect, getVideo);
-router.patch('/:id', protect, admin, updateVideo);
-router.delete('/:id', protect, admin, deleteVideo);
+router.patch('/:id', protect, updateVideo);       // owner-or-admin (enforced in controller)
+router.delete('/:id', protect, deleteVideo);      // owner-or-admin (enforced in controller)
 
 export default router;
