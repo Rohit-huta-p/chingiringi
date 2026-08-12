@@ -24,7 +24,7 @@ type ShareSheetProps = {
   onShared: (channel: string) => void; // called AFTER a channel's link opens
   imageUrl?: string;   // preview thumbnail (product/store image)
   discount?: string;   // preview chip, e.g. "32% off"
-  coins?: number;      // reward per share (defaults to 100)
+  coins?: number;      // reward per share fallback — server value wins (defaults to 50)
 };
 
 type Channel = {
@@ -55,7 +55,7 @@ function buildChannels(title: string, url: string): Channel[] {
 // share, so it must never credit coins. Credit fires (via onShared) only once
 // a channel's link actually opens.
 export const ShareSheet: React.FC<ShareSheetProps> = ({
-  visible, onClose, title, url, onShared, imageUrl, discount, coins = 100,
+  visible, onClose, title, url, onShared, imageUrl, discount, coins = 50,
 }) => {
   const insets = useSafeAreaInsets();
   const channels = buildChannels(title, url);

@@ -380,7 +380,7 @@ export const WalletScreen = () => {
             </View>
             <Text style={styles.confirmedLabel}>Coin Balance</Text>
             <Text style={styles.confirmedAmount}>{(wallet.coins ?? 0).toLocaleString('en-IN')}</Text>
-            <Text style={styles.confirmedSubText}>{'\u2248 \u20B9'}{Math.floor((wallet.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}{' \u00B7 Available to withdraw'}</Text>
+            <Text style={styles.confirmedSubText}>{'\u2248 \u20B9'}{((wallet.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' \u00B7 Available to withdraw'}</Text>
            
             <TouchableOpacity style={styles.withdrawBtn} onPress={() => setShowWithdraw(true)}>
               <ArrowDownToLine size={15} color="#3b82f6" strokeWidth={2.5} />

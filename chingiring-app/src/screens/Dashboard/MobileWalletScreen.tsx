@@ -452,7 +452,7 @@ export const MobileWalletScreen = () => {
         <View style={m.balCard}>
           <Text style={m.balLabel}>Coin Balance</Text>
           <Text style={[m.balAmt, { marginBottom: 4 }]}>{(w.coins ?? 0).toLocaleString('en-IN')}</Text>
-          <Text style={m.balSub}>{'≈ ₹'}{Math.floor((w.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}{' available to withdraw'}</Text>
+          <Text style={m.balSub}>{'≈ ₹'}{((w.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' available to withdraw'}</Text>
 
           {/* Withdraw (full-width) */}
           <View style={m.btnRow}>

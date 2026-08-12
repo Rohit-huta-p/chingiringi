@@ -1180,16 +1180,22 @@ function SettingsTab() {
   }, [server]);
 
   const save = useMutation({
-    mutationFn: () => adminAPI.updateSettings({
-      passThroughPercent: Number(pt) / 100,
-      coinsPerRupee:      Number(rate),
-      defaultLockDays:    Number(lockDays),
-      cuelinksPublisherId: cuelinksId.trim(),
-      amazonAssociateTag:  amazonTag.trim(),
-    }),
+    // DISABLED: the coin economy is code-driven now. This admin screen must NOT
+    // push settings to the backend — the real adminAPI.updateSettings() call is
+    // commented out, so nothing here is applicable to the backend.
+    mutationFn: async () => {
+      // await adminAPI.updateSettings({
+      //   passThroughPercent: Number(pt) / 100,
+      //   coinsPerRupee:      Number(rate),
+      //   defaultLockDays:    Number(lockDays),
+      //   cuelinksPublisherId: cuelinksId.trim(),
+      //   amazonAssociateTag:  amazonTag.trim(),
+      // });
+      return null;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'settings'] });
-      Alert.alert('Saved', 'Coin economy settings updated.');
+      Alert.alert('Managed in code', 'Coin-economy settings are configured in code and can’t be changed from this screen.');
     },
     onError: (e: any) => Alert.alert('Save failed', e?.response?.data?.message || e?.message),
   });
