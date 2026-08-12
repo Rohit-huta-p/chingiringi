@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authAPI } from '../api/auth';
+import { referralsAPI } from '../api/referrals';
 import { clearTokens, getCachedUser, setCachedUser, hasStoredAccessToken, isNative } from '../api/client';
 import { unregisterForPush } from '../lib/push';
 import type { NotificationPrefs } from '../api/notifications';
@@ -58,6 +59,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       const response = await authAPI.getMe();
       if (response?.data?.user) {
         set({ isAuthenticated: true, user: response.data.user, isReady: true });
+        // Confirm a pending referral now that we know this is a real app login.
+        // Native only — the web client must never call claim (that's the gate).
+        // Best-effort: a failure here must never break hydrate.
+        if (isNative) { referralsAPI.claim().catch(() => {}); }
         // Refresh cache
         if (isNative) await setCachedUser(response.data.user);
       } else {

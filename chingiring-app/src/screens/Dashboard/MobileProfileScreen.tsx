@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI, Wallet } from '../../api/wallet';
+import { referralsAPI } from '../../api/referrals';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { MobileProfileHeader } from '../../components/MobileProfileHeader';
 import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
@@ -103,13 +104,16 @@ export const MobileProfileScreen = () => {
   const coins = wallet?.coins ?? 0;
   const shareRewards = (walletRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
 
-  // Referral stats — backend has no aggregated endpoint yet (Phase 2 work,
-  // see Docs/PRD_GAP_ANALYSIS.md FR-019). Showing zeros until the
-  // /api/referrals/stats endpoint ships.
-  // TODO(backend): swap to a real useQuery once wired.
-  const referralCount = 0;
-  const referralEarnings = 0;
-  const referralCode = user?.referralCode || '';
+  const { data: referralStats } = useQuery({
+    queryKey: ['referralStats'],
+    queryFn: referralsAPI.getStats,
+  });
+  const referralCount = referralStats?.data?.confirmedCount ?? 0;
+  // earningsCoins from the API is a coin count, not rupees — this card
+  // renders ₹ via inr(), so use referrerRupees (₹ per confirmed referral,
+  // computed server-side from live AdminSettings) instead of raw coins.
+  const referralEarnings = referralCount * (referralStats?.data?.referrerRupees ?? 0);
+  const referralCode     = user?.referralCode || '';
 
   const handleCopyCode = async () => {
     if (!referralCode) return;
@@ -130,8 +134,9 @@ export const MobileProfileScreen = () => {
   const handleShareCode = async () => {
     if (!referralCode) return;
     try {
+      const base = process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com';
       await Share.share({
-        message: `Join Chingiringi with my referral code ${referralCode} and earn cashback on every purchase! https://chingiringi.com/r/${referralCode}`,
+        message: `Join Chingiringi with my code ${referralCode} — get ₹5 to start! ${base}/r/${referralCode}`,
       });
     } catch {
       /* user cancelled — ignore */
@@ -200,7 +205,7 @@ export const MobileProfileScreen = () => {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.referralTitle}>Referral Program</Text>
-                <Text style={s.referralSubtitle}>Earn ₹50 per friend</Text>
+                <Text style={s.referralSubtitle}>Earn ₹25 — your friend gets ₹5</Text>
               </View>
               <TouchableOpacity style={s.detailsBtn}>
                 <Text style={s.detailsBtnText}>Details ›</Text>

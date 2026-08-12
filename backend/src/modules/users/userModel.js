@@ -55,6 +55,14 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    // Referral lifecycle for a REFERRED user. Absent for organic signups.
+    // pending = code applied at signup; confirmed = paid on first app login;
+    // expired = never opened the app within the lock window.
+    referralStatus: {
+      type: String,
+      enum: ['pending', 'confirmed', 'expired'],
+      index: true,
+    },
     walletId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Wallet',
