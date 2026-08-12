@@ -78,4 +78,14 @@ export const videosAPI = {
     const res = await apiClient.post('/api/videos', payload);
     return res.data as { status: string; data: { video: FeedVideo } };
   },
+  /** All posted videos for admin management (every status, newest first). */
+  adminListAll: async () => {
+    const res = await apiClient.get('/api/videos/admin/all');
+    return res.data as { status: string; data: { videos: FeedVideo[] } };
+  },
+  /** Delete a video (admin) — removes the provider asset + the record. */
+  adminDelete: async (id: string) => {
+    const res = await apiClient.delete(`/api/videos/${id}`);
+    return res.data as { status: string; data: { deleted: boolean } };
+  },
 };

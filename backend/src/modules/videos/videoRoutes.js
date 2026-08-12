@@ -2,7 +2,7 @@ import express from 'express';
 import {
   createUploadUrl, createVideo, getFeed, getVideo, getStoreVideos,
   trackView, toggleLike, toggleSave, trackShare,
-  listPending, moderateVideo, deleteVideo,
+  listPending, listAll, moderateVideo, deleteVideo,
 } from './videoController.js';
 import { protect, optionalProtect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
@@ -17,8 +17,9 @@ router.post('/', protect, admin, createVideo);
 router.get('/feed', optionalProtect, getFeed);
 router.get('/store/:storeId', optionalProtect, getStoreVideos);
 
-// admin moderation — must be declared before /:id so /admin/queue isn't captured by getVideo
+// admin moderation — must be declared before /:id so /admin/* isn't captured by getVideo
 router.get('/admin/queue', protect, admin, listPending);
+router.get('/admin/all', protect, admin, listAll);
 router.patch('/admin/:id', protect, admin, moderateVideo);
 
 // engagement
