@@ -172,6 +172,13 @@ export const listPending = async (req, res) => {
   res.status(200).json({ status: 'success', data: { videos } });
 };
 
+// @desc  All posted videos for admin management (every status, newest first)
+// @route GET /api/videos/admin/all  @access admin
+export const listAll = async (req, res) => {
+  const videos = await Video.find({}).sort({ _id: -1 }).limit(200).lean();
+  res.status(200).json({ status: 'success', data: { videos } });
+};
+
 // @desc  Approve/reject/feature  @route PATCH /api/videos/admin/:id  @access admin
 export const moderateVideo = async (req, res) => {
   const { action, reason, featured } = req.body;
