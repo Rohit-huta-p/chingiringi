@@ -39,6 +39,8 @@ export function AdminProfileScreen() {
   const logout = useAuthStore((s) => s.logout);
 
   const [showRazorpay, setShowRazorpay] = useState(false);
+  const [showCashfree, setShowCashfree] = useState(false);
+  const qc = useQueryClient();
 
   const { data: dashRes } = useQuery({
     queryKey: ['admin-dashboard'],
@@ -64,6 +66,15 @@ export function AdminProfileScreen() {
   const settings = settingsRes?.data?.settings;
   const razorpayConfigured = !!settings?.razorpayConfigured;
   const razorpayEnabled = !!settings?.razorpayEnabled;
+  const cashfreeConfigured = !!settings?.cashfreeConfigured;
+  const cashfreeEnabled = !!settings?.cashfreeEnabled;
+  const provider: 'razorpay' | 'cashfree' = settings?.payoutProvider || 'cashfree';
+
+  const setProvider = useMutation({
+    mutationFn: (p: 'razorpay' | 'cashfree') => adminAPI.updateSettings({ payoutProvider: p }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'settings'] }),
+    onError: (e: any) => notify('Switch failed', e?.response?.data?.message || e?.message || 'Try again'),
+  });
 
   const Container: any = ScrollView;
 
@@ -96,6 +107,59 @@ export function AdminProfileScreen() {
           <StatCard icon={Coins} tint="#7c3aed" bg="#ede9fe" label="Coins Issued" value={coinsIssued.toLocaleString('en-IN')} />
           <StatCard icon={UsersIcon} tint="#2563eb" bg="#dbeafe" label="Active Users" value={activeUsers.toLocaleString('en-IN')} />
         </View>
+
+        {/* ── Active payout provider ────────────────────────────────────── */}
+        <Text style={s.sectionHeader}>PAYOUT PROVIDER</Text>
+        <View style={s.providerRow}>
+          {(['cashfree', 'razorpay'] as const).map((p) => {
+            const on = provider === p;
+            return (
+              <TouchableOpacity
+                key={p}
+                style={[s.providerBtn, on && s.providerBtnOn]}
+                onPress={() => !on && setProvider.mutate(p)}
+                disabled={on || setProvider.isPending}
+                activeOpacity={0.85}
+              >
+                <Text style={[s.providerBtnText, on && s.providerBtnTextOn]}>
+                  {p === 'cashfree' ? 'Cashfree' : 'Razorpay'}{on ? ' · active' : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── Payouts (Cashfree) hero card ──────────────────────────────── */}
+        <LinearGradient
+          colors={['#0F172A', '#1E293B', '#134E4A']}
+          locations={[0.0367, 0.5927, 0.9633]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.85, y: 1 }}
+          style={s.payoutCard}
+        >
+          <View style={s.payoutHeader}>
+            <View style={s.payoutIconBox}>
+              <Banknote size={16} color="#5eead4" strokeWidth={2} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.payoutTitle}>Payouts · Cashfree</Text>
+              <Text style={s.payoutSubtitle}>Instant on-tap withdrawals</Text>
+            </View>
+            <View style={[s.statusPill, cashfreeConfigured ? s.statusPillOn : s.statusPillOff]}>
+              {cashfreeConfigured
+                ? <CheckCircle2 size={12} color="#22c55e" strokeWidth={2.4} />
+                : <AlertCircle size={12} color="#f59e0b" strokeWidth={2.4} />}
+              <Text style={[s.statusPillText, { color: cashfreeConfigured ? '#22c55e' : '#f59e0b' }]}>
+                {cashfreeConfigured ? (cashfreeEnabled ? 'Connected' : 'Configured') : 'Not connected'}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={s.payoutBtn} onPress={() => setShowCashfree(true)} activeOpacity={0.85}>
+            <Sliders size={15} color="#0f172a" strokeWidth={2.4} />
+            <Text style={s.payoutBtnText}>{cashfreeConfigured ? 'Manage Cashfree' : 'Configure Cashfree'}</Text>
+          </TouchableOpacity>
+        </LinearGradient>
 
         {/* ── Payouts (Razorpay) hero card ──────────────────────────────── */}
         <LinearGradient
@@ -177,6 +241,11 @@ export function AdminProfileScreen() {
       <RazorpayModal
         visible={showRazorpay}
         onClose={() => setShowRazorpay(false)}
+        settings={settings}
+      />
+      <CashfreeModal
+        visible={showCashfree}
+        onClose={() => setShowCashfree(false)}
         settings={settings}
       />
     </View>
@@ -304,6 +373,140 @@ function RazorpayModal({ visible, onClose, settings }: {
   );
 }
 
+// ─── Cashfree config modal ───────────────────────────────────────────────────
+function CashfreeModal({ visible, onClose, settings }: {
+  visible: boolean;
+  onClose: () => void;
+  settings: any;
+}) {
+  const qc = useQueryClient();
+  const [clientId, setClientId] = useState('');
+  const [secret, setSecret] = useState('');
+  const [env, setEnv] = useState<'sandbox' | 'prod'>('sandbox');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [cap, setCap] = useState('');
+
+  React.useEffect(() => {
+    if (!settings) return;
+    setClientId(settings.cashfreeClientId ?? '');
+    setEnv(settings.cashfreeEnv === 'prod' ? 'prod' : 'sandbox');
+    setEnabled(!!settings.cashfreeEnabled);
+    setCap(settings.instantPayoutCapRupees != null ? String(settings.instantPayoutCapRupees) : '');
+    setSecret('');        // never pre-filled — write-only
+    setWebhookSecret('');
+  }, [settings, visible]);
+
+  const save = useMutation({
+    mutationFn: () => adminAPI.updateSettings({
+      cashfreeClientId: clientId.trim(),
+      cashfreeEnv: env,
+      cashfreeEnabled: enabled,
+      ...(cap.trim() ? { instantPayoutCapRupees: Number(cap.trim()) } : {}),
+      // Only send secrets when the admin typed new ones.
+      ...(secret.trim() ? { cashfreeClientSecret: secret.trim() } : {}),
+      ...(webhookSecret.trim() ? { cashfreeWebhookSecret: webhookSecret.trim() } : {}),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'settings'] });
+      onClose();
+      notify('Saved', 'Cashfree payout settings updated.');
+    },
+    onError: (e: any) => notify('Save failed', e?.response?.data?.message || e?.message || 'Try again'),
+  });
+
+  const maskedSecret = settings?.cashfreeClientSecretMasked;
+  const maskedWebhook = settings?.cashfreeWebhookSecretMasked;
+  const apiBase = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+  const webhookUrl = `${apiBase || '<your-api-host>'}/api/webhooks/cashfree`;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={m.overlay}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
+          <View style={m.card}>
+            <View style={m.header}>
+              <Text style={m.title}>Cashfree Payouts</Text>
+              <TouchableOpacity style={m.closeBtn} onPress={onClose} activeOpacity={0.7}>
+                <X size={16} color="#64748b" strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={m.note}>
+              Cashfree Payouts V2 credentials used to disburse withdrawals. The secret is stored
+              securely and never shown again — leave it blank to keep the saved one.
+            </Text>
+
+            <Text style={m.label}>Client ID</Text>
+            <TextInput
+              style={m.input} value={clientId} onChangeText={setClientId}
+              placeholder="CF..." placeholderTextColor="#94a3b8" autoCapitalize="none" autoCorrect={false}
+            />
+
+            <Text style={m.label}>Client Secret {maskedSecret ? `(saved: ${maskedSecret})` : ''}</Text>
+            <TextInput
+              style={m.input} value={secret} onChangeText={setSecret}
+              placeholder={maskedSecret ? 'Leave blank to keep current' : 'Enter client secret'}
+              placeholderTextColor="#94a3b8" autoCapitalize="none" autoCorrect={false} secureTextEntry
+            />
+
+            <Text style={m.label}>Environment</Text>
+            <View style={m.envRow}>
+              {(['sandbox', 'prod'] as const).map((e) => (
+                <TouchableOpacity key={e} style={[m.segBtn, env === e && m.segBtnOn]} onPress={() => setEnv(e)} activeOpacity={0.85}>
+                  <Text style={[m.segTxt, env === e && m.segTxtOn]}>{e === 'sandbox' ? 'Sandbox' : 'Production'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={m.label}>Instant payout cap (₹ / user / day)</Text>
+            <TextInput
+              style={m.input} value={cap} onChangeText={(v) => setCap(v.replace(/[^0-9]/g, ''))}
+              placeholder="500" placeholderTextColor="#94a3b8" keyboardType="numeric"
+            />
+            <Text style={m.note}>Withdrawals within this daily total pay out instantly; over it they wait for admin approval.</Text>
+
+            <Text style={m.label}>Webhook secret {maskedWebhook ? `(saved: ${maskedWebhook})` : ''}</Text>
+            <TextInput
+              style={m.input} value={webhookSecret} onChangeText={setWebhookSecret}
+              placeholder={maskedWebhook ? 'Leave blank to keep current' : 'Defaults to the client secret'}
+              placeholderTextColor="#94a3b8" autoCapitalize="none" autoCorrect={false} secureTextEntry
+            />
+
+            <Text style={m.label}>Webhook URL — register in Cashfree</Text>
+            <View style={m.webhookBox}>
+              <Text style={m.webhookUrl} selectable>{webhookUrl}</Text>
+            </View>
+            <Text style={m.note}>
+              Add this in Cashfree → Payouts → Webhooks for transfer status events
+              (SUCCESS / FAILED / REVERSED).
+            </Text>
+
+            <TouchableOpacity style={m.toggleRow} onPress={() => setEnabled((v) => !v)} activeOpacity={0.8}>
+              <View style={[m.toggle, enabled && m.toggleOn]}>
+                <View style={[m.knob, enabled && m.knobOn]} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={m.toggleTitle}>Enable Cashfree payouts</Text>
+                <Text style={m.toggleSub}>When on (and Cashfree is the active provider), withdrawals disburse via Cashfree</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[m.saveBtn, save.isPending && { opacity: 0.6 }]}
+              onPress={() => save.mutate()}
+              disabled={save.isPending}
+              activeOpacity={0.85}
+            >
+              {save.isPending ? <ActivityIndicator color="#fff" /> : <Text style={m.saveBtnText}>Save settings</Text>}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Small pieces ────────────────────────────────────────────────────────────
 function StatCard({ icon: Icon, tint, bg, label, value }: {
   icon: React.ComponentType<any>; tint: string; bg: string; label: string; value: string;
@@ -406,6 +609,15 @@ const s = StyleSheet.create({
   },
   payoutBtnText: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
 
+  providerRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  providerBtn: {
+    flex: 1, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8ecf2',
+  },
+  providerBtnOn: { backgroundColor: '#0f172a', borderColor: '#0f172a' },
+  providerBtnText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  providerBtnTextOn: { color: '#fff' },
+
   sectionHeader: { fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 0.6, marginBottom: 10 },
 
   qaRow: {
@@ -449,6 +661,15 @@ const m = StyleSheet.create({
     paddingHorizontal: 14, fontSize: 14, color: '#0f172a', backgroundColor: '#F0F4F8',
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
+
+  envRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  segBtn: {
+    flex: 1, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F0F4F8', borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  segBtnOn: { backgroundColor: '#eff6ff', borderColor: '#3b82f6' },
+  segTxt: { fontSize: 13, fontWeight: '600', color: '#334155' },
+  segTxtOn: { color: '#3b82f6', fontWeight: '700' },
 
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
   toggle: { width: 44, height: 26, borderRadius: 13, backgroundColor: '#e2e8f0', padding: 3, justifyContent: 'center' },

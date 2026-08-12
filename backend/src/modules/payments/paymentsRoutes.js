@@ -1,10 +1,12 @@
 import express from 'express';
-import { razorpayWebhook } from './paymentsController.js';
+import { razorpayWebhook, cashfreeWebhook } from './paymentsController.js';
 
-// Razorpay posts here. Mounted in app.js with a raw body parser (before
-// express.json) so the webhook signature can be verified over the raw bytes.
-const router = express.Router();
+// Payout providers post here. Both are mounted in app.js with a raw body parser
+// (before express.json) so each webhook signature verifies over the raw bytes.
+const razorpayRouter = express.Router();
+razorpayRouter.post('/', razorpayWebhook);
 
-router.post('/', razorpayWebhook);
+export const cashfreeRouter = express.Router();
+cashfreeRouter.post('/', cashfreeWebhook);
 
-export default router;
+export default razorpayRouter;

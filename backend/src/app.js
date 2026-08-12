@@ -26,7 +26,7 @@ import reviewRoutes from './modules/reviews/reviewRoutes.js';
 import clickRoutes from './modules/clicks/clickRoutes.js';
 import notificationRoutes from './modules/notifications/notificationRoutes.js';
 import storeRoutes from './modules/stores/storeRoutes.js';
-import paymentsWebhookRoutes from './modules/payments/paymentsRoutes.js';
+import paymentsWebhookRoutes, { cashfreeRouter } from './modules/payments/paymentsRoutes.js';
 import videoRoutes from './modules/videos/videoRoutes.js';
 import videoWebhookRoutes from './modules/videos/videoWebhookRoutes.js';
 import { activeProvider } from './services/videoProvider.js';
@@ -52,6 +52,7 @@ app.use(limiter);
 // Razorpay webhook needs the RAW request body to verify the HMAC signature, so
 // it is mounted BEFORE express.json() (which would parse & discard the bytes).
 app.use('/api/webhooks/razorpay', express.raw({ type: '*/*' }), paymentsWebhookRoutes);
+app.use('/api/webhooks/cashfree', express.raw({ type: '*/*' }), cashfreeRouter);
 // Video-provider webhook (Cloudflare or Mux, per VIDEO_PROVIDER). Neutral path
 // `/video` is canonical; `/cloudflare-stream` kept as an alias. Both need the RAW
 // body for HMAC signature verification, so they mount before express.json().

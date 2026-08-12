@@ -210,7 +210,7 @@ export const ProfileScreen = () => {
                 <Text style={[s.walletEyebrow, { color: 'rgba(255,255,255,0.85)' }]}>CONFIRMED</Text>
               </View>
               <Text style={[s.walletAmount, { color: '#fff' }]}>₹{wallet.confirmedCashback}</Text>
-              <TouchableOpacity style={s.walletLinkRow} activeOpacity={0.8}>
+              <TouchableOpacity style={s.walletLinkRow} activeOpacity={0.8} onPress={() => navigation.navigate('Wallet')}>
                 <Text style={[s.walletLinkText, { color: 'rgba(255,255,255,0.95)' }]}>Withdraw</Text>
                 <ArrowUpRight size={13} color="rgba(255,255,255,0.95)" strokeWidth={2.4} />
               </TouchableOpacity>

@@ -13,6 +13,17 @@ function presentSettings(doc) {
   s.razorpayWebhookConfigured = !!webhookSecret;
   s.razorpayWebhookSecretMasked = webhookSecret ? `••••••••${webhookSecret.slice(-4)}` : '';
   delete s.razorpayWebhookSecret;
+
+  // Cashfree — same masking rules as Razorpay.
+  const cfSecret = s.cashfreeClientSecret || '';
+  s.cashfreeConfigured = !!(s.cashfreeClientId && cfSecret);
+  s.cashfreeClientSecretMasked = cfSecret ? `••••••••${cfSecret.slice(-4)}` : '';
+  delete s.cashfreeClientSecret;
+
+  const cfWebhook = s.cashfreeWebhookSecret || '';
+  s.cashfreeWebhookConfigured = !!cfWebhook;
+  s.cashfreeWebhookSecretMasked = cfWebhook ? `••••••••${cfWebhook.slice(-4)}` : '';
+  delete s.cashfreeWebhookSecret;
   return s;
 }
 
@@ -42,6 +53,12 @@ export const updateSettings = async (req, res) => {
     'razorpayKeyId',
     'razorpayAccountNumber',
     'razorpayEnabled',
+    'cashfreeClientId',
+    'cashfreeEnv',
+    'cashfreeEnabled',
+    'payoutProvider',
+    'instantPayoutEnabled',
+    'instantPayoutCapRupees',
   ];
   const updates = {};
   for (const k of ALLOWED) if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -56,6 +73,22 @@ export const updateSettings = async (req, res) => {
   // Webhook secret is write-only + optional, same as the key secret.
   if (typeof req.body.razorpayWebhookSecret === 'string' && req.body.razorpayWebhookSecret.trim()) {
     updates.razorpayWebhookSecret = req.body.razorpayWebhookSecret.trim();
+  }
+  // Cashfree client + webhook secrets: write-only + optional, same rules.
+  if (typeof req.body.cashfreeClientSecret === 'string' && req.body.cashfreeClientSecret.trim()) {
+    updates.cashfreeClientSecret = req.body.cashfreeClientSecret.trim();
+  }
+  if (typeof req.body.cashfreeWebhookSecret === 'string' && req.body.cashfreeWebhookSecret.trim()) {
+    updates.cashfreeWebhookSecret = req.body.cashfreeWebhookSecret.trim();
+  }
+
+  if (updates.instantPayoutCapRupees !== undefined) {
+    const n = Number(updates.instantPayoutCapRupees);
+    if (!Number.isFinite(n) || n < 0) {
+      res.status(400);
+      throw new Error('instantPayoutCapRupees must be >= 0');
+    }
+    updates.instantPayoutCapRupees = n;
   }
 
   if (updates.passThroughPercent !== undefined) {

@@ -3,6 +3,7 @@ import Transaction from '../transactions/transactionModel.js';
 import AdminSettings from '../admin/adminSettingsModel.js';
 import { notify } from '../notifications/notificationService.js';
 import ShareEvent from '../shares/shareModel.js';
+import { payoutsEnabled, firePayout } from '../payments/payoutService.js';
 
 // @desc    Get current user's wallet
 // @route   GET /api/wallet
@@ -187,6 +188,34 @@ export const requestWithdrawal = async (req, res) => {
     },
   });
 
+  // ── Instant-on-tap payout (capped per day) ──────────────────────────────
+  // Fire the payout now if the active provider is enabled AND this request
+  // keeps the user's rolling instant total for the day within the cap. Over
+  // the cap (or provider off / call fails) it stays pending for admin approval.
+  let instant = false;
+  if (settings.instantPayoutEnabled && (await payoutsEnabled())) {
+    const cap = Number(settings.instantPayoutCapRupees) || 0;
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    const agg = await Transaction.aggregate([
+      { $match: { userId: req.user._id, type: 'withdrawal', 'metadata.paidInstant': true, createdAt: { $gte: since } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    const todayInstant = agg[0]?.total || 0;
+    if (cap > 0 && todayInstant + rupees <= cap) {
+      try {
+        await firePayout(transaction, {}); // atomic coin hold + provider transfer
+        transaction.metadata = { ...transaction.metadata, paidInstant: true };
+        await transaction.save();
+        instant = true;
+      } catch (e) {
+        // Provider error / race — leave it pending for admin; firePayout has
+        // already refunded any coins it held.
+        instant = false;
+      }
+    }
+  }
+
   try {
     await notify({ userId: req.user._id, type: 'withdrawal_submitted', data: { amount: rupees } });
   } catch (e) { /* best-effort */ }
@@ -195,6 +224,8 @@ export const requestWithdrawal = async (req, res) => {
     status: 'success',
     data: {
       transaction,
+      instant,                    // paid instantly vs queued for admin approval
+      status: transaction.status, // 'processing' (instant) | 'pending' (admin)
       preview: {
         coinsRedeemed: coinAmount,
         rupees,

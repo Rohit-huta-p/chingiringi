@@ -41,6 +41,26 @@ const adminSettingsSchema = new mongoose.Schema(
     razorpayAccountNumber: { type: String, default: '', trim: true }, // RazorpayX payout account
     razorpayWebhookSecret: { type: String, default: '', trim: true }, // verifies inbound payout webhooks
     razorpayEnabled:       { type: Boolean, default: false },
+
+    // ── Cashfree Payouts (active provider) ────────────────────────────────
+    // Same masking rules as Razorpay (see adminSettingsController). V2 uses
+    // header auth: client id + secret + env, no separate account number.
+    cashfreeClientId:      { type: String, default: '', trim: true },
+    cashfreeClientSecret:  { type: String, default: '', trim: true },
+    cashfreeEnv:           { type: String, enum: ['sandbox', 'prod'], default: 'sandbox' },
+    cashfreeWebhookSecret: { type: String, default: '', trim: true }, // verifies inbound payout webhooks
+    cashfreeEnabled:       { type: Boolean, default: false },
+
+    // Which provider disburses withdrawals. Razorpay stays wired as a fallback;
+    // flip this to roll back without touching code.
+    payoutProvider: { type: String, enum: ['razorpay', 'cashfree'], default: 'cashfree' },
+
+    // ── Instant-on-tap payout cap ─────────────────────────────────────────
+    // A user's Withdraw tap pays out instantly while their running total for
+    // the day stays within the cap (soft fraud limit); over-cap requests fall
+    // to the admin approval queue.
+    instantPayoutEnabled:   { type: Boolean, default: true },
+    instantPayoutCapRupees: { type: Number, default: 500, min: 0 },
   },
   { timestamps: true },
 );

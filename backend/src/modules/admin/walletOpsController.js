@@ -6,7 +6,7 @@ import ClickEvent from '../clicks/clickModel.js';
 import ReportImport from './reportImportModel.js';
 import AdminSettings from './adminSettingsModel.js';
 import { notify } from '../notifications/notificationService.js';
-import { payoutsEnabled, payoutForWithdrawal } from '../payments/razorpayService.js';
+import { payoutsEnabled, firePayout } from '../payments/payoutService.js';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Coin economy — configurable via AdminSettings singleton.
@@ -339,76 +339,23 @@ export const getWithdrawals = async (req, res) => {
 };
 
 /**
- * Fire a RazorpayX payout for a pending withdrawal. Holds (debits) the coins up
- * front and refunds them if the payout call fails, so a failed payout never
- * costs the user their coins. Status lands at 'processing'; the payout webhook
- * flips it to 'completed' (or refunds again on failure/reversal).
+ * Fire a payout for a pending withdrawal via the active provider (Razorpay or
+ * Cashfree). All the money mechanics — atomic coin hold, provider call, refund
+ * on failure — live in the shared `firePayout`; this wrapper just shapes the
+ * HTTP response. Status lands at 'processing'; the payout webhook flips it to
+ * 'completed' (or refunds again on failure/reversal).
  */
-async function runRazorpayPayout({ req, res, tx }) {
-  if (tx.metadata?.payoutId) {
-    res.status(409);
-    throw new Error('This withdrawal already has a payout in flight.');
-  }
-  if (tx.status !== 'pending') {
-    res.status(409);
-    throw new Error(`Withdrawal is "${tx.status}", not pending — cannot start a payout.`);
-  }
-
-  const md = tx.metadata || {};
-  const coinsRedeemed = Number(md.coinsRedeemed) || 0;
-  const rupees = Math.abs(Number(tx.amount) || 0);
-  if (coinsRedeemed <= 0 || rupees <= 0) {
-    res.status(400);
-    throw new Error('Withdrawal is missing its coin amount or ₹ value.');
-  }
-
-  // Hold the coins before any money moves.
-  const wallet = await ensureWallet(tx.userId);
-  if (wallet.coins < coinsRedeemed) {
-    res.status(400);
-    throw new Error(`Insufficient coins (${wallet.coins} available, ${coinsRedeemed} needed).`);
-  }
-  wallet.coins -= coinsRedeemed;
-  await wallet.save();
-
-  const dest = md.method === 'Bank'
-    ? { method: 'Bank', accountNumber: md.accountNumber, ifsc: md.ifsc, name: md.accountName }
-    : { method: 'UPI', upiId: md.paymentDetails };
-  const user = await User.findById(tx.userId).select('name').lean();
-
-  let payout;
+async function runProviderPayout({ req, res, tx }) {
+  let result;
   try {
-    payout = await payoutForWithdrawal({
-      userName: user?.name,
-      userId: tx.userId,
-      txId: tx._id,
-      amountRupees: rupees,
-      dest,
-    });
+    result = await firePayout(tx, { actorId: req.user?._id?.toString() });
   } catch (e) {
-    // Refund the held coins; leave the withdrawal pending for a retry.
-    wallet.coins += coinsRedeemed;
-    await wallet.save();
-    res.status(502);
-    throw new Error(`Razorpay payout failed: ${e.message}`);
+    res.status(e.statusCode || 502);
+    throw new Error(e.message);
   }
-
-  tx.status = 'processing';
-  tx.metadata = {
-    ...md,
-    payoutId: payout.payoutId,
-    contactId: payout.contactId,
-    fundAccountId: payout.fundAccountId,
-    payoutStatus: payout.status,
-    payoutInitiatedAt: new Date(),
-    actionedBy: req.user?._id?.toString(),
-    actionedAt: new Date(),
-  };
-  await tx.save();
-
   res.json({
     status: 'success',
-    data: { transaction: tx, payout: { id: payout.payoutId, status: payout.status } },
+    data: { transaction: tx, payout: { id: result.payoutId, status: result.status } },
   });
 }
 
@@ -437,13 +384,21 @@ export const updateWithdrawal = async (req, res) => {
     throw new Error('action must be process | complete | reject');
   }
 
-  // Auto-payout: admin approves a pending withdrawal, Razorpay is enabled, and
-  // no manual TXN id was supplied → fire a real RazorpayX payout. Coins are
-  // held now and refunded if the call fails; the webhook confirms completion.
+  // Provider payout: admin approves a pending withdrawal, the active provider
+  // is enabled, and no manual TXN id was supplied → fire a real payout. Coins
+  // are held now and refunded if the call fails; the webhook confirms
+  // completion. (Instant under-cap withdrawals already fired at request time.)
   if (action === 'complete' && !txnId && (await payoutsEnabled())) {
-    await runRazorpayPayout({ req, res, tx });
+    await runProviderPayout({ req, res, tx });
     return;
   }
+
+  // Whether the coins were already held by a provider payout (instant or
+  // admin-fired). `payoutInitiatedAt` is set only by firePayout, so it cleanly
+  // distinguishes a held withdrawal from a manual one — used below to avoid a
+  // double debit on complete and to refund on a reject of an in-flight payout.
+  const coinsHeld = !!tx.metadata?.payoutInitiatedAt;
+  const priorStatus = tx.status;
 
   tx.status = nextStatus;
   tx.metadata = {
@@ -465,7 +420,9 @@ export const updateWithdrawal = async (req, res) => {
   //   - reject:   nothing to refund (coins were never debited)
   //   - process:  no balance change yet
   const coinsRedeemed = Number(tx.metadata?.coinsRedeemed) || 0;
-  if (action === 'complete' && coinsRedeemed > 0) {
+  if (action === 'complete' && coinsRedeemed > 0 && !coinsHeld) {
+    // Manual completion path only (provider payouts already held the coins in
+    // firePayout). `coinsHeld` guards against debiting a second time.
     const wallet = await ensureWallet(tx.userId);
     if (wallet.coins < coinsRedeemed) {
       // Defensive: user's balance dropped below the held amount between
@@ -478,6 +435,16 @@ export const updateWithdrawal = async (req, res) => {
     }
     wallet.coins -= coinsRedeemed;
     await wallet.save();
+  }
+
+  // Reject of an in-flight payout: the coins were held by firePayout, so refund
+  // them (the manual/pending reject path never held any, hence nothing to do).
+  // The provider's own failure webhook can't double-refund — applyPayoutOutcome
+  // only acts while status==='processing', and it is now 'rejected'.
+  // Override caveat: rejecting a payout that then succeeds at the bank is admin
+  // error (money moved) — reject only confirmed-stuck ones.
+  if (action === 'reject' && coinsHeld && priorStatus === 'processing' && coinsRedeemed > 0) {
+    await Wallet.updateOne({ userId: tx.userId }, { $inc: { coins: coinsRedeemed } });
   }
 
   if (nextStatus === 'completed') {

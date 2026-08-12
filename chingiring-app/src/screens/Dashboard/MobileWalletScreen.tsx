@@ -93,13 +93,17 @@ function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; on
       paymentDetails: method === 'UPI' ? payId.trim() : accountNumber.trim(),
       ...(method === 'Bank' ? { accountNumber: accountNumber.trim(), ifsc: ifsc.trim().toUpperCase() } : {}),
     }),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['wallet'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['wallet', 'transactions', 'mobile'] });
+      const paidInstant = !!res?.data?.instant;
+      const dest = method === 'UPI' ? payId : accountNumber;
       Alert.alert(
-        'Request submitted',
-        `${coinsNum} coins → ₹${rupees} will be sent to ${method === 'UPI' ? payId : accountNumber} once approved.`,
+        paidInstant ? 'On its way 🎉' : 'Request submitted',
+        paidInstant
+          ? `${coinsNum} coins → ₹${rupees} is on its way to ${dest}.`
+          : `${coinsNum} coins → ₹${rupees} will be sent to ${dest} once approved.`,
         [{ text: 'OK', onPress: onClose }],
       );
     },

@@ -232,6 +232,15 @@ export const adminAPI = {
     razorpayAccountNumber?: string;
     razorpayWebhookSecret?: string;
     razorpayEnabled?: boolean;
+    // Cashfree Payouts (active provider) + instant-payout controls.
+    cashfreeClientId?: string;
+    cashfreeClientSecret?: string;
+    cashfreeEnv?: 'sandbox' | 'prod';
+    cashfreeWebhookSecret?: string;
+    cashfreeEnabled?: boolean;
+    payoutProvider?: 'razorpay' | 'cashfree';
+    instantPayoutEnabled?: boolean;
+    instantPayoutCapRupees?: number;
   }) => {
     const response = await apiClient.patch('/api/admin/settings', data);
     return response.data;

@@ -165,7 +165,7 @@ export const MobileProfileScreen = () => {
               label="TOTAL EARNING"
               value={inr(confirmed)}
               action="Withdraw  ›"
-              onAction={() => nav.navigate('TransactionHistory')}
+              onAction={() => nav.navigate('Wallet')}
             />
             <StatCard
               label="Pending Coins"

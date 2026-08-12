@@ -90,12 +90,19 @@ function WithdrawFundsModal({ visible, onClose, coinBalance }: {
       paymentDetails: details.trim(),
       ...(method === 'Bank' ? { accountNumber: details.trim(), ifsc: ifsc.trim() } : {}),
     }),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['walletSummary'] });
       qc.invalidateQueries({ queryKey: ['wallet'] });
+      const paidInstant = !!res?.data?.instant;
+      const dest = method === 'Bank' ? 'bank account' : method === 'Paytm' ? 'Paytm' : 'UPI';
       setAmount(''); setDetails(''); setIfsc('');
       onClose();
-      notify('Request submitted', `Your ₹${amountNum.toLocaleString('en-IN')} withdrawal is pending approval.`);
+      notify(
+        paidInstant ? 'On its way 🎉' : 'Request submitted',
+        paidInstant
+          ? `₹${amountNum.toLocaleString('en-IN')} is on its way to your ${dest}.`
+          : `Your ₹${amountNum.toLocaleString('en-IN')} withdrawal is pending approval.`,
+      );
     },
     onError: (e: any) => notify('Withdrawal failed', e?.response?.data?.message || e?.message || 'Please try again.'),
   });
