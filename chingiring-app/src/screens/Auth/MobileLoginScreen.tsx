@@ -30,6 +30,7 @@ export const MobileLoginScreen = ({ navigation }: any) => {
   const [identifier, setIdentifier] = useState('');   // username or email
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [refCode, setRefCode] = useState('');   // referral code (OTP-signup path)
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -50,7 +51,7 @@ export const MobileLoginScreen = ({ navigation }: any) => {
     mutationFn: authAPI.sendOtp,
     onSuccess: () => {
       setErrorMsg('');
-      navigation.navigate('OTPVerification', { identifier: phone });
+      navigation.navigate('OTPVerification', { identifier: phone, ref: refCode.trim() });
     },
     onError: (err: any) => {
       setErrorMsg(err?.response?.data?.message || err?.message || 'Failed to send OTP');
@@ -204,6 +205,19 @@ export const MobileLoginScreen = ({ navigation }: any) => {
                 maxLength={10}
                 value={phone}
                 onChangeText={setPhone}
+              />
+            </View>
+
+            <Text style={st.label}>Referral code (optional)</Text>
+            <View style={st.field}>
+              <TextInput
+                style={st.input}
+                placeholder="e.g. A1B2C3D4"
+                placeholderTextColor="#9ca3af"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={refCode}
+                onChangeText={setRefCode}
               />
             </View>
             <View style={{ height: 20 }} />

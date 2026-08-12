@@ -153,6 +153,14 @@ set `referralStatus:'expired'` (plus reuse the `confirmExpiredLocks` sweep patte
   **Manual entry** otherwise (the not-installed path). On signup success, call
   `referralsAPI.apply(code)` **before** `hydrate()` (so the pending referral
   exists before the native `claim()` fires).
+- **OTP-login path (`MobileLoginScreen` → `MobileOTPScreen`):** phone-OTP
+  auto-creates a brand-new user inside `verifyUserOTP`, so the OTP-login tab
+  carries its own optional "Referral code" field, threaded to `MobileOTPScreen`
+  via nav params. On verify success it calls `referralsAPI.apply(code)`
+  **before** `hydrate()`, mirroring SignupScreen. Without this, a friend who
+  signs up the frictionless way (phone only, never touching SignupScreen) never
+  gets their code applied. `apply()`'s guards make it a safe no-op when an
+  existing user merely logs in via OTP.
 - **Post-login:** call `POST /api/referrals/claim` once after a successful
   app login/signup (no-op unless pending). On `credited:true`, toast
   "You earned ₹5!".

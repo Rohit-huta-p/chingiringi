@@ -13,13 +13,14 @@ import { Colors } from '../../constants/theme';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
+import { referralsAPI } from '../../api/referrals';
 import { useAuthStore } from '../../store';
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
 export const MobileOTPScreen = ({ navigation, route }: any) => {
-  const { identifier } = route.params || { identifier: '' };
+  const { identifier, ref } = route.params || { identifier: '' };
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [timer, setTimer] = useState(RESEND_SECONDS);
   const [errorMsg, setErrorMsg] = useState('');
@@ -39,6 +40,11 @@ export const MobileOTPScreen = ({ navigation, route }: any) => {
     onSuccess: async (data) => {
       setErrorMsg('');
       if (data?.data?.isLogin) {
+        // Phone-OTP auto-creates the user for a new phone. Capture the referral
+        // BEFORE hydrate — hydrate() triggers the native claim(), which can only
+        // confirm a referral that's already pending.
+        const code = (ref ?? '').trim();
+        if (code) { try { await referralsAPI.apply(code); } catch { /* bad code: ignore, login still succeeds */ } }
         await hydrate();
       } else {
         setErrorMsg('Verification failed. Please try again.');
