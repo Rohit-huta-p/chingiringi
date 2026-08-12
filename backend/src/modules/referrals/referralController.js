@@ -133,6 +133,7 @@ export const getReferralStats = async (req, res) => {
     confirmedCount,
     pendingCount,
     earningsCoins: earn[0]?.total || 0,
+    earningsRupees: (earn[0]?.total || 0) / s.coinsPerRupee,
     referrerRupees: s.coinsPerReferralReferrer / s.coinsPerRupee,
     refereeRupees: s.coinsPerReferralReferee / s.coinsPerRupee,
   }});
