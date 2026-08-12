@@ -15,3 +15,11 @@ export function activeProvider() {
 export function videoProvider() {
   return impls[activeProvider()] || cloudflare;
 }
+
+// Resolve a provider by NAME — a video's own `provider` — so operations on an
+// existing clip (delete, re-poll) hit the host it actually lives on, not whatever
+// VIDEO_PROVIDER happens to be now. Falls back to the active provider for
+// legacy/blank values.
+export function providerFor(name) {
+  return impls[String(name || '').trim().toLowerCase()] || videoProvider();
+}
