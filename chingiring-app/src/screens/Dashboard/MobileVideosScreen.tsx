@@ -168,10 +168,11 @@ export const MobileVideosScreen = () => {
           if (h > 0 && h !== listH) setListH(h);
         }}
         showsVerticalScrollIndicator={false}
-        snapToInterval={itemH}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        disableIntervalMomentum
+        // Instagram/TikTok paging: one swipe → smooth slide that snaps to exactly one video.
+        // pagingEnabled snaps to the scroll frame (= itemH, the measured viewport) on native,
+        // and RNW maps it to CSS scroll-snap (y mandatory) on web — where snapToInterval is a
+        // no-op. Items are sized to itemH, so every snap point is one full clip.
+        pagingEnabled
         getItemLayout={(_, index) => ({ length: itemH, offset: itemH * index, index })}
         onViewableItemsChanged={onViewRef.current}
         viewabilityConfig={viewConfigRef.current}
