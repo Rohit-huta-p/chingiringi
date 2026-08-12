@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { Trash2, Play, Eye, Heart, Inbox } from 'lucide-react-native';
+import { Trash2, Pencil, Play, Eye, Heart, Inbox } from 'lucide-react-native';
 import { Fonts } from '../constants/theme';
 import { FeedVideo } from '../api/videos';
 
@@ -15,6 +15,8 @@ const STATUS: Record<string, { label: string; bg: string; fg: string }> = {
 
 export interface VideoListProps {
   videos: FeedVideo[];
+  /** Admin passes this to show an Edit action; omit for a read-only list. */
+  onEdit?: (v: FeedVideo) => void;
   /** Admin passes this to show a Delete action; omit for a read-only list. */
   onDelete?: (v: FeedVideo) => void;
   /** Optional tap handler on the thumbnail (e.g. preview / open). */
@@ -27,7 +29,7 @@ export interface VideoListProps {
  * shopper-facing "my videos" screen can reuse this later with its own actions
  * (or none). Purely presentational — data + mutations live in the parent.
  */
-export const VideoList: React.FC<VideoListProps> = ({ videos, onDelete, onPress, emptyHint }) => {
+export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, onPress, emptyHint }) => {
   const { width } = useWindowDimensions();
   const PAD = 16, GAP = 10;
   const colW = Math.min((width - PAD * 2 - GAP) / 2, 240);
@@ -72,11 +74,21 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onDelete, onPress,
                 {nProducts > 0 && <Text style={s.prodTag}>{nProducts} product{nProducts > 1 ? 's' : ''}</Text>}
               </View>
 
-              {onDelete && (
-                <TouchableOpacity style={s.delBtn} onPress={() => onDelete(v)}>
-                  <Trash2 size={13} color="#ef4444" strokeWidth={2.2} />
-                  <Text style={s.delTxt}>Delete</Text>
-                </TouchableOpacity>
+              {(onEdit || onDelete) && (
+                <View style={s.actions}>
+                  {onEdit && (
+                    <TouchableOpacity style={s.editBtn} onPress={() => onEdit(v)}>
+                      <Pencil size={13} color="#3b82f6" strokeWidth={2.2} />
+                      <Text style={s.editTxt}>Edit</Text>
+                    </TouchableOpacity>
+                  )}
+                  {onDelete && (
+                    <TouchableOpacity style={s.delBtn} onPress={() => onDelete(v)}>
+                      <Trash2 size={13} color="#ef4444" strokeWidth={2.2} />
+                      <Text style={s.delTxt}>Delete</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             </View>
           </View>
@@ -106,8 +118,14 @@ const s = StyleSheet.create({
   metaTxt: { fontSize: 11, color: '#94a3b8', fontFamily: Fonts.semiBold },
   prodTag: { fontSize: 10.5, color: '#3b82f6', fontFamily: Fonts.bold, marginLeft: 'auto' },
 
+  actions: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  editBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 7, borderRadius: 8, backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#dbeafe',
+  },
+  editTxt: { fontSize: 12, fontFamily: Fonts.bold, color: '#3b82f6' },
   delBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 10,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
     paddingVertical: 7, borderRadius: 8, backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fee2e2',
   },
   delTxt: { fontSize: 12, fontFamily: Fonts.bold, color: '#ef4444' },

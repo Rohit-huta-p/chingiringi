@@ -2,7 +2,7 @@ import express from 'express';
 import {
   createUploadUrl, createVideo, getFeed, getVideo, getStoreVideos,
   trackView, toggleLike, toggleSave, trackShare,
-  listPending, listAll, moderateVideo, deleteVideo,
+  listPending, listAll, moderateVideo, updateVideo, deleteVideo,
 } from './videoController.js';
 import { protect, optionalProtect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
@@ -30,6 +30,7 @@ router.post('/:id/save', protect, toggleSave);
 
 // bare /:id routes LAST — a bare :id above would swallow /feed, /store/..., /admin/...
 router.get('/:id', optionalProtect, getVideo);
+router.patch('/:id', protect, admin, updateVideo);
 router.delete('/:id', protect, admin, deleteVideo);
 
 export default router;
