@@ -100,7 +100,6 @@ export const MobileProfileScreen = () => {
     (walletRes as any)?.wallet ??
     (walletRes as any)?.data;
 
-  const confirmed = wallet?.confirmedCashback ?? 0;
   const coins = wallet?.coins ?? 0;
   const shareRewards = (walletRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
 
@@ -167,21 +166,15 @@ export const MobileProfileScreen = () => {
           <View style={s.statsRow}>
             <StatCard
               accent
-              label="TOTAL EARNING"
-              value={inr(confirmed)}
+              label="COINS"
+              value={num(coins)}
               action="Withdraw  ›"
-              onAction={() => nav.navigate('Wallet')}
+              onAction={() => (nav as any).navigate('Wallet', { openWithdraw: true })}
             />
             <StatCard
               label="Pending Coins"
               value={num(shareRewards.pending)}
               action="Processing  ›"
-              actionColor="#f59e0b"
-            />
-            <StatCard
-              label="COINS"
-              value={num(coins)}
-              action="Redeem  ›"
               actionColor="#f59e0b"
             />
           </View>

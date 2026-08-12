@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Modal, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -297,6 +298,17 @@ export const WalletScreen = () => {
   const isMobile = width < 768;
   const [activeFilter, setActiveFilter] = useState<string>('All');
   const [showWithdraw, setShowWithdraw] = useState(false);
+  const route = useRoute<any>();
+  const navigation = useNavigation<any>();
+  // Auto-open the withdraw modal when navigated here with { openWithdraw: true }
+  // (from the profile Coins card). Clear the param after so it re-triggers next time.
+  const openWithdrawParam = route.params?.openWithdraw;
+  useEffect(() => {
+    if (openWithdrawParam) {
+      setShowWithdraw(true);
+      navigation.setParams({ openWithdraw: undefined });
+    }
+  }, [openWithdrawParam, navigation]);
 
   const {
     data: summaryData,
