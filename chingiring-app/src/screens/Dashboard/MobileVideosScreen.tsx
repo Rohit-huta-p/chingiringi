@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable,
   useWindowDimensions, Platform, ViewToken, RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaySquare, ChevronUp, ChevronDown, Plus } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -11,17 +11,24 @@ import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
 import { shareVideo } from '../../utils/shareVideo';
-import { FeedVideo, VideoStore } from '../../api/videos';
+import { videosAPI, FeedVideo, VideoStore } from '../../api/videos';
 
 export const MobileVideosScreen = () => {
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const sharedId = route.params?.v as string | undefined; // deep link: /app/videos?v=<id>
   const { videos, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useVideoFeed();
   const { like, share, view } = useVideoEngagement();
 
+  // A clip opened via a shared link — pinned to the front of the feed.
+  const [pinned, setPinned] = useState<FeedVideo | null>(null);
+
   // Dev fallback so the feed renders before the backend/Cloudflare are live.
-  const data: FeedVideo[] = videos.length ? videos : (__DEV__ ? SAMPLE_VIDEOS : []);
+  const feedData: FeedVideo[] = videos.length ? videos : (__DEV__ ? SAMPLE_VIDEOS : []);
+  // Shared clip first (de-duped), then the rest of the feed.
+  const data: FeedVideo[] = pinned ? [pinned, ...feedData.filter((v) => v._id !== pinned._id)] : feedData;
 
   // Desktop web = centered 9:16 stage; native + narrow web = full-screen swipe.
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
@@ -94,6 +101,23 @@ export const MobileVideosScreen = () => {
 
   // A newly-active clip always starts playing — clear any tap-pause from the previous one.
   useEffect(() => { setPaused(false); }, [activeIndex]);
+
+  // Deep link (?v=<id>): fetch that clip and pin it to the front so the feed opens on it.
+  useEffect(() => {
+    if (!sharedId) { setPinned(null); return; }
+    let cancelled = false;
+    videosAPI.getVideo(sharedId)
+      .then((res) => { if (!cancelled) setPinned(res.data.video); })
+      .catch(() => { if (!cancelled) setPinned(null); });
+    return () => { cancelled = true; };
+  }, [sharedId]);
+
+  // When a shared clip pins, jump to it (top of the list).
+  useEffect(() => {
+    if (!pinned) return;
+    setActiveIndex(0);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [pinned]);
 
   // Keyboard navigation on desktop web (↑/↓).
   useEffect(() => {
