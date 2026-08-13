@@ -20,7 +20,6 @@ import {
   List,
   Tag,
   Star,
-  Navigation,
   Clock,
   SlidersHorizontal,
   Plus,
@@ -38,14 +37,12 @@ import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
 import { storesAPI, type Store } from '../../api/stores';
 import { sharesAPI } from '../../api/shares';
-import { haversineKm } from '../../utils/geo';
 import {
-  BENGALURU_CENTER,
   STORE_CATEGORIES,
   type StoreCategory,
 } from '../../data/offlineStores';
 
-type SortKey = 'near' | 'discount' | 'rating';
+type SortKey = 'discount' | 'rating';
 type ViewMode = 'list' | 'map';
 type StoreFilters = { openNow: boolean; minDiscount: number; minRating: number };
 
@@ -63,9 +60,8 @@ export const OfflineStoresScreen: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
-  const [sort, setSort] = useState<SortKey>('near');
+  const [sort, setSort] = useState<SortKey>('discount');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filters, setFilters] = useState<StoreFilters>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -121,14 +117,7 @@ export const OfflineStoresScreen: React.FC = () => {
   const sharesLeft = quotaRes?.data?.remaining;
   const sharesCap = quotaRes?.data?.cap;
 
-  const stores: Store[] = useMemo(() => {
-    const origin = coords ?? BENGALURU_CENTER;
-    const list = (data?.data?.stores ?? []) as Store[];
-    return list.map((s) => ({
-      ...s,
-      distanceKm: haversineKm(origin, { lat: s.lat, lng: s.lng }),
-    }));
-  }, [data, coords]);
+  const stores: Store[] = useMemo(() => (data?.data?.stores ?? []) as Store[], [data]);
 
   const filtered = useMemo(() => {
     let list = [...stores];
@@ -147,7 +136,6 @@ export const OfflineStoresScreen: React.FC = () => {
     if (filters.openNow) list = list.filter((s) => s.isOpen);
     if (filters.minDiscount > 0) list = list.filter((s) => s.userDiscountPercent >= filters.minDiscount);
     if (filters.minRating > 0) list = list.filter((s) => s.rating >= filters.minRating);
-    if (sort === 'near') list.sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
     if (sort === 'discount') list.sort((a, b) => b.userDiscountPercent - a.userDiscountPercent);
     if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
     return list;
@@ -212,7 +200,6 @@ export const OfflineStoresScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.sortGroup}
             >
-              <SortPill label="Near" icon={Navigation} active={sort === 'near'} onPress={() => setSort('near')} />
               <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
               <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
             </ScrollView>
@@ -244,7 +231,6 @@ export const OfflineStoresScreen: React.FC = () => {
 
 
             <View style={styles.sortGroup}>
-              <SortPill label="Near" icon={Navigation} active={sort === 'near'} onPress={() => setSort('near')} />
               <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
               <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
             </View>
@@ -316,12 +302,7 @@ export const OfflineStoresScreen: React.FC = () => {
         {showMap && (
           <View style={[styles.mapCol, isNarrow && { flex: 1, minHeight: 0, marginBottom: 96 }]}>
             <View style={styles.mapInner}>
-              <StoreMap
-                stores={filtered}
-                selectedId={selectedId}
-                onSelect={(id) => setSelectedId(id)}
-                userLocation={coords}
-              />
+              <StoreMap userLocation={coords} />
 
               {/* Top-left Stores Nearby badge */}
               <View style={styles.nearbyBadge} pointerEvents="none">
@@ -334,8 +315,6 @@ export const OfflineStoresScreen: React.FC = () => {
               {/* Legend bottom-left */}
               <View style={styles.legend} pointerEvents="none">
                 <LegendRow color={PRIMARY} label="You" />
-                <LegendRow color="#10B981" label="Open" />
-                <LegendRow color="#94A3B8" label="Closed" />
               </View>
 
               {/* Custom zoom buttons (visual only on placeholder) */}
@@ -363,7 +342,6 @@ export const OfflineStoresScreen: React.FC = () => {
               <StoreCard
                 key={s._id}
                 store={s}
-                isSelected={s._id === selectedId}
                 onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
               />
             ))}
@@ -534,9 +512,8 @@ const LegendRow: React.FC<{ color: string; label: string }> = ({ color, label })
 
 const StoreCard: React.FC<{
   store: Store;
-  isSelected: boolean;
   onPress: () => void;
-}> = ({ store, isSelected, onPress }) => {
+}> = ({ store, onPress }) => {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [shareOpen, setShareOpen] = useState(false);
@@ -549,7 +526,7 @@ const StoreCard: React.FC<{
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.storeCard, isSelected && styles.storeCardSelected]}
+      style={styles.storeCard}
     >
       {/* Logo, or a colored tile with the store initial */}
       <View style={[styles.storeImage, !store.logoUrl && { backgroundColor: tileColor }]}>

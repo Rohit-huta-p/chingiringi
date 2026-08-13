@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, BadgeCheck, Star, MapPin, Navigation, Clock, Phone, Share2,
+  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
@@ -69,9 +69,7 @@ export const StoreDetailScreen: React.FC = () => {
     enabled: !!storeId,
   });
   const fetched: Store | undefined = data?.data?.store;
-  const store: Store | undefined = fetched
-    ? { ...fetched, distanceKm: fetched.distanceKm ?? passed?.distanceKm }
-    : passed;
+  const store: Store | undefined = fetched ?? passed;
 
   // Daily share quota — same query key the share action invalidates.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
@@ -92,9 +90,6 @@ export const StoreDetailScreen: React.FC = () => {
   const photos = (store.images ?? []).slice(0, 8);
   const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/store/${store._id}?ref=cr_${user?.id ?? ''}`;
 
-  const openDirections = () => {
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lng}`).catch(() => {});
-  };
   const callStore = () => {
     if (store.phone) Linking.openURL(`tel:${store.phone.replace(/\s+/g, '')}`).catch(() => {});
   };
@@ -225,10 +220,6 @@ export const StoreDetailScreen: React.FC = () => {
                 )}
               </View>
             </View>
-            <Pressable onPress={openDirections} style={styles.dirLink}>
-              <Navigation size={15} color={Colors.primary} />
-              <Text style={styles.dirLinkText}>Get directions</Text>
-            </Pressable>
           </View>
         </View>
       </ScrollView>
@@ -305,8 +296,6 @@ const styles = StyleSheet.create({
   infoline: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   infoText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
   infoSub: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
-  dirLink: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2, alignSelf: 'flex-start' },
-  dirLinkText: { color: Colors.primary, fontSize: 13.5, fontFamily: Fonts.bold },
 });
 
 export default StoreDetailScreen;

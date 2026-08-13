@@ -73,7 +73,7 @@ export const updateStore = async (req, res) => {
     throw new Error('Store not found');
   }
   Object.assign(store, req.body);
-  await store.save(); // re-runs pre-save (slug + geo point)
+  await store.save(); // re-runs pre-save (slug)
   res.status(200).json({ status: 'success', data: { store } });
 };
 

@@ -28,12 +28,6 @@ const storeSchema = new mongoose.Schema(
     address: { type: String, required: [true, 'Address is required'], trim: true },
     area: { type: String, default: '' },
     city: { type: String, default: 'Bengaluru' },
-    lat: { type: Number, required: [true, 'Latitude is required'] },
-    lng: { type: Number, required: [true, 'Longitude is required'] },
-    location: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number], default: undefined }, // [lng, lat]
-    },
 
     // ── Hours ("HH:mm" 24h) ──────────────────────────────────
     openTime: { type: String, default: '10:00' },
@@ -71,21 +65,17 @@ const storeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Derive slug + GeoJSON point from name/lat/lng before saving.
+// Derive the slug from the store name before saving.
 // Sync pre-save hook — no `next` (same modern pattern as bannerModel; a
 // `function(next)` form throws "next is not a function" under this Mongoose version).
 storeSchema.pre('save', function preSave() {
   if (this.isModified('name') || !this.slug) this.slug = slugify(this.name);
-  if (typeof this.lat === 'number' && typeof this.lng === 'number') {
-    this.location = { type: 'Point', coordinates: [this.lng, this.lat] };
-  }
 });
 
 storeSchema.index({ category: 1 });
 storeSchema.index({ city: 1 });
 storeSchema.index({ isActive: 1 });
 storeSchema.index({ isFeatured: 1 });
-storeSchema.index({ location: '2dsphere' });
 storeSchema.index({ name: 'text', address: 'text' });
 
 const Store = mongoose.model('Store', storeSchema);
