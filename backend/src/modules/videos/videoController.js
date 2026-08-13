@@ -3,6 +3,7 @@ import Video from './videoModel.js';
 import { videoProvider, activeProvider, providerFor } from '../../services/videoProvider.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
+import { notify } from '../notifications/notificationService.js';
 
 // @desc  Mint a direct-upload URL (Cloudflare or Mux)  @route POST /api/videos/upload-url  @access admin
 export const createUploadUrl = async (req, res) => {
@@ -224,6 +225,18 @@ export const moderateVideo = async (req, res) => {
   }
   if (typeof featured === 'boolean') video.isFeatured = featured;
   await video.save();
+
+  // Tell the uploader (user posts only) — best-effort, never blocks the response.
+  if (video.createdBy && video.creatorRole !== 'admin' && (action === 'approve' || action === 'reject')) {
+    try {
+      await notify({
+        userId: video.createdBy,
+        type: action === 'approve' ? 'video_approved' : 'video_rejected',
+        data: { store: video.store?.name || '', reason: video.moderation.reason || '' },
+      });
+    } catch { /* notification is best-effort */ }
+  }
+
   res.status(200).json({ status: 'success', data: { video } });
 };
 

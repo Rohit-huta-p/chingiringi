@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, ActivityIndicator, RefreshControl } from 'react-native';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
-import { Coins, ArrowDownToLine } from 'lucide-react-native';
+import { Coins, ArrowDownToLine, PlaySquare } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationsAPI, AppNotification } from '../../api/notifications';
 
@@ -88,7 +88,8 @@ export const NotificationsScreen = () => {
               item.type === 'coins_credited' ||
               item.type === 'coins_unlocked' ||
               item.type === 'wallet_credited';
-            const Icon = isCoins ? Coins : ArrowDownToLine;
+            const isVideo = item.type === 'video_approved' || item.type === 'video_rejected';
+            const Icon = isCoins ? Coins : isVideo ? PlaySquare : ArrowDownToLine;
             return (
               <TouchableOpacity
                 key={item._id}

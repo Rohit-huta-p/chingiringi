@@ -18,6 +18,8 @@ const notificationSchema = new mongoose.Schema(
         'withdrawal_rejected',
         'share_pending',
         'share_confirmed',
+        'video_approved',
+        'video_rejected',
       ],
       required: true,
     },

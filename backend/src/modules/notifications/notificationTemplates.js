@@ -49,6 +49,16 @@ export function buildTemplate(type, data) {
         title: `${data.coins} CR unlocked 🎉`,
         body: `A friend opened your shared ${data.itemType} — the coins are in your wallet. Keep sharing to earn more!`,
       };
+    case 'video_approved':
+      return {
+        title: 'Your video is live 🎉',
+        body: `Nice one! Your clip${data.store ? ` for ${data.store}` : ''} was approved and is now in the feed.`,
+      };
+    case 'video_rejected':
+      return {
+        title: 'About your video',
+        body: `Your clip${data.store ? ` for ${data.store}` : ''} wasn’t approved this time.${data.reason ? ` Reason: ${data.reason}` : ''} Feel free to tweak it and post again.`,
+      };
     default:
       throw new Error(`Unknown notification type: ${type}`);
   }

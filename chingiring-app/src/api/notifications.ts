@@ -6,7 +6,9 @@ export type NotificationType =
   | 'wallet_credited'
   | 'withdrawal_submitted'
   | 'withdrawal_paid'
-  | 'withdrawal_rejected';
+  | 'withdrawal_rejected'
+  | 'video_approved'
+  | 'video_rejected';
 
 export interface AppNotification {
   _id: string;
