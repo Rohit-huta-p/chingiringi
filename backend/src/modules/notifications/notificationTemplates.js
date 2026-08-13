@@ -59,6 +59,13 @@ export function buildTemplate(type, data) {
         title: 'About your video',
         body: `Your clip${data.store ? ` for ${data.store}` : ''} wasn’t approved this time.${data.reason ? ` Reason: ${data.reason}` : ''} Feel free to tweak it and post again.`,
       };
+    case 'video_comment': {
+      const snippet = String(data.text || '').slice(0, 60);
+      return {
+        title: 'New comment 💬',
+        body: `${data.name || 'Someone'} commented: “${snippet}${String(data.text || '').length > 60 ? '…' : ''}”`,
+      };
+    }
     default:
       throw new Error(`Unknown notification type: ${type}`);
   }

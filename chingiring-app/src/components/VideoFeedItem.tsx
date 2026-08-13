@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, Linking, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import VideoLayer from './VideoLayer';
-import { Heart, Share2, Volume2, VolumeX, ExternalLink, Pause } from 'lucide-react-native';
+import { Heart, Share2, Volume2, VolumeX, ExternalLink, Pause, MessageCircle } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { FeedVideo, TaggedProduct, VideoStore } from '../api/videos';
 
@@ -17,6 +17,8 @@ interface Props {
   onStorePress: (store: VideoStore) => void;
   onLike: () => void;
   onShare: () => void;
+  /** Open the comments sheet for this clip. */
+  onComment?: () => void;
   /** Distance (px) to lift the caption+product block off the screen bottom so it
    *  clears the mobile tab bar. Desktop passes the plain aesthetic gap. */
   bottomOffset?: number;
@@ -59,10 +61,11 @@ const CaptionBlock: React.FC<{ caption?: string; website?: string }> = ({ captio
 
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
-  onToggleMute, onStorePress, onLike, onShare, bottomOffset = 58,
+  onToggleMute, onStorePress, onLike, onShare, onComment, bottomOffset = 58,
   paused = false, onTogglePause, muteRight = 14,
 }) => {
   const [loading, setLoading] = useState(true);
+  const commentCount = video.stats?.comments ?? 0;
   const products = video.taggedProducts ?? [];
   const primary = products[0];
   const store = video.store;
@@ -123,6 +126,10 @@ export const VideoFeedItem: React.FC<Props> = ({
         <Pressable style={s.railBtn} onPress={onLike} hitSlop={8}>
           <Heart size={30} color={liked ? Colors.danger : '#fff'} fill={liked ? Colors.danger : 'transparent'} />
           <Text style={s.railTxt}>{likeCount > 0 ? likeCount : 'Like'}</Text>
+        </Pressable>
+        <Pressable style={s.railBtn} onPress={onComment} hitSlop={8}>
+          <MessageCircle size={29} color="#fff" />
+          <Text style={s.railTxt}>{commentCount > 0 ? commentCount : 'Comment'}</Text>
         </Pressable>
         <Pressable style={s.railBtn} onPress={onShare} hitSlop={8}>
           <Share2 size={28} color="#fff" />
