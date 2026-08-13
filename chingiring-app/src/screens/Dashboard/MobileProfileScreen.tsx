@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   Share, Platform, RefreshControl,
@@ -17,6 +17,7 @@ import { referralsAPI } from '../../api/referrals';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { MobileProfileHeader } from '../../components/MobileProfileHeader';
 import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
+import { LegalModal, LegalType } from '../../components/LegalModal';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ function QuickAction({
 export const MobileProfileScreen = () => {
   const nav = useNavigation<any>();
   const user = useAuthStore((st) => st.user);
+  const [legal, setLegal] = useState<LegalType | null>(null);
 
   const { data: walletRes } = useQuery({
     queryKey: ['wallet'],
@@ -254,7 +256,7 @@ export const MobileProfileScreen = () => {
             iconBg="#eff6ff"
             title="About"
             subtitle="Our story, mission & values"
-            onPress={() => nav.navigate('About')}
+            onPress={() => setLegal('about')}
           />
           <QuickAction
             icon={HelpCircle}
@@ -276,6 +278,7 @@ export const MobileProfileScreen = () => {
             iconBg="#fee2e2"
             title="Privacy Policy"
             subtitle="How we handle your data"
+            onPress={() => setLegal('privacy')}
           />
           <QuickAction
             icon={FileText}
@@ -283,9 +286,11 @@ export const MobileProfileScreen = () => {
             iconBg="#fef3c7"
             title="Terms & Conditions"
             subtitle="Rules, policies & agreements"
+            onPress={() => setLegal('terms')}
           />
         </View>
       </ScrollView>
+      <LegalModal type={legal} onClose={() => setLegal(null)} />
     </View>
   );
 };
