@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 
 export interface VideoLayerProps {
@@ -21,12 +21,22 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted,
   const shouldPlay = isActive && !paused;
   const shouldPlayRef = useRef(shouldPlay);
   shouldPlayRef.current = shouldPlay;
+  // Portrait/square clips fill the frame (cover); landscape clips are letterboxed
+  // (contain) so they sit centred and uncropped. Aspect is read from the element
+  // once metadata loads — no backend dimensions needed, works for existing clips.
+  const [fit, setFit] = useState<'cover' | 'contain'>('cover');
 
   useEffect(() => {
     const video = ref.current;
     if (!video || !source) return;
     video.muted = true; // required for autoplay to be allowed
+    setFit('cover'); // reset until this source's real aspect is known
     const playIfActive = () => { if (shouldPlayRef.current) video.play?.().catch(() => {}); };
+    const onMeta = () => {
+      const { videoWidth: w, videoHeight: h } = video;
+      if (w && h) setFit(w > h ? 'contain' : 'cover');
+    };
+    video.addEventListener('loadedmetadata', onMeta);
 
     let hls: Hls | undefined;
     // hls.js FIRST whenever MSE is available. Chrome/Firefox/Edge/Electron
@@ -50,6 +60,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted,
     return () => {
       hls?.destroy();
       video.removeEventListener('loadedmetadata', playIfActive);
+      video.removeEventListener('loadedmetadata', onMeta);
     };
   }, [source]);
 
@@ -69,7 +80,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted,
       muted
       loop
       playsInline
-      style={{ position: 'absolute', inset: 0 as any, width: '100%', height: '100%', objectFit: 'cover', background: 'transparent' }}
+      style={{ position: 'absolute', inset: 0 as any, width: '100%', height: '100%', objectFit: fit, background: 'transparent' }}
     />
   );
 };
