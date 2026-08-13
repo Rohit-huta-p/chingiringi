@@ -156,6 +156,7 @@ export const StoreDetailScreen: React.FC = () => {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={[styles.band, isWide ? styles.bandRow : styles.bandCol]}
         >
+          {/* Discount container — commented out (discount feature disabled)
           <View style={isWide ? { flex: 1 } : undefined}>
             <View style={styles.bandOff}>
               <Text style={[styles.bandBig, isWide && { fontSize: 40 }]}>{store.userDiscountPercent}%</Text>
@@ -163,6 +164,7 @@ export const StoreDetailScreen: React.FC = () => {
             </View>
             <Text style={styles.bandText}>on every bill — pay through the app, no coupon needed</Text>
           </View>
+          */}
           <View style={styles.bandActions}>
             {!!store.phone && (
               <Pressable onPress={callStore} style={[styles.btn, styles.btnGhost]}>
