@@ -10,9 +10,13 @@ import { Colors, Fonts } from '../constants/theme';
 import { useVideoUpload, PickedVideo } from './useVideoUpload';
 import { videosAPI, FeedVideo } from '../api/videos';
 import { notify } from '../utils/dialog';
+import LocalVideoPreview from './LocalVideoPreview';
 
 type ProductForm = { title: string; description: string; price: string; url: string };
 const blankProduct = (): ProductForm => ({ title: '', description: '', price: '', url: '' });
+
+const MAX_SEC = 30;
+const fmtDur = (s?: number) => (s == null ? '' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`);
 
 interface Props {
   visible: boolean;
@@ -67,11 +71,18 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
 
   const close = () => { if (!busy) { reset(); onClose(); } };
 
+  // Block over-length clips before upload (OS trim handles the cut on iOS; the
+  // provider would otherwise reject a >30s upload after the fact).
+  const overLength = !isEdit && !!video?.durationSec && video.durationSec > MAX_SEC + 0.5;
+
   const onSubmit = async () => {
     if (!isEdit && !video) return notify('Add a video', 'Pick a clip to upload first.');
     if (!storeName.trim()) return notify('Add a store', 'Enter the store / business name.');
     if (!isEdit && video?.sizeMB && video.sizeMB > 200) {
       return notify('Too large', `That clip is ${video.sizeMB.toFixed(0)} MB. Keep it under 200 MB.`);
+    }
+    if (overLength) {
+      return notify('Clip too long', `This clip is ${fmtDur(video!.durationSec)} — trim it to ${MAX_SEC} seconds. On iPhone you can trim right in the picker; on web/Android, shorten it before uploading.`);
     }
     const tagged = products
       .filter((p) => p.title.trim() && p.price.trim())
@@ -132,16 +143,27 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
                 <Text style={s.pickerHint}>Portrait 9:16 · ≤ 30s · ≤ 200 MB</Text>
               </TouchableOpacity>
             ) : (
-              <View style={s.videoCard}>
-                <View style={s.videoThumb}><Film size={22} color="#fff" /></View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={s.videoName} numberOfLines={1}>{video.name}</Text>
-                  <Text style={s.videoMeta}>{video.sizeMB ? `${video.sizeMB.toFixed(1)} MB` : 'ready'}</Text>
+              <View style={s.pickedWrap}>
+                <View style={s.previewBox}>
+                  <LocalVideoPreview uri={video.uri} />
                 </View>
-                <TouchableOpacity onPress={onPick} disabled={busy} style={s.replaceBtn}>
-                  <RefreshCw size={16} color={Colors.primary} />
-                  <Text style={s.replaceTxt}>Replace</Text>
-                </TouchableOpacity>
+                <View style={s.pickedMetaRow}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.videoName} numberOfLines={1}>{video.name}</Text>
+                    <Text style={s.videoMeta}>
+                      {[fmtDur(video.durationSec), video.sizeMB ? `${video.sizeMB.toFixed(1)} MB` : null].filter(Boolean).join(' · ') || 'ready'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={onPick} disabled={busy} style={s.replaceBtn}>
+                    <RefreshCw size={16} color={Colors.primary} />
+                    <Text style={s.replaceTxt}>Replace</Text>
+                  </TouchableOpacity>
+                </View>
+                {overLength && (
+                  <View style={s.warnRow}>
+                    <Text style={s.warnTxt}>This clip is {fmtDur(video.durationSec)} — trim it to {MAX_SEC}s before publishing.</Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -219,7 +241,7 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
             ))}
 
             {/* Submit */}
-            <TouchableOpacity style={[s.publish, busy && s.publishBusy]} onPress={onSubmit} disabled={busy}>
+            <TouchableOpacity style={[s.publish, (busy || overLength) && s.publishBusy]} onPress={onSubmit} disabled={busy || overLength}>
               {busy
                 ? <><ActivityIndicator color="#fff" /><Text style={s.publishTxt}>{uploading ? 'Uploading…' : 'Saving…'}</Text></>
                 : isEdit
@@ -255,6 +277,15 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
     backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
   },
+  pickedWrap: {
+    padding: 12, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
+  },
+  previewBox: {
+    height: 220, borderRadius: 12, overflow: 'hidden', backgroundColor: '#000', position: 'relative',
+  },
+  pickedMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
+  warnRow: { marginTop: 10, backgroundColor: '#fef3c7', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+  warnTxt: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: '#b45309', lineHeight: 17 },
   videoThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   currentThumb: { width: 44, height: 56, borderRadius: 8, backgroundColor: '#334155' },
   currentNote: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },

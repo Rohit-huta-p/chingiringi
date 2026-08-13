@@ -10,8 +10,24 @@ export type PickedVideo = {
   name: string;
   type: string;
   sizeMB?: number;
+  durationSec?: number; // read on pick so we can gate the 30s cap before upload
   _file?: File;       // web only
 };
+
+// Web: read a picked clip's duration off its object URL (metadata only).
+// Always settles — a 4s timeout guards against a file whose metadata never
+// loads, so the picker can't hang on it (duration stays undefined → no gate).
+const readWebDuration = (url: string): Promise<number | undefined> =>
+  new Promise((resolve) => {
+    const v = document.createElement('video');
+    let done = false;
+    const settle = (d?: number) => { if (!done) { done = true; resolve(d); } };
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => settle(Number.isFinite(v.duration) ? v.duration : undefined);
+    v.onerror = () => settle(undefined);
+    setTimeout(() => settle(undefined), 4000);
+    v.src = url;
+  });
 
 /**
  * Video picker → Cloudflare Stream uploader (mirrors useImageUpload, but the
@@ -34,15 +50,17 @@ export function useVideoUpload() {
         input.type = 'file';
         input.accept = 'video/*';
         input.style.display = 'none';
-        input.addEventListener('change', (e) => {
+        input.addEventListener('change', async (e) => {
           const file = (e.target as HTMLInputElement).files?.[0];
           input.remove();
           if (!file) return resolve(null);
+          const uri = URL.createObjectURL(file);
           resolve({
-            uri: URL.createObjectURL(file),
+            uri,
             name: file.name,
             type: file.type || 'video/mp4',
             sizeMB: file.size / 1e6,
+            durationSec: await readWebDuration(uri),
             _file: file,
           });
         });
@@ -60,6 +78,7 @@ export function useVideoUpload() {
       mediaTypes: ['videos'],
       quality: 1,
       videoMaxDuration: 30,
+      allowsEditing: true, // iOS: presents the OS trim UI (capped at videoMaxDuration)
     });
     if (result.canceled || !result.assets?.[0]) return null;
     const a = result.assets[0];
@@ -69,6 +88,7 @@ export function useVideoUpload() {
       name,
       type: a.mimeType ?? 'video/mp4',
       sizeMB: a.fileSize ? a.fileSize / 1e6 : undefined,
+      durationSec: a.duration != null ? a.duration / 1000 : undefined, // expo gives ms
     };
   };
 
