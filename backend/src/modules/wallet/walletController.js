@@ -188,36 +188,32 @@ export const requestWithdrawal = async (req, res) => {
     },
   });
 
-  // ── Instant-on-tap payout (capped per day) ──────────────────────────────
-  // Fire the payout now if the active provider is enabled AND this request
-  // keeps the user's rolling instant total for the day within the cap. Over
-  // the cap (or provider off / call fails) it stays pending for admin approval.
+  // ── Instant-on-tap payout — DISABLED ─────────────────────────────────────
+  // Withdrawals no longer auto-pay via the provider (Cashfree). Every request
+  // stays `pending` and is actioned by an admin in Wallet Operations →
+  // Withdrawals. To re-enable, uncomment the block below (it stays gated by
+  // AdminSettings.instantPayoutEnabled + the payout provider's creds).
   let instant = false;
-  if (settings.instantPayoutEnabled && (await payoutsEnabled())) {
-    const cap = Number(settings.instantPayoutCapRupees) || 0;
-    const since = new Date();
-    since.setHours(0, 0, 0, 0);
-    const agg = await Transaction.aggregate([
-      { $match: { userId: req.user._id, type: 'withdrawal', 'metadata.paidInstant': true, createdAt: { $gte: since } } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]);
-    const todayInstant = agg[0]?.total || 0;
-    if (cap > 0 && todayInstant + rupees <= cap) {
-      try {
-        await firePayout(transaction, {}); // atomic coin hold + provider transfer
-        transaction.metadata = { ...transaction.metadata, paidInstant: true };
-        await transaction.save();
-        instant = true;
-        console.log('[withdraw] instant payout OK', JSON.stringify({ txId: String(transaction._id), payoutId: transaction.metadata?.payoutId, rupees }));
-      } catch (e) {
-        // Provider error / race — leave it pending for admin; firePayout has
-        // already refunded any coins it held. Log the reason — otherwise the
-        // failure is invisible (the request still returns 201, just pending).
-        instant = false;
-        console.warn('[withdraw] instant payout FAILED -> pending:', e.message, JSON.stringify({ txId: String(transaction._id), rupees }));
-      }
-    }
-  }
+  // if (settings.instantPayoutEnabled && (await payoutsEnabled())) {
+  //   const cap = Number(settings.instantPayoutCapRupees) || 0;
+  //   const since = new Date();
+  //   since.setHours(0, 0, 0, 0);
+  //   const agg = await Transaction.aggregate([
+  //     { $match: { userId: req.user._id, type: 'withdrawal', 'metadata.paidInstant': true, createdAt: { $gte: since } } },
+  //     { $group: { _id: null, total: { $sum: '$amount' } } },
+  //   ]);
+  //   const todayInstant = agg[0]?.total || 0;
+  //   if (cap > 0 && todayInstant + rupees <= cap) {
+  //     try {
+  //       await firePayout(transaction, {}); // atomic coin hold + provider transfer
+  //       transaction.metadata = { ...transaction.metadata, paidInstant: true };
+  //       await transaction.save();
+  //       instant = true;
+  //     } catch (e) {
+  //       instant = false;
+  //     }
+  //   }
+  // }
 
   try {
     await notify({ userId: req.user._id, type: 'withdrawal_submitted', data: { amount: rupees } });

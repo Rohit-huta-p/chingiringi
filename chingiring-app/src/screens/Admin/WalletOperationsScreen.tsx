@@ -25,7 +25,7 @@ const computeIsMobile = (width: number) => Platform.OS !== 'web' || width < 768;
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type Tab = 'queue' | 'reports' | 'user' | 'settings';
+type Tab = 'queue' | 'withdrawals' | 'reports' | 'user' | 'settings';
 
 interface TimelineUser {
   _id: string;
@@ -145,6 +145,7 @@ export function WalletOperationsScreen() {
 
   const TABS: { key: Tab; icon: React.ComponentType<any>; label: string; shortLabel: string }[] = [
     { key: 'queue',    icon: Inbox,          label: 'Pending Queue', shortLabel: 'Queue' },
+    { key: 'withdrawals', icon: ArrowDownToLine, label: 'Withdrawals', shortLabel: 'Payouts' },
     { key: 'reports',  icon: FileSpreadsheet, label: 'Reports Inbox', shortLabel: 'Reports' },
     { key: 'user',     icon: UserSearch,     label: 'User Wallet',   shortLabel: 'Users' },
     { key: 'settings', icon: Sliders,        label: 'Settings',      shortLabel: 'Settings' },
@@ -197,10 +198,11 @@ export function WalletOperationsScreen() {
         ))}
       </View>
 
-      {tab === 'queue'    && <PendingQueueTab onJumpToUser={(id) => setTab('user')} />}
-      {tab === 'reports'  && <ReportsInboxTab />}
-      {tab === 'user'     && <UserWalletTab />}
-      {tab === 'settings' && <SettingsTab />}
+      {tab === 'queue'       && <PendingQueueTab onJumpToUser={(id) => setTab('user')} />}
+      {tab === 'withdrawals' && <WithdrawalsTab />}
+      {tab === 'reports'     && <ReportsInboxTab />}
+      {tab === 'user'        && <UserWalletTab />}
+      {tab === 'settings'    && <SettingsTab />}
     </Root>
   );
 }
@@ -333,6 +335,280 @@ function CountCard({
       <Text style={s.countLabel}>{label}</Text>
       {hint ? <Text style={s.countHint}>{hint}</Text> : null}
     </View>
+  );
+}
+
+// ─── TAB: Withdrawals (all requests, table) ─────────────────────────────────
+
+const WD_STATUSES = ['all', 'pending', 'processing', 'completed', 'rejected'] as const;
+const WD_STATUS_COLORS: Record<string, { tint: string; bg: string }> = {
+  pending:    { tint: '#d97706', bg: '#fef3c7' },
+  processing: { tint: '#2563eb', bg: '#dbeafe' },
+  completed:  { tint: '#16a34a', bg: '#dcfce7' },
+  rejected:   { tint: '#dc2626', bg: '#fee2e2' },
+};
+
+// Where the money goes — UPI id, or account number (+ IFSC) for bank.
+function withdrawalDest(w: any): string {
+  if (w.method === 'Bank') return `${w.accountNumber || '—'}${w.ifsc ? ' · ' + w.ifsc : ''}`;
+  return w.paymentDetails || '—';
+}
+
+function WithdrawalsTab() {
+  const { width } = useWindowDimensions();
+  const isMobile = computeIsMobile(width);
+  const [status, setStatus] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [statusFor, setStatusFor] = useState<any>(null); // row whose status picker is open
+
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ['admin', 'withdrawals', status, search],
+    queryFn: () => adminAPI.getWithdrawals({
+      status: status === 'all' ? undefined : status,
+      search: search.trim() || undefined,
+    }),
+  });
+  const rows: any[] = data?.data?.withdrawals ?? [];
+  const wdLabel = { fontSize: 10, color: '#64748b', fontWeight: '600' as const };
+  const wdValue = { fontSize: 13, color: Colors.text, fontWeight: '600' as const, marginTop: 2 };
+  const wdPaidBtn = { backgroundColor: '#dcfce7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 };
+  const wdPaidTxt = { color: '#16a34a', fontSize: 12, fontWeight: '700' as const };
+  const wdRejectBtn = { backgroundColor: '#fee2e2', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 };
+  const wdRejectTxt = { color: '#dc2626', fontSize: 12, fontWeight: '700' as const };
+
+  const qc = useQueryClient();
+  const nativePrompt = useNativePrompt();
+  const actionMutation = useMutation({
+    mutationFn: (p: { id: string; action: 'process' | 'complete' | 'reject' | 'pending'; txnId?: string }) =>
+      adminAPI.updateWithdrawal(p.id, { action: p.action, txnId: p.txnId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'withdrawals'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'queue'] });
+    },
+    onError: (e: any) => Alert.alert('Action failed', e?.response?.data?.message || e?.message || 'Try again'),
+  });
+  const busy = actionMutation.isPending;
+  const isActionable = (st: string) => st === 'pending' || st === 'processing';
+
+  // Manual pay: capture an optional UPI/bank reference, mark completed (the
+  // server debits the user's coins on complete). Reject: confirm, then decline.
+  const markPaid = async (w: any) => {
+    const ref = await nativePrompt.prompt(
+      `Paid ₹${Math.abs(w.amount)} to ${withdrawalDest(w)} — enter UPI/bank ref (optional)`,
+      'e.g. UTR / txn id',
+    );
+    actionMutation.mutate({ id: w._id, action: 'complete', txnId: ref || undefined });
+  };
+  const rejectWithdrawal = (w: any) => {
+    const msg = `Reject the ₹${Math.abs(w.amount)} withdrawal for ${w.userName || 'this user'}?`;
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(msg)) actionMutation.mutate({ id: w._id, action: 'reject' });
+    } else {
+      Alert.alert('Reject withdrawal', msg, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reject', style: 'destructive', onPress: () => actionMutation.mutate({ id: w._id, action: 'reject' }) },
+      ]);
+    }
+  };
+
+  // Full status control — set any state. Completed debits coins (prompts for a
+  // ref); the server blocks moving OUT of completed to keep balances correct.
+  const STATUS_TO_ACTION: Record<string, 'process' | 'complete' | 'reject' | 'pending'> =
+    { pending: 'pending', processing: 'process', completed: 'complete', rejected: 'reject' };
+  const applyStatus = async (w: any, st: string) => {
+    setStatusFor(null);
+    if (!w || st === w.status) return;
+    const action = STATUS_TO_ACTION[st];
+    if (action === 'complete') {
+      const ref = await nativePrompt.prompt('Mark completed — UPI/bank ref (optional)', 'e.g. UTR / txn id');
+      actionMutation.mutate({ id: w._id, action, txnId: ref || undefined });
+    } else {
+      actionMutation.mutate({ id: w._id, action });
+    }
+  };
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg }}>
+      <View style={s.queueHeader}>
+        <Text style={s.sectionTitle}>Withdrawal requests</Text>
+        <TouchableOpacity style={s.refreshBtn} onPress={() => refetch()} disabled={isFetching}>
+          <RefreshCw size={14} color="#64748b" strokeWidth={2} />
+          <Text style={s.refreshTxt}>{isFetching ? 'Refreshing…' : 'Refresh'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Status filter */}
+      <View style={s.merchantRow}>
+        {WD_STATUSES.map((st) => (
+          <TouchableOpacity
+            key={st}
+            style={[s.merchantChip, status === st && s.merchantChipActive]}
+            onPress={() => setStatus(st)}
+          >
+            <Text style={[s.merchantChipTxt, status === st && s.merchantChipTxtActive]}>
+              {st === 'all' ? 'All' : st.charAt(0).toUpperCase() + st.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Search */}
+      <View style={[s.searchRow, { marginTop: 12, marginBottom: 4 }]}>
+        <Search size={16} color="#94a3b8" strokeWidth={2} />
+        <TextInput
+          style={s.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Name, phone, email, UPI…"
+          placeholderTextColor="#94a3b8"
+        />
+      </View>
+
+      {isLoading ? (
+        <ActivityIndicator color={Colors.primary} style={{ marginTop: 40 }} />
+      ) : rows.length === 0 ? (
+        <View style={s.emptyCard}>
+          <Text style={s.emptyTxt}>No withdrawals{status !== 'all' ? ` (${status})` : ''} yet.</Text>
+        </View>
+      ) : isMobile ? (
+        /* Mobile: one card per withdrawal */
+        <View style={{ gap: 10, marginTop: 8 }}>
+          {rows.map((w) => {
+            const sc = WD_STATUS_COLORS[w.status] || { tint: '#64748b', bg: '#f1f5f9' };
+            return (
+              <View key={w._id} style={s.mobilePreviewCard}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.text }} numberOfLines={1}>
+                    {w.userName || 'Unknown'}
+                  </Text>
+                  <TouchableOpacity onPress={() => setStatusFor(w)} style={[s.statusChip, { backgroundColor: sc.bg }]}>
+                    <Text style={[s.statusChipTxt, { color: sc.tint }]}>{w.status} ▾</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }} numberOfLines={1}>
+                  {w.userPhone || w.userEmail || '—'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 18, marginTop: 10 }}>
+                  <View>
+                    <Text style={wdLabel}>AMOUNT</Text>
+                    <Text style={wdValue}>₹{Math.abs(w.amount).toLocaleString('en-IN')}</Text>
+                  </View>
+                  <View>
+                    <Text style={wdLabel}>COINS</Text>
+                    <Text style={[wdValue, { color: '#7c3aed' }]}>{(w.coinsRedeemed ?? 0).toLocaleString('en-IN')}</Text>
+                  </View>
+                  <View>
+                    <Text style={wdLabel}>METHOD</Text>
+                    <Text style={wdValue}>{w.method || 'UPI'}</Text>
+                  </View>
+                </View>
+                <View style={{ marginTop: 8 }}>
+                  <Text style={wdLabel}>PAY TO</Text>
+                  <Text style={{ fontSize: 13, color: Colors.text, marginTop: 2 }} numberOfLines={1}>{withdrawalDest(w)}</Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+                  Requested {relativeTime(w.requestedAt || w.createdAt)}
+                </Text>
+                {isActionable(w.status) && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <TouchableOpacity disabled={busy} onPress={() => markPaid(w)} style={[wdPaidBtn, { flex: 1, alignItems: 'center', paddingVertical: 10 }]}>
+                      <Text style={wdPaidTxt}>Mark Paid</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity disabled={busy} onPress={() => rejectWithdrawal(w)} style={[wdRejectBtn, { flex: 1, alignItems: 'center', paddingVertical: 10 }]}>
+                      <Text style={wdRejectTxt}>Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      ) : (
+        /* Desktop: table */
+        <View style={[s.tableCard, { marginTop: 8 }]}>
+          <View style={s.previewHeader}>
+            <Text style={[s.previewCell, { flex: 1.6 }]}>User</Text>
+            <Text style={[s.previewCell, { flex: 0.9 }]}>Amount</Text>
+            <Text style={[s.previewCell, { flex: 1 }]}>Coins</Text>
+            <Text style={[s.previewCell, { flex: 0.8 }]}>Method</Text>
+            <Text style={[s.previewCell, { flex: 2 }]}>Pay to</Text>
+            <Text style={[s.previewCell, { flex: 1 }]}>Status</Text>
+            <Text style={[s.previewCell, { flex: 1 }]}>Requested</Text>
+            <Text style={[s.previewCell, { flex: 1.6 }]}>Actions</Text>
+          </View>
+          {rows.map((w) => {
+            const sc = WD_STATUS_COLORS[w.status] || { tint: '#64748b', bg: '#f1f5f9' };
+            return (
+              <View key={w._id} style={s.previewRow}>
+                <View style={{ flex: 1.6 }}>
+                  <Text style={[s.previewCellTxt, { fontWeight: '600' }]} numberOfLines={1}>{w.userName || 'Unknown'}</Text>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }} numberOfLines={1}>{w.userPhone || w.userEmail || ''}</Text>
+                </View>
+                <Text style={[s.previewCellTxt, { flex: 0.9 }]}>₹{Math.abs(w.amount).toLocaleString('en-IN')}</Text>
+                <Text style={[s.previewCellTxt, { flex: 1, color: '#7c3aed', fontWeight: '700' }]}>{(w.coinsRedeemed ?? 0).toLocaleString('en-IN')}</Text>
+                <Text style={[s.previewCellTxt, { flex: 0.8 }]}>{w.method || 'UPI'}</Text>
+                <Text style={[s.previewCellTxt, { flex: 2 }]} numberOfLines={1}>{withdrawalDest(w)}</Text>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity onPress={() => setStatusFor(w)} style={[s.statusChip, { backgroundColor: sc.bg, alignSelf: 'flex-start' }]}>
+                    <Text style={[s.statusChipTxt, { color: sc.tint }]}>{w.status} ▾</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={[s.previewCellTxt, { flex: 1, color: '#64748b' }]}>{relativeTime(w.requestedAt || w.createdAt)}</Text>
+                <View style={{ flex: 1.6, flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {isActionable(w.status) ? (
+                    <>
+                      <TouchableOpacity disabled={busy} onPress={() => markPaid(w)} style={wdPaidBtn}>
+                        <Text style={wdPaidTxt}>Mark Paid</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity disabled={busy} onPress={() => rejectWithdrawal(w)} style={wdRejectBtn}>
+                        <Text style={wdRejectTxt}>Reject</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <Text style={{ fontSize: 11, color: '#94a3b8' }} numberOfLines={1}>{w.txnId ? `ref ${w.txnId}` : '—'}</Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+      {/* Status picker — tap any status chip to change it */}
+      <Modal visible={!!statusFor} transparent animationType="fade" onRequestClose={() => setStatusFor(null)}>
+        <TouchableOpacity style={s.promptOverlay} activeOpacity={1} onPress={() => setStatusFor(null)}>
+          <View style={s.promptCard}>
+            <Text style={s.promptTitle}>Set status</Text>
+            {(['pending', 'processing', 'completed', 'rejected'] as const).map((st) => {
+              const isCur = statusFor?.status === st;
+              const locked = statusFor?.status === 'completed' && st !== 'completed';
+              const c = WD_STATUS_COLORS[st] || { tint: '#64748b', bg: '#f1f5f9' };
+              return (
+                <TouchableOpacity
+                  key={st}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9', opacity: (isCur || locked) ? 0.45 : 1 }}
+                  disabled={isCur || locked}
+                  onPress={() => applyStatus(statusFor, st)}
+                >
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c.tint }} />
+                  <Text style={{ fontSize: 15, color: Colors.text, fontWeight: isCur ? '800' : '600' }}>
+                    {st.charAt(0).toUpperCase() + st.slice(1)}{isCur ? ' · current' : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            {statusFor?.status === 'completed' && (
+              <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 10 }}>
+                Completed is final — reverse it with Credit Coins in User Wallet.
+              </Text>
+            )}
+            <TouchableOpacity style={{ marginTop: 10, alignSelf: 'flex-end' }} onPress={() => setStatusFor(null)}>
+              <Text style={{ color: Colors.primary, fontWeight: '700', fontSize: 14, padding: 6 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+      {nativePrompt.modal}
+    </ScrollView>
   );
 }
 
