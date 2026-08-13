@@ -29,6 +29,7 @@ export function StoreFormModal({ visible, onClose, store }: {
     description: s?.description || '',
     phone: s?.phone || '',
     address: s?.address || '',
+    mapsUrl: s?.mapsUrl || '',
     area: s?.area || '',
     city: s?.city || 'Bengaluru',
     openTime: s?.openTime || '10:00',
@@ -86,6 +87,7 @@ export function StoreFormModal({ visible, onClose, store }: {
       description: form.description,
       phone: form.phone,
       address: form.address,
+      mapsUrl: form.mapsUrl,
       area: form.area,
       city: form.city,
       openTime: form.openTime,
@@ -213,6 +215,23 @@ export function StoreFormModal({ visible, onClose, store }: {
               value={form.address}
               onChangeText={(v) => setForm({ ...form, address: v })}
             />
+            <Text style={styles.fieldLabel}>Google Maps link</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Paste from Google Maps → Share → Copy link"
+              placeholderTextColor="#94a3b8"
+              value={form.mapsUrl}
+              onChangeText={(v) => setForm({ ...form, mapsUrl: v })}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.note}>
+              Open the store in Google Maps, tap Share → Copy link, paste it here — the map pin is
+              set automatically from the link.
+              {isEdit && store?.lat != null && store?.lng != null
+                ? `  ✓ Pin set: ${Number(store.lat).toFixed(5)}, ${Number(store.lng).toFixed(5)}`
+                : ''}
+            </Text>
             <View style={styles.fieldRow}>
               <View style={styles.fieldHalf}>
                 <Text style={styles.fieldLabel}>Area</Text>

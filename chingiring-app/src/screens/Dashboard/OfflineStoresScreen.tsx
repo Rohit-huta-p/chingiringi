@@ -302,7 +302,7 @@ export const OfflineStoresScreen: React.FC = () => {
         {showMap && (
           <View style={[styles.mapCol, isNarrow && { flex: 1, minHeight: 0, marginBottom: 96 }]}>
             <View style={styles.mapInner}>
-              <StoreMap userLocation={coords} />
+              <StoreMap userLocation={coords} stores={filtered} />
 
               {/* Top-left Stores Nearby badge */}
               <View style={styles.nearbyBadge} pointerEvents="none">
