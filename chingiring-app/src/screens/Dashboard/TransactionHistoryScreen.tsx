@@ -4,6 +4,7 @@ import { Colors } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { walletAPI, Transaction } from '../../api/wallet';
+import { TransactionRow } from '../../components/TransactionRow';
 
 const TRANSACTION_TYPES = ['All', 'Shares', 'Withdrawals'];
 const TIME_PERIODS = ['All Time', 'Last 7 Days', 'Last 30 Days', 'Last 90 Days'];
@@ -189,58 +190,9 @@ export const TransactionHistoryScreen = () => {
             <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 4 }}>No transactions yet</Text>
             <Text style={{ fontSize: 13, color: Colors.textSecondary }}>Your transaction history will appear here</Text>
           </View>
-        ) : visibleTx.map((tx) => {
-          const isIncome = ['cashback', 'referral', 'bonus', 'coin_credit'].includes(tx.type);
-          const isCoin = tx.type === 'coin_credit' || tx.type === 'coin_debit';
-          const brandName = tx.metadata?.brand || tx.description || tx.type;
-          const categoryLabel = tx.type.charAt(0).toUpperCase() + tx.type.slice(1).replace('_', ' ');
-          return (
-            <View key={tx._id} style={styles.transactionItem}>
-              <View style={styles.txRow}>
-                <View style={[
-                  styles.txIconContainer,
-                  { backgroundColor: isIncome ? '#ecfdf5' : '#fef2f2' },
-                ]}>
-                  <Text style={[
-                    styles.txIcon,
-                    { color: isIncome ? Colors.success : Colors.danger },
-                  ]}>
-                    {isIncome ? '\u2193' : '\u2191'}
-                  </Text>
-                </View>
-                <View style={styles.txInfo}>
-                  <Text style={styles.txBrand}>{brandName}</Text>
-                  <Text style={styles.txMeta}>
-                    {categoryLabel} {' \u00B7 '} {'\u{1F552}'} {formatTimeAgo(tx.createdAt)}
-                  </Text>
-                  <Text style={styles.txPurchase}>{tx.description}</Text>
-                </View>
-                <View style={styles.txRight}>
-                  <Text style={[
-                    styles.txAmount,
-                    { color: isIncome ? Colors.success : Colors.danger },
-                  ]}>
-                    {isIncome ? '+' : '-'}{isCoin ? tx.amount + ' coins' : '\u20B9' + tx.amount}
-                  </Text>
-                  <Text style={styles.txDate}>{formatDate(tx.createdAt)}</Text>
-                  <View style={[
-                    styles.statusBadge,
-                    tx.status === 'confirmed' || tx.status === 'completed' ? styles.statusConfirmed : styles.statusPending,
-                  ]}>
-                    <Text style={[
-                      styles.statusText,
-                      tx.status === 'confirmed' || tx.status === 'completed' ? styles.statusTextConfirmed : styles.statusTextPending,
-                    ]}>
-                      {tx.type === 'withdrawal' && tx.status === 'pending'
-                        ? 'Under review'
-                        : tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          );
-        })}
+        ) : visibleTx.map((tx) => (
+          <TransactionRow key={tx._id} tx={tx} />
+        ))}
         {visibleCount < transactions.length && (
           <TouchableOpacity
             style={styles.loadMoreBtn}
