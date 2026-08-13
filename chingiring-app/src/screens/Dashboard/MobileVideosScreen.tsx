@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable,
-  useWindowDimensions, Share, Platform, ViewToken,
+  useWindowDimensions, Share, Platform, ViewToken, RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ export const MobileVideosScreen = () => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(true);
   const [paused, setPaused] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // Optimistic like overrides keyed by video id. When a clip has no override we fall back to
   // the server's `likedByMe` (from the optional-auth feed), so a refresh keeps the heart red
   // for likes you already made.
@@ -71,6 +72,22 @@ export const MobileVideosScreen = () => {
     const clamped = Math.max(0, Math.min(index, dataRef.current.length - 1));
     listRef.current?.scrollToIndex({ index: clamped, animated: true });
   }, []);
+
+  // Pull-to-refresh (drag down on the first clip) → refetch the feed.
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refetch(); } finally { setRefreshing(false); }
+  }, [refetch]);
+
+  // Re-tapping the Videos tab while it's already focused → jump to the top + refresh.
+  useEffect(() => {
+    const unsub = navigation.addListener('tabPress', () => {
+      if (!navigation.isFocused()) return;
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      onRefresh();
+    });
+    return unsub;
+  }, [navigation, onRefresh]);
 
   // A newly-active clip always starts playing — clear any tap-pause from the previous one.
   useEffect(() => { setPaused(false); }, [activeIndex]);
@@ -169,6 +186,9 @@ export const MobileVideosScreen = () => {
           if (h > 0 && h !== listH) setListH(h);
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" colors={['#fff']} progressBackgroundColor="#111" />
+        }
         // Instagram/TikTok paging: one swipe → smooth slide that snaps to exactly one video.
         // pagingEnabled snaps to the scroll frame (= itemH, the measured viewport) on native,
         // and RNW maps it to CSS scroll-snap (y mandatory) on web — where snapToInterval is a
