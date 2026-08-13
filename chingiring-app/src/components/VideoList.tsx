@@ -4,13 +4,29 @@ import { Trash2, Pencil, Check, X, Play, Eye, Heart, Inbox } from 'lucide-react-
 import { Fonts } from '../constants/theme';
 import { FeedVideo } from '../api/videos';
 
-// status → badge colours (matches the admin product-status pill vocabulary).
-const STATUS: Record<string, { label: string; bg: string; fg: string }> = {
-  processing: { label: 'Processing', bg: '#fef3c7', fg: '#b45309' },
+type Pill = { label: string; bg: string; fg: string };
+
+// Encoding status pills (blue "Processing" reads distinct from amber "Under review").
+const STATUS: Record<string, Pill> = {
+  processing: { label: 'Processing', bg: '#dbeafe', fg: '#1d4ed8' },
   ready:      { label: 'Live',       bg: '#dcfce7', fg: '#16a34a' },
   error:      { label: 'Error',      bg: '#fee2e2', fg: '#dc2626' },
   flagged:    { label: 'Flagged',    bg: '#ffedd5', fg: '#c2410c' },
   removed:    { label: 'Removed',    bg: '#f1f5f9', fg: '#94a3b8' },
+};
+const REVIEW: Pill = { label: 'Under review', bg: '#fef3c7', fg: '#b45309' };
+const REJECTED: Pill = { label: 'Rejected', bg: '#fee2e2', fg: '#dc2626' };
+
+// Encoding and moderation are independent, so show up to two pills. A user clip
+// mid-encode + awaiting review shows BOTH "Processing" and "Under review".
+const badgesFor = (v: FeedVideo): Pill[] => {
+  const mod = v.moderation?.state;
+  const out: Pill[] = [];
+  if (v.status === 'processing' || v.status === 'error' || v.status === 'flagged') out.push(STATUS[v.status]);
+  if (mod === 'pending') out.push(REVIEW);
+  else if (mod === 'rejected') out.push(REJECTED);
+  else if (v.status === 'ready') out.push(STATUS.ready); // Live (approved / legacy)
+  return out.length ? out : [STATUS[v.status] ?? STATUS.processing];
 };
 
 export interface VideoListProps {
@@ -51,9 +67,7 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, 
     <View style={s.grid}>
       {videos.map((v) => {
         const modState = v.moderation?.state;
-        const st = modState === 'pending' ? { label: 'Under review', bg: '#fef3c7', fg: '#b45309' }
-          : modState === 'rejected' ? { label: 'Rejected', bg: '#fee2e2', fg: '#dc2626' }
-          : (STATUS[v.status] ?? STATUS.processing);
+        const badges = badgesFor(v);
         const nProducts = v.taggedProducts?.length ?? 0;
         return (
           <View key={v._id} style={[s.card, { width: colW }]}>
@@ -64,8 +78,12 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, 
                 ) : (
                   <View style={[s.thumb, s.thumbPlaceholder]}><Play size={26} color="#64748b" /></View>
                 )}
-                <View style={[s.badge, { backgroundColor: st.bg }]}>
-                  <Text style={[s.badgeTxt, { color: st.fg }]}>{st.label}</Text>
+                <View style={s.badgeRow}>
+                  {badges.map((b, i) => (
+                    <View key={i} style={[s.badge, { backgroundColor: b.bg }]}>
+                      <Text style={[s.badgeTxt, { color: b.fg }]}>{b.label}</Text>
+                    </View>
+                  ))}
                 </View>
               </View>
             </TouchableOpacity>
@@ -130,7 +148,8 @@ const s = StyleSheet.create({
   thumbWrap: { width: '100%', aspectRatio: 3 / 4, backgroundColor: '#1e293b', position: 'relative' },
   thumb: { width: '100%', height: '100%' },
   thumbPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#334155' },
-  badge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  badgeRow: { position: 'absolute', top: 8, left: 8, right: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeTxt: { fontSize: 10, fontFamily: Fonts.bold },
 
   info: { padding: 10 },
