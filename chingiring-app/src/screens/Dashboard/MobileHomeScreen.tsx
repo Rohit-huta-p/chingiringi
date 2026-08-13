@@ -302,27 +302,20 @@ export const MobileHomeScreen = () => {
 
       {/* ── Listing: only matching products ──────────────────────────── */}
       {isListing ? (
-        <>
-          {/* Placed banners stay visible while browsing a category or filtering
-              — stacked above the results (they used to vanish on any chip). */}
-          {flushFirst(banners.map((b) => (
-            <View key={`banner-${b._id}`} style={st.bannerWrap}>
-              <BannerBlock banner={b} navigation={navigation} isMobile />
-            </View>
-          )))}
-          {listingProducts.length === 0 ? (
-            <View style={st.empty}>
-              <Text style={st.emptyTitle}>No products found</Text>
-              <Text style={st.emptySub}>Try a different category, search, or filter</Text>
-            </View>
-          ) : (
-            <View style={st.grid}>
-              {listingProducts.map((p) => (
-                <ProductCard key={p._id} product={p} width={GRID_CARD_W} onPress={() => handleProductPress(p)} />
-              ))}
-            </View>
-          )}
-        </>
+        // A filter collapses the home to just the matching products. Banners are
+        // category-anchored, so they live in the curated view, not here.
+        listingProducts.length === 0 ? (
+          <View style={st.empty}>
+            <Text style={st.emptyTitle}>No products found</Text>
+            <Text style={st.emptySub}>Try a different category, search, or filter</Text>
+          </View>
+        ) : (
+          <View style={st.grid}>
+            {listingProducts.map((p) => (
+              <ProductCard key={p._id} product={p} width={GRID_CARD_W} onPress={() => handleProductPress(p)} />
+            ))}
+          </View>
+        )
       ) : (
         /* ── Unfiltered home: category rails with banners woven in by category ── */
         flushFirst(categoryRailBlocks())
