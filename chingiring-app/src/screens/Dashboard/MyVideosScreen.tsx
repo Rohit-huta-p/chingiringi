@@ -6,6 +6,7 @@ import { Plus, ChevronLeft, Info } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { VideoList } from '../../components/VideoList';
 import { VideoUploadModal } from '../../components/VideoUploadModal';
+import { VideoPlayerModal } from '../../components/VideoPlayerModal';
 import { Colors, Fonts } from '../../constants/theme';
 import { videosAPI, FeedVideo } from '../../api/videos';
 import { confirmAsync, notify } from '../../utils/dialog';
@@ -21,6 +22,7 @@ export const MyVideosScreen = () => {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FeedVideo | null>(null);
+  const [playing, setPlaying] = useState<FeedVideo | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['myVideos'],
@@ -46,6 +48,16 @@ export const MyVideosScreen = () => {
   const onEdit = (v: FeedVideo) => { setEditing(v); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditing(null); };
 
+  // Tap a card → play it if it's live; otherwise explain why it can't play yet.
+  const onPlay = (v: FeedVideo) => {
+    if (v.status === 'ready' && v.hlsUrl) { setPlaying(v); return; }
+    const msg = v.moderation?.state === 'rejected' ? 'This clip was rejected, so it won’t play.'
+      : v.moderation?.state === 'pending' ? 'This clip is under review — it’ll play once approved.'
+      : v.status === 'processing' ? 'Still encoding — check back in a moment.'
+      : 'This clip isn’t ready to play yet.';
+    notify('Not ready', msg);
+  };
+
   const pending = videos.filter((v) => v.moderation?.state === 'pending').length;
 
   return (
@@ -68,11 +80,12 @@ export const MyVideosScreen = () => {
         {isLoading ? (
           <View style={s.loading}><ActivityIndicator size="large" color={Colors.primary} /></View>
         ) : (
-          <VideoList videos={videos} onEdit={onEdit} onDelete={onDelete} emptyHint='Tap “Post” to share your first clip.' />
+          <VideoList videos={videos} onPress={onPlay} onEdit={onEdit} onDelete={onDelete} emptyHint='Tap “Post” to share your first clip.' />
         )}
       </ScrollView>
 
       <VideoUploadModal visible={showForm} onClose={closeForm} onUploaded={invalidate} editing={editing} />
+      <VideoPlayerModal video={playing} onClose={() => setPlaying(null)} />
     </SafeAreaView>
   );
 };
