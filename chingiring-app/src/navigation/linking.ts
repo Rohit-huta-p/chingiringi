@@ -102,6 +102,7 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       Profile:            'profile',
       EditProfile:        'profile/edit',
       MyVideos:           'my-videos',
+      Video:              'video/:videoId', // shareable single clip — resolves on mobile + desktop
       MyAddress:          'addresses',
       AddEditAddress:     'addresses/edit',
       TransactionHistory: 'transactions',

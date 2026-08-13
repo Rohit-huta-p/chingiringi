@@ -15,6 +15,7 @@ import { AddEditAddressScreen } from '../screens/Dashboard/AddEditAddressScreen'
 import { TransactionHistoryScreen } from '../screens/Dashboard/TransactionHistoryScreen';
 import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
 import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
+import { VideoScreen } from '../screens/Dashboard/VideoScreen';
 import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
@@ -67,6 +68,7 @@ export default function DesktopDrawerNavigator() {
       <Drawer.Screen name="MyVideos" component={MyVideosScreen} />
       <Drawer.Screen name="ProductDetail" component={ProductDetailScreen} />
       <Drawer.Screen name="StoreDetail" component={StoreDetailScreen} />
+      <Drawer.Screen name="Video" component={VideoScreen} />
       <Drawer.Screen name="CategoryProducts" component={CategoryProductsScreen} />
     </Drawer.Navigator>
   );

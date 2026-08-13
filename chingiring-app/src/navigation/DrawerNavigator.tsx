@@ -30,6 +30,7 @@ import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen'
 import { MobileReferenceScreen } from '../screens/Dashboard/MobileReferenceScreen';
 import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
 import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
+import { VideoScreen } from '../screens/Dashboard/VideoScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 import { StoreDetailScreen } from '../screens/Dashboard/StoreDetailScreen';
 import { AboutScreen } from '../screens/Dashboard/AboutScreen';
@@ -348,6 +349,7 @@ function MobileNavigator() {
         <Stack.Screen name="MyVideos" component={MyVideosScreen} />
         <Stack.Screen name="ProductDetail" component={isMobile ? MobileProductDetailScreen : ProductDetailScreen} />
         <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
+        <Stack.Screen name="Video" component={VideoScreen} />
         <Stack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
         <Stack.Screen name="Settings" component={isMobile ? MobileSettingsScreen : SettingsScreen} />
         <Stack.Screen name="About" component={isMobile ? MobileAboutScreen : AboutScreen} />
