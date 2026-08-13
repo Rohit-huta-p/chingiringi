@@ -23,7 +23,7 @@ import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
-import { BannerBlock, interleaveBanners } from '../../components/BannerBlock';
+import { BannerBlock } from '../../components/BannerBlock';
 import { tint } from '../../utils/color';
 import {
   applyProductControls,
@@ -66,8 +66,8 @@ function flushFirst(nodes: React.ReactNode[]): React.ReactNode[] {
 }
 
 // Banners render through the shared <BannerBlock> (hero | dual), placed by
-// rowIndex via interleaveBanners(). The old local PromoBanner + banners[0] /
-// every-2-rows placement was removed in the slot→position redesign.
+// afterCategory (woven into categoryRailBlocks). The old local PromoBanner +
+// banners[0] / every-2-rows placement was removed in the slot→position redesign.
 
 // ─── Main screen ────────────────────────────────────────────────────────────
 
@@ -188,11 +188,28 @@ export const MobileHomeScreen = () => {
     </View>
   );
 
-  // Curated home = an "All Products" rail first (so uncategorised products
-  // still surface — mirrors desktop's All Products section), then one rail per
-  // category. Placed banners are interleaved by rowIndex (see interleaveBanners).
+  // Curated home = an "All Products" rail first, then one rail per category,
+  // with banners woven in by category: each banner renders right after the
+  // category the admin picked (afterCategory). Empty = top of the page; a
+  // banner whose category isn't shown falls to the bottom.
   const categoryRailBlocks = (): React.ReactNode[] => {
+    const norm = (v?: string) => (v ?? '').trim().toLowerCase();
+    const renderMobileBanner = (b: Banner) => (
+      <View key={`banner-${b._id}`} style={st.bannerWrap}>
+        <BannerBlock banner={b} navigation={navigation} isMobile />
+      </View>
+    );
+    const shownCats = new Set(
+      categoryNames.filter((cat) => allProducts.some((p) => norm(p.category) === norm(cat))).map(norm),
+    );
+    const topBanners = banners.filter((b) => !norm(b.afterCategory));
+    const orphanBanners = banners.filter(
+      (b) => norm(b.afterCategory) && !shownCats.has(norm(b.afterCategory)),
+    );
+    const bannersAfter = (cat: string) => banners.filter((b) => norm(b.afterCategory) === norm(cat));
+
     const blocks: React.ReactNode[] = [];
+    topBanners.forEach((b) => blocks.push(renderMobileBanner(b)));
     if (allProducts.length) {
       blocks.push(renderRail('all-products', 'All Products', allProducts, 'All'));
     }
@@ -202,7 +219,9 @@ export const MobileHomeScreen = () => {
       );
       if (catProducts.length === 0) return;
       blocks.push(renderRail(`cat-${cat}`, cat, catProducts, cat));
+      bannersAfter(cat).forEach((b) => blocks.push(renderMobileBanner(b)));
     });
+    orphanBanners.forEach((b) => blocks.push(renderMobileBanner(b)));
     return blocks;
   };
 
@@ -286,7 +305,7 @@ export const MobileHomeScreen = () => {
         <>
           {/* Placed banners stay visible while browsing a category or filtering
               — stacked above the results (they used to vanish on any chip). */}
-          {flushFirst(interleaveBanners([], banners, (b) => (
+          {flushFirst(banners.map((b) => (
             <View key={`banner-${b._id}`} style={st.bannerWrap}>
               <BannerBlock banner={b} navigation={navigation} isMobile />
             </View>
@@ -305,12 +324,8 @@ export const MobileHomeScreen = () => {
           )}
         </>
       ) : (
-        /* ── Unfiltered home: category rails with placed banners interleaved ── */
-        flushFirst(interleaveBanners(categoryRailBlocks(), banners, (b) => (
-          <View key={`banner-${b._id}`} style={st.bannerWrap}>
-            <BannerBlock banner={b} navigation={navigation} isMobile />
-          </View>
-        )))
+        /* ── Unfiltered home: category rails with banners woven in by category ── */
+        flushFirst(categoryRailBlocks())
       )}
 
       <View style={{ height: 110 }} />

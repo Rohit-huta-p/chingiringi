@@ -102,6 +102,12 @@ const bannerSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Simple category-anchored placement: the banner renders right after this
+    // category's row on the home page. Empty = top of the page.
+    afterCategory: {
+      type: String,
+      default: '',
+    },
 
     // Visual customisation
     gradientColors: {

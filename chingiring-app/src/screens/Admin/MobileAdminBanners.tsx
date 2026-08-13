@@ -66,9 +66,9 @@ import {
 import { Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
-import { BannerPositionModal } from '../../components/BannerPositionModal';
 import { ImageUploader } from '../../components/ImageUploader';
 import { BannerPreview } from '../../components/BannerPreview';
+import { categoriesAPI, Category } from '../../api/deals';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -220,6 +220,7 @@ interface BannerFormState {
   slot: BannerSlot;
   type: BannerType;
   rowIndex: number;
+  afterCategory: string;
   right: BannerSide;
   gradientColors: string; // comma-separated hex, edited as text
   textColor: string;
@@ -242,6 +243,7 @@ const EMPTY_FORM: BannerFormState = {
   slot: 'hero',
   type: 'hero',
   rowIndex: 0,
+  afterCategory: '',
   right: {},
   gradientColors: '',
   textColor: '',
@@ -258,20 +260,18 @@ function BannerModal({
   onSubmit,
   submitting,
   initialData,
-  allBanners,
+  categories,
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: BannerDraft, otherMoves: { id: string; rowIndex: number }[]) => void;
+  onSubmit: (data: BannerDraft) => void;
   submitting: boolean;
   initialData?: Banner | null;
-  allBanners: Banner[];
+  categories: string[];
 }) {
   const isEdit = !!initialData;
   const [form, setForm] = useState<BannerFormState>(EMPTY_FORM);
   const [errMsg, setErrMsg] = useState('');
-  const [showPosition, setShowPosition] = useState(false);
-  const [pendingMoves, setPendingMoves] = useState<{ id: string; rowIndex: number }[]>([]);
 
   useEffect(() => {
     if (!visible) return;
@@ -288,6 +288,7 @@ function BannerModal({
         slot: initialData.slot ?? 'hero',
         type: initialData.type ?? 'hero',
         rowIndex: initialData.rowIndex ?? 0,
+        afterCategory: initialData.afterCategory ?? '',
         right: initialData.right ?? {},
         gradientColors: (initialData.gradientColors ?? []).join(', '),
         textColor: initialData.textColor ?? '',
@@ -301,7 +302,6 @@ function BannerModal({
       setForm(EMPTY_FORM);
     }
     setErrMsg('');
-    setPendingMoves([]);
   }, [visible, initialData]);
 
   const update = <K extends keyof BannerFormState>(k: K, v: BannerFormState[K]) =>
@@ -356,6 +356,7 @@ function BannerModal({
       slot: form.slot,
       type: form.type,
       rowIndex: form.rowIndex,
+      afterCategory: form.afterCategory,
       right: {
         imageUrl: (form.right.imageUrl ?? '').trim(),
         mobileImageUrl: (form.right.mobileImageUrl ?? '').trim(),
@@ -372,7 +373,7 @@ function BannerModal({
       startsAt: form.startsAt || undefined,
       expiresAt: form.expiresAt || undefined,
       isActive: form.isActive,
-    }, pendingMoves);
+    });
   };
 
   const handleClose = () => {
@@ -420,19 +421,27 @@ function BannerModal({
 
             {/* Live preview + placement */}
             <BannerPreview banner={previewBanner} />
-            <TouchableOpacity
-              style={[m.positionBtn, { marginTop: 12 }]}
-              onPress={() => setShowPosition(true)}
-              activeOpacity={0.85}
-            >
-              <View style={m.positionBtnMain}>
+            <View style={m.placeCard}>
+              <View style={m.placeHead}>
                 <MapPin size={15} color="#3b82f6" strokeWidth={2.2} />
-                <Text style={m.positionBtnText}>Preview & position on home</Text>
+                <Text style={m.placeTitle}>Show banner after</Text>
               </View>
-              <View style={m.positionBtnBadge}>
-                <Text style={m.positionBtnBadgeTxt}>Row {form.rowIndex}</Text>
+              <View style={m.placeChips}>
+                {[{ key: '', label: 'Top of page' }, ...categories.map((c) => ({ key: c, label: c }))].map((opt) => {
+                  const on = (form.afterCategory ?? '') === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key || '__top__'}
+                      style={[m.placeChip, on && m.placeChipOn]}
+                      onPress={() => update('afterCategory', opt.key)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[m.placeChipTxt, on && m.placeChipTxtOn]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            </TouchableOpacity>
+            </View>
 
             {/* Type */}
             <MSectionHead icon={Layers} title="Banner type" />
@@ -812,25 +821,6 @@ function BannerModal({
               </TouchableOpacity>
             </View>
           </ScrollView>
-
-          <BannerPositionModal
-            visible={showPosition}
-            banners={allBanners}
-            currentId={initialData?._id}
-            value={form.rowIndex}
-            current={{
-              type: form.type,
-              title: form.title,
-              imageUrl: form.imageUrl,
-              mobileImageUrl: form.mobileImageUrl,
-              right: form.right,
-            }}
-            onArrange={(cur, moves) => {
-              update('rowIndex', cur);
-              setPendingMoves(moves);
-            }}
-            onClose={() => setShowPosition(false)}
-          />
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -856,6 +846,18 @@ export const MobileAdminBanners = () => {
   const rawBanners: Banner[] =
     res?.data?.banners ?? res?.banners ?? res?.data ?? [];
   const banners: Banner[] = withDerivedSlot(rawBanners);
+
+  // Category names for the banner's "Show after" placement picker.
+  const { data: categoriesRes } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoriesAPI.getCategories(),
+    staleTime: 5 * 60_000,
+  });
+  const categoryNames: string[] = (
+    (categoriesRes as any)?.data?.categories ?? (categoriesRes as any)?.categories ?? []
+  )
+    .filter((c: Category) => c.isActive !== false)
+    .map((c: Category) => c.name);
 
   const openCreate = () => {
     setEditingBanner(null);
@@ -904,23 +906,7 @@ export const MobileAdminBanners = () => {
     onError: (err: any) => Alert.alert('Error', err.message || 'Failed to update banner.'),
   });
 
-  const handleSubmit = async (
-    data: BannerDraft,
-    otherMoves: { id: string; rowIndex: number }[],
-  ) => {
-    // Persist any OTHER banners the position board rearranged (rowIndex only),
-    // then save the current banner. Only writes banners whose row actually moved.
-    const changed = otherMoves.filter((m) => {
-      const orig = banners.find((b) => b._id === m.id);
-      return orig && (orig.rowIndex ?? 0) !== m.rowIndex;
-    });
-    if (changed.length) {
-      try {
-        await Promise.all(changed.map((m) => adminAPI.updateBanner(m.id, { rowIndex: m.rowIndex })));
-      } catch {
-        // Non-fatal: the current banner still saves; reorder can be retried.
-      }
-    }
+  const handleSubmit = (data: BannerDraft) => {
     if (editingBanner) {
       updateMutation.mutate({ id: editingBanner._id, data });
     } else {
@@ -1105,7 +1091,7 @@ export const MobileAdminBanners = () => {
         onSubmit={handleSubmit}
         submitting={createMutation.isPending || updateMutation.isPending}
         initialData={editingBanner}
-        allBanners={banners}
+        categories={categoryNames}
       />
     </SafeAreaView>
   );
@@ -1408,22 +1394,29 @@ const m = StyleSheet.create({
   labelHint: { fontFamily: Fonts.regular, color: '#94a3b8' },
   req: { color: '#ef4444' },
   hint: { fontSize: 10, fontFamily: Fonts.regular, color: '#94a3b8', marginTop: 4 },
-  positionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  // "Show after" placement picker
+  placeCard: {
     marginTop: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#3b82f6',
-    backgroundColor: '#eff6ff',
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
   },
-  positionBtnMain: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  positionBtnText: { fontSize: 13, fontFamily: Fonts.semiBold, color: '#3b82f6' },
-  positionBtnBadge: { backgroundColor: '#dbeafe', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
-  positionBtnBadgeTxt: { fontSize: 12, fontFamily: Fonts.bold, color: '#2563eb' },
+  placeHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  placeTitle: { fontSize: 13, fontFamily: Fonts.bold, color: '#0f172a' },
+  placeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  placeChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+  },
+  placeChipOn: { borderColor: '#3b82f6', backgroundColor: '#eff6ff' },
+  placeChipTxt: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: '#64748b' },
+  placeChipTxtOn: { color: '#2563eb', fontFamily: Fonts.bold },
 
   // Section header (icon chip + title + hairline)
   sectionRow: {

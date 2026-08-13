@@ -16,8 +16,8 @@ import {
   BANNER_SLOTS, SLOT_INFO, SLOT_GRADIENTS, withDerivedSlot,
 } from '../../api/banners';
 import { ImageUploader } from '../../components/ImageUploader';
-import { BannerPositionModal } from '../../components/BannerPositionModal';
 import { BannerPreview } from '../../components/BannerPreview';
+import { categoriesAPI, Category } from '../../api/deals';
 
 // Small section wrapper: an icon chip + title with a divider, fields below.
 function FormSection({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
@@ -175,26 +175,25 @@ const EMPTY_DRAFT: BannerDraft = {
   slot: 'hero',
   type: 'hero',
   rowIndex: 0,
+  afterCategory: '',
   right: {},
   isActive: true,
   sortOrder: 1,
 };
 
 function BannerFormModal({
-  visible, banner, allBanners, onClose, onSave,
+  visible, banner, categories, onClose, onSave,
 }: {
   visible: boolean;
   banner: Banner | null;
-  allBanners: Banner[];
+  categories: string[];
   onClose: () => void;
-  onSave: (draft: BannerDraft, otherMoves: { id: string; rowIndex: number }[]) => void;
+  onSave: (draft: BannerDraft) => void;
 }) {
   const isEdit = !!banner;
   const { width } = useWindowDimensions();
   const twoCol = width >= 880; // side-by-side form + live preview on desktop
   const [draft, setDraft] = useState<BannerDraft>(EMPTY_DRAFT);
-  const [showPosition, setShowPosition] = useState(false);
-  const [pendingMoves, setPendingMoves] = useState<{ id: string; rowIndex: number }[]>([]);
 
   // Reset form on each open
   React.useEffect(() => {
@@ -211,6 +210,7 @@ function BannerFormModal({
         slot: banner.slot ?? 'hero',
         type: banner.type ?? 'hero',
         rowIndex: banner.rowIndex ?? 0,
+        afterCategory: banner.afterCategory ?? '',
         right: banner.right ?? {},
         gradientColors: banner.gradientColors,
         textColor: banner.textColor,
@@ -220,7 +220,6 @@ function BannerFormModal({
         startsAt: banner.startsAt,
         expiresAt: banner.expiresAt,
       } : EMPTY_DRAFT);
-      setPendingMoves([]);
     }
   }, [visible, banner]);
 
@@ -229,8 +228,34 @@ function BannerFormModal({
       Alert.alert('Validation', 'Title is required');
       return;
     }
-    onSave(draft, pendingMoves);
+    onSave(draft);
   };
+
+  // "Show after" picker — Top of page + one chip per category, bound to
+  // draft.afterCategory. Replaces the old drag-to-position modal.
+  const placementPicker = (
+    <View style={styles.placeCard}>
+      <View style={styles.placeHead}>
+        <MapPin size={15} color={Colors.primary} strokeWidth={2.2} />
+        <Text style={styles.placeTitle}>Show banner after</Text>
+      </View>
+      <View style={styles.placeChips}>
+        {[{ key: '', label: 'Top of page' }, ...categories.map((c) => ({ key: c, label: c }))].map((opt) => {
+          const on = (draft.afterCategory ?? '') === opt.key;
+          return (
+            <TouchableOpacity
+              key={opt.key || '__top__'}
+              style={[styles.placeChip, on && styles.placeChipOn]}
+              onPress={() => setDraft({ ...draft, afterCategory: opt.key })}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.placeChipTxt, on && styles.placeChipTxtOn]}>{opt.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -259,15 +284,7 @@ function BannerFormModal({
             {twoCol ? (
               <View style={styles.previewPane}>
                 <BannerPreview banner={draft} />
-                <TouchableOpacity style={styles.positionBtn} onPress={() => setShowPosition(true)} activeOpacity={0.85}>
-                  <View style={styles.positionBtnMain}>
-                    <MapPin size={15} color={Colors.primary} strokeWidth={2.2} />
-                    <Text style={styles.positionBtnText}>Preview &amp; position on home</Text>
-                  </View>
-                  <View style={styles.positionBtnBadge}>
-                    <Text style={styles.positionBtnBadgeTxt}>Row {draft.rowIndex ?? 0}</Text>
-                  </View>
-                </TouchableOpacity>
+                {placementPicker}
               </View>
             ) : null}
 
@@ -275,15 +292,7 @@ function BannerFormModal({
               {!twoCol ? (
                 <View>
                   <BannerPreview banner={draft} />
-                  <TouchableOpacity style={[styles.positionBtn, { marginTop: 12 }]} onPress={() => setShowPosition(true)} activeOpacity={0.85}>
-                    <View style={styles.positionBtnMain}>
-                      <MapPin size={15} color={Colors.primary} strokeWidth={2.2} />
-                      <Text style={styles.positionBtnText}>Preview &amp; position on home</Text>
-                    </View>
-                    <View style={styles.positionBtnBadge}>
-                      <Text style={styles.positionBtnBadgeTxt}>Row {draft.rowIndex ?? 0}</Text>
-                    </View>
-                  </TouchableOpacity>
+                  <View style={{ marginTop: 12 }}>{placementPicker}</View>
                 </View>
               ) : null}
 
@@ -517,25 +526,6 @@ function BannerFormModal({
               </LinearGradient>
             </TouchableOpacity>
           </View>
-
-          <BannerPositionModal
-            visible={showPosition}
-            banners={allBanners}
-            currentId={banner?._id}
-            value={draft.rowIndex ?? 0}
-            current={{
-              type: draft.type,
-              title: draft.title,
-              imageUrl: draft.imageUrl,
-              mobileImageUrl: draft.mobileImageUrl,
-              right: draft.right,
-            }}
-            onArrange={(cur, moves) => {
-              setDraft((d) => ({ ...d, rowIndex: cur }));
-              setPendingMoves(moves);
-            }}
-            onClose={() => setShowPosition(false)}
-          />
         </View>
       </View>
     </Modal>
@@ -570,6 +560,18 @@ export function AdminBannersScreen() {
     const list = Array.isArray(raw) && raw.length > 0 ? raw : [];
     return withDerivedSlot(list);
   }, [data]);
+
+  // Category names for the banner's "Show after" placement picker.
+  const { data: categoriesRes } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoriesAPI.getCategories(),
+    staleTime: 5 * 60_000,
+  });
+  const categoryNames: string[] = useMemo(() => {
+    const cats: Category[] =
+      (categoriesRes as any)?.data?.categories ?? (categoriesRes as any)?.categories ?? [];
+    return cats.filter((c) => c.isActive !== false).map((c) => c.name);
+  }, [categoriesRes]);
 
   // Every banner mutation must invalidate BOTH the admin-only list AND the
   // user-facing key, otherwise mobile/desktop home pages stay stale after an
@@ -609,20 +611,7 @@ export function AdminBannersScreen() {
       Alert.alert('Could not update banner', e?.response?.data?.message || e?.message || 'Please try again.'),
   });
 
-  const handleSave = async (draft: BannerDraft, otherMoves: { id: string; rowIndex: number }[]) => {
-    // Persist any OTHER banners the position board rearranged (rowIndex only),
-    // then save the current banner. Only writes banners whose row actually moved.
-    const changed = otherMoves.filter((m) => {
-      const orig = banners.find((b) => b._id === m.id);
-      return orig && (orig.rowIndex ?? 0) !== m.rowIndex;
-    });
-    if (changed.length) {
-      try {
-        await Promise.all(changed.map((m) => adminAPI.updateBanner(m.id, { rowIndex: m.rowIndex })));
-      } catch {
-        // Non-fatal: the current banner still saves; reorder can be retried.
-      }
-    }
+  const handleSave = (draft: BannerDraft) => {
     if (editBanner) updateMutation.mutate({ id: editBanner._id, draft });
     else createMutation.mutate(draft);
   };
@@ -693,7 +682,7 @@ export function AdminBannersScreen() {
       <BannerFormModal
         visible={showForm}
         banner={editBanner}
-        allBanners={banners}
+        categories={categoryNames}
         onClose={() => { setShowForm(false); setEditBanner(null); }}
         onSave={handleSave}
       />
@@ -911,22 +900,29 @@ const styles = StyleSheet.create({
   fieldHint: { fontSize: 11, color: Colors.textSecondary, marginTop: 6 },
   sideDivider: { marginTop: 18, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
   sideDividerText: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  positionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  // "Show after" placement picker
+  placeCard: {
     marginTop: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.primary,
-    backgroundColor: '#eff6ff',
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
   },
-  positionBtnMain: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  positionBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
-  positionBtnBadge: { backgroundColor: '#dbeafe', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  positionBtnBadgeTxt: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  placeHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  placeTitle: { fontSize: 13, fontWeight: '800', color: Colors.text },
+  placeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  placeChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+  },
+  placeChipOn: { borderColor: Colors.primary, backgroundColor: '#eff6ff' },
+  placeChipTxt: { fontSize: 12.5, fontWeight: '600', color: Colors.textSecondary },
+  placeChipTxtOn: { color: Colors.primary, fontWeight: '700' },
 
   // Section headers
   section: { marginTop: 18 },

@@ -24,7 +24,7 @@ import { useAuthStore } from '../../store';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { Banner as BannerModel, bannersAPI } from '../../api/banners';
-import { BannerBlock, interleaveBanners } from '../../components/BannerBlock';
+import { BannerBlock } from '../../components/BannerBlock';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
 import { tint } from '../../utils/color';
@@ -164,9 +164,9 @@ function ProductGrid({
 }
 
 // Banners now render through the shared <BannerBlock> (hero | dual), placed by
-// rowIndex via interleaveBanners(). The old per-slot banner components
-// (FallbackGradient / HeroBanner / PromoStrip / DualBanner / EarnCoinsBanner /
-// ReferBanner) were removed in the slot→position redesign.
+// afterCategory (woven into buildCuratedBlocks). The old per-slot banner
+// components (FallbackGradient / HeroBanner / PromoStrip / DualBanner /
+// EarnCoinsBanner / ReferBanner) were removed in the slot→position redesign.
 
 // ─── How to Explore Section ─────────────────────────────────────────────────
 
@@ -513,11 +513,25 @@ export const HomeScreen = () => {
     </View>
   );
 
-  // Curated home = product sections in a fixed order. Placed banners are
-  // interleaved by rowIndex (see interleaveBanners). Only built when no
-  // search/category/sort filter is active.
+  // Curated home = product sections in a fixed order, with banners woven in by
+  // category: each banner renders right after the category the admin picked
+  // (afterCategory). Empty afterCategory = top of the page; a banner whose
+  // category isn't shown (no products) falls to the bottom.
   const buildCuratedBlocks = (): React.ReactNode[] => {
-    const blocks: React.ReactNode[] = [
+    const norm = (v?: string) => (v ?? '').trim().toLowerCase();
+    const shownCats = new Set(
+      activeCategories.filter((c) => productsInCategory(c.name).length > 0).map((c) => norm(c.name)),
+    );
+    const topBanners = allBanners.filter((b) => !norm(b.afterCategory));
+    const orphanBanners = allBanners.filter(
+      (b) => norm(b.afterCategory) && !shownCats.has(norm(b.afterCategory)),
+    );
+    const bannersAfter = (catName: string) =>
+      allBanners.filter((b) => norm(b.afterCategory) === norm(catName));
+
+    const blocks: React.ReactNode[] = [];
+    topBanners.forEach((b) => blocks.push(renderBanner(b)));
+    blocks.push(
       <ProductGrid
         key="all-products"
         title="All Products"
@@ -530,7 +544,7 @@ export const HomeScreen = () => {
         hasFilter={false}
         products={listingProducts}
       />,
-    ];
+    );
     activeCategories.forEach((cat) => {
       const catProducts = productsInCategory(cat.name);
       if (catProducts.length === 0) return;
@@ -548,6 +562,7 @@ export const HomeScreen = () => {
           products={catProducts}
         />,
       );
+      bannersAfter(cat.name).forEach((b) => blocks.push(renderBanner(b)));
     });
     blocks.push(
       <ProductGrid
@@ -576,6 +591,7 @@ export const HomeScreen = () => {
         categories={activeCategories}
       />,
     );
+    orphanBanners.forEach((b) => blocks.push(renderBanner(b)));
     return blocks;
   };
 
@@ -611,7 +627,7 @@ export const HomeScreen = () => {
               {/* Placed banners stay visible while browsing a category or
                   filtering — stacked above the results. They used to vanish
                   the moment any chip / search / sort flipped isListing true. */}
-              {interleaveBanners([], allBanners, renderBanner)}
+              {allBanners.map(renderBanner)}
               <ProductGrid
                 title={categoryActive ? selectedCategory : 'All Products'}
                 count={listingProducts.length ? `${listingProducts.length} items` : undefined}
@@ -626,7 +642,7 @@ export const HomeScreen = () => {
               />
             </>
           ) : (
-            interleaveBanners(buildCuratedBlocks(), allBanners, renderBanner)
+            buildCuratedBlocks()
           )}
         </View>
       </ScrollView>

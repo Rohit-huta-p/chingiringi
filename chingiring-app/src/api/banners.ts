@@ -151,6 +151,8 @@ export interface Banner {
   type?: BannerType;
   /** 0-based index of the home row-gap this banner sits in. */
   rowIndex?: number;
+  /** Category name this banner renders after on the home page (empty = top). */
+  afterCategory?: string;
   /** Right half for dual banners; top-level fields are the left half. */
   right?: BannerSide;
   gradientColors?: string[];

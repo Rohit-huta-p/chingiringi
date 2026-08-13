@@ -162,37 +162,6 @@ export function BannerBlock({
   );
 }
 
-// ─── Interleave helper ───────────────────────────────────────────────────────
-//
-// Splice placed banners into an ordered list of product-section blocks. A
-// banner at rowIndex k renders before block k (0 = top, k >= length = end).
-// Ties break by sortOrder then createdAt. `renderBanner` lets each screen size
-// its own banner (desktop vs mobile). Shared by both home screens.
-
-export function interleaveBanners(
-  blocks: React.ReactNode[],
-  banners: Banner[],
-  renderBanner: (banner: Banner) => React.ReactNode,
-): React.ReactNode[] {
-  const sorted = [...banners].sort(
-    (a, b) =>
-      (a.rowIndex ?? 0) - (b.rowIndex ?? 0) ||
-      (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-      (a.createdAt ?? '').localeCompare(b.createdAt ?? ''),
-  );
-  const gap: Record<number, Banner[]> = {};
-  for (const b of sorted) {
-    const k = Math.max(0, Math.min(b.rowIndex ?? 0, blocks.length));
-    (gap[k] ??= []).push(b);
-  }
-  const out: React.ReactNode[] = [];
-  for (let i = 0; i <= blocks.length; i++) {
-    for (const b of gap[i] ?? []) out.push(renderBanner(b));
-    if (i < blocks.length) out.push(blocks[i]);
-  }
-  return out;
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
