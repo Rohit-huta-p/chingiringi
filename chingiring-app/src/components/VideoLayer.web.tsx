@@ -7,6 +7,8 @@ export interface VideoLayerProps {
   muted: boolean;
   /** Tap-to-pause: when true, hold the active clip paused. */
   paused?: boolean;
+  /** Reports buffering/ready so the parent can show a loading spinner. */
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 /**
@@ -16,11 +18,13 @@ export interface VideoLayerProps {
  * reject and the video sits black. This file is web-only (Metro resolves .web.tsx on
  * web, VideoLayer.tsx on native).
  */
-export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted, paused = false }) => {
+export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted, paused = false, onLoadingChange }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const shouldPlay = isActive && !paused;
   const shouldPlayRef = useRef(shouldPlay);
   shouldPlayRef.current = shouldPlay;
+  const onLoadingRef = useRef(onLoadingChange);
+  onLoadingRef.current = onLoadingChange;
   // Portrait/square clips fill the frame (cover); landscape clips are letterboxed
   // (contain) so they sit centred and uncropped. Aspect is read from the element
   // once metadata loads — no backend dimensions needed, works for existing clips.
@@ -31,12 +35,18 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted,
     if (!video || !source) return;
     video.muted = true; // required for autoplay to be allowed
     setFit('cover'); // reset until this source's real aspect is known
+    onLoadingRef.current?.(true); // new source → buffering
     const playIfActive = () => { if (shouldPlayRef.current) video.play?.().catch(() => {}); };
     const onMeta = () => {
       const { videoWidth: w, videoHeight: h } = video;
       if (w && h) setFit(w > h ? 'contain' : 'cover');
     };
+    const onBuffering = () => onLoadingRef.current?.(true);
+    const onReady = () => onLoadingRef.current?.(false);
     video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('waiting', onBuffering);
+    video.addEventListener('playing', onReady);
+    video.addEventListener('canplay', onReady);
 
     let hls: Hls | undefined;
     // hls.js FIRST whenever MSE is available. Chrome/Firefox/Edge/Electron
@@ -61,6 +71,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ source, isActive, muted,
       hls?.destroy();
       video.removeEventListener('loadedmetadata', playIfActive);
       video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('waiting', onBuffering);
+      video.removeEventListener('playing', onReady);
+      video.removeEventListener('canplay', onReady);
     };
   }, [source]);
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, Linking } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, ScrollView, Linking, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import VideoLayer from './VideoLayer';
 import { Heart, Share2, Volume2, VolumeX, ExternalLink, Pause } from 'lucide-react-native';
@@ -62,6 +62,7 @@ export const VideoFeedItem: React.FC<Props> = ({
   onToggleMute, onStorePress, onLike, onShare, bottomOffset = 58,
   paused = false, onTogglePause, muteRight = 14,
 }) => {
+  const [loading, setLoading] = useState(true);
   const products = video.taggedProducts ?? [];
   const primary = products[0];
   const store = video.store;
@@ -79,7 +80,7 @@ export const VideoFeedItem: React.FC<Props> = ({
         {!!video.thumbnailUrl && (
           <Image source={{ uri: video.thumbnailUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         )}
-        <VideoLayer source={video.hlsUrl || null} isActive={isActive} muted={muted} paused={paused} />
+        <VideoLayer source={video.hlsUrl || null} isActive={isActive} muted={muted} paused={paused} onLoadingChange={setLoading} />
       </Pressable>
       {/* legibility scrim */}
       <LinearGradient
@@ -93,6 +94,13 @@ export const VideoFeedItem: React.FC<Props> = ({
       {paused && (
         <View style={s.pauseWrap} pointerEvents="none">
           <View style={s.pauseCircle}><Pause size={38} color="#fff" fill="#fff" /></View>
+        </View>
+      )}
+
+      {/* Loading spinner — active clip still buffering (and not held paused) */}
+      {isActive && loading && !paused && (
+        <View style={s.pauseWrap} pointerEvents="none">
+          <View style={s.pauseCircle}><ActivityIndicator size="large" color="#fff" /></View>
         </View>
       )}
 
