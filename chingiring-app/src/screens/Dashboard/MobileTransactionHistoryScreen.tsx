@@ -398,7 +398,7 @@ const css = StyleSheet.create({
     borderBottomRightRadius: 24,
     overflow: 'hidden',
   },
-  headerSafe: { paddingBottom: 18, position: 'relative' },
+  headerSafe: { paddingBottom: 22, position: 'relative' },
   blobLeft: {
     position: 'absolute',
     top: -20, left: -30,
@@ -413,7 +413,7 @@ const css = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingTop: 6, gap: 8,
+    paddingHorizontal: 16, paddingTop: 14, gap: 8,
   },
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
