@@ -81,7 +81,7 @@ export const adminAPI = {
   },
   updateWithdrawal: async (
     id: string,
-    data: { action: 'process' | 'complete' | 'reject'; note?: string; txnId?: string },
+    data: { action: 'process' | 'complete' | 'reject' | 'pending'; note?: string; txnId?: string },
   ) => {
     const response = await apiClient.patch(`/api/admin/withdrawals/${id}`, data);
     return response.data;

@@ -377,11 +377,19 @@ export const updateWithdrawal = async (req, res) => {
     throw new Error('Withdrawal not found');
   }
 
-  const STATUS_MAP = { process: 'processing', complete: 'completed', reject: 'rejected' };
+  const STATUS_MAP = { process: 'processing', complete: 'completed', reject: 'rejected', pending: 'pending' };
   const nextStatus = STATUS_MAP[action];
   if (!nextStatus) {
     res.status(400);
-    throw new Error('action must be process | complete | reject');
+    throw new Error('action must be process | complete | reject | pending');
+  }
+
+  // Completed is final: the coins were already debited, so moving out of it
+  // would desync the balance. Reverse a mistaken payout by crediting coins in
+  // User Wallet instead.
+  if (tx.status === 'completed' && nextStatus !== 'completed') {
+    res.status(400);
+    throw new Error('This withdrawal is already completed — reverse it with Credit Coins in User Wallet.');
   }
 
   // Provider payout: admin approves a pending withdrawal, the active provider
@@ -428,7 +436,7 @@ export const updateWithdrawal = async (req, res) => {
       // Defensive: user's balance dropped below the held amount between
       // request and completion (shouldn't happen with our flow, but better
       // to error than silently overdraft).
-      tx.status = 'pending'; // rollback the status flip
+      tx.status = priorStatus; // rollback the status flip
       await tx.save();
       res.status(400);
       throw new Error(`Insufficient coins (${wallet.coins} available, ${coinsRedeemed} needed)`);
@@ -443,7 +451,7 @@ export const updateWithdrawal = async (req, res) => {
   // only acts while status==='processing', and it is now 'rejected'.
   // Override caveat: rejecting a payout that then succeeds at the bank is admin
   // error (money moved) — reject only confirmed-stuck ones.
-  if (action === 'reject' && coinsHeld && priorStatus === 'processing' && coinsRedeemed > 0) {
+  if (action === 'reject' && coinsHeld && coinsRedeemed > 0) {
     await Wallet.updateOne({ userId: tx.userId }, { $inc: { coins: coinsRedeemed } });
   }
 
