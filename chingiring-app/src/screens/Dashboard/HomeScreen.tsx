@@ -623,24 +623,21 @@ export const HomeScreen = () => {
               with no banners. Otherwise the curated sections render with placed
               banners interleaved by rowIndex. */}
           {isListing ? (
-            <>
-              {/* Placed banners stay visible while browsing a category or
-                  filtering — stacked above the results. They used to vanish
-                  the moment any chip / search / sort flipped isListing true. */}
-              {allBanners.map(renderBanner)}
-              <ProductGrid
-                title={categoryActive ? selectedCategory : 'All Products'}
-                count={listingProducts.length ? `${listingProducts.length} items` : undefined}
-                startIdx={0}
-                containerWidth={contentW}
-                cols={gridCols}
-                onProductPress={onProductPress}
-                onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
-                hasFilter={hasFilter}
-                products={listingProducts}
-                showAll
-              />
-            </>
+            // A category / search / sort filter collapses the home to just the
+            // matching grid. Banners are category-anchored, so there's no row to
+            // place them after here — the curated view is where banners live.
+            <ProductGrid
+              title={categoryActive ? selectedCategory : 'All Products'}
+              count={listingProducts.length ? `${listingProducts.length} items` : undefined}
+              startIdx={0}
+              containerWidth={contentW}
+              cols={gridCols}
+              onProductPress={onProductPress}
+              onSeeAll={() => goToCategory(categoryActive ? selectedCategory : 'All')}
+              hasFilter={hasFilter}
+              products={listingProducts}
+              showAll
+            />
           ) : (
             buildCuratedBlocks()
           )}
