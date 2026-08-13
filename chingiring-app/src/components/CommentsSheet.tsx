@@ -14,6 +14,9 @@ interface Props {
   visible: boolean;
   video: FeedVideo | null;
   onClose: () => void;
+  /** Desktop web: render as a panel INSIDE the parent (the video frame) instead of
+   *  a full-screen Modal. The parent mounts it inside the frame when open. */
+  inline?: boolean;
 }
 
 // Compact relative time (matches the local formatters used elsewhere in the app).
@@ -26,7 +29,7 @@ const timeAgo = (iso: string): string => {
   return `${Math.floor(d / 7)}w`;
 };
 
-export const CommentsSheet: React.FC<Props> = ({ visible, video, onClose }) => {
+export const CommentsSheet: React.FC<Props> = ({ visible, video, onClose, inline }) => {
   const me = useAuthStore((s) => s.user);
   const isAdmin = me?.role === 'admin';
   const [text, setText] = useState('');
@@ -70,6 +73,65 @@ export const CommentsSheet: React.FC<Props> = ({ visible, video, onClose }) => {
     );
   };
 
+  const body = (
+    <>
+      <View style={s.grabber} />
+      <View style={s.header}>
+        <Text style={s.title}>Comments{count ? ` · ${count}` : ''}</Text>
+        <Pressable onPress={onClose} hitSlop={8}><X size={22} color={Colors.text} /></Pressable>
+      </View>
+
+      <FlatList
+        data={comments}
+        keyExtractor={(c) => c._id}
+        renderItem={renderItem}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={comments.length ? s.listPad : s.listEmpty}
+        onEndReachedThreshold={0.4}
+        onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
+        ListEmptyComponent={
+          isLoading
+            ? <ActivityIndicator color={Colors.primary} style={{ marginTop: 32 }} />
+            : (
+              <View style={s.empty}>
+                <MessageCircle size={34} color="#cbd5e1" strokeWidth={1.6} />
+                <Text style={s.emptyTitle}>No comments yet</Text>
+                <Text style={s.emptySub}>Be the first to comment.</Text>
+              </View>
+            )
+        }
+        ListFooterComponent={isFetchingNextPage ? <ActivityIndicator color={Colors.primary} style={{ marginVertical: 14 }} /> : null}
+      />
+
+      <View style={s.inputBar}>
+        <TextInput
+          style={s.input}
+          value={text}
+          onChangeText={setText}
+          placeholder="Add a comment…"
+          placeholderTextColor={Colors.textSecondary}
+          multiline
+          maxLength={500}
+        />
+        <Pressable style={[s.post, !text.trim() && s.postOff]} onPress={submit} disabled={!text.trim()} hitSlop={6}>
+          <Send size={18} color="#fff" />
+        </Pressable>
+      </View>
+    </>
+  );
+
+  // Desktop: an in-container panel (bottom sheet clipped to the video frame).
+  if (inline) {
+    if (!visible) return null;
+    return (
+      <View style={StyleSheet.absoluteFill}>
+        <Pressable style={s.backdrop} onPress={onClose} />
+        <View style={s.inlineSheet}>{body}</View>
+      </View>
+    );
+  }
+
+  // Mobile: full-screen slide-up Modal.
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose} />
@@ -78,50 +140,7 @@ export const CommentsSheet: React.FC<Props> = ({ visible, video, onClose }) => {
         style={s.kav}
         pointerEvents="box-none"
       >
-        <View style={s.sheet}>
-          <View style={s.grabber} />
-          <View style={s.header}>
-            <Text style={s.title}>Comments{count ? ` · ${count}` : ''}</Text>
-            <Pressable onPress={onClose} hitSlop={8}><X size={22} color={Colors.text} /></Pressable>
-          </View>
-
-          <FlatList
-            data={comments}
-            keyExtractor={(c) => c._id}
-            renderItem={renderItem}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={comments.length ? s.listPad : s.listEmpty}
-            onEndReachedThreshold={0.4}
-            onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
-            ListEmptyComponent={
-              isLoading
-                ? <ActivityIndicator color={Colors.primary} style={{ marginTop: 32 }} />
-                : (
-                  <View style={s.empty}>
-                    <MessageCircle size={34} color="#cbd5e1" strokeWidth={1.6} />
-                    <Text style={s.emptyTitle}>No comments yet</Text>
-                    <Text style={s.emptySub}>Be the first to comment.</Text>
-                  </View>
-                )
-            }
-            ListFooterComponent={isFetchingNextPage ? <ActivityIndicator color={Colors.primary} style={{ marginVertical: 14 }} /> : null}
-          />
-
-          <View style={s.inputBar}>
-            <TextInput
-              style={s.input}
-              value={text}
-              onChangeText={setText}
-              placeholder="Add a comment…"
-              placeholderTextColor={Colors.textSecondary}
-              multiline
-              maxLength={500}
-            />
-            <Pressable style={[s.post, !text.trim() && s.postOff]} onPress={submit} disabled={!text.trim()} hitSlop={6}>
-              <Send size={18} color="#fff" />
-            </Pressable>
-          </View>
-        </View>
+        <View style={s.sheet}>{body}</View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -131,6 +150,7 @@ const s = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
   kav: { flex: 1, justifyContent: 'flex-end' },
   sheet: { height: '72%', backgroundColor: Colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
+  inlineSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '72%', backgroundColor: Colors.background, borderTopLeftRadius: 16, borderTopRightRadius: 16, overflow: 'hidden' },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#cbd5e1', marginTop: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   title: { fontSize: 16, fontFamily: Fonts.extraBold, color: Colors.text },

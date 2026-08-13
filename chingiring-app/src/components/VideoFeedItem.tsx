@@ -137,8 +137,10 @@ export const VideoFeedItem: React.FC<Props> = ({
         </Pressable>
       </View>
 
-      {/* Caption + product card(s) — bottom */}
-      <View style={[s.bottom, { bottom: bottomOffset }]}>
+      {/* Caption + product card(s) — bottom. box-none so its empty right column
+          (over the like/comment/share rail) doesn't swallow rail taps; the caption
+          text and product cards are children and still receive their own taps. */}
+      <View style={[s.bottom, { bottom: bottomOffset }]} pointerEvents="box-none">
         <CaptionBlock caption={video.caption} website={store?.website} />
 
         {products.length <= 1 ? (
