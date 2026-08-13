@@ -44,6 +44,15 @@ function timeAgo(d: string): string {
   return `${days} days ago`;
 }
 
+// User-facing label for a withdrawal's admin-review status.
+function wdStatus(status?: string): string {
+  return status === 'pending' ? 'Under review'
+    : status === 'processing' ? 'Processing'
+    : status === 'completed' ? 'Paid'
+    : status === 'rejected' ? 'Rejected'
+    : (status || '');
+}
+
 function dotColor(t: string) {
   if (t === 'cashback') return '#16a34a';
   if (t === 'withdrawal') return '#ef4444';
@@ -501,7 +510,9 @@ export const MobileWalletScreen = () => {
               <View style={[m.txDot, { backgroundColor: dotColor(tx.type) }]} />
               <View style={m.txInfo}>
                 <Text style={m.txDesc} numberOfLines={1}>{tx.description}</Text>
-                <Text style={m.txTime}>{timeAgo(tx.createdAt)}</Text>
+                <Text style={m.txTime}>
+                  {timeAgo(tx.createdAt)}{tx.type === 'withdrawal' ? ` · ${wdStatus(tx.status)}` : ''}
+                </Text>
               </View>
               <Text style={[m.txAmt, { color: amtColor(tx.type) }]}>{amtPrefix(tx.type)}{(tx.type === 'coin_credit' || tx.type === 'coin_debit') ? tx.amount + ' coins' : '₹' + tx.amount}</Text>
               <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />

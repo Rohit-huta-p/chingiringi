@@ -157,7 +157,9 @@ function TxnRow({ tx }: { tx: Transaction }) {
           {visual.sign}{tx.type.startsWith('coin') ? `${tx.amount.toLocaleString('en-IN')} coins` : inr(tx.amount)}
         </Text>
         <View style={[css.statusPill, { backgroundColor: s.bg }]}>
-          <Text style={[css.statusPillText, { color: s.text }]}>{tx.status}</Text>
+          <Text style={[css.statusPillText, { color: s.text }]}>
+            {tx.type === 'withdrawal' && tx.status === 'pending' ? 'Under review' : tx.status}
+          </Text>
         </View>
       </View>
     </View>

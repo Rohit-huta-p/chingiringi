@@ -193,7 +193,9 @@ export const TransactionHistoryScreen = () => {
                       styles.statusText,
                       tx.status === 'confirmed' || tx.status === 'completed' ? styles.statusTextConfirmed : styles.statusTextPending,
                     ]}>
-                      {tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+                      {tx.type === 'withdrawal' && tx.status === 'pending'
+                        ? 'Under review'
+                        : tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
                     </Text>
                   </View>
                 </View>
