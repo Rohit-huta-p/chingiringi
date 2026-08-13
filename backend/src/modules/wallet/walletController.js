@@ -133,10 +133,11 @@ export const getTransactions = async (req, res) => {
 //
 // User submits an amount in COINS and a payment destination. Server:
 //   1. Loads the current coinsPerRupee to compute the ₹ payout.
-//   2. Checks the user has enough CONFIRMED coins (wallet.coins, not pending).
+//   2. HOLDS the coins now — atomically debits wallet.coins (race-safe) so the
+//      balance is accurate and the user can't over-request. Refunded if admin
+//      rejects; already held when admin marks it paid.
 //   3. Creates a pending Transaction(type='withdrawal') with the ₹ + coin
 //      count + locked rate stamped on metadata for later audit.
-//   4. Does NOT debit the wallet — that happens on admin approval.
 //
 // The rate is locked at request time so a settings change between request
 // and approval doesn't retroactively change what the user is owed.
@@ -161,32 +162,48 @@ export const requestWithdrawal = async (req, res) => {
     throw new Error('accountNumber and ifsc are required for Bank withdrawals');
   }
 
-  const wallet = await Wallet.findOne({ userId: req.user._id });
-  if (!wallet || wallet.coins < coinAmount) {
-    res.status(400);
-    throw new Error(`Insufficient confirmed coins (${wallet?.coins ?? 0} available, ${coinAmount} requested)`);
-  }
-
   const settings = await AdminSettings.get();
   const coinRate = settings.coinsPerRupee;   // coins per ₹1
   const rupees = Math.round((coinAmount / coinRate) * 100) / 100;
 
-  const transaction = await Transaction.create({
-    userId: req.user._id,
-    type: 'withdrawal',
-    amount: rupees,
-    status: 'pending',
-    description: `Withdrawal request — ${coinAmount} coins (₹${rupees})`,
-    metadata: {
-      method,
-      paymentDetails: paymentDetails.trim(),
-      ...(accountNumber ? { accountNumber } : {}),
-      ...(ifsc          ? { ifsc }          : {}),
-      coinsRedeemed: coinAmount,
-      coinRate,                 // locked at request time
-      requestedAt: new Date(),
-    },
-  });
+  // Hold the coins now — atomic conditional decrement so a double-tap or two
+  // concurrent requests can't over-withdraw (each only succeeds while the
+  // balance still covers it). Refunded if we can't record the request, or if
+  // admin later rejects; already held when admin marks it paid.
+  const held = await Wallet.updateOne(
+    { userId: req.user._id, coins: { $gte: coinAmount } },
+    { $inc: { coins: -coinAmount } },
+  );
+  if (held.modifiedCount === 0) {
+    const w = await Wallet.findOne({ userId: req.user._id }).select('coins').lean();
+    res.status(400);
+    throw new Error(`Insufficient confirmed coins (${w?.coins ?? 0} available, ${coinAmount} requested)`);
+  }
+
+  let transaction;
+  try {
+    transaction = await Transaction.create({
+      userId: req.user._id,
+      type: 'withdrawal',
+      amount: rupees,
+      status: 'pending',
+      description: `Withdrawal request — ${coinAmount} coins (₹${rupees})`,
+      metadata: {
+        method,
+        paymentDetails: paymentDetails.trim(),
+        ...(accountNumber ? { accountNumber } : {}),
+        ...(ifsc          ? { ifsc }          : {}),
+        coinsRedeemed: coinAmount,
+        coinRate,                 // locked at request time
+        coinsHeld: true,          // coins debited now; refunded if rejected
+        requestedAt: new Date(),
+      },
+    });
+  } catch (e) {
+    // Couldn't record the request — refund the held coins so nothing is lost.
+    await Wallet.updateOne({ userId: req.user._id }, { $inc: { coins: coinAmount } });
+    throw e;
+  }
 
   // ── Instant-on-tap payout — DISABLED ─────────────────────────────────────
   // Withdrawals no longer auto-pay via the provider (Cashfree). Every request

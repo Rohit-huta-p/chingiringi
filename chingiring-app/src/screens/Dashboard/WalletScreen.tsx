@@ -48,6 +48,15 @@ function getTxDisplayType(tx: Transaction): 'income' | 'withdrawal' {
   return tx.type === 'withdrawal' || tx.type === 'coin_debit' ? 'withdrawal' : 'income';
 }
 
+// User-facing label for a withdrawal's admin-review status.
+function wdStatus(status?: string): string {
+  return status === 'pending' ? 'Under review'
+    : status === 'processing' ? 'Processing'
+    : status === 'completed' ? 'Paid'
+    : status === 'rejected' ? 'Rejected'
+    : (status || '');
+}
+
 // react-native-web's Alert is a no-op, and this screen is web-first — route
 // through window.alert there so the user actually sees the message.
 function notify(title: string, message?: string) {
@@ -455,7 +464,9 @@ export const WalletScreen = () => {
                 </View>
                 <View style={styles.txInfo}>
                   <Text style={styles.txBrand}>{label}</Text>
-                  <Text style={styles.txTime}>{formatTimeAgo(tx.createdAt)}</Text>
+                  <Text style={styles.txTime}>
+                    {formatTimeAgo(tx.createdAt)}{tx.type === 'withdrawal' ? ` · ${wdStatus(tx.status)}` : ''}
+                  </Text>
                 </View>
                 <View style={styles.txAmountContainer}>
                   <Text style={[

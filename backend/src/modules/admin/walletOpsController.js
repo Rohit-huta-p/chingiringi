@@ -405,7 +405,10 @@ export const updateWithdrawal = async (req, res) => {
   // admin-fired). `payoutInitiatedAt` is set only by firePayout, so it cleanly
   // distinguishes a held withdrawal from a manual one — used below to avoid a
   // double debit on complete and to refund on a reject of an in-flight payout.
-  const coinsHeld = !!tx.metadata?.payoutInitiatedAt;
+  // Coins are "held" (already debited from the wallet) when the withdrawal was
+  // taken at request time (metadata.coinsHeld) or by a provider payout
+  // (payoutInitiatedAt). Held → don't debit again on complete; refund on reject.
+  const coinsHeld = !!tx.metadata?.coinsHeld || !!tx.metadata?.payoutInitiatedAt;
   const priorStatus = tx.status;
 
   tx.status = nextStatus;
@@ -429,8 +432,10 @@ export const updateWithdrawal = async (req, res) => {
   //   - process:  no balance change yet
   const coinsRedeemed = Number(tx.metadata?.coinsRedeemed) || 0;
   if (action === 'complete' && coinsRedeemed > 0 && !coinsHeld) {
-    // Manual completion path only (provider payouts already held the coins in
-    // firePayout). `coinsHeld` guards against debiting a second time.
+    // Only debit here when the coins weren't already held — i.e. a legacy
+    // pre-hold withdrawal, or one reverted from rejected. New requests hold at
+    // request time; provider payouts held in firePayout. `coinsHeld` guards a
+    // double debit.
     const wallet = await ensureWallet(tx.userId);
     if (wallet.coins < coinsRedeemed) {
       // Defensive: user's balance dropped below the held amount between
@@ -443,16 +448,18 @@ export const updateWithdrawal = async (req, res) => {
     }
     wallet.coins -= coinsRedeemed;
     await wallet.save();
+    tx.metadata = { ...tx.metadata, coinsHeld: true }; // now debited for the payout
+    await tx.save();
   }
 
-  // Reject of an in-flight payout: the coins were held by firePayout, so refund
-  // them (the manual/pending reject path never held any, hence nothing to do).
-  // The provider's own failure webhook can't double-refund — applyPayoutOutcome
-  // only acts while status==='processing', and it is now 'rejected'.
-  // Override caveat: rejecting a payout that then succeeds at the bank is admin
-  // error (money moved) — reject only confirmed-stuck ones.
+  // Reject → refund the held coins (held at request time, or by a provider
+  // payout). Clearing the hold flag makes it idempotent: a second reject, or a
+  // stale provider webhook, can't double-refund.
   if (action === 'reject' && coinsHeld && coinsRedeemed > 0) {
     await Wallet.updateOne({ userId: tx.userId }, { $inc: { coins: coinsRedeemed } });
+    const { payoutInitiatedAt, ...rest } = tx.metadata || {};
+    tx.metadata = { ...rest, coinsHeld: false };
+    await tx.save();
   }
 
   if (nextStatus === 'completed') {
