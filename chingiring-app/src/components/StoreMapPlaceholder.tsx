@@ -1,46 +1,14 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import type { Store } from '../api/stores';
-import { StoreMarkerPill } from './StoreMarkerPill';
 import { MAP_PALETTE } from '../constants/mapStyle';
 
-type Props = {
-  stores: Store[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  /** Accepted for API parity with the live map; the static preview ignores it. */
-  userLocation?: { lat: number; lng: number } | null;
-};
-
 /**
- * Static styled map placeholder used when:
- *   - we are on a native platform (no mapbox-gl available), OR
- *   - the EXPO_PUBLIC_MAPBOX_TOKEN env var is missing.
- *
- * Renders a pastel grid that mimics the Figma design and positions the
- * pills using a simple linear projection of lat/lng into the container box.
- * Not pannable/zoomable — visual stand-in until the token is provided.
+ * Static styled map placeholder, shown when we are on a native platform
+ * (no mapbox-gl available) or the EXPO_PUBLIC_MAPBOX_TOKEN env var is missing.
+ * Renders a pastel grid with a centered "you are here" dot — a visual stand-in
+ * until the live map is available.
  */
-export const StoreMapPlaceholder: React.FC<Props> = ({ stores, selectedId, onSelect }) => {
-  // Project lat/lng into [0,1] x [0,1] for the container.
-  const projected = useMemo(() => {
-    if (stores.length === 0) return [];
-    const lats = stores.map((s) => s.lat);
-    const lngs = stores.map((s) => s.lng);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    const padX = (maxLng - minLng) * 0.15 || 0.01;
-    const padY = (maxLat - minLat) * 0.15 || 0.01;
-    return stores.map((s) => ({
-      ...s,
-      // x grows east, y grows south (so lat is inverted)
-      _x: ((s.lng - (minLng - padX)) / ((maxLng + padX) - (minLng - padX))) * 100,
-      _y: 100 - ((s.lat - (minLat - padY)) / ((maxLat + padY) - (minLat - padY))) * 100,
-    }));
-  }, [stores]);
-
+export const StoreMapPlaceholder: React.FC = () => {
   return (
     <View style={styles.wrap}>
       {/* Soft pastel green background w/ subtle radial highlight */}
@@ -66,20 +34,6 @@ export const StoreMapPlaceholder: React.FC<Props> = ({ stores, selectedId, onSel
         <View style={styles.userPinHalo} />
         <View style={styles.userPin} />
       </View>
-
-      {/* Store pills positioned by projected coords */}
-      {projected.map((s) => (
-        <View
-          key={s._id}
-          style={[styles.markerWrap, { left: `${s._x}%`, top: `${s._y}%` }]}
-        >
-          <StoreMarkerPill
-            store={s}
-            isSelected={s._id === selectedId}
-            onPress={() => onSelect(s._id)}
-          />
-        </View>
-      ))}
 
       {/* Token-missing badge — small, bottom-center, only shown when no token */}
       <View style={styles.placeholderBadge} pointerEvents="none">
@@ -142,10 +96,6 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     top: -9,
     left: -9,
-  },
-  markerWrap: {
-    position: 'absolute',
-    transform: [{ translateX: -45 }, { translateY: -16 }],
   },
   placeholderBadge: {
     position: 'absolute',

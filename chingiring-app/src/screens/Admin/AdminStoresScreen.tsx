@@ -31,8 +31,6 @@ export function StoreFormModal({ visible, onClose, store }: {
     address: s?.address || '',
     area: s?.area || '',
     city: s?.city || 'Bengaluru',
-    lat: s?.lat?.toString() || '',
-    lng: s?.lng?.toString() || '',
     openTime: s?.openTime || '10:00',
     closeTime: s?.closeTime || '22:00',
     logoUrl: s?.logoUrl || '',
@@ -73,9 +71,9 @@ export function StoreFormModal({ visible, onClose, store }: {
   });
 
   const handleSubmit = () => {
-    if (!form.name || !form.shortName || !form.address || !form.lat || !form.lng
+    if (!form.name || !form.shortName || !form.address
         || !form.userDiscountPercent || !form.platformCommissionPercent) {
-      Alert.alert('Validation', 'Please fill all required fields (name, short name, address, lat, lng, discount %, commission %)');
+      Alert.alert('Validation', 'Please fill all required fields (name, short name, address, discount %, commission %)');
       return;
     }
     if (form.rating && (Number.isNaN(parseFloat(form.rating)) || parseFloat(form.rating) < 0 || parseFloat(form.rating) > 5)) {
@@ -91,8 +89,6 @@ export function StoreFormModal({ visible, onClose, store }: {
       address: form.address,
       area: form.area,
       city: form.city,
-      lat: parseFloat(form.lat),
-      lng: parseFloat(form.lng),
       openTime: form.openTime,
       closeTime: form.closeTime,
       logoUrl: form.logoUrl,
@@ -240,31 +236,6 @@ export function StoreFormModal({ visible, onClose, store }: {
                 />
               </View>
             </View>
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Latitude *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="12.9970"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={form.lat}
-                  onChangeText={(v) => setForm({ ...form, lat: v })}
-                />
-              </View>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Longitude *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="77.6960"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={form.lng}
-                  onChangeText={(v) => setForm({ ...form, lng: v })}
-                />
-              </View>
-            </View>
-
             {/* ── Hours ── */}
             <Text style={styles.groupLabel}>Hours (24h, HH:mm)</Text>
             <View style={styles.fieldRow}>

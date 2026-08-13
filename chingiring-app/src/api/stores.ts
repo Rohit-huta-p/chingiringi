@@ -14,8 +14,6 @@ export interface Store {
   address: string;
   area?: string;
   city?: string;
-  lat: number;
-  lng: number;
   openTime?: string;
   closeTime?: string;
   openDays?: number[];
@@ -38,8 +36,6 @@ export interface Store {
   totalGmv?: number;
   totalTxns?: number;
   createdAt?: string;
-  /** Added client-side from geolocation / city-center. */
-  distanceKm?: number;
 }
 
 export const storesAPI = {
