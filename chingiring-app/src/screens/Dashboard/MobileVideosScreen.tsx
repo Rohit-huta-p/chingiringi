@@ -149,12 +149,18 @@ export const MobileVideosScreen = () => {
     if (isDesktopWeb) {
       return (
         <View style={[s.stage, { height: itemH }]}>
-          <View style={[s.frame, { width: frameW, height: frameH }]}>{feedItem(frameH)}</View>
+          <View style={[s.frame, { width: frameW, height: frameH }]}>
+            {feedItem(frameH)}
+            {/* Comments open INSIDE the frame on desktop (not a full-screen modal). */}
+            {commentsFor?._id === item._id && (
+              <CommentsSheet inline visible video={item} onClose={() => setCommentsFor(null)} />
+            )}
+          </View>
         </View>
       );
     }
     return feedItem(itemH);
-  }, [activeIndex, muted, paused, itemH, frameH, frameW, isDesktopWeb, bottomOffset, likeOverrides, onStorePress, onLike, onShare]);
+  }, [activeIndex, muted, paused, itemH, frameH, frameW, isDesktopWeb, bottomOffset, likeOverrides, commentsFor, onStorePress, onLike, onShare]);
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;
@@ -230,7 +236,10 @@ export const MobileVideosScreen = () => {
         </Pressable>
       </View>
 
-      <CommentsSheet visible={!!commentsFor} video={commentsFor} onClose={() => setCommentsFor(null)} />
+      {/* Mobile: full-screen sheet. (Desktop renders it inline inside the frame — see renderItem.) */}
+      {!isDesktopWeb && (
+        <CommentsSheet visible={!!commentsFor} video={commentsFor} onClose={() => setCommentsFor(null)} />
+      )}
     </View>
   );
 };
