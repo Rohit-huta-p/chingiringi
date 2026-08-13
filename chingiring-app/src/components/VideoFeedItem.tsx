@@ -23,6 +23,9 @@ interface Props {
   /** Tap-to-pause state + toggle for the active clip. */
   paused?: boolean;
   onTogglePause?: () => void;
+  /** Right offset for the mute button — nudged left on mobile so it clears the
+   *  right-aligned "+ Post" pill. */
+  muteRight?: number;
 }
 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
@@ -57,7 +60,7 @@ const CaptionBlock: React.FC<{ caption?: string; website?: string }> = ({ captio
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
   onToggleMute, onStorePress, onLike, onShare, bottomOffset = 58,
-  paused = false, onTogglePause,
+  paused = false, onTogglePause, muteRight = 14,
 }) => {
   const products = video.taggedProducts ?? [];
   const primary = products[0];
@@ -103,7 +106,7 @@ export const VideoFeedItem: React.FC<Props> = ({
       </Pressable>
 
       {/* Mute — top-right */}
-      <Pressable style={s.mute} onPress={onToggleMute} hitSlop={10}>
+      <Pressable style={[s.mute, { right: muteRight }]} onPress={onToggleMute} hitSlop={10}>
         {muted ? <VolumeX size={18} color="#fff" /> : <Volume2 size={18} color="#fff" />}
       </Pressable>
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
   useWindowDimensions, Platform,
@@ -8,12 +8,13 @@ import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mail, Phone, MapPin, Pencil, Gift, IndianRupee, Clock, Coins,
-  ArrowUpRight, ChevronRight, MapPinHouse, Settings as SettingsIcon,
+  ArrowUpRight, ChevronRight, MapPinHouse, Settings as SettingsIcon, PlaySquare,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { profileAPI } from '../../api/profile';
 import { walletAPI } from '../../api/wallet';
 import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
+import { LegalModal, LegalType } from '../../components/LegalModal';
 
 // Quick action items
 const QUICK_ACTIONS: Array<{
@@ -21,6 +22,7 @@ const QUICK_ACTIONS: Array<{
   icon: React.ComponentType<any>;
   route?: string;
 }> = [
+    { label: 'My Videos', icon: PlaySquare, route: 'MyVideos' },
     { label: 'Manage Addresses', icon: MapPinHouse, route: 'MyAddress' },
   ];
 
@@ -36,6 +38,13 @@ export const ProfileScreen = () => {
   const { width } = useWindowDimensions();
   const isNarrow = width < 1100;
   const navigation = useNavigation<any>();
+  const [legal, setLegal] = useState<LegalType | null>(null);
+
+  // Legal & support cell tap → open the info modal.
+  const onLegalPress = (label: string) => {
+    if (label === 'About') setLegal('about');
+    else if (label === 'Privacy Policy') setLegal('privacy');
+  };
 
   const { data: profileData } = useQuery({
     queryKey: ['profile'],
@@ -86,6 +95,7 @@ export const ProfileScreen = () => {
   );
 
   return (
+    <>
     <ScrollView style={s.root} contentContainerStyle={s.rootContent}>
       {/* Top header */}
       <View style={s.topHeader}>
@@ -283,7 +293,7 @@ export const ProfileScreen = () => {
                     key={label}
                     style={s.legalCell}
                     activeOpacity={0.7}
-                    onPress={() => label === 'About' && navigation.navigate('About')}
+                    onPress={() => onLegalPress(label)}
                   >
                     <Text style={s.legalLabel}>{label}</Text>
                     <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
@@ -294,7 +304,11 @@ export const ProfileScreen = () => {
 
             {/* Last full-width row */}
             <View style={s.legalRow}>
-              <TouchableOpacity style={[s.legalCell, { flex: 1 }]} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={[s.legalCell, { flex: 1 }]}
+                activeOpacity={0.7}
+                onPress={() => setLegal('terms')}
+              >
                 <Text style={s.legalLabel}>Terms & Conditions</Text>
                 <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
               </TouchableOpacity>
@@ -303,6 +317,8 @@ export const ProfileScreen = () => {
         </View>
       </View>
     </ScrollView>
+    <LegalModal type={legal} onClose={() => setLegal(null)} />
+    </>
   );
 };
 

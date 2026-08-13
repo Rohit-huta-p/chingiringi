@@ -123,6 +123,7 @@ export const MobileVideosScreen = () => {
         bottomOffset={bottomOffset}
         paused={paused && index === activeIndex}
         onTogglePause={() => setPaused((p) => !p)}
+        muteRight={isDesktopWeb ? 14 : 100}
       />
     );
     if (isDesktopWeb) {
@@ -194,8 +195,12 @@ export const MobileVideosScreen = () => {
         </View>
       )}
 
-      {/* Floating "Post" — entry to the user's My Videos */}
-      <View style={[s.postFabWrap, { top: insets.top + 10 }]} pointerEvents="box-none">
+      {/* Floating "Post" — entry to the user's My Videos. Right extreme on the
+          full-screen mobile feed; centered over the desktop-web stage. */}
+      <View
+        style={[s.postFabWrap, { top: insets.top + 10, alignItems: isDesktopWeb ? 'center' : 'flex-end', paddingHorizontal: 14 }]}
+        pointerEvents="box-none"
+      >
         <Pressable style={s.postFab} onPress={() => navigation.navigate('MyVideos')} hitSlop={6}>
           <Plus size={15} color="#fff" strokeWidth={2.6} />
           <Text style={s.postFabTxt}>Post</Text>
