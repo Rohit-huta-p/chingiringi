@@ -88,7 +88,7 @@ export const NotificationsScreen = () => {
               item.type === 'coins_credited' ||
               item.type === 'coins_unlocked' ||
               item.type === 'wallet_credited';
-            const isVideo = item.type === 'video_approved' || item.type === 'video_rejected';
+            const isVideo = item.type === 'video_approved' || item.type === 'video_rejected' || item.type === 'video_comment';
             const Icon = isCoins ? Coins : isVideo ? PlaySquare : ArrowDownToLine;
             return (
               <TouchableOpacity

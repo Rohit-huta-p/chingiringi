@@ -20,6 +20,7 @@ const notificationSchema = new mongoose.Schema(
         'share_confirmed',
         'video_approved',
         'video_rejected',
+        'video_comment',
       ],
       required: true,
     },

@@ -8,7 +8,8 @@ export type NotificationType =
   | 'withdrawal_paid'
   | 'withdrawal_rejected'
   | 'video_approved'
-  | 'video_rejected';
+  | 'video_rejected'
+  | 'video_comment';
 
 export interface AppNotification {
   _id: string;

@@ -2,6 +2,7 @@ import express from 'express';
 import {
   createUploadUrl, createVideo, getFeed, getVideo, getStoreVideos,
   trackView, toggleLike, toggleSave, trackShare,
+  addComment, listComments, deleteComment,
   listPending, listAll, getMine, moderateVideo, updateVideo, deleteVideo,
 } from './videoController.js';
 import rateLimit from 'express-rate-limit';
@@ -16,6 +17,16 @@ const uploadLimiter = rateLimit({
   max: 10,                        // 10 new clips / user / day
   keyGenerator: (req) => String(req.user?._id || req.ip),
   message: { status: 'error', message: 'Daily upload limit reached — try again tomorrow.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Anti-spam cap on comment posting (per user).
+const commentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 min
+  max: 30,
+  keyGenerator: (req) => String(req.user?._id || req.ip),
+  message: { status: 'error', message: 'You’re commenting too fast — slow down a moment.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -42,6 +53,11 @@ router.post('/:id/view', optionalProtect, trackView);
 router.post('/:id/share', optionalProtect, trackShare);
 router.post('/:id/like', protect, toggleLike);
 router.post('/:id/save', protect, toggleSave);
+
+// comments (flat) — /:id/comments and /comments/:commentId sit above the bare /:id routes
+router.get('/:id/comments', optionalProtect, listComments);
+router.post('/:id/comments', protect, commentLimiter, addComment);
+router.delete('/comments/:commentId', protect, deleteComment);
 
 // bare /:id routes LAST — a bare :id above would swallow /feed, /store/..., /admin/...
 router.get('/:id', optionalProtect, getVideo);

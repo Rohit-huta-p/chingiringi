@@ -7,6 +7,7 @@ const statsSchema = new mongoose.Schema({
   likes: { type: Number, default: 0 },
   shares: { type: Number, default: 0 },
   saves: { type: Number, default: 0 },
+  comments: { type: Number, default: 0 },
   productTaps: { type: Number, default: 0 },
   storeTaps: { type: Number, default: 0 },
 }, { _id: false });

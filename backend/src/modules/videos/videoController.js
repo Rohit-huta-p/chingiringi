@@ -3,6 +3,7 @@ import Video from './videoModel.js';
 import { videoProvider, activeProvider, providerFor } from '../../services/videoProvider.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
+import VideoComment from './videoCommentModel.js';
 import { notify } from '../notifications/notificationService.js';
 
 // @desc  Mint a direct-upload URL (Cloudflare or Mux)  @route POST /api/videos/upload-url  @access admin
@@ -169,6 +170,66 @@ export const trackShare = async (req, res) => {
   const r = await Video.updateOne({ _id: req.params.id }, { $inc: { 'stats.shares': 1 } });
   if (r.matchedCount === 0) { res.status(404); throw new Error('Video not found'); }
   res.status(200).json({ status: 'success', data: { ok: true } });
+};
+
+// ── Comments (flat) ────────────────────────────────────────────────────────
+const USER_FIELDS = 'name username avatarUrl';
+
+// @desc  Add a comment  @route POST /:id/comments  @access protect
+export const addComment = async (req, res) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) { res.status(400); throw new Error('Comment cannot be empty'); }
+  if (text.length > 500) { res.status(400); throw new Error('Comment is too long (max 500 characters)'); }
+  const video = await Video.findById(req.params.id).select('createdBy').lean();
+  if (!video) { res.status(404); throw new Error('Video not found'); }
+
+  const created = await VideoComment.create({ video: req.params.id, user: req.user._id, text });
+  await Video.updateOne({ _id: req.params.id }, { $inc: { 'stats.comments': 1 } });
+
+  // Notify the owner (skip when you comment on your own clip). Best-effort.
+  if (video.createdBy && String(video.createdBy) !== String(req.user._id)) {
+    try {
+      await notify({
+        userId: video.createdBy,
+        type: 'video_comment',
+        data: { name: req.user.name || 'Someone', text, videoId: String(req.params.id) },
+      });
+    } catch { /* notification is best-effort */ }
+  }
+
+  const comment = await created.populate('user', USER_FIELDS);
+  res.status(201).json({ status: 'success', data: { comment: { ...comment.toObject(), mine: true } } });
+};
+
+// @desc  List a video's comments (newest-first, cursor)  @route GET /:id/comments  @access optional
+export const listComments = async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const filter = { video: req.params.id };
+  if (req.query.cursor) filter._id = { $lt: req.query.cursor };
+  const comments = await VideoComment.find(filter)
+    .sort({ _id: -1 })
+    .limit(limit)
+    .populate('user', USER_FIELDS)
+    .lean();
+  const me = req.user?._id ? String(req.user._id) : null;
+  const withMine = comments.map((c) => ({ ...c, mine: !!me && String(c.user?._id) === me }));
+  const nextCursor = comments.length === limit ? String(comments[comments.length - 1]._id) : null;
+  res.status(200).json({ status: 'success', data: { comments: withMine, nextCursor } });
+};
+
+// @desc  Delete a comment  @route DELETE /comments/:commentId  @access protect
+// Allowed: the commenter, the video's owner (createdBy), or an admin.
+export const deleteComment = async (req, res) => {
+  const comment = await VideoComment.findById(req.params.commentId);
+  if (!comment) { res.status(404); throw new Error('Comment not found'); }
+  const video = await Video.findById(comment.video).select('createdBy').lean();
+  const isMine = String(comment.user) === String(req.user._id);
+  const isOwner = !!video && String(video.createdBy || '') === String(req.user._id);
+  const isAdmin = req.user.role === 'admin';
+  if (!isMine && !isOwner && !isAdmin) { res.status(403); throw new Error('Not allowed to delete this comment'); }
+  await comment.deleteOne();
+  await Video.updateOne({ _id: comment.video }, { $inc: { 'stats.comments': -1 } });
+  res.status(200).json({ status: 'success', data: { deleted: true } });
 };
 
 // @desc  Moderation queue (pending, newest first)  @route GET /api/videos/admin/queue  @access admin

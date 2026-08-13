@@ -9,6 +9,7 @@ import { PlaySquare, ChevronUp, ChevronDown, Plus } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
+import { CommentsSheet } from '../../components/CommentsSheet';
 import { FeedVideo, VideoStore } from '../../api/videos';
 
 export const MobileVideosScreen = () => {
@@ -28,6 +29,7 @@ export const MobileVideosScreen = () => {
   const [muted, setMuted] = useState(true);
   const [paused, setPaused] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [commentsFor, setCommentsFor] = useState<FeedVideo | null>(null);
   // Optimistic like overrides keyed by video id. When a clip has no override we fall back to
   // the server's `likedByMe` (from the optional-auth feed), so a refresh keeps the heart red
   // for likes you already made.
@@ -137,6 +139,7 @@ export const MobileVideosScreen = () => {
         onStorePress={onStorePress}
         onLike={() => onLike(item)}
         onShare={() => onShare(item)}
+        onComment={() => setCommentsFor(item)}
         bottomOffset={bottomOffset}
         paused={paused && index === activeIndex}
         onTogglePause={() => setPaused((p) => !p)}
@@ -226,6 +229,8 @@ export const MobileVideosScreen = () => {
           <Text style={s.postFabTxt}>Post</Text>
         </Pressable>
       </View>
+
+      <CommentsSheet visible={!!commentsFor} video={commentsFor} onClose={() => setCommentsFor(null)} />
     </View>
   );
 };

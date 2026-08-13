@@ -28,7 +28,7 @@ export interface FeedVideo {
   hashtags: string[];
   taggedProducts: TaggedProduct[];
   cta: { type: 'shop' | 'store' | 'none'; productId?: string; url?: string };
-  stats: { views: number; likes: number; shares: number; saves: number };
+  stats: { views: number; likes: number; shares: number; saves: number; comments?: number };
   publishedAt: string;
   /** True when the signed-in user has already liked this clip (feed is optional-auth). */
   likedByMe?: boolean;
@@ -43,6 +43,20 @@ export interface FeedVideo {
 export interface FeedPage {
   status: string;
   data: { videos: FeedVideo[]; nextCursor: string | null };
+}
+
+export interface VideoComment {
+  _id: string;
+  text: string;
+  createdAt: string;
+  user?: { _id: string; name?: string; username?: string; avatarUrl?: string };
+  /** True when the comment belongs to the signed-in user (server-computed). */
+  mine?: boolean;
+}
+
+export interface CommentsPage {
+  status: string;
+  data: { comments: VideoComment[]; nextCursor: string | null };
 }
 
 export const videosAPI = {
@@ -65,6 +79,20 @@ export const videosAPI = {
   toggleLike: async (id: string) => (await apiClient.post(`/api/videos/${id}/like`)).data,
   toggleSave: async (id: string) => (await apiClient.post(`/api/videos/${id}/save`)).data,
   trackShare: async (id: string) => (await apiClient.post(`/api/videos/${id}/share`)).data,
+
+  // ── comments (flat) ────────────────────────────────────────────────────
+  listComments: async (videoId: string, params?: { cursor?: string; limit?: number }) => {
+    const res = await apiClient.get(`/api/videos/${videoId}/comments`, { params });
+    return res.data as CommentsPage;
+  },
+  addComment: async (videoId: string, text: string) => {
+    const res = await apiClient.post(`/api/videos/${videoId}/comments`, { text });
+    return res.data as { status: string; data: { comment: VideoComment } };
+  },
+  deleteComment: async (commentId: string) => {
+    const res = await apiClient.delete(`/api/videos/comments/${commentId}`);
+    return res.data as { status: string; data: { deleted: boolean } };
+  },
 
   // ── admin authoring (protect + admin) ──────────────────────────────────
   /** Mint a one-time direct-upload URL (Cloudflare = POST form, Mux = PUT raw). */
