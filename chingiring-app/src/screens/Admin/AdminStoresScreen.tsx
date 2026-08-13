@@ -72,8 +72,8 @@ export function StoreFormModal({ visible, onClose, store }: {
 
   const handleSubmit = () => {
     if (!form.name || !form.shortName || !form.address
-        || !form.userDiscountPercent || !form.platformCommissionPercent) {
-      Alert.alert('Validation', 'Please fill all required fields (name, short name, address, discount %, commission %)');
+        || !form.platformCommissionPercent) {
+      Alert.alert('Validation', 'Please fill all required fields (name, short name, address, commission %)');
       return;
     }
     if (form.rating && (Number.isNaN(parseFloat(form.rating)) || parseFloat(form.rating) < 0 || parseFloat(form.rating) > 5)) {
@@ -93,7 +93,7 @@ export function StoreFormModal({ visible, onClose, store }: {
       closeTime: form.closeTime,
       logoUrl: form.logoUrl,
       images: form.images,
-      userDiscountPercent: parseFloat(form.userDiscountPercent),
+      userDiscountPercent: form.userDiscountPercent ? parseFloat(form.userDiscountPercent) : 0,
       platformCommissionPercent: parseFloat(form.platformCommissionPercent),
       maxDiscountCap: form.maxDiscountCap ? parseFloat(form.maxDiscountCap) : 0,
       minBillAmount: form.minBillAmount ? parseFloat(form.minBillAmount) : 0,
@@ -264,6 +264,7 @@ export function StoreFormModal({ visible, onClose, store }: {
             {/* ── Deal terms ── */}
             <Text style={styles.groupLabel}>Deal terms</Text>
             <View style={styles.fieldRow}>
+              {/* User Discount % — disabled (discount feature turned off)
               <View style={styles.fieldHalf}>
                 <Text style={styles.fieldLabel}>User Discount % *</Text>
                 <TextInput
@@ -275,6 +276,7 @@ export function StoreFormModal({ visible, onClose, store }: {
                   onChangeText={(v) => setForm({ ...form, userDiscountPercent: v })}
                 />
               </View>
+              */}
               <View style={styles.fieldHalf}>
                 <Text style={styles.fieldLabel}>Commission % *</Text>
                 <TextInput
