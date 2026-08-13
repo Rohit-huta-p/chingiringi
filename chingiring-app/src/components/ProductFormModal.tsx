@@ -174,7 +174,10 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
         {/* Backdrop dismiss */}
         <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={onClose} />
 
-        <View style={[st.modalCard, twoCol && st.modalCardWide, { maxHeight: winH * 0.92 }]}>
+        {/* Mobile (native): flex:1 gives the card a real height so the flex body
+            has bounded space to fill + scroll — without it, Yoga collapses the
+            body to 0 and only the header/footer show. Desktop keeps maxHeight. */}
+        <View style={[st.modalCard, twoCol && st.modalCardWide, { maxHeight: winH * 0.92 }, !twoCol && { flex: 1 }]}>
           {/* Header */}
           <View style={st.modalHeader}>
             <View style={st.headerLeft}>

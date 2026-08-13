@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   useWindowDimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -25,8 +26,10 @@ import {
   Users,
   Package,
   Image as ImageIcon,
- Ticket,
+  Ticket,
   Grid3X3,
+  X,
+  Check,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -60,14 +63,35 @@ interface Product {
   _id: string;
   name: string;
   description: string;
+  category?: string;
   price: number;
   coinsPrice: number;
   imageUrl: string;
   sold: number;
   isActive: boolean;
+  createdAt?: string;
 }
 
 const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : n.toLocaleString();
+
+// ─── Sort + filter chip ─────────────────────────────────────────────
+
+type SortKey = 'newest' | 'priceAsc' | 'priceDesc' | 'sold' | 'name';
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'newest', label: 'Newest first' },
+  { key: 'priceAsc', label: 'Price: low to high' },
+  { key: 'priceDesc', label: 'Price: high to low' },
+  { key: 'sold', label: 'Most sold' },
+  { key: 'name', label: 'Name: A–Z' },
+];
+
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[s.fchip, active && s.fchipActive]}>
+      <Text style={[s.fchipText, active && s.fchipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 // ─── Product Card ───────────────────────────────────────────────────
 
@@ -138,6 +162,12 @@ export const MobileAdminProducts = () => {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
+  const [sortBy, setSortBy] = useState<SortKey>('newest');
   const qc = useQueryClient();
 
   // Grid sizing: body has 16px horizontal padding, 10px gutter between cards.
@@ -188,11 +218,46 @@ export const MobileAdminProducts = () => {
     }
   };
 
+  const categories = useMemo(
+    () => Array.from(new Set(products.map((p) => (p.category ?? '').trim()).filter(Boolean))).sort(),
+    [products],
+  );
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return products;
-    const q = search.toLowerCase();
-    return products.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
-  }, [products, search]);
+    let list = products;
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+    if (filterCategory !== 'all') list = list.filter((p) => (p.category ?? '') === filterCategory);
+    if (filterStatus !== 'all') list = list.filter((p) => (filterStatus === 'active' ? p.isActive : !p.isActive));
+    const min = parseFloat(priceMin);
+    const max = parseFloat(priceMax);
+    if (!Number.isNaN(min)) list = list.filter((p) => p.price >= min);
+    if (!Number.isNaN(max)) list = list.filter((p) => p.price <= max);
+    const sorted = [...list];
+    switch (sortBy) {
+      case 'priceAsc': sorted.sort((a, b) => a.price - b.price); break;
+      case 'priceDesc': sorted.sort((a, b) => b.price - a.price); break;
+      case 'sold': sorted.sort((a, b) => b.sold - a.sold); break;
+      case 'name': sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+      default: sorted.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    }
+    return sorted;
+  }, [products, search, filterCategory, filterStatus, priceMin, priceMax, sortBy]);
+
+  const activeFilterCount =
+    (filterCategory !== 'all' ? 1 : 0) +
+    (filterStatus !== 'all' ? 1 : 0) +
+    (priceMin.trim() ? 1 : 0) +
+    (priceMax.trim() ? 1 : 0) +
+    (sortBy !== 'newest' ? 1 : 0);
+
+  const clearFilters = () => {
+    setFilterCategory('all');
+    setFilterStatus('all');
+    setPriceMin('');
+    setPriceMax('');
+    setSortBy('newest');
+  };
 
   const activeCount = products.filter((p) => p.isActive).length;
   const totalSold = products.reduce((sum, p) => sum + p.sold, 0);
@@ -218,13 +283,13 @@ export const MobileAdminProducts = () => {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
         {/* Shared admin header + section nav */}
-        <MobileAdminNav active="AdminAllProducts" />
+        <MobileAdminNav active={''} />
 
         <View style={s.body}>
           {/* Title */}
           <View style={s.titleRow}>
             <View style={{ flex: 1 }}>
-              <Text style={s.pageTitle} numberOfLines={1}>Product Management</Text>
+              <Text style={s.pageTitle} numberOfLines={1}>Products </Text>
               <Text style={s.pageSub}>Manage store products</Text>
             </View>
             <TouchableOpacity
@@ -242,7 +307,12 @@ export const MobileAdminProducts = () => {
             <Search size={16} color="#94a3b8" strokeWidth={2} />
             <TextInput style={s.searchInput} placeholder="Search products..." placeholderTextColor="#94a3b8"
               value={search} onChangeText={setSearch} />
-            <SlidersHorizontal size={18} color="#94a3b8" strokeWidth={2} />
+            <TouchableOpacity onPress={() => setShowFilters(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <SlidersHorizontal size={18} color={activeFilterCount > 0 ? '#3b82f6' : '#94a3b8'} strokeWidth={2} />
+              {activeFilterCount > 0 ? (
+                <View style={s.filterBadge}><Text style={s.filterBadgeText}>{activeFilterCount}</Text></View>
+              ) : null}
+            </TouchableOpacity>
           </View>
 
           {/* Stats */}
@@ -288,6 +358,111 @@ export const MobileAdminProducts = () => {
           )}
         </View>
       </ScrollView>
+
+      {/* ── Filter bottom sheet ─────────────────────────────── */}
+      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
+        <View style={s.fmOverlay}>
+          <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={() => setShowFilters(false)} />
+          <View style={s.fmSheet}>
+            <View style={s.fmGrab} />
+            <View style={s.fmHeader}>
+              <Text style={s.fmTitle}>Filters</Text>
+              <TouchableOpacity onPress={() => setShowFilters(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color="#64748b" strokeWidth={2.4} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.fmBody}>
+              {categories.length > 0 ? (
+                <View style={s.fmGroup}>
+                  <Text style={s.fmLabel}>Category</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
+                    <FilterChip label="All" active={filterCategory === 'all'} onPress={() => setFilterCategory('all')} />
+                    {categories.map((c) => (
+                      <FilterChip key={c} label={c} active={filterCategory === c} onPress={() => setFilterCategory(c)} />
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+
+              <View style={s.fmGroup}>
+                <Text style={s.fmLabel}>Status</Text>
+                <View style={s.segment}>
+                  {(['all', 'active', 'inactive'] as const).map((st_, i) => (
+                    <TouchableOpacity
+                      key={st_}
+                      activeOpacity={0.85}
+                      onPress={() => setFilterStatus(st_)}
+                      style={[s.segmentBtn, i > 0 && s.segmentDivider, filterStatus === st_ && s.segmentBtnActive]}
+                    >
+                      <Text style={[s.segmentText, filterStatus === st_ && s.segmentTextActive]}>
+                        {st_ === 'all' ? 'All' : st_ === 'active' ? 'Active' : 'Inactive'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={s.fmGroup}>
+                <Text style={s.fmLabel}>Price range</Text>
+                <View style={s.priceRow}>
+                  <View style={s.priceField}>
+                    <Text style={s.pricePrefix}>₹</Text>
+                    <TextInput
+                      style={s.priceFieldInput}
+                      placeholder="Min"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={priceMin}
+                      onChangeText={(v) => setPriceMin(v.replace(/[^0-9]/g, ''))}
+                    />
+                  </View>
+                  <Text style={s.priceDash}>–</Text>
+                  <View style={s.priceField}>
+                    <Text style={s.pricePrefix}>₹</Text>
+                    <TextInput
+                      style={s.priceFieldInput}
+                      placeholder="Max"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      value={priceMax}
+                      onChangeText={(v) => setPriceMax(v.replace(/[^0-9]/g, ''))}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              <View style={s.fmGroup}>
+                <Text style={s.fmLabel}>Sort by</Text>
+                <View style={s.sortList}>
+                  {SORT_OPTIONS.map((o, i) => (
+                    <TouchableOpacity
+                      key={o.key}
+                      activeOpacity={0.7}
+                      onPress={() => setSortBy(o.key)}
+                      style={[s.sortRow, i > 0 && s.sortRowBorder]}
+                    >
+                      <Text style={[s.sortRowText, sortBy === o.key && s.sortRowTextActive]}>{o.label}</Text>
+                      {sortBy === o.key ? <Check size={17} color="#3b82f6" strokeWidth={2.6} /> : null}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            <View style={s.fmFooter}>
+              <TouchableOpacity onPress={clearFilters} disabled={activeFilterCount === 0} style={s.fmClearBtn} activeOpacity={0.7}>
+                <Text style={[s.fmClearText, activeFilterCount === 0 && { opacity: 0.4 }]}>Clear all</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowFilters(false)} activeOpacity={0.9} style={s.fmApply}>
+                <Text style={s.fmApplyText}>
+                  Show {filtered.length} {filtered.length === 1 ? 'product' : 'products'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <ProductFormModal
         visible={showForm}
@@ -369,7 +544,7 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
   },
-  statusDotActive:   { backgroundColor: '#22c55e' },
+  statusDotActive: { backgroundColor: '#22c55e' },
   statusDotInactive: { backgroundColor: '#94a3b8' },
 
   cardInfo: { padding: 10 },
@@ -381,13 +556,13 @@ const s = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '600' },
   statusTextActive: { color: '#16a34a' },
   statusTextInactive: { color: '#94a3b8' },
-  cardDesc:   { fontSize: 11, color: '#94a3b8', marginBottom: 6 },
-  price:      { fontSize: 15, fontWeight: '800', color: '#1e293b' },
+  cardDesc: { fontSize: 11, color: '#94a3b8', marginBottom: 6 },
+  price: { fontSize: 15, fontWeight: '800', color: '#1e293b' },
   coinsPrice: { fontSize: 11, fontWeight: '600', color: '#22c55e', marginBottom: 6 },
-  stockText:  { fontSize: 10, color: '#94a3b8', marginBottom: 8 },
+  stockText: { fontSize: 10, color: '#94a3b8', marginBottom: 8 },
 
-  actionsRow:  { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  toggleBtn:   {
+  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  toggleBtn: {
     flex: 1,
     borderRadius: 6,
     paddingVertical: 5,
@@ -395,15 +570,86 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  toggleBtnActive:   { backgroundColor: '#dcfce7', borderColor: '#bbf7d0' },
+  toggleBtnActive: { backgroundColor: '#dcfce7', borderColor: '#bbf7d0' },
   toggleBtnInactive: { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' },
-  toggleBtnText:           { fontSize: 10, fontWeight: '700' },
-  toggleBtnTextActive:     { color: '#16a34a' },
-  toggleBtnTextInactive:   { color: '#94a3b8' },
-  iconBtnEdit:   { width: 26, height: 26, borderRadius: 6, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' },
+  toggleBtnText: { fontSize: 10, fontWeight: '700' },
+  toggleBtnTextActive: { color: '#16a34a' },
+  toggleBtnTextInactive: { color: '#94a3b8' },
+  iconBtnEdit: { width: 26, height: 26, borderRadius: 6, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' },
   iconBtnDelete: { width: 26, height: 26, borderRadius: 6, backgroundColor: '#fef2f2', justifyContent: 'center', alignItems: 'center' },
 
   emptyState: { alignItems: 'center', paddingVertical: 48 },
   emptyTitle: { fontSize: 16, fontWeight: '600', color: '#94a3b8', marginTop: 12 },
   emptySub: { fontSize: 13, color: '#cbd5e1', marginTop: 4, textAlign: 'center', maxWidth: 240 },
+
+  // ── Filter badge (search-row icon) ──
+  filterBadge: {
+    position: 'absolute', top: -6, right: -8, minWidth: 15, height: 15, borderRadius: 8,
+    backgroundColor: '#3b82f6', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  filterBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+
+  // ── Filter chip ──
+  fchip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18,
+    borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc',
+  },
+  fchipActive: { borderColor: '#3b82f6', backgroundColor: '#eff6ff' },
+  fchipText: { fontSize: 13, color: '#475569', fontWeight: '600' },
+  fchipTextActive: { color: '#3b82f6' },
+  chipRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
+
+  // ── Filter bottom sheet ──
+  fmOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  fmSheet: {
+    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 28, maxHeight: '88%',
+  },
+  fmGrab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#e2e8f0', marginBottom: 8 },
+  fmHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, marginBottom: 4 },
+  fmTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
+  fmBody: { gap: 18, paddingVertical: 8 },
+  fmGroup: { gap: 10 },
+  fmLabel: { fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  // Segmented status
+  segment: {
+    flexDirection: 'row', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
+    overflow: 'hidden', backgroundColor: '#f8fafc',
+  },
+  segmentBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
+  segmentDivider: { borderLeftWidth: 1, borderLeftColor: '#e2e8f0' },
+  segmentBtnActive: { backgroundColor: '#eff6ff' },
+  segmentText: { fontSize: 13, fontWeight: '600', color: '#475569' },
+  segmentTextActive: { color: '#3b82f6', fontWeight: '700' },
+
+  // Price fields
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  priceField: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, height: 46, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, backgroundColor: '#fff',
+  },
+  pricePrefix: { fontSize: 14, color: '#94a3b8', fontWeight: '700' },
+  priceFieldInput: { flex: 1, fontSize: 14, color: '#1e293b' },
+  priceDash: { color: '#94a3b8', fontSize: 14 },
+
+  // Sort list
+  sortList: { borderWidth: 1, borderColor: '#eef2f7', borderRadius: 12, overflow: 'hidden' },
+  sortRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 13, paddingHorizontal: 14, backgroundColor: '#fff',
+  },
+  sortRowBorder: { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  sortRowText: { fontSize: 14, color: '#1e293b', fontWeight: '500' },
+  sortRowTextActive: { color: '#3b82f6', fontWeight: '700' },
+
+  // Footer
+  fmFooter: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingTop: 14, marginTop: 6, borderTopWidth: 1, borderTopColor: '#eef2f7',
+  },
+  fmClearBtn: { paddingVertical: 12, paddingHorizontal: 8 },
+  fmClearText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
+  fmApply: { flex: 1, backgroundColor: '#3b82f6', borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  fmApplyText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });
