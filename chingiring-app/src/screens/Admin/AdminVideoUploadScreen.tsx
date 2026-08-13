@@ -6,9 +6,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 import { VideoList } from '../../components/VideoList';
 import { VideoUploadModal } from '../../components/VideoUploadModal';
+import { VideoPlayerModal } from '../../components/VideoPlayerModal';
 import { Colors, Fonts } from '../../constants/theme';
 import { videosAPI, FeedVideo } from '../../api/videos';
 import { confirmAsync, notify } from '../../utils/dialog';
+
+type Filter = 'all' | 'mine' | 'pending' | 'live' | 'rejected';
+// Mirror VideoList's badge taxonomy: moderation wins, then status.
+const modOf = (v: FeedVideo) => v.moderation?.state;
+const isPending = (v: FeedVideo) => modOf(v) === 'pending';
+const isRejected = (v: FeedVideo) => modOf(v) === 'rejected';
+const isLive = (v: FeedVideo) => v.status === 'ready' && !isPending(v) && !isRejected(v);
 
 /**
  * Admin videos — lists every posted clip (any status) with a "Post Video" CTA
@@ -19,6 +27,11 @@ export const AdminVideoUploadScreen = () => {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FeedVideo | null>(null);
+  const [playing, setPlaying] = useState<FeedVideo | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
+  // "Mine" = admin-posted clips. New posts set creatorRole 'admin'; legacy posts
+  // predate that field but carry createdByAdmin. User (UGC) posts have neither.
+  const isMine = (v: FeedVideo) => v.creatorRole === 'admin' || !!v.createdByAdmin;
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'videos'],
@@ -62,8 +75,37 @@ export const AdminVideoUploadScreen = () => {
   const onEdit = (v: FeedVideo) => { setEditing(v); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditing(null); };
 
-  const live = videos.filter((v) => v.status === 'ready').length;
-  const processing = videos.filter((v) => v.status === 'processing').length;
+  // Watch a clip before deciding — ready clips play, others explain themselves.
+  const onPlay = (v: FeedVideo) => {
+    if (v.status === 'ready' && v.hlsUrl) { setPlaying(v); return; }
+    notify('Not playable yet', v.status === 'processing' ? 'Still encoding — check back in a moment.' : 'This clip has no playable video.');
+  };
+
+  const counts: Record<Filter, number> = {
+    all: videos.length,
+    mine: videos.filter(isMine).length,
+    pending: videos.filter(isPending).length,
+    live: videos.filter(isLive).length,
+    rejected: videos.filter(isRejected).length,
+  };
+  const TABS: { key: Filter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'mine', label: 'Mine' },
+    { key: 'pending', label: 'Under review' },
+    { key: 'live', label: 'Live' },
+    { key: 'rejected', label: 'Rejected' },
+  ];
+  const shown = videos.filter((v) =>
+    filter === 'mine' ? isMine(v)
+    : filter === 'pending' ? isPending(v)
+    : filter === 'rejected' ? isRejected(v)
+    : filter === 'live' ? isLive(v)
+    : true);
+  const emptyHint = filter === 'mine' ? 'You haven’t posted any clips yet.'
+    : filter === 'pending' ? 'Nothing awaiting review 🎉'
+    : filter === 'rejected' ? 'No rejected clips.'
+    : filter === 'live' ? 'No live clips yet.'
+    : 'Tap “Post Video” to add your first clip.';
 
   return (
     <SafeAreaView style={s.root} edges={['left', 'right']}>
@@ -83,22 +125,31 @@ export const AdminVideoUploadScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Stats */}
-          <View style={s.statsGrid}>
-            <View style={s.miniStat}><Text style={s.miniLabel}>Total</Text><Text style={s.miniVal}>{videos.length}</Text></View>
-            <View style={s.miniStat}><Text style={s.miniLabel}>Live</Text><Text style={[s.miniVal, { color: '#22c55e' }]}>{live}</Text></View>
-            <View style={s.miniStat}><Text style={s.miniLabel}>Processing</Text><Text style={[s.miniVal, { color: '#f59e0b' }]}>{processing}</Text></View>
-          </View>
+          {/* Filter tabs — double as the queue counts. "Under review" is the actionable one;
+              "Mine" is the admin's own uploads. Scrolls so the pills never cramp. */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs}>
+            {TABS.map((t) => {
+              const on = filter === t.key;
+              const n = counts[t.key];
+              const attention = t.key === 'pending' && n > 0;
+              return (
+                <TouchableOpacity key={t.key} style={[s.tab, on && s.tabOn, attention && !on && s.tabAlert]} onPress={() => setFilter(t.key)} activeOpacity={0.85}>
+                  <Text style={[s.tabTxt, on && s.tabTxtOn, attention && !on && s.tabTxtAlert]} numberOfLines={1}>{t.label} {n}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
           {isLoading ? (
             <View style={s.loading}><ActivityIndicator size="large" color={Colors.primary} /></View>
           ) : (
-            <VideoList videos={videos} onEdit={onEdit} onDelete={onDelete} onApprove={onApprove} onReject={onReject} emptyHint='Tap “Post Video” to add your first clip.' />
+            <VideoList videos={shown} onPress={onPlay} onEdit={onEdit} onDelete={onDelete} onApprove={onApprove} onReject={onReject} emptyHint={emptyHint} />
           )}
         </View>
       </ScrollView>
 
       <VideoUploadModal visible={showForm} onClose={closeForm} onUploaded={invalidate} editing={editing} />
+      <VideoPlayerModal video={playing} onClose={() => setPlaying(null)} />
     </SafeAreaView>
   );
 };
@@ -111,10 +162,13 @@ const s = StyleSheet.create({
   pageSub: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#22c55e', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, flexShrink: 0 },
   addBtnText: { fontSize: 13, fontFamily: Fonts.bold, color: '#fff' },
-  statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  miniStat: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#f1f5f9' },
-  miniLabel: { fontSize: 11, color: '#94a3b8', marginBottom: 4 },
-  miniVal: { fontSize: 20, fontFamily: Fonts.extraBold, color: '#1e293b' },
+  tabs: { flexDirection: 'row', gap: 6, marginBottom: 16, paddingRight: 4 },
+  tab: { backgroundColor: '#fff', borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center' },
+  tabOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  tabAlert: { backgroundColor: '#fef3c7', borderColor: '#fde68a' },
+  tabTxt: { fontSize: 11.5, fontFamily: Fonts.bold, color: '#64748b' },
+  tabTxtOn: { color: '#fff' },
+  tabTxtAlert: { color: '#b45309' },
   loading: { paddingVertical: 56, alignItems: 'center' },
 });
 
