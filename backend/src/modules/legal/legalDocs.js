@@ -1,12 +1,8 @@
-// ── Legal + About copy ──────────────────────────────────────────────────────
-// Bundled markdown so LegalModal can show these offline AND so the in-app
-// policy matches the Play Store listing (Google requires both to agree).
-// Source of truth at repo root: PRIVACY_POLICY.md / TERMS_AND_CONDITIONS.md /
-// ABOUT.md — regenerate this file from them when they change (leading "# Title"
-// H1 is dropped; LegalModal renders the title in its header). Rendered by the
-// mini-markdown parser in LegalModal.tsx (##, ###, - bullets, **bold**, ---).
+// GENERATED from repo-root PRIVACY_POLICY.md / TERMS_AND_CONDITIONS.md / ABOUT.md.
+// Served as public HTML by legalController.js. Regenerate when the root docs change.
+export const PRIVACY_MD = `# Privacy Policy
 
-export const PRIVACY_POLICY = `**Last Updated:** 13 August 2026
+**Last Updated:** 13 August 2026
 
 This Privacy Policy explains how Chingiringi ("Chingiringi", "we", "us", or "our") collects, uses, stores, shares, and protects information when you access or use the Chingiringi mobile application (the "App"), website, and related services (together, the "Platform").
 
@@ -154,7 +150,9 @@ We will respond to your inquiry within a reasonable period and as required by ap
 
 By using Chingiringi, you acknowledge that you have read and understood this Privacy Policy.`;
 
-export const TERMS_AND_CONDITIONS = `**Last Updated:** 11 August 2026
+export const TERMS_MD = `# Terms & Conditions
+
+**Last Updated:** 11 August 2026
 
 Welcome to Chingiringi. These Terms & Conditions ("Terms") govern your access to and use of the Chingiringi mobile application, website, and related services ("Platform").
 
@@ -391,7 +389,9 @@ If you have questions, concerns, complaints, or requests regarding these Terms o
 
 By using Chingiringi, you acknowledge that you have read, understood, and agreed to these Terms & Conditions.`;
 
-export const ABOUT = `Chingiringi is a smarter way to discover products, explore deals, shop, and earn rewards.
+export const ABOUT_MD = `# About Chingiringi
+
+Chingiringi is a smarter way to discover products, explore deals, shop, and earn rewards.
 
 We bring shopping, product discovery, short-form videos, local stores, and rewards together in one simple platform.
 

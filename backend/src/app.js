@@ -31,6 +31,7 @@ import storeRoutes from './modules/stores/storeRoutes.js';
 import paymentsWebhookRoutes, { cashfreeRouter } from './modules/payments/paymentsRoutes.js';
 import videoRoutes from './modules/videos/videoRoutes.js';
 import videoWebhookRoutes from './modules/videos/videoWebhookRoutes.js';
+import legalRoutes from './modules/legal/legalRoutes.js';
 import { activeProvider } from './services/videoProvider.js';
 
 const app = express();
@@ -145,6 +146,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/s', shareRedirectRoutes);
+
+// Public legal pages for store listings (Google Play, etc.) — plain HTML, no auth.
+app.use('/', legalRoutes);
 
 // Unhandled routes
 app.all('*', notFound);
