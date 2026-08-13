@@ -23,7 +23,17 @@ export const getWallet = async (req, res) => {
   const byStatus = Object.fromEntries(agg.map((r) => [r._id, r.coins]));
   const shareRewards = { pending: byStatus.pending || 0, confirmed: byStatus.confirmed || 0 };
 
-  res.status(200).json({ status: 'success', data: { wallet, shareRewards } });
+  // Withdrawals still with us — awaiting admin payout ('pending') or being
+  // processed ('processing'). Display-only summary (₹ total + count) so the
+  // wallet can show an "Under review" card without scanning the recent-
+  // transactions window. Withdrawal `amount` is stored in ₹.
+  const wdAgg = await Transaction.aggregate([
+    { $match: { userId: req.user._id, type: 'withdrawal', status: { $in: ['pending', 'processing'] } } },
+    { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+  ]);
+  const pendingWithdrawals = { total: wdAgg[0]?.total || 0, count: wdAgg[0]?.count || 0 };
+
+  res.status(200).json({ status: 'success', data: { wallet, shareRewards, pendingWithdrawals } });
 };
 
 // @desc    Get wallet summary (balances + recent transactions)

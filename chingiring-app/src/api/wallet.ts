@@ -12,6 +12,9 @@ export interface Wallet {
 
 export interface ShareRewards { pending: number; confirmed: number; }
 
+// Withdrawals awaiting/processing admin payout — ₹ total + count (GET /api/wallet).
+export interface PendingWithdrawals { total: number; count: number; }
+
 export interface Transaction {
   _id: string;
   userId: string;

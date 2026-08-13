@@ -12,9 +12,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { ArrowDownToLine, Clock, X, ChevronRight } from 'lucide-react-native';
-import { MobileAuthHeader } from '../../components/MobileAuthHeader';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Fonts } from '../../constants/theme';
 // expo-camera v17 incompatible with SDK 54 in Expo Go — disabled until version aligned
 // import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -24,7 +26,9 @@ import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 import { ShareToEarnCard } from '../../components/ShareToEarnCard';
-import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
+import { PendingRewardCard } from '../../components/PendingRewardCard';
+import { WithdrawalPendingCard } from '../../components/WithdrawalPendingCard';
+import { TransactionRow } from '../../components/TransactionRow';
 
 // ─── Data ───────────────────────────────────────────────────────────
 
@@ -36,50 +40,6 @@ const COINS_PER_RUPEE = 1000; // mirrors AdminSettings.coinsPerRupee default
 // Zero-state wallet used before the API responds — all zeros, never fake
 // balances (which masked failures and read as real money).
 const EMPTY_WALLET: Wallet = { _id: '', userId: '', confirmedCashback: 0, pendingCashback: 0, coins: 0, pendingCoins: 0, lifetimeEarned: 0 };
-
-function timeAgo(d: string): string {
-  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return '1 day ago';
-  return `${days} days ago`;
-}
-
-// User-facing label for a withdrawal's admin-review status.
-function wdStatus(status?: string): string {
-  return status === 'pending' ? 'Under review'
-    : status === 'processing' ? 'Processing'
-    : status === 'completed' ? 'Paid'
-    : status === 'rejected' ? 'Rejected'
-    : (status || '');
-}
-
-// Amber = under review, blue = processing, green = paid, red = rejected.
-function wdStatusColor(status?: string): { text: string; bg: string } {
-  return status === 'pending' ? { text: '#b45309', bg: '#fef3c7' }
-    : status === 'processing' ? { text: '#2563eb', bg: '#dbeafe' }
-    : status === 'completed' ? { text: '#16a34a', bg: '#dcfce7' }
-    : status === 'rejected' ? { text: '#dc2626', bg: '#fee2e2' }
-    : { text: '#64748b', bg: '#f1f5f9' };
-}
-
-function WithdrawStatusPill({ status }: { status?: string }) {
-  const c = wdStatusColor(status);
-  return (
-    <View style={{ backgroundColor: c.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, alignSelf: 'flex-start', marginTop: 3 }}>
-      <Text style={{ color: c.text, fontSize: 11, fontWeight: '700' }}>{wdStatus(status)}</Text>
-    </View>
-  );
-}
-
-function dotColor(t: string) {
-  if (t === 'cashback') return '#16a34a';
-  if (t === 'withdrawal') return '#ef4444';
-  if (t === 'referral') return '#f97316';
-  return '#94a3b8';
-}
-
-function amtColor(t: string) { return t === 'withdrawal' ? '#ef4444' : '#16a34a'; }
-function amtPrefix(t: string) { return t === 'withdrawal' ? '-' : '+'; }
 
 // ─── Withdraw Sheet ─────────────────────────────────────────────────
 
@@ -443,6 +403,7 @@ export const MobileWalletScreen = () => {
   const w: Wallet = wRes?.data?.wallet ?? wRes?.data ?? EMPTY_WALLET;
   const txns: Transaction[] = tRes?.data?.transactions ?? tRes?.data ?? [];
   const shareRewards = (wRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
+  const pendingWithdrawals = (wRes as any)?.data?.pendingWithdrawals ?? { total: 0, count: 0 };
 
   if (wL) return <View style={[m.root, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#3b82f6" /></View>;
 
@@ -450,54 +411,50 @@ export const MobileWalletScreen = () => {
     <View style={m.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-        {/* ── HEADER (shared gradient header) ───────────────────────────────
-            Uses the same MobileAuthHeader as every other mobile screen.
-            Baseline height already leaves room for the balance card's
-            -20 marginTop overlap, so no extraBottomSpace needed. */}
-        <MobileAuthHeader
-          hideBack
-          kicker="WALLET"
-          title={user?.name || 'Guest'}
-          align="left"
-          rightSlot={
-            <View style={m.headerAvatar}>
-              {user?.avatarUrl ? (
-                <Image
-                  source={{ uri: user.avatarUrl }}
-                  style={m.headerAvatarImg}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={m.headerAvatarInitials}>
-                  {(user?.name?.[0] ?? 'U').toUpperCase()}
-                </Text>
-              )}
+        {/* ── BLUE BALANCE HERO — the mockup’s balance card; replaces the
+            shared gradient header on the wallet tab only. ─────── */}
+        <LinearGradient
+          colors={['#4784E2', '#2D6BC9']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={m.hero}
+        >
+          <View pointerEvents="none" style={[m.heroGlob, m.heroGlobTR]} />
+          <View pointerEvents="none" style={[m.heroGlob, m.heroGlobBL]} />
+          <SafeAreaView edges={['top']} style={m.heroInner}>
+            <View style={m.heroTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={m.heroKicker}>WALLET</Text>
+                <Text style={m.heroName} numberOfLines={1}>{user?.name || 'Guest'}</Text>
+              </View>
+              <View style={m.headerAvatar}>
+                {user?.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={m.headerAvatarImg} resizeMode="cover" />
+                ) : (
+                  <Text style={m.headerAvatarInitials}>{(user?.name?.[0] ?? 'U').toUpperCase()}</Text>
+                )}
+              </View>
             </View>
-          }
-        />
-        {/* Balance card */}
-        <View style={m.balCard}>
-          <Text style={m.balLabel}>Coin Balance</Text>
-          <Text style={[m.balAmt, { marginBottom: 4 }]}>{(w.coins ?? 0).toLocaleString('en-IN')}</Text>
-          <Text style={m.balSub}>{'≈ ₹'}{Math.floor((w.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}{' available to withdraw'}</Text>
 
-          {/* Withdraw (full-width) */}
-          <View style={m.btnRow}>
-            <TouchableOpacity style={m.withdrawBtn} onPress={() => setShowWithdraw(true)}>
-              <ArrowDownToLine size={15} color="#fff" strokeWidth={2.5} />
-              <Text style={m.withdrawTxt}>Withdraw</Text>
+            <Text style={m.heroLabel}>Coin Balance</Text>
+            <Text style={m.heroAmt}>{(w.coins ?? 0).toLocaleString('en-IN')}</Text>
+            <Text style={m.heroSub}>{'≈ ₹'}{Math.floor((w.coins ?? 0) / COINS_PER_RUPEE).toLocaleString('en-IN')}{' · available to withdraw'}</Text>
+
+            <TouchableOpacity style={m.heroWithdraw} onPress={() => setShowWithdraw(true)} activeOpacity={0.9}>
+              <ArrowDownToLine size={16} color="#2563eb" strokeWidth={2.6} />
+              <Text style={m.heroWithdrawTxt}>Withdraw</Text>
             </TouchableOpacity>
-          </View>
 
-          {/* Txn History link */}
-          <TouchableOpacity style={m.historyRow} onPress={() => nav.navigate('TransactionHistory')}>
-            <Clock size={14} color="#3b82f6" strokeWidth={2} />
-            <Text style={m.historyTxt}>Transaction History</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={m.heroHistory} onPress={() => nav.navigate('TransactionHistory')} activeOpacity={0.85}>
+              <Clock size={14} color="#fff" strokeWidth={2} />
+              <Text style={m.heroHistoryTxt}>Transaction History</Text>
+            </TouchableOpacity>
+          </SafeAreaView>
+        </LinearGradient>
 
         <View style={{ paddingHorizontal: 20 }}>
-          <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
+          <WithdrawalPendingCard total={pendingWithdrawals.total} count={pendingWithdrawals.count} />
+          <PendingRewardCard pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
         </View>
 
         {/* Earn coins by sharing — the daily earning loop */}
@@ -524,16 +481,7 @@ export const MobileWalletScreen = () => {
               No transactions yet.
             </Text>
           ) : txns.slice(0, 6).map((tx) => (
-            <TouchableOpacity key={tx._id} style={m.txRow} activeOpacity={0.7}>
-              <View style={[m.txDot, { backgroundColor: dotColor(tx.type) }]} />
-              <View style={m.txInfo}>
-                <Text style={m.txDesc} numberOfLines={1}>{tx.description}</Text>
-                <Text style={m.txTime}>{timeAgo(tx.createdAt)}</Text>
-                {tx.type === 'withdrawal' ? <WithdrawStatusPill status={tx.status} /> : null}
-              </View>
-              <Text style={[m.txAmt, { color: amtColor(tx.type) }]}>{amtPrefix(tx.type)}{(tx.type === 'coin_credit' || tx.type === 'coin_debit') ? tx.amount + ' coins' : '₹' + tx.amount}</Text>
-              <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
-            </TouchableOpacity>
+            <TransactionRow key={tx._id} tx={tx} onPress={() => {}} />
           ))}
           {txns.length > 0 && (
             <TouchableOpacity style={m.seeAllBtn} onPress={() => nav.navigate('TransactionHistory')} activeOpacity={0.8}>
@@ -574,40 +522,31 @@ const m = StyleSheet.create({
     color: '#fff',
   },
 
-  // Balance card
-  balCard: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 18,
-    alignItems: 'flex-start',
-    position: 'relative',
+  // Blue balance hero — replaces the shared gradient header on the wallet tab
+  // so the balance reads as the mockup's blue card. Other screens keep MobileAuthHeader.
+  hero: {
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
-    marginTop: -20,
-    width: '90%',
-    alignSelf: "center"
+    ...(Platform.OS === 'web'
+      ? ({ boxShadow: '0 8px 22px rgba(37,99,235,0.28)' } as any)
+      : { shadowColor: '#2563eb', shadowOpacity: 0.28, shadowOffset: { width: 0, height: 6 }, shadowRadius: 14, elevation: 8 }),
   },
-  balLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 2, zIndex: 1 },
-  balAmt: { fontSize: 40, fontWeight: '800', color: '#1e293b', marginBottom: 20, zIndex: 1 },
-  balSub: { fontSize: 13, color: Colors.textSecondary, marginBottom: 18, zIndex: 1 },
-  // buttons
-  btnRow: { flexDirection: 'row', gap: 2, marginBottom: 14, zIndex: 1, width: "100%", justifyContent: 'space-evenly' },
-  withdrawBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    borderWidth: 2, borderColor: '#3b82f6', borderRadius: 12,
-    paddingHorizontal: 22, paddingVertical: 11,
-    backgroundColor: Colors.primary,
-    flexGrow: 1,
-  },
-  withdrawTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  historyRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 6, zIndex: 1,
-    backgroundColor: Colors.primaryLight10,
-    paddingVertical: 14,
-    borderRadius: 12
-  },
-  historyTxt: { textAlign: 'center', fontSize: 13, fontWeight: '600', color: '#3b82f6', textDecorationStyle: 'dashed' },
+  heroInner: { paddingHorizontal: 22, paddingTop: 10, paddingBottom: 22 },
+  heroGlob: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.08)' },
+  heroGlobTR: { top: -70, right: -55 },
+  heroGlobBL: { bottom: -85, left: -55 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  heroKicker: { fontSize: 10, fontFamily: Fonts.semiBold, color: 'rgba(255,255,255,0.75)', letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 2 },
+  heroName: { fontSize: 18, fontFamily: Fonts.bold, color: '#fff', letterSpacing: 0.2 },
+  heroLabel: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 2 },
+  heroAmt: { fontSize: 40, fontWeight: '800', color: '#fff', marginBottom: 2 },
+  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 18 },
+  heroWithdraw: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#fff', borderRadius: 12, paddingVertical: 12 },
+  heroWithdrawTxt: { fontSize: 14, fontWeight: '700', color: '#2563eb' },
+  heroHistory: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 11, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.14)' },
+  heroHistoryTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
   // Share-to-earn wrapper
   shareWrap: { paddingHorizontal: 20, marginTop: 16, marginBottom: 4 },
@@ -616,7 +555,7 @@ const m = StyleSheet.create({
   activity: { paddingHorizontal: 20 },
   actTitle: { fontSize: 18, fontWeight: '700', color: '#1e293b', marginBottom: 14 },
   fPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 8, backgroundColor: Colors.surface },
-  fPillOn: { backgroundColor: '#3b82f6' },
+  fPillOn: { backgroundColor: '#0f172a' },
   fTxt: { fontSize: 13, fontWeight: '600', color: '#94a3b8' },
   fTxtOn: { color: '#fff', fontWeight: '700' },
 

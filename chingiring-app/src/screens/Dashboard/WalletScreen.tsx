@@ -3,11 +3,13 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Modal, TextInput, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, CheckCircle2, Wallet as WalletIcon, TrendingUp, ArrowDownLeft, ArrowUpRight, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
+import { X, CheckCircle2, Wallet as WalletIcon, TrendingUp, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 import { ShareToEarnCard } from '../../components/ShareToEarnCard';
-import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
+import { PendingRewardCard } from '../../components/PendingRewardCard';
+import { WithdrawalPendingCard } from '../../components/WithdrawalPendingCard';
+import { TransactionRow } from '../../components/TransactionRow';
 
 // Coins→₹ conversion. Mirrors AdminSettings.coinsPerRupee default (1000);
 // 100 coins = 10 paise. The exact rate is re-locked server-side at request time.
@@ -35,45 +37,6 @@ const EMPTY_WALLET: Wallet = {
   pendingCoins: 0,
   lifetimeEarned: 0,
 };
-
-function formatTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return '1 day ago';
-  return `${days} days ago`;
-}
-
-function getTxDisplayType(tx: Transaction): 'income' | 'withdrawal' {
-  return tx.type === 'withdrawal' || tx.type === 'coin_debit' ? 'withdrawal' : 'income';
-}
-
-// User-facing label for a withdrawal's admin-review status.
-function wdStatus(status?: string): string {
-  return status === 'pending' ? 'Under review'
-    : status === 'processing' ? 'Processing'
-    : status === 'completed' ? 'Paid'
-    : status === 'rejected' ? 'Rejected'
-    : (status || '');
-}
-
-// Amber = under review, blue = processing, green = paid, red = rejected.
-function wdStatusColor(status?: string): { text: string; bg: string } {
-  return status === 'pending' ? { text: '#b45309', bg: '#fef3c7' }
-    : status === 'processing' ? { text: '#2563eb', bg: '#dbeafe' }
-    : status === 'completed' ? { text: '#16a34a', bg: '#dcfce7' }
-    : status === 'rejected' ? { text: '#dc2626', bg: '#fee2e2' }
-    : { text: '#64748b', bg: '#f1f5f9' };
-}
-
-function WithdrawStatusPill({ status }: { status?: string }) {
-  const c = wdStatusColor(status);
-  return (
-    <View style={{ backgroundColor: c.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, alignSelf: 'flex-start', marginTop: 3 }}>
-      <Text style={{ color: c.text, fontSize: 11, fontWeight: '700' }}>{wdStatus(status)}</Text>
-    </View>
-  );
-}
 
 // react-native-web's Alert is a no-op, and this screen is web-first — route
 // through window.alert there so the user actually sees the message.
@@ -364,6 +327,7 @@ export const WalletScreen = () => {
 
   const wallet: Wallet = summaryData?.data?.wallet ?? EMPTY_WALLET;
   const shareRewards = (walletRes as any)?.data?.shareRewards ?? { pending: 0, confirmed: 0 };
+  const pendingWithdrawals = (walletRes as any)?.data?.pendingWithdrawals ?? { total: 0, count: 0 };
   const transactions: Transaction[] =
     activeFilter === 'All'
       ? (summaryData?.data?.recentTransactions ?? [])
@@ -435,7 +399,8 @@ export const WalletScreen = () => {
         </View>
       )}
 
-      <ShareRewardsSummary pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
+      <WithdrawalPendingCard total={pendingWithdrawals.total} count={pendingWithdrawals.count} />
+      <PendingRewardCard pending={shareRewards.pending} confirmed={shareRewards.confirmed} />
 
       {/* Transaction History */}
       <View style={[styles.transactionSection, isMobile && { padding: 16 }]}>
@@ -466,37 +431,9 @@ export const WalletScreen = () => {
             <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>No transactions yet.</Text>
           </View>
         ) : (
-          transactions.slice(0, 6).map((tx) => {
-            const displayType = getTxDisplayType(tx);
-            const isCoin = tx.type === 'coin_credit' || tx.type === 'coin_debit';
-            const label = tx.metadata?.brand || tx.description;
-            return (
-              <View key={tx._id} style={styles.transactionItem}>
-                <View style={[
-                  styles.txIconContainer,
-                  { backgroundColor: displayType === 'income' ? '#ecfdf5' : '#fef2f2' },
-                ]}>
-                  {displayType === 'income'
-                    ? <ArrowDownLeft size={18} color={Colors.success} strokeWidth={2.4} />
-                    : <ArrowUpRight size={18} color={Colors.danger} strokeWidth={2.4} />}
-                </View>
-                <View style={styles.txInfo}>
-                  <Text style={styles.txBrand}>{label}</Text>
-                  <Text style={styles.txTime}>{formatTimeAgo(tx.createdAt)}</Text>
-                  {tx.type === 'withdrawal' ? <WithdrawStatusPill status={tx.status} /> : null}
-                </View>
-                <View style={styles.txAmountContainer}>
-                  <Text style={[
-                    styles.txAmount,
-                    { color: displayType === 'income' ? Colors.success : Colors.danger },
-                  ]}>
-                    {displayType === 'income' ? '+' : '-'}{isCoin ? tx.amount + ' coins' : '\u20B9' + tx.amount}
-                  </Text>
-                  <Text style={styles.txChevron}>{'›'}</Text>
-                </View>
-              </View>
-            );
-          })
+          transactions.slice(0, 6).map((tx) => (
+            <TransactionRow key={tx._id} tx={tx} />
+          ))
         )}
 
         {transactions.length > 0 && (
@@ -646,7 +583,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   transactionSection: {
-    backgroundColor: Colors.surface,
+    backgroundColor: '#F8FAFC',
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,
