@@ -42,33 +42,10 @@ console.log(`[videos] provider: ${activeProvider()}`); // confirms which host (c
 // Security HTTP headers
 app.use(helmet());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'development' ? 1000 : 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
-
-// Razorpay webhook needs the RAW request body to verify the HMAC signature, so
-// it is mounted BEFORE express.json() (which would parse & discard the bytes).
-app.use('/api/webhooks/razorpay', express.raw({ type: '*/*' }), paymentsWebhookRoutes);
-app.use('/api/webhooks/cashfree', express.raw({ type: '*/*' }), cashfreeRouter);
-// Video-provider webhook (Cloudflare or Mux, per VIDEO_PROVIDER). Neutral path
-// `/video` is canonical; `/cloudflare-stream` kept as an alias. Both need the RAW
-// body for HMAC signature verification, so they mount before express.json().
-app.use('/api/webhooks/video', express.raw({ type: '*/*' }), videoWebhookRoutes);
-app.use('/api/webhooks/cloudflare-stream', express.raw({ type: '*/*' }), videoWebhookRoutes);
-
-// Body parser
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// Cookie parser
-app.use(cookieParser(process.env.COOKIE_SECRET));
-
-// Enable CORS
+// CORS runs BEFORE the rate limiter (and anything else that can reject a request)
+// so that even 429 / error responses still carry Access-Control-Allow-Origin.
+// Otherwise a rate-limited request reaches the browser without CORS headers and
+// is reported as a misleading "No 'Access-Control-Allow-Origin' header" error.
 const allowedOrigins = [
   'http://localhost:8081',
   'http://localhost:8082',
@@ -92,6 +69,38 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// Rate limiting — skip CORS preflights (OPTIONS carry no auth and shouldn't burn
+// quota) and give a real app session headroom: it fires many calls per screen, so
+// the old 100/15min tripped mid-upload and surfaced as a bogus CORS error.
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 2000 : 400,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+});
+app.use(limiter);
+
+// Razorpay webhook needs the RAW request body to verify the HMAC signature, so
+// it is mounted BEFORE express.json() (which would parse & discard the bytes).
+app.use('/api/webhooks/razorpay', express.raw({ type: '*/*' }), paymentsWebhookRoutes);
+app.use('/api/webhooks/cashfree', express.raw({ type: '*/*' }), cashfreeRouter);
+// Video-provider webhook (Cloudflare or Mux, per VIDEO_PROVIDER). Neutral path
+// `/video` is canonical; `/cloudflare-stream` kept as an alias. Both need the RAW
+// body for HMAC signature verification, so they mount before express.json().
+app.use('/api/webhooks/video', express.raw({ type: '*/*' }), videoWebhookRoutes);
+app.use('/api/webhooks/cloudflare-stream', express.raw({ type: '*/*' }), videoWebhookRoutes);
+
+// Body parser
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Cookie parser
+app.use(cookieParser(process.env.COOKIE_SECRET));
+
+// (CORS is configured above, before the rate limiter, so error/429 responses
+// keep their Access-Control-Allow-Origin header.)
 
 // Development logging
 if (process.env.NODE_ENV === 'development') {
