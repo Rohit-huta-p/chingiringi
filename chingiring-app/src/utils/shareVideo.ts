@@ -1,10 +1,9 @@
 import { Share, Platform } from 'react-native';
 import { notify } from './dialog';
 
-// Where a shared link points. Opens the video feed on web / the app via universal
-// link on native. (Deep-linking to the exact clip is a later add — needs a
-// per-video route.)
-const SHARE_URL = 'https://chingiringi.com/app/videos';
+// Base for a shared link — the feed opens straight to the shared clip via ?v=<id>
+// (web) or the app via universal link (native).
+const WEB_BASE = 'https://chingiringi.com';
 
 type ShareableVideo = { _id: string; store?: { name?: string }; caption?: string };
 
@@ -17,14 +16,15 @@ export async function shareVideo(video: ShareableVideo): Promise<boolean> {
   const store = video.store?.name?.trim();
   const title = store ? `${store} on ChingiRingi` : 'ChingiRingi';
   const caption = video.caption?.trim();
-  const message = `${caption || `Check out ${store || 'this clip'} on ChingiRingi 🎬`}\n${SHARE_URL}`;
+  const url = `${WEB_BASE}/app/videos?v=${encodeURIComponent(video._id)}`;
+  const message = `${caption || `Check out ${store || 'this clip'} on ChingiRingi 🎬`}\n${url}`;
 
   if (Platform.OS === 'web') {
     const nav: any = typeof navigator !== 'undefined' ? navigator : null;
     try {
-      if (nav?.share) { await nav.share({ title, text: message, url: SHARE_URL }); return true; }
+      if (nav?.share) { await nav.share({ title, text: message, url }); return true; }
       if (nav?.clipboard?.writeText) {
-        await nav.clipboard.writeText(SHARE_URL);
+        await nav.clipboard.writeText(url);
         notify('Link copied', 'Paste it anywhere to share this clip.');
         return true;
       }
@@ -36,7 +36,7 @@ export async function shareVideo(video: ShareableVideo): Promise<boolean> {
   }
 
   try {
-    const res = await Share.share({ title, message, url: SHARE_URL });
+    const res = await Share.share({ title, message, url });
     return res.action === Share.sharedAction;
   } catch {
     return false;
