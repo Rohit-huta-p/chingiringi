@@ -7,6 +7,7 @@ import { MobileAdminNav } from '../../components/MobileAdminNav';
 import { VideoList } from '../../components/VideoList';
 import { VideoUploadModal } from '../../components/VideoUploadModal';
 import { VideoPlayerModal } from '../../components/VideoPlayerModal';
+import { RejectReasonModal } from '../../components/RejectReasonModal';
 import { Colors, Fonts } from '../../constants/theme';
 import { videosAPI, FeedVideo } from '../../api/videos';
 import { confirmAsync, notify } from '../../utils/dialog';
@@ -28,6 +29,7 @@ export const AdminVideoUploadScreen = () => {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FeedVideo | null>(null);
   const [playing, setPlaying] = useState<FeedVideo | null>(null);
+  const [rejecting, setRejecting] = useState<FeedVideo | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   // "Mine" = admin-posted clips. New posts set creatorRole 'admin'; legacy posts
   // predate that field but carry createdByAdmin. User (UGC) posts have neither.
@@ -66,9 +68,10 @@ export const AdminVideoUploadScreen = () => {
     onError: (e: any) => notify('Action failed', e?.response?.data?.message || 'Could not update the video.'),
   });
   const onApprove = (v: FeedVideo) => moderateMutation.mutate({ id: v._id, action: 'approve' });
-  const onReject = async (v: FeedVideo) => {
-    const ok = await confirmAsync('Reject video', `Reject this ${v.store?.name || ''} clip? It won’t enter the feed.`, { confirmLabel: 'Reject', destructive: true });
-    if (ok) moderateMutation.mutate({ id: v._id, action: 'reject' });
+  const onReject = (v: FeedVideo) => setRejecting(v); // opens the reason modal
+  const submitReject = (reason: string) => {
+    if (rejecting) moderateMutation.mutate({ id: rejecting._id, action: 'reject', reason });
+    setRejecting(null);
   };
 
   const openCreate = () => { setEditing(null); setShowForm(true); };
@@ -150,6 +153,12 @@ export const AdminVideoUploadScreen = () => {
 
       <VideoUploadModal visible={showForm} onClose={closeForm} onUploaded={invalidate} editing={editing} />
       <VideoPlayerModal video={playing} onClose={() => setPlaying(null)} />
+      <RejectReasonModal
+        visible={!!rejecting}
+        storeName={rejecting?.store?.name}
+        onCancel={() => setRejecting(null)}
+        onSubmit={submitReject}
+      />
     </SafeAreaView>
   );
 };

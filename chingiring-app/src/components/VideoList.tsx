@@ -98,6 +98,12 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, 
                 {nProducts > 0 && <Text style={s.prodTag}>{nProducts} product{nProducts > 1 ? 's' : ''}</Text>}
               </View>
 
+              {modState === 'rejected' && !!v.moderation?.reason && (
+                <View style={s.reasonBox}>
+                  <Text style={s.reasonTxt} numberOfLines={4}>{v.moderation.reason}</Text>
+                </View>
+              )}
+
               {modState === 'pending' && (onApprove || onReject) && (
                 <View style={s.actions}>
                   {onApprove && (
@@ -159,6 +165,8 @@ const s = StyleSheet.create({
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaTxt: { fontSize: 11, color: '#94a3b8', fontFamily: Fonts.semiBold },
   prodTag: { fontSize: 10.5, color: '#3b82f6', fontFamily: Fonts.bold, marginLeft: 'auto' },
+  reasonBox: { marginTop: 8, backgroundColor: '#fef2f2', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: '#fee2e2' },
+  reasonTxt: { fontSize: 11.5, color: '#b91c1c', lineHeight: 16, fontFamily: Fonts.medium },
 
   actions: { flexDirection: 'row', gap: 6, marginTop: 10 },
   editBtn: {
