@@ -53,6 +53,24 @@ function wdStatus(status?: string): string {
     : (status || '');
 }
 
+// Amber = under review, blue = processing, green = paid, red = rejected.
+function wdStatusColor(status?: string): { text: string; bg: string } {
+  return status === 'pending' ? { text: '#b45309', bg: '#fef3c7' }
+    : status === 'processing' ? { text: '#2563eb', bg: '#dbeafe' }
+    : status === 'completed' ? { text: '#16a34a', bg: '#dcfce7' }
+    : status === 'rejected' ? { text: '#dc2626', bg: '#fee2e2' }
+    : { text: '#64748b', bg: '#f1f5f9' };
+}
+
+function WithdrawStatusPill({ status }: { status?: string }) {
+  const c = wdStatusColor(status);
+  return (
+    <View style={{ backgroundColor: c.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, alignSelf: 'flex-start', marginTop: 3 }}>
+      <Text style={{ color: c.text, fontSize: 11, fontWeight: '700' }}>{wdStatus(status)}</Text>
+    </View>
+  );
+}
+
 function dotColor(t: string) {
   if (t === 'cashback') return '#16a34a';
   if (t === 'withdrawal') return '#ef4444';
@@ -505,19 +523,24 @@ export const MobileWalletScreen = () => {
             <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, paddingVertical: 24 }}>
               No transactions yet.
             </Text>
-          ) : txns.map((tx) => (
+          ) : txns.slice(0, 6).map((tx) => (
             <TouchableOpacity key={tx._id} style={m.txRow} activeOpacity={0.7}>
               <View style={[m.txDot, { backgroundColor: dotColor(tx.type) }]} />
               <View style={m.txInfo}>
                 <Text style={m.txDesc} numberOfLines={1}>{tx.description}</Text>
-                <Text style={m.txTime}>
-                  {timeAgo(tx.createdAt)}{tx.type === 'withdrawal' ? ` · ${wdStatus(tx.status)}` : ''}
-                </Text>
+                <Text style={m.txTime}>{timeAgo(tx.createdAt)}</Text>
+                {tx.type === 'withdrawal' ? <WithdrawStatusPill status={tx.status} /> : null}
               </View>
               <Text style={[m.txAmt, { color: amtColor(tx.type) }]}>{amtPrefix(tx.type)}{(tx.type === 'coin_credit' || tx.type === 'coin_debit') ? tx.amount + ' coins' : '₹' + tx.amount}</Text>
               <ChevronRight size={16} color="#cbd5e1" strokeWidth={2} />
             </TouchableOpacity>
           ))}
+          {txns.length > 0 && (
+            <TouchableOpacity style={m.seeAllBtn} onPress={() => nav.navigate('TransactionHistory')} activeOpacity={0.8}>
+              <Text style={m.seeAllTxt}>See all transactions</Text>
+              <ChevronRight size={16} color={Colors.primary} strokeWidth={2.4} />
+            </TouchableOpacity>
+          )}
         </View>
 
       </ScrollView>
@@ -609,4 +632,9 @@ const m = StyleSheet.create({
   txDesc: { fontSize: 15, fontWeight: '600', color: '#1e293b' },
   txTime: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
   txAmt: { fontSize: 16, fontWeight: '700', marginRight: 4 },
+  seeAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: 14, marginTop: 4,
+  },
+  seeAllTxt: { fontSize: 14, fontWeight: '700', color: Colors.primary },
 });

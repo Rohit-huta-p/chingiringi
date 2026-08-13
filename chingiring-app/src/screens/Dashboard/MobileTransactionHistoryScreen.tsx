@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
   Share, Platform, RefreshControl,
@@ -36,6 +36,15 @@ const PERIOD_CHIPS: { key: PeriodFilter; label: string }[] = [
   { key: '90d',  label: 'Last 90 Days' },
 ];
 
+type StatusFilter = 'all' | 'pending' | 'paid' | 'rejected';
+const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
+  { key: 'all',      label: 'All' },
+  { key: 'pending',  label: 'Under review' },
+  { key: 'paid',     label: 'Paid' },
+  { key: 'rejected', label: 'Rejected' },
+];
+const PAGE_SIZE = 15;
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const inr = (n: number) => `₹${(n || 0).toLocaleString('en-IN')}`;
@@ -65,6 +74,14 @@ function matchesType(tx: Transaction, t: TypeFilter): boolean {
   if (t === 'all') return true;
   if (t === 'shares') return tx.type === 'coin_credit';
   return tx.type === t;
+}
+
+function matchesStatus(tx: Transaction, s: StatusFilter): boolean {
+  if (s === 'all') return true;
+  if (s === 'pending') return tx.status === 'pending';
+  if (s === 'paid') return tx.status === 'completed' || tx.status === 'confirmed';
+  if (s === 'rejected') return tx.status === 'rejected';
+  return true;
 }
 
 // ─── Type-driven visual config for each row ─────────────────────────────────
@@ -189,6 +206,8 @@ export const MobileTransactionHistoryScreen = () => {
   const refresh = usePullToRefresh();
   const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Fetch a wide window once, then filter client-side. Backend supports
   // type/period params too but keeping client-side filtering means chip
@@ -209,9 +228,13 @@ export const MobileTransactionHistoryScreen = () => {
 
   const filtered = useMemo(() => {
     return txns.filter(
-      (t) => matchesType(t, typeFilter) && matchesPeriod(t.createdAt, periodFilter),
+      (t) => matchesType(t, typeFilter) && matchesPeriod(t.createdAt, periodFilter) && matchesStatus(t, statusFilter),
     );
-  }, [txns, typeFilter, periodFilter]);
+  }, [txns, typeFilter, periodFilter, statusFilter]);
+
+  // Reset paging whenever a filter changes.
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [typeFilter, periodFilter, statusFilter]);
+  const visible = filtered.slice(0, visibleCount);
 
   // Net amount = credits − debits across the filtered set.
   const netAmount = useMemo(() => {
@@ -305,6 +328,18 @@ export const MobileTransactionHistoryScreen = () => {
                 />
               ))}
             </View>
+
+            <Text style={[css.filterHeader, { marginTop: 14 }]}>STATUS</Text>
+            <View style={css.chipsRow}>
+              {STATUS_CHIPS.map((c) => (
+                <Chip
+                  key={c.key}
+                  label={c.label}
+                  active={statusFilter === c.key}
+                  onPress={() => setStatusFilter(c.key)}
+                />
+              ))}
+            </View>
           </View>
 
           {/* ── Net amount summary ─────────────────────────────────────── */}
@@ -333,7 +368,18 @@ export const MobileTransactionHistoryScreen = () => {
               </Text>
             </View>
           ) : (
-            filtered.map((t) => <TxnRow key={t._id} tx={t} />)
+            <>
+              {visible.map((t) => <TxnRow key={t._id} tx={t} />)}
+              {visibleCount < filtered.length && (
+                <TouchableOpacity
+                  style={css.loadMoreBtn}
+                  onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={css.loadMoreTxt}>Load more ({filtered.length - visibleCount} left)</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
@@ -445,6 +491,13 @@ const css = StyleSheet.create({
     borderRadius: 14, borderWidth: 1, borderColor: '#eef2f7',
   },
   emptyText: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', maxWidth: 260 },
+
+  loadMoreBtn: {
+    alignSelf: 'center', marginTop: 4,
+    paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#eef2f7',
+  },
+  loadMoreTxt: { fontSize: 13, fontFamily: Fonts.bold, color: Colors.primary },
 });
 
 export default MobileTransactionHistoryScreen;

@@ -57,6 +57,24 @@ function wdStatus(status?: string): string {
     : (status || '');
 }
 
+// Amber = under review, blue = processing, green = paid, red = rejected.
+function wdStatusColor(status?: string): { text: string; bg: string } {
+  return status === 'pending' ? { text: '#b45309', bg: '#fef3c7' }
+    : status === 'processing' ? { text: '#2563eb', bg: '#dbeafe' }
+    : status === 'completed' ? { text: '#16a34a', bg: '#dcfce7' }
+    : status === 'rejected' ? { text: '#dc2626', bg: '#fee2e2' }
+    : { text: '#64748b', bg: '#f1f5f9' };
+}
+
+function WithdrawStatusPill({ status }: { status?: string }) {
+  const c = wdStatusColor(status);
+  return (
+    <View style={{ backgroundColor: c.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, alignSelf: 'flex-start', marginTop: 3 }}>
+      <Text style={{ color: c.text, fontSize: 11, fontWeight: '700' }}>{wdStatus(status)}</Text>
+    </View>
+  );
+}
+
 // react-native-web's Alert is a no-op, and this screen is web-first — route
 // through window.alert there so the user actually sees the message.
 function notify(title: string, message?: string) {
@@ -448,7 +466,7 @@ export const WalletScreen = () => {
             <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>No transactions yet.</Text>
           </View>
         ) : (
-          transactions.map((tx) => {
+          transactions.slice(0, 6).map((tx) => {
             const displayType = getTxDisplayType(tx);
             const isCoin = tx.type === 'coin_credit' || tx.type === 'coin_debit';
             const label = tx.metadata?.brand || tx.description;
@@ -464,9 +482,8 @@ export const WalletScreen = () => {
                 </View>
                 <View style={styles.txInfo}>
                   <Text style={styles.txBrand}>{label}</Text>
-                  <Text style={styles.txTime}>
-                    {formatTimeAgo(tx.createdAt)}{tx.type === 'withdrawal' ? ` · ${wdStatus(tx.status)}` : ''}
-                  </Text>
+                  <Text style={styles.txTime}>{formatTimeAgo(tx.createdAt)}</Text>
+                  {tx.type === 'withdrawal' ? <WithdrawStatusPill status={tx.status} /> : null}
                 </View>
                 <View style={styles.txAmountContainer}>
                   <Text style={[
@@ -480,6 +497,13 @@ export const WalletScreen = () => {
               </View>
             );
           })
+        )}
+
+        {transactions.length > 0 && (
+          <TouchableOpacity style={styles.seeAllBtn} onPress={() => navigation.navigate('TransactionHistory')} activeOpacity={0.8}>
+            <Text style={styles.seeAllTxt}>See all transactions</Text>
+            <ChevronRight size={16} color={Colors.primary} strokeWidth={2.4} />
+          </TouchableOpacity>
         )}
       </View>
 
@@ -713,4 +737,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  seeAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: 14, marginTop: 4, borderTopWidth: 1, borderTopColor: Colors.border,
+  },
+  seeAllTxt: { fontSize: 14, fontWeight: '700', color: Colors.primary },
 });

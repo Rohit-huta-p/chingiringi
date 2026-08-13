@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { Colors } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -20,6 +20,9 @@ const TYPE_MAP: Record<string, string | undefined> = {
   'Shares': 'coin_credit',
   'Withdrawals': 'withdrawal',
 };
+
+const STATUS_FILTERS = ['All', 'Under review', 'Paid', 'Rejected'];
+const PAGE_SIZE = 15;
 
 const COINS_PER_RUPEE = 1000; // 1,000 coins = 1 rupee (mirrors AdminSettings default)
 
@@ -44,17 +47,32 @@ export const TransactionHistoryScreen = () => {
   const navigation = useNavigation();
   const [activeType, setActiveType] = useState('All');
   const [activePeriod, setActivePeriod] = useState('All Time');
+  const [activeStatus, setActiveStatus] = useState('All');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  // Fetch a wide window once, then filter client-side so chip toggles feel
+  // instant (no refetch flash). Pagination is a display slice.
   const { data: txResponse, isLoading } = useQuery({
-    queryKey: ['transactions', activeType, activePeriod],
-    queryFn: () => walletAPI.getTransactions({
-      type: TYPE_MAP[activeType],
-      period: PERIOD_MAP[activePeriod],
-      limit: 50,
-    }),
+    queryKey: ['transactions', 'all'],
+    queryFn: () => walletAPI.getTransactions({ limit: 200 }),
   });
 
-  const transactions: Transaction[] = txResponse?.data?.transactions ?? [];
+  const allTx: Transaction[] = txResponse?.data?.transactions ?? [];
+  const wantType = TYPE_MAP[activeType];
+  const periodCode = PERIOD_MAP[activePeriod];
+  const periodDays = periodCode === '7d' ? 7 : periodCode === '30d' ? 30 : periodCode === '90d' ? 90 : 0;
+  const transactions: Transaction[] = useMemo(() => allTx.filter((tx) => {
+    if (wantType && tx.type !== wantType) return false;
+    if (periodDays && Date.now() - new Date(tx.createdAt).getTime() > periodDays * 86400000) return false;
+    if (activeStatus === 'Under review' && tx.status !== 'pending') return false;
+    if (activeStatus === 'Paid' && !(tx.status === 'completed' || tx.status === 'confirmed')) return false;
+    if (activeStatus === 'Rejected' && tx.status !== 'rejected') return false;
+    return true;
+  }), [allTx, wantType, periodDays, activeStatus]);
+
+  // Reset paging whenever a filter changes.
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeType, activePeriod, activeStatus]);
+  const visibleTx = transactions.slice(0, visibleCount);
   // Net value in rupees. Coin transactions are converted at the coin rate so
   // we don't add coins and rupees together as if they were the same unit.
   const totalAmount = useMemo(() =>
@@ -131,6 +149,26 @@ export const TransactionHistoryScreen = () => {
             </View>
           </ScrollView>
         </View>
+
+        {/* Status */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupLabel}>STATUS</Text>
+          <ScrollView horizontal={isMobile} showsHorizontalScrollIndicator={false}>
+            <View style={styles.pillRow}>
+              {STATUS_FILTERS.map((st) => (
+                <TouchableOpacity
+                  key={st}
+                  style={[styles.filterPill, activeStatus === st && styles.filterPillActive]}
+                  onPress={() => setActiveStatus(st)}
+                >
+                  <Text style={[styles.filterPillText, activeStatus === st && styles.filterPillTextActive]}>
+                    {st}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
       </View>
 
       {/* Summary Card */}
@@ -151,7 +189,7 @@ export const TransactionHistoryScreen = () => {
             <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 4 }}>No transactions yet</Text>
             <Text style={{ fontSize: 13, color: Colors.textSecondary }}>Your transaction history will appear here</Text>
           </View>
-        ) : transactions.map((tx) => {
+        ) : visibleTx.map((tx) => {
           const isIncome = ['cashback', 'referral', 'bonus', 'coin_credit'].includes(tx.type);
           const isCoin = tx.type === 'coin_credit' || tx.type === 'coin_debit';
           const brandName = tx.metadata?.brand || tx.description || tx.type;
@@ -203,6 +241,15 @@ export const TransactionHistoryScreen = () => {
             </View>
           );
         })}
+        {visibleCount < transactions.length && (
+          <TouchableOpacity
+            style={styles.loadMoreBtn}
+            onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.loadMoreTxt}>Load more ({transactions.length - visibleCount} left)</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -422,4 +469,13 @@ const styles = StyleSheet.create({
   statusTextPending: {
     color: '#f59e0b',
   },
+  loadMoreBtn: {
+    marginTop: 16,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+  },
+  loadMoreTxt: { fontSize: 14, fontWeight: '700', color: Colors.primary },
 });
