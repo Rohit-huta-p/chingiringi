@@ -34,6 +34,8 @@ export interface FeedVideo {
   likedByMe?: boolean;
   /** Owner (admin OR user) + moderation state — present on admin/mine reads. */
   createdBy?: string;
+  /** Set only on admin-posted clips (legacy clips have this but no `createdBy`). */
+  createdByAdmin?: string;
   creatorRole?: 'admin' | 'user';
   moderation?: { state: 'pending' | 'approved' | 'rejected'; reason?: string };
 }
