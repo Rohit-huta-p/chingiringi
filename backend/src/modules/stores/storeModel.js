@@ -28,6 +28,11 @@ const storeSchema = new mongoose.Schema(
     address: { type: String, required: [true, 'Address is required'], trim: true },
     area: { type: String, default: '' },
     city: { type: String, default: 'Bengaluru' },
+    // Admin pastes a Google Maps link; lat/lng are parsed from it on save
+    // (see googleMapsCoords.js) — the admin never types coordinates.
+    mapsUrl: { type: String, default: '' },
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null },
 
     // ── Hours ("HH:mm" 24h) ──────────────────────────────────
     openTime: { type: String, default: '10:00' },

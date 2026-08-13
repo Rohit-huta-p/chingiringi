@@ -2,7 +2,7 @@
 // - With EXPO_PUBLIC_MAPBOX_TOKEN: a live Mapbox map centered on the shopper.
 // - Without token: falls back to <StoreMapPlaceholder /> so the screen still renders.
 import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 // react-map-gl v8 uses subpath imports
 import MapboxMap, { Marker, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -12,16 +12,26 @@ import { BENGALURU_CENTER } from '../data/offlineStores';
 import { MAP_STYLE } from '../constants/mapStyle';
 import { StoreMapPlaceholder } from './StoreMapPlaceholder';
 
+export type StorePin = {
+  _id: string;
+  name: string;
+  shortName?: string;
+  lat?: number | null;
+  lng?: number | null;
+};
+
 export type StoreMapProps = {
   /** Shopper's real GPS location; falls back to Bengaluru center when null. */
   userLocation?: { lat: number; lng: number } | null;
+  /** Stores to pin; only those with both lat & lng are drawn. */
+  stores?: StorePin[];
 };
 
 const MAPBOX_TOKEN: string | undefined = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const HAS_TOKEN = !!MAPBOX_TOKEN && MAPBOX_TOKEN.startsWith('pk.');
 const DARK_STYLE = 'mapbox://styles/mapbox/dark-v11';
 
-export const StoreMap: React.FC<StoreMapProps> = ({ userLocation }) => {
+export const StoreMap: React.FC<StoreMapProps> = ({ userLocation, stores }) => {
   const me = userLocation ?? BENGALURU_CENTER;
   const mapRef = useRef<any>(null);
   const [dark, setDark] = useState(false);
@@ -57,6 +67,19 @@ export const StoreMap: React.FC<StoreMapProps> = ({ userLocation }) => {
         pitchWithRotate={false}
         touchPitch={false}
       >
+        {/* Store pins — one per store that has parsed coordinates */}
+        {(stores ?? []).map((s) =>
+          s.lat != null && s.lng != null ? (
+            <Marker key={s._id} longitude={s.lng} latitude={s.lat} anchor="bottom">
+              <View style={styles.storePin} pointerEvents="none">
+                <Text style={styles.storePinTxt} numberOfLines={1}>
+                  {s.shortName || s.name}
+                </Text>
+              </View>
+            </Marker>
+          ) : null,
+        )}
+
         {/* User location dot — real GPS when granted, else Bengaluru center */}
         <Marker longitude={me.lng} latitude={me.lat} anchor="center">
           <View style={styles.userPinWrap} pointerEvents="none">
@@ -124,4 +147,19 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#FFFFFF',
   },
+  storePin: {
+    maxWidth: 130,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#4784E2',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  storePinTxt: { fontSize: 11, fontWeight: '700', color: '#2340B8' },
 });

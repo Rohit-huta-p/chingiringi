@@ -1,8 +1,27 @@
 import Store from './storeModel.js';
 import { formatTime, isOpenNow } from './storeHours.js';
+import { resolveGoogleMapsCoords } from './googleMapsCoords.js';
 
 // Fields that must never reach a public (non-admin) client.
 const PUBLIC_EXCLUDE = '-platformCommissionPercent -payoutAccount';
+
+// Parse coords from a pasted Google Maps link and write lat/lng onto `target`
+// (a plain body object or a Mongoose doc). An empty link clears the pin; an
+// unparseable/failed link leaves existing coords untouched (avoids wiping a
+// good pin on a transient network hiccup).
+const applyMapsCoords = async (target, mapsUrl) => {
+  if (typeof mapsUrl !== 'string') return;
+  if (!mapsUrl.trim()) {
+    target.lat = null;
+    target.lng = null;
+    return;
+  }
+  const coords = await resolveGoogleMapsCoords(mapsUrl);
+  if (coords) {
+    target.lat = coords.lat;
+    target.lng = coords.lng;
+  }
+};
 
 // Attach computed display/status fields to a lean store object.
 const decorate = (s) => ({
@@ -59,7 +78,9 @@ export const getStore = async (req, res) => {
 // @route   POST /api/stores
 // @access  Private/Admin
 export const createStore = async (req, res) => {
-  const store = await Store.create(req.body);
+  const body = { ...req.body };
+  await applyMapsCoords(body, body.mapsUrl); // maps link → lat/lng
+  const store = await Store.create(body);
   res.status(201).json({ status: 'success', data: { store } });
 };
 
@@ -73,6 +94,7 @@ export const updateStore = async (req, res) => {
     throw new Error('Store not found');
   }
   Object.assign(store, req.body);
+  if ('mapsUrl' in req.body) await applyMapsCoords(store, req.body.mapsUrl); // re-resolve pin
   await store.save(); // re-runs pre-save (slug)
   res.status(200).json({ status: 'success', data: { store } });
 };

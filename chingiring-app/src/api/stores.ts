@@ -14,6 +14,11 @@ export interface Store {
   address: string;
   area?: string;
   city?: string;
+  /** Pasted Google Maps link (admin) — backend parses lat/lng from it. */
+  mapsUrl?: string;
+  /** Parsed from mapsUrl on save; used to place the store's map pin. */
+  lat?: number | null;
+  lng?: number | null;
   openTime?: string;
   closeTime?: string;
   openDays?: number[];
