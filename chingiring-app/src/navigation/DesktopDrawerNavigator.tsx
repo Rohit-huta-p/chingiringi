@@ -19,7 +19,6 @@ import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScr
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 import { StoreDetailScreen } from '../screens/Dashboard/StoreDetailScreen';
-import { AboutScreen } from '../screens/Dashboard/AboutScreen';
 import { useUIStore } from '../store/uiStore';
 
 const Drawer = createDrawerNavigator();
@@ -58,7 +57,6 @@ export default function DesktopDrawerNavigator() {
       <Drawer.Screen name="OfflineStores" component={OfflineStoresScreen} />
       <Drawer.Screen name="Notifications" component={NotificationsScreen} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
-      <Drawer.Screen name="About" component={AboutScreen} />
       <Drawer.Screen name="Profile" component={ProfileScreen} />
       <Drawer.Screen name="EditProfile" component={EditProfileScreen} />
       <Drawer.Screen name="MyAddress" component={MyAddressScreen} />

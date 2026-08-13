@@ -32,8 +32,6 @@ import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
 import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 import { StoreDetailScreen } from '../screens/Dashboard/StoreDetailScreen';
-import { AboutScreen } from '../screens/Dashboard/AboutScreen';
-import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 
 // `isMobile` is derived from the viewport width inside each navigator component
 // below (not a static const), so the WEB app switches to the mobile screens at
@@ -350,7 +348,6 @@ function MobileNavigator() {
         <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
         <Stack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
         <Stack.Screen name="Settings" component={isMobile ? MobileSettingsScreen : SettingsScreen} />
-        <Stack.Screen name="About" component={isMobile ? MobileAboutScreen : AboutScreen} />
       </Stack.Navigator>
     </SafeAreaView>
   );
