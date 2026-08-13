@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable,
-  useWindowDimensions, Share, Platform, ViewToken, RefreshControl,
+  useWindowDimensions, Platform, ViewToken, RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
+import { shareVideo } from '../../utils/shareVideo';
 import { FeedVideo, VideoStore } from '../../api/videos';
 
 export const MobileVideosScreen = () => {
@@ -116,10 +117,8 @@ export const MobileVideosScreen = () => {
   }, [likeOverrides, like]);
 
   const onShare = useCallback(async (v: FeedVideo) => {
-    try {
-      await Share.share({ message: `Check out ${v.store?.name || 'this'} on Chingiring 🎬` });
-      share.mutate(v._id);
-    } catch { /* user dismissed */ }
+    const shared = await shareVideo(v);
+    if (shared) share.mutate(v._id); // count only — no coins/rewards
   }, [share]);
 
   const renderItem = useCallback(({ item, index }: { item: FeedVideo; index: number }) => {
