@@ -4,11 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TextInput,
   TouchableOpacity,
   Image,
   ActivityIndicator,
   RefreshControl,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -64,6 +66,19 @@ function flushFirst(nodes: React.ReactNode[]): React.ReactNode[] {
   const el = first as React.ReactElement<any>;
   return [React.cloneElement(el, { style: [el.props.style, { marginTop: 0 }] }), ...rest];
 }
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// Rows the home FlatList renders below the header. `node` = a pre-built curated
+// block (rail/banner); `gridRow` = a 3-up row in filter/listing mode.
+type HomeItem =
+  | { kind: 'node'; node: React.ReactNode; key: string }
+  | { kind: 'gridRow'; products: Product[]; key: string }
+  | { kind: 'empty'; key: string };
 
 // Banners render through the shared <BannerBlock> (hero | dual), placed by
 // afterCategory (woven into categoryRailBlocks). The old local PromoBanner +
@@ -233,96 +248,115 @@ export const MobileHomeScreen = () => {
     );
   }
 
-  return (
-    <ScrollView
-      style={st.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl {...refresh} />}
+  // ── Header (kept as an element, not a function, so the search field keeps
+  //    focus and the chips stay in sync as state changes). ──
+  const headerEl = (
+    <LinearGradient
+      colors={['#1E3A8A', '#4784E2', '#91BDFF']}
+      locations={[0, 0.6, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={st.header}
     >
-      {/* ── Header (brand-blue gradient, matches other mobile screens) ── */}
-      <LinearGradient
-        colors={['#1E3A8A', '#4784E2', '#91BDFF']}
-        locations={[0, 0.6, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={st.header}
-      >
-        <View style={st.hrow}>
-          <View style={st.greetWrap}>
-            <Text style={st.greet}>{greeting()}</Text>
-            <TouchableOpacity style={st.locRow} activeOpacity={0.7}>
-              <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
-              <ChevronDown size={14} color="#fff" />
-            </TouchableOpacity>
-          </View>
+      <View style={st.hrow}>
+        <View style={st.greetWrap}>
+          <Text style={st.greet}>{greeting()}</Text>
+          <TouchableOpacity style={st.locRow} activeOpacity={0.7}>
+            <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
+            <ChevronDown size={14} color="#fff" />
+          </TouchableOpacity>
         </View>
+      </View>
 
-        <View style={st.searchRow}>
-          <View style={st.searchBar}>
-            <Search size={18} color={Colors.primary} />
-            <TextInput
-              style={st.searchInput}
-              placeholder='Search products'
-              placeholderTextColor="#9ca3af"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-          <View style={st.controlsWrap}>
-            <ProductControlsBar state={controls} onChange={setControls} compact />
-          </View>
+      <View style={st.searchRow}>
+        <View style={st.searchBar}>
+          <Search size={18} color={Colors.primary} />
+          <TextInput
+            style={st.searchInput}
+            placeholder='Search products'
+            placeholderTextColor="#9ca3af"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
         </View>
-
-        <View style={st.chipsRow}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ flex: 1 }}
-            contentContainerStyle={st.chipsContent}
-          >
-            {categories.map((cat) => {
-              const on = selectedCategory === cat;
-              return (
-                <TouchableOpacity key={cat} style={st.chip} onPress={() => setSelectedCategory(cat)} activeOpacity={0.8}>
-                  <View style={[st.chipIcon, on && st.chipIconOn]}>
-                    {categoryImageByName[cat] ? (
-                      <Image source={{ uri: categoryImageByName[cat] }} style={st.chipImg} resizeMode="cover" />
-                    ) : (
-                      <Text style={st.chipEmoji}>{emojiFor(cat)}</Text>
-                    )}
-                  </View>
-                  <Text style={[st.chipLabel, on && st.chipLabelOn]} numberOfLines={1}>{cat}</Text>
-                  {on ? <View style={st.chipUnderline} /> : null}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        <View style={st.controlsWrap}>
+          <ProductControlsBar state={controls} onChange={setControls} compact />
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* ── Listing: only matching products ──────────────────────────── */}
-      {isListing ? (
-        // A filter collapses the home to just the matching products. Banners are
-        // category-anchored, so they live in the curated view, not here.
-        listingProducts.length === 0 ? (
-          <View style={st.empty}>
-            <Text style={st.emptyTitle}>No products found</Text>
-            <Text style={st.emptySub}>Try a different category, search, or filter</Text>
-          </View>
-        ) : (
-          <View style={st.grid}>
-            {listingProducts.map((p) => (
-              <ProductCard key={p._id} product={p} width={GRID_CARD_W} onPress={() => handleProductPress(p)} />
-            ))}
-          </View>
-        )
-      ) : (
-        /* ── Unfiltered home: category rails with banners woven in by category ── */
-        flushFirst(categoryRailBlocks())
-      )}
+      <View style={st.chipsRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={st.chipsContent}
+        >
+          {categories.map((cat) => {
+            const on = selectedCategory === cat;
+            return (
+              <TouchableOpacity key={cat} style={st.chip} onPress={() => setSelectedCategory(cat)} activeOpacity={0.8}>
+                <View style={[st.chipIcon, on && st.chipIconOn]}>
+                  {categoryImageByName[cat] ? (
+                    <Image source={{ uri: categoryImageByName[cat] }} style={st.chipImg} resizeMode="cover" />
+                  ) : (
+                    <Text style={st.chipEmoji}>{emojiFor(cat)}</Text>
+                  )}
+                </View>
+                <Text style={[st.chipLabel, on && st.chipLabelOn]} numberOfLines={1}>{cat}</Text>
+                {on ? <View style={st.chipUnderline} /> : null}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </LinearGradient>
+  );
 
-      <View style={{ height: 110 }} />
-    </ScrollView>
+  // Rows below the header. Filter/search → 3-up grid rows; otherwise the curated
+  // rails/banners. Each is one FlatList item so only visible rows mount (native
+  // virtualization — this is the scroll-lag fix).
+  const listData: HomeItem[] = isListing
+    ? (listingProducts.length === 0
+        ? [{ kind: 'empty', key: 'empty' }]
+        : chunk(listingProducts, 3).map((row, i) => ({ kind: 'gridRow', products: row, key: `grid-${i}` })))
+    : flushFirst(categoryRailBlocks()).map((node, i) => ({ kind: 'node', node, key: `block-${i}` }));
+
+  const renderHomeItem = ({ item }: { item: HomeItem }) => {
+    if (item.kind === 'empty') {
+      return (
+        <View style={st.empty}>
+          <Text style={st.emptyTitle}>No products found</Text>
+          <Text style={st.emptySub}>Try a different category, search, or filter</Text>
+        </View>
+      );
+    }
+    if (item.kind === 'gridRow') {
+      return (
+        <View style={st.gridRow}>
+          {item.products.map((p) => (
+            <ProductCard key={p._id} product={p} width={GRID_CARD_W} onPress={() => handleProductPress(p)} />
+          ))}
+        </View>
+      );
+    }
+    return <>{item.node}</>;
+  };
+
+  return (
+    <FlatList
+      style={st.container}
+      data={listData}
+      keyExtractor={(it) => it.key}
+      renderItem={renderHomeItem}
+      ListHeaderComponent={headerEl}
+      ListFooterComponent={<View style={{ height: 110 }} />}
+      refreshControl={<RefreshControl {...refresh} />}
+      showsVerticalScrollIndicator={false}
+      removeClippedSubviews={Platform.OS === 'android'}
+      initialNumToRender={6}
+      windowSize={9}
+      keyboardShouldPersistTaps="handled"
+    />
   );
 };
 
@@ -405,6 +439,7 @@ const st = StyleSheet.create({
 
   // Grid (listing mode)
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+  gridRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 12, marginTop: 12 },
 
 
 

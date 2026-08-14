@@ -9,6 +9,7 @@ import {
 import { Coins } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import type { Product } from '../api/products';
+import { cloudinaryFill } from '../utils/cloudinary';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,12 @@ export function ProductCard({
   // Grid is square (1:1) → desktop 1:1 photos are the correct fit. Fall back to a
   // mobile photo only so the card isn't blank when desktop photos are missing
   // (mobile photos are 4:3 landscape → center-cropped here; fallback, not primary).
-  const gridImage = product.imageUrl || product.mobileImages?.[0] || product.mobileImageUrl;
+  const rawImage = product.imageUrl || product.mobileImages?.[0] || product.mobileImageUrl;
+  // Serve a card-sized thumbnail (~width px), NOT the full original. Native decodes
+  // sources at full resolution into memory, so large images (e.g. kids toys at
+  // 1500² ≈ 9 MB decoded) fail to load on device and make the grid scroll janky.
+  // c_fill at the box size (DPR-capped) → tens of KB, so every image loads fast.
+  const gridImage = cloudinaryFill(rawImage, width, width) ?? rawImage;
   return (
     <TouchableOpacity style={[s.card, { width }]} onPress={onPress} activeOpacity={0.85}>
       <View style={s.cardImageBox}>
