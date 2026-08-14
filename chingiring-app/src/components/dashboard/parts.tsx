@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import Svg, { Polyline } from 'react-native-svg';
 
 export interface Delta { value: number; deltaPct: number | null; }
@@ -77,9 +77,9 @@ export function HeroPanel({ hero, trend }: { hero: DashboardData['hero']; trend:
   );
 }
 
-export function MetricCard({ label, c, accent, money }: { label: string; c: Delta; accent: string; money?: boolean }) {
+export function MetricCard({ label, c, accent, money, style }: { label: string; c: Delta; accent: string; money?: boolean; style?: StyleProp<ViewStyle> }) {
   return (
-    <View style={s.metric}>
+    <View style={[s.metric, style]}>
       <View style={[s.stripe, { backgroundColor: accent }]} />
       <View style={s.metricTop}><DeltaPill pct={c.deltaPct} /></View>
       <Text style={s.metricV}>{money ? fmt(c.value) : c.value.toLocaleString()}</Text>

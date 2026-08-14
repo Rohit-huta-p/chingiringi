@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, ActivityIndicator, ViewStyle } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, Coins } from 'lucide-react-native';
 import { adminAPI } from '../../api/admin';
@@ -12,7 +12,11 @@ import {
 export function AdminDashboardScreen() {
   const { data, isLoading } = useQuery({ queryKey: ['admin', 'dashboard'], queryFn: adminAPI.getDashboardStats });
   const d: DashboardData = data?.data ?? EMPTY_DASHBOARD;
-  const isDesktop = Dimensions.get('window').width >= 768;
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+  // md (768–1023) → 2 across, lg (≥1024) → 4 across. flexGrow fills the row; flexBasis sets the wrap point.
+  const cols = width >= 1024 ? 4 : 2;
+  const cardStyle: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: cols === 4 ? '22%' : '47%', minWidth: 0 };
 
   if (isLoading) {
     return <View style={[s.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color={M.indigo} /></View>;
@@ -24,11 +28,11 @@ export function AdminDashboardScreen() {
 
       <HeroPanel hero={d.hero} trend={d.shareTrend} />
 
-      <View style={[s.cards, !isDesktop && s.wrap]}>
-        <MetricCard label="Shares today" c={d.cards.sharesToday} accent={M.amber} />
-        <MetricCard label="Shares · 30d" c={d.cards.shares30d} accent={M.green} />
-        <MetricCard label="Unique sharers · 30d" c={d.cards.uniqueSharers30d} accent={M.indigo} />
-        <MetricCard label="Coins issued · 30d" c={d.cards.coinsIssued30d} accent={M.red} money />
+      <View style={s.cards}>
+        <MetricCard label="Shares today" c={d.cards.sharesToday} accent={M.amber} style={cardStyle} />
+        <MetricCard label="Shares · 30d" c={d.cards.shares30d} accent={M.green} style={cardStyle} />
+        <MetricCard label="Unique sharers · 30d" c={d.cards.uniqueSharers30d} accent={M.indigo} style={cardStyle} />
+        <MetricCard label="Coins issued · 30d" c={d.cards.coinsIssued30d} accent={M.red} money style={cardStyle} />
       </View>
 
       <View style={s.section}>
@@ -59,7 +63,7 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: M.bg },
   content: { padding: 20, gap: 16 },
   pageTitle: { fontSize: 24, fontWeight: '700', color: M.ink },
-  cards: { flexDirection: 'row', gap: 12 },
+  cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   wrap: { flexWrap: 'wrap' },
   section: { backgroundColor: M.card, borderRadius: 12, padding: 16 },
   sHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
