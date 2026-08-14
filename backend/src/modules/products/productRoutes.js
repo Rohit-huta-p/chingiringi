@@ -4,6 +4,7 @@ import {
   getFeaturedProducts,
   getProduct,
   createProduct,
+  bulkCreateProducts,
   updateProduct,
   deleteProduct,
 } from './productController.js';
@@ -19,6 +20,7 @@ router.get('/:id', getProduct);
 
 // Admin
 router.post('/', protect, admin, createProduct);
+router.post('/bulk', protect, admin, bulkCreateProducts);
 router.put('/:id', protect, admin, updateProduct);
 router.delete('/:id', protect, admin, deleteProduct);
 
