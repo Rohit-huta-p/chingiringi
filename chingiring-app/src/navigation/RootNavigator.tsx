@@ -35,6 +35,7 @@ export default function RootNavigator() {
             routeNameRef.current = current;
           }
         }}
+      >
         {!isAuthenticated ? (
           <AuthNavigator />
         ) : user?.role === 'admin' ? (
