@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, Info, HelpCircle, MessageCircle,
-  Shield, FileText, Copy, Share2, Gift, PlaySquare,
+  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -245,6 +245,14 @@ export const MobileProfileScreen = () => {
             title="My Videos"
             subtitle="Post clips & manage your videos"
             onPress={() => nav.navigate('MyVideos')}
+          />
+          <QuickAction
+            icon={UserX}
+            iconColor="#dc2626"
+            iconBg="#fef2f2"
+            title="Blocked accounts"
+            subtitle="Creators hidden from your video feed"
+            onPress={() => nav.navigate('BlockedAccounts')}
           />
 
           {/* ── Legal & Support ───────────────────────────────────────────── */}

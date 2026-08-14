@@ -3,6 +3,7 @@ import {
   createUploadUrl, createVideo, getFeed, getVideo, getStoreVideos,
   trackView, toggleLike, toggleSave, trackShare,
   addComment, listComments, deleteComment,
+  reportVideo, blockCreator, unblockCreator, listBlocks, adminReportDetail, dismissReports,
   listPending, listAll, getMine, moderateVideo, updateVideo, deleteVideo,
 } from './videoController.js';
 import rateLimit from 'express-rate-limit';
@@ -31,6 +32,16 @@ const commentLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Anti-spam cap on reporting (per user).
+const reportLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 min
+  max: 20,
+  keyGenerator: (req) => String(req.user?._id || req.ip),
+  message: { status: 'error', message: 'Too many reports at once — give it a moment.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Authoring — any signed-in user. Admins auto-approve; user (UGC) posts go to
 // the moderation queue (see createVideo).
 router.post('/upload-url', protect, uploadLimiter, createUploadUrl);
@@ -39,6 +50,11 @@ router.post('/', protect, uploadLimiter, createVideo);
 // The signed-in user's own clips (declared before /:id so it isn't captured)
 router.get('/mine', protect, getMine);
 
+// Blocking — /blocks + /block/:creatorId sit above the bare /:id routes
+router.get('/blocks', protect, listBlocks);
+router.post('/block/:creatorId', protect, blockCreator);
+router.delete('/block/:creatorId', protect, unblockCreator);
+
 // public reads (optional auth → so we can flag `likedByMe` for signed-in users)
 router.get('/feed', optionalProtect, getFeed);
 router.get('/store/:storeId', optionalProtect, getStoreVideos);
@@ -46,6 +62,8 @@ router.get('/store/:storeId', optionalProtect, getStoreVideos);
 // admin moderation — must be declared before /:id so /admin/* isn't captured by getVideo
 router.get('/admin/queue', protect, admin, listPending);
 router.get('/admin/all', protect, admin, listAll);
+router.get('/admin/reports/:videoId', protect, admin, adminReportDetail);
+router.patch('/admin/reports/:videoId', protect, admin, dismissReports);
 router.patch('/admin/:id', protect, admin, moderateVideo);
 
 // engagement
@@ -58,6 +76,9 @@ router.post('/:id/save', protect, toggleSave);
 router.get('/:id/comments', optionalProtect, listComments);
 router.post('/:id/comments', protect, commentLimiter, addComment);
 router.delete('/comments/:commentId', protect, deleteComment);
+
+// reporting
+router.post('/:id/reports', protect, reportLimiter, reportVideo);
 
 // bare /:id routes LAST — a bare :id above would swallow /feed, /store/..., /admin/...
 router.get('/:id', optionalProtect, getVideo);

@@ -38,6 +38,25 @@ export interface FeedVideo {
   createdByAdmin?: string;
   creatorRole?: 'admin' | 'user';
   moderation?: { state: 'pending' | 'approved' | 'rejected'; reason?: string };
+  /** Count of OPEN reports (admin reads) — zeroed on dismiss/remove. */
+  reportCount?: number;
+}
+
+export type ReportReason = 'spam' | 'inappropriate' | 'violence' | 'hate' | 'misleading' | 'copyright' | 'other';
+
+export interface VideoReport {
+  _id: string;
+  reason: ReportReason;
+  note?: string;
+  status: 'open' | 'reviewed' | 'dismissed';
+  createdAt: string;
+  reporter?: { _id: string; name?: string; username?: string; avatarUrl?: string };
+}
+
+export interface BlockedCreator {
+  _id: string;
+  blockedUser?: { _id: string; name?: string; username?: string; avatarUrl?: string };
+  createdAt: string;
 }
 
 export interface FeedPage {
@@ -92,6 +111,34 @@ export const videosAPI = {
   deleteComment: async (commentId: string) => {
     const res = await apiClient.delete(`/api/videos/comments/${commentId}`);
     return res.data as { status: string; data: { deleted: boolean } };
+  },
+
+  // ── report / block ─────────────────────────────────────────────────────
+  report: async (videoId: string, reason: ReportReason, note?: string) => {
+    const res = await apiClient.post(`/api/videos/${videoId}/reports`, { reason, note });
+    return res.data as { status: string; data: { reported: boolean } };
+  },
+  block: async (creatorId: string) => {
+    const res = await apiClient.post(`/api/videos/block/${creatorId}`);
+    return res.data as { status: string; data: { blocked: boolean } };
+  },
+  unblock: async (creatorId: string) => {
+    const res = await apiClient.delete(`/api/videos/block/${creatorId}`);
+    return res.data as { status: string; data: { blocked: boolean } };
+  },
+  listBlocks: async () => {
+    const res = await apiClient.get('/api/videos/blocks');
+    return res.data as { status: string; data: { blocks: BlockedCreator[] } };
+  },
+  /** Admin: a clip's individual reports (audit view). */
+  adminReportDetail: async (videoId: string) => {
+    const res = await apiClient.get(`/api/videos/admin/reports/${videoId}`);
+    return res.data as { status: string; data: { reports: VideoReport[] } };
+  },
+  /** Admin: dismiss a clip's open reports (keeps it live). */
+  dismissReports: async (videoId: string) => {
+    const res = await apiClient.patch(`/api/videos/admin/reports/${videoId}`, { action: 'dismiss' });
+    return res.data as { status: string; data: { dismissed: boolean } };
   },
 
   // ── admin authoring (protect + admin) ──────────────────────────────────

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { Trash2, Pencil, Check, X, Play, Eye, Heart, Inbox } from 'lucide-react-native';
+import { Trash2, Pencil, Check, X, Play, Eye, Heart, Inbox, Flag } from 'lucide-react-native';
 import { Fonts } from '../constants/theme';
 import { FeedVideo } from '../api/videos';
 
@@ -38,6 +38,9 @@ export interface VideoListProps {
   /** Admin moderation — Approve / Reject shown on `pending` clips. */
   onApprove?: (v: FeedVideo) => void;
   onReject?: (v: FeedVideo) => void;
+  /** Admin reports — row shown on clips with open reports (reportCount > 0). */
+  onViewReports?: (v: FeedVideo) => void;
+  onDismissReports?: (v: FeedVideo) => void;
   /** Optional tap handler on the thumbnail (e.g. preview / open). */
   onPress?: (v: FeedVideo) => void;
   emptyHint?: string;
@@ -48,7 +51,7 @@ export interface VideoListProps {
  * shopper-facing "my videos" screen can reuse this later with its own actions
  * (or none). Purely presentational — data + mutations live in the parent.
  */
-export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, onApprove, onReject, onPress, emptyHint }) => {
+export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, onApprove, onReject, onViewReports, onDismissReports, onPress, emptyHint }) => {
   const { width } = useWindowDimensions();
   const PAD = 16, GAP = 10;
   const colW = Math.min((width - PAD * 2 - GAP) / 2, 240);
@@ -97,6 +100,32 @@ export const VideoList: React.FC<VideoListProps> = ({ videos, onEdit, onDelete, 
                 <View style={s.metaItem}><Heart size={12} color="#94a3b8" /><Text style={s.metaTxt}>{v.stats?.likes ?? 0}</Text></View>
                 {nProducts > 0 && <Text style={s.prodTag}>{nProducts} product{nProducts > 1 ? 's' : ''}</Text>}
               </View>
+
+              {(v.reportCount ?? 0) > 0 && (onViewReports || onDismissReports) && (
+                <View style={s.reportBox}>
+                  <View style={s.reportHead}>
+                    <Flag size={13} color="#dc2626" />
+                    <Text style={s.reportTxt}>{v.reportCount} report{(v.reportCount ?? 0) > 1 ? 's' : ''}</Text>
+                  </View>
+                  <View style={s.actions}>
+                    {onViewReports && (
+                      <TouchableOpacity style={s.viewBtn} onPress={() => onViewReports(v)}>
+                        <Text style={s.viewTxt}>View</Text>
+                      </TouchableOpacity>
+                    )}
+                    {onDismissReports && (
+                      <TouchableOpacity style={s.dismissBtn} onPress={() => onDismissReports(v)}>
+                        <Text style={s.dismissTxt}>Dismiss</Text>
+                      </TouchableOpacity>
+                    )}
+                    {onReject && (
+                      <TouchableOpacity style={s.rejectBtn} onPress={() => onReject(v)}>
+                        <Text style={s.rejectTxt}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              )}
 
               {modState === 'rejected' && !!v.moderation?.reason && (
                 <View style={s.reasonBox}>
@@ -167,6 +196,19 @@ const s = StyleSheet.create({
   prodTag: { fontSize: 10.5, color: '#3b82f6', fontFamily: Fonts.bold, marginLeft: 'auto' },
   reasonBox: { marginTop: 8, backgroundColor: '#fef2f2', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: '#fee2e2' },
   reasonTxt: { fontSize: 11.5, color: '#b91c1c', lineHeight: 16, fontFamily: Fonts.medium },
+  reportBox: { marginTop: 8, backgroundColor: '#fef2f2', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#fee2e2' },
+  reportHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  reportTxt: { fontSize: 11.5, color: '#b91c1c', fontFamily: Fonts.bold },
+  viewBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 8,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#fecaca',
+  },
+  viewTxt: { fontSize: 11.5, fontFamily: Fonts.bold, color: '#b91c1c' },
+  dismissBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 8,
+    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  dismissTxt: { fontSize: 11.5, fontFamily: Fonts.bold, color: '#475569' },
 
   actions: { flexDirection: 'row', gap: 6, marginTop: 10 },
   editBtn: {

@@ -56,6 +56,7 @@ const videoSchema = new mongoose.Schema({
     reason: { type: String, default: '' },
     at: { type: Date },
   },
+  reportCount: { type: Number, default: 0 }, // OPEN reports only — zeroed on dismiss/remove
   isFeatured: { type: Boolean, default: false },
   publishedAt: { type: Date },
 }, { timestamps: true });

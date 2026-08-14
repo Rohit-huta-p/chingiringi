@@ -16,6 +16,7 @@ import { TransactionHistoryScreen } from '../screens/Dashboard/TransactionHistor
 import { ProductDetailScreen } from '../screens/Dashboard/ProductDetailScreen';
 import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
 import { VideoScreen } from '../screens/Dashboard/VideoScreen';
+import { BlockedAccountsScreen } from '../screens/Dashboard/BlockedAccountsScreen';
 import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
@@ -69,6 +70,7 @@ export default function DesktopDrawerNavigator() {
       <Drawer.Screen name="ProductDetail" component={ProductDetailScreen} />
       <Drawer.Screen name="StoreDetail" component={StoreDetailScreen} />
       <Drawer.Screen name="Video" component={VideoScreen} />
+      <Drawer.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Drawer.Screen name="CategoryProducts" component={CategoryProductsScreen} />
     </Drawer.Navigator>
   );

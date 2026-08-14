@@ -41,8 +41,9 @@ filter/badge). `+1` on a new report; set `0` on dismiss or remove.
   `VideoBlock`. Can't block yourself.
 - `GET /blocks` — `protect`. The signed-in user's blocked creators (id + name/avatar) for a
   manage list.
-- `GET /admin/reported` — `admin`. Videos with `reportCount > 0`, newest-reported first,
-  each with count + distinct reasons.
+- Reported list: no new endpoint — the admin **Reported** tab filters `adminListAll`
+  client-side on `reportCount > 0` (consistent with the other tabs). Reasons live in
+  the detail view below.
 - `GET /admin/reports/:videoId` — `admin`. The individual reports for one clip (reporter +
   reason + note + time) — the audit view.
 - `PATCH /admin/reports/:videoId` `{ action: 'dismiss' }` — `admin`. Open reports → dismissed,

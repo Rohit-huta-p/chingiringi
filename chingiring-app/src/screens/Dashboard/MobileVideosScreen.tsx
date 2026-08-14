@@ -10,6 +10,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
+import { VideoMoreSheet } from '../../components/VideoMoreSheet';
 import { shareVideo } from '../../utils/shareVideo';
 import { FeedVideo, VideoStore } from '../../api/videos';
 
@@ -18,7 +19,7 @@ export const MobileVideosScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { videos, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useVideoFeed();
-  const { like, share, view } = useVideoEngagement();
+  const { like, share, view, qc } = useVideoEngagement();
 
   // Dev fallback so the feed renders before the backend/Cloudflare are live.
   const data: FeedVideo[] = videos.length ? videos : (__DEV__ ? SAMPLE_VIDEOS : []);
@@ -31,6 +32,7 @@ export const MobileVideosScreen = () => {
   const [paused, setPaused] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [commentsFor, setCommentsFor] = useState<FeedVideo | null>(null);
+  const [moreFor, setMoreFor] = useState<FeedVideo | null>(null);
   // Optimistic like overrides keyed by video id. When a clip has no override we fall back to
   // the server's `likedByMe` (from the optional-auth feed), so a refresh keeps the heart red
   // for likes you already made.
@@ -139,6 +141,7 @@ export const MobileVideosScreen = () => {
         onLike={() => onLike(item)}
         onShare={() => onShare(item)}
         onComment={() => setCommentsFor(item)}
+        onMore={() => setMoreFor(item)}
         bottomOffset={bottomOffset}
         paused={paused && index === activeIndex}
         onTogglePause={() => setPaused((p) => !p)}
@@ -239,6 +242,14 @@ export const MobileVideosScreen = () => {
       {!isDesktopWeb && (
         <CommentsSheet visible={!!commentsFor} video={commentsFor} onClose={() => setCommentsFor(null)} />
       )}
+
+      {/* "⋯" — report / block. Refetch applies the server-side hide filters. */}
+      <VideoMoreSheet
+        visible={!!moreFor}
+        video={moreFor}
+        onClose={() => setMoreFor(null)}
+        onActioned={() => qc.invalidateQueries({ queryKey: ['videoFeed'] })}
+      />
     </View>
   );
 };

@@ -4,6 +4,8 @@ import { videoProvider, activeProvider, providerFor } from '../../services/video
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
 import VideoComment from './videoCommentModel.js';
+import VideoReport from './videoReportModel.js';
+import VideoBlock from './videoBlockModel.js';
 import { notify } from '../notifications/notificationService.js';
 
 // @desc  Mint a direct-upload URL (Cloudflare or Mux)  @route POST /api/videos/upload-url  @access admin
@@ -111,6 +113,16 @@ async function withLikedByMe(videos, userId) {
 // @desc  Ranked shoppable feed  @route GET /api/videos/feed  @access public (optional auth)
 export const getFeed = async (req, res) => {
   const { filter, sort, limit } = buildFeedQuery(req.query);
+  // Signed-in users don't see creators they've blocked, nor clips they reported.
+  // ($nin on createdBy leaves legacy clips — which have no createdBy — visible.)
+  if (req.user?._id) {
+    const [blocks, reported] = await Promise.all([
+      VideoBlock.find({ user: req.user._id }).select('blockedUser').lean(),
+      VideoReport.find({ reporter: req.user._id }).select('video').lean(),
+    ]);
+    if (blocks.length) filter.createdBy = { $nin: blocks.map((b) => b.blockedUser) };
+    if (reported.length) filter._id = { ...(filter._id || {}), $nin: reported.map((r) => r.video) };
+  }
   const videos = await Video.find(filter)
     .sort(sort)
     .limit(limit)
@@ -232,6 +244,68 @@ export const deleteComment = async (req, res) => {
   res.status(200).json({ status: 'success', data: { deleted: true } });
 };
 
+// ── Report a video / block a creator ───────────────────────────────────────
+const REPORT_REASONS = ['spam', 'inappropriate', 'violence', 'hate', 'misleading', 'copyright', 'other'];
+
+// @desc  Report a video  @route POST /:id/reports  @access protect
+// Idempotent per (video, reporter). Also hides the clip from the reporter's feed.
+export const reportVideo = async (req, res) => {
+  const reason = String(req.body?.reason || '');
+  if (!REPORT_REASONS.includes(reason)) { res.status(400); throw new Error('Pick a valid reason'); }
+  const note = String(req.body?.note || '').trim().slice(0, 300);
+  const video = await Video.findById(req.params.id).select('_id').lean();
+  if (!video) { res.status(404); throw new Error('Video not found'); }
+  try {
+    await VideoReport.create({ video: video._id, reporter: req.user._id, reason, note });
+    await Video.updateOne({ _id: video._id }, { $inc: { reportCount: 1 } });
+  } catch (e) {
+    if (e.code !== 11000) throw e; // 11000 = already reported by this user → fine
+  }
+  res.status(200).json({ status: 'success', data: { reported: true } });
+};
+
+// @desc  Block a creator (hide all their clips from my feed)  @route POST /block/:creatorId  @access protect
+export const blockCreator = async (req, res) => {
+  const { creatorId } = req.params;
+  if (String(creatorId) === String(req.user._id)) { res.status(400); throw new Error('You can’t block yourself'); }
+  await VideoBlock.updateOne(
+    { user: req.user._id, blockedUser: creatorId },
+    { $setOnInsert: { user: req.user._id, blockedUser: creatorId } },
+    { upsert: true },
+  );
+  res.status(200).json({ status: 'success', data: { blocked: true } });
+};
+
+// @desc  Unblock a creator  @route DELETE /block/:creatorId  @access protect
+export const unblockCreator = async (req, res) => {
+  await VideoBlock.deleteOne({ user: req.user._id, blockedUser: req.params.creatorId });
+  res.status(200).json({ status: 'success', data: { blocked: false } });
+};
+
+// @desc  My blocked creators  @route GET /blocks  @access protect
+export const listBlocks = async (req, res) => {
+  const blocks = await VideoBlock.find({ user: req.user._id })
+    .populate('blockedUser', 'name username avatarUrl')
+    .sort({ _id: -1 }).lean();
+  res.status(200).json({ status: 'success', data: { blocks } });
+};
+
+// @desc  A clip's individual reports (audit view)  @route GET /admin/reports/:videoId  @access admin
+export const adminReportDetail = async (req, res) => {
+  const reports = await VideoReport.find({ video: req.params.videoId })
+    .populate('reporter', 'name username avatarUrl')
+    .sort({ _id: -1 }).lean();
+  res.status(200).json({ status: 'success', data: { reports } });
+};
+
+// @desc  Dismiss a clip's open reports (keep it live)  @route PATCH /admin/reports/:videoId  @access admin
+export const dismissReports = async (req, res) => {
+  if (req.body?.action !== 'dismiss') { res.status(400); throw new Error('Unsupported action'); }
+  await VideoReport.updateMany({ video: req.params.videoId, status: 'open' }, { status: 'dismissed' });
+  await Video.updateOne({ _id: req.params.videoId }, { reportCount: 0 });
+  res.status(200).json({ status: 'success', data: { dismissed: true } });
+};
+
 // @desc  Moderation queue (pending, newest first)  @route GET /api/videos/admin/queue  @access admin
 export const listPending = async (req, res) => {
   const videos = await Video.find({ 'moderation.state': 'pending' })
@@ -283,6 +357,9 @@ export const moderateVideo = async (req, res) => {
   } else if (action === 'reject') {
     video.moderation = { state: 'rejected', reviewedBy: req.user._id, reason: reason || '', at: new Date() };
     video.status = 'removed';
+    // Removing the clip settles its open reports (audit rows stay, marked reviewed).
+    await VideoReport.updateMany({ video: video._id, status: 'open' }, { status: 'reviewed' });
+    video.reportCount = 0;
   }
   if (typeof featured === 'boolean') video.isFeatured = featured;
   await video.save();

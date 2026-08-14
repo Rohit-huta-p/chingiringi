@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft } from 'lucide-react-native';
 import { VideoFeedItem } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
+import { VideoMoreSheet } from '../../components/VideoMoreSheet';
 import { useVideoEngagement } from '../../hooks/useVideoFeed';
 import { shareVideo } from '../../utils/shareVideo';
 import { videosAPI, FeedVideo } from '../../api/videos';
@@ -36,6 +37,7 @@ export const VideoScreen = () => {
   const [paused, setPaused] = useState(false);
   const [likeToggle, setLikeToggle] = useState<boolean | null>(null);
   const [showComments, setShowComments] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
   const goBack = () => (nav.canGoBack() ? nav.goBack() : nav.navigate('Home'));
 
@@ -81,6 +83,7 @@ export const VideoScreen = () => {
       onLike={onLike}
       onShare={onShare}
       onComment={() => setShowComments(true)}
+      onMore={() => setShowMore(true)}
       bottomOffset={bottomOffset}
       paused={paused}
       onTogglePause={() => setPaused((p) => !p)}
@@ -106,6 +109,9 @@ export const VideoScreen = () => {
       </Pressable>
 
       {!isDesktopWeb && <CommentsSheet visible={showComments} video={video} onClose={() => setShowComments(false)} />}
+
+      {/* Report hides the clip for this user — leave the page after acting. */}
+      <VideoMoreSheet visible={showMore} video={video} onClose={() => setShowMore(false)} onActioned={goBack} />
     </View>
   );
 };

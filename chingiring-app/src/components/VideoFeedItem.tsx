@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, Linking, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import VideoLayer from './VideoLayer';
-import { Heart, Share2, Volume2, VolumeX, ExternalLink, Pause, MessageCircle } from 'lucide-react-native';
+import { Heart, Share2, Volume2, VolumeX, ExternalLink, Pause, MessageCircle, MoreHorizontal } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { FeedVideo, TaggedProduct, VideoStore } from '../api/videos';
 
@@ -19,6 +19,8 @@ interface Props {
   onShare: () => void;
   /** Open the comments sheet for this clip. */
   onComment?: () => void;
+  /** Open the "⋯" sheet (report / block). */
+  onMore?: () => void;
   /** Distance (px) to lift the caption+product block off the screen bottom so it
    *  clears the mobile tab bar. Desktop passes the plain aesthetic gap. */
   bottomOffset?: number;
@@ -61,7 +63,7 @@ const CaptionBlock: React.FC<{ caption?: string; website?: string }> = ({ captio
 
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
-  onToggleMute, onStorePress, onLike, onShare, onComment, bottomOffset = 58,
+  onToggleMute, onStorePress, onLike, onShare, onComment, onMore, bottomOffset = 58,
   paused = false, onTogglePause, muteRight = 14,
 }) => {
   const [loading, setLoading] = useState(true);
@@ -135,6 +137,12 @@ export const VideoFeedItem: React.FC<Props> = ({
           <Share2 size={28} color="#fff" />
           <Text style={s.railTxt}>Share</Text>
         </Pressable>
+        {onMore && (
+          <Pressable style={s.railBtn} onPress={onMore} hitSlop={8}>
+            <MoreHorizontal size={28} color="#fff" />
+            <Text style={s.railTxt}>More</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Caption + product card(s) — bottom. box-none so its empty right column
