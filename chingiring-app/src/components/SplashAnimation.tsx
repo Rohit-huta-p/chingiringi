@@ -27,15 +27,15 @@ interface Props {
 // parallels sometimes don't resolve, blocking later phases).
 //
 const T = {
-  phase2Start: 400,   // first ripple begins
-  rippleOffset: 220,   // stagger between rings
-  rippleLifeMs: 1300,   // full lifecycle per ring (fade-in → hold → fade-out)
-  phase3Start: 2000,   // gradient fade + logo shift + white wipe
-  phase3Dur: 700,
-  phase4Start: 2700,   // wordmark fades in
-  phase4Dur: 500,
+  phase2Start: 200,    // first ripple begins
+  rippleOffset: 150,   // stagger between rings
+  rippleLifeMs: 900,   // full lifecycle per ring (fade-in → hold → fade-out)
+  phase3Start: 1200,   // gradient fade + logo shift + white wipe
+  phase3Dur: 500,
+  phase4Start: 1700,   // wordmark fades in
+  phase4Dur: 400,
 };
-const TIMELINE_END = T.phase4Start + T.phase4Dur; // 3200 ms
+const TIMELINE_END = T.phase4Start + T.phase4Dur; // 2100 ms
 
 const WHITE_WIPE_BASE_SIZE = 120;
 
@@ -49,7 +49,7 @@ const WHITE_WIPE_BASE_SIZE = 120;
  *      decorative white circle expands from the centre                1.5 – 2.2 s
  *   4. "ChingiRingi" wordmark fades in to the right of the logo      2.2 – 2.65 s
  */
-export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 1550 }) => {
+export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400 }) => {
   const { width, height } = useWindowDimensions();
 
   // ── Animated values ───────────────────────────────────────────────────────
@@ -137,37 +137,40 @@ export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 1550 }) 
 
   return (
     <View style={st.root}>
-      {/* White base — revealed once the gradient fades out */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#fff' }]} />
+      {/* Animation layer — clipped so wipe/rings don't overflow screen */}
+      <View style={[StyleSheet.absoluteFillObject, st.animLayer]}>
+        {/* White base — revealed once the gradient fades out */}
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#fff' }]} />
 
-      {/* Phase 1+2: indigo → cyan gradient (fades out in Phase 3) */}
-      <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: gradientOpacity }]}>
-        <LinearGradient
-          colors={['#362b86', '#35a8e7']}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
+        {/* Phase 1+2: indigo → cyan gradient (fades out in Phase 3) */}
+        <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: gradientOpacity }]}>
+          <LinearGradient
+            colors={['#362b86', '#35a8e7']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </Animated.View>
+
+        {/* Decorative white circle that expands from the centre in Phase 3 */}
+        <Animated.View
+          style={[
+            st.whiteWipe,
+            {
+              transform: [
+                { translateX: -WHITE_WIPE_BASE_SIZE / 2 },
+                { translateY: -WHITE_WIPE_BASE_SIZE / 2 },
+                { scale: whiteWipeScale },
+              ],
+            },
+          ]}
         />
-      </Animated.View>
 
-      {/* Decorative white circle that expands from the centre in Phase 3 */}
-      <Animated.View
-        style={[
-          st.whiteWipe,
-          {
-            transform: [
-              { translateX: -WHITE_WIPE_BASE_SIZE / 2 },
-              { translateY: -WHITE_WIPE_BASE_SIZE / 2 },
-              { scale: whiteWipeScale },
-            ],
-          },
-        ]}
-      />
-
-      {/* Phase 2: concentric ripples — placed dead-centre, scaled outward */}
-      <Animated.View style={[st.ring, { opacity: ring1.opacity, transform: [{ scale: ring1.scale }] }]} />
-      <Animated.View style={[st.ring, { opacity: ring2.opacity, transform: [{ scale: ring2.scale }] }]} />
-      <Animated.View style={[st.ring, { opacity: ring3.opacity, transform: [{ scale: ring3.scale }] }]} />
+        {/* Phase 2: concentric ripples — placed dead-centre, scaled outward */}
+        <Animated.View style={[st.ring, { opacity: ring1.opacity, transform: [{ scale: ring1.scale }] }]} />
+        <Animated.View style={[st.ring, { opacity: ring2.opacity, transform: [{ scale: ring2.scale }] }]} />
+        <Animated.View style={[st.ring, { opacity: ring3.opacity, transform: [{ scale: ring3.scale }] }]} />
+      </View>
 
       {/* Logo + wordmark group — group is centred, translates left in Phase 3 */}
       <Animated.View
@@ -215,6 +218,10 @@ const st = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Clips the wipe/rings without clipping the wordmark text
+  animLayer: {
     overflow: 'hidden',
   },
 
