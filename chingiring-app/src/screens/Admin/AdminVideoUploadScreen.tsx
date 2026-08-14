@@ -8,11 +8,12 @@ import { VideoList } from '../../components/VideoList';
 import { VideoUploadModal } from '../../components/VideoUploadModal';
 import { VideoPlayerModal } from '../../components/VideoPlayerModal';
 import { RejectReasonModal } from '../../components/RejectReasonModal';
+import { ReportDetailModal } from '../../components/ReportDetailModal';
 import { Colors, Fonts } from '../../constants/theme';
 import { videosAPI, FeedVideo } from '../../api/videos';
 import { confirmAsync, notify } from '../../utils/dialog';
 
-type Filter = 'all' | 'mine' | 'pending' | 'live' | 'rejected';
+type Filter = 'all' | 'mine' | 'pending' | 'reported' | 'live' | 'rejected';
 // Mirror VideoList's badge taxonomy: moderation wins, then status.
 const modOf = (v: FeedVideo) => v.moderation?.state;
 const isPending = (v: FeedVideo) => modOf(v) === 'pending';
@@ -30,6 +31,7 @@ export const AdminVideoUploadScreen = () => {
   const [editing, setEditing] = useState<FeedVideo | null>(null);
   const [playing, setPlaying] = useState<FeedVideo | null>(null);
   const [rejecting, setRejecting] = useState<FeedVideo | null>(null);
+  const [reportsFor, setReportsFor] = useState<FeedVideo | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   // "Mine" = admin-posted clips. New posts set creatorRole 'admin'; legacy posts
   // predate that field but carry createdByAdmin. User (UGC) posts have neither.
@@ -74,6 +76,16 @@ export const AdminVideoUploadScreen = () => {
     setRejecting(null);
   };
 
+  const dismissMutation = useMutation({
+    mutationFn: (videoId: string) => videosAPI.dismissReports(videoId),
+    onSuccess: () => { invalidate(); },
+    onError: (e: any) => notify('Action failed', e?.response?.data?.message || 'Could not dismiss the reports.'),
+  });
+  const onDismissReports = async (v: FeedVideo) => {
+    const ok = await confirmAsync('Dismiss reports', `Dismiss ${v.reportCount} report${(v.reportCount ?? 0) > 1 ? 's' : ''} on this ${v.store?.name || ''} clip? It stays live.`, { confirmLabel: 'Dismiss' });
+    if (ok) dismissMutation.mutate(v._id);
+  };
+
   const openCreate = () => { setEditing(null); setShowForm(true); };
   const onEdit = (v: FeedVideo) => { setEditing(v); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditing(null); };
@@ -84,10 +96,12 @@ export const AdminVideoUploadScreen = () => {
     notify('Not playable yet', v.status === 'processing' ? 'Still encoding — check back in a moment.' : 'This clip has no playable video.');
   };
 
+  const isReported = (v: FeedVideo) => (v.reportCount ?? 0) > 0;
   const counts: Record<Filter, number> = {
     all: videos.length,
     mine: videos.filter(isMine).length,
     pending: videos.filter(isPending).length,
+    reported: videos.filter(isReported).length,
     live: videos.filter(isLive).length,
     rejected: videos.filter(isRejected).length,
   };
@@ -95,25 +109,28 @@ export const AdminVideoUploadScreen = () => {
     { key: 'all', label: 'All' },
     { key: 'mine', label: 'Mine' },
     { key: 'pending', label: 'Under review' },
+    { key: 'reported', label: 'Reported' },
     { key: 'live', label: 'Live' },
     { key: 'rejected', label: 'Rejected' },
   ];
   const shown = videos.filter((v) =>
     filter === 'mine' ? isMine(v)
-    : filter === 'pending' ? isPending(v)
-    : filter === 'rejected' ? isRejected(v)
-    : filter === 'live' ? isLive(v)
-    : true);
+      : filter === 'pending' ? isPending(v)
+        : filter === 'reported' ? isReported(v)
+          : filter === 'rejected' ? isRejected(v)
+            : filter === 'live' ? isLive(v)
+              : true);
   const emptyHint = filter === 'mine' ? 'You haven’t posted any clips yet.'
     : filter === 'pending' ? 'Nothing awaiting review 🎉'
-    : filter === 'rejected' ? 'No rejected clips.'
-    : filter === 'live' ? 'No live clips yet.'
-    : 'Tap “Post Video” to add your first clip.';
+      : filter === 'reported' ? 'No reported clips 🎉'
+        : filter === 'rejected' ? 'No rejected clips.'
+          : filter === 'live' ? 'No live clips yet.'
+            : 'Tap “Post Video” to add your first clip.';
 
   return (
     <SafeAreaView style={s.root} edges={['left', 'right']}>
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-        <MobileAdminNav active="AdminVideos" />
+        {/* <MobileAdminNav active="AdminVideos" /> */}
 
         <View style={s.body}>
           {/* Title + CTA */}
@@ -134,7 +151,7 @@ export const AdminVideoUploadScreen = () => {
             {TABS.map((t) => {
               const on = filter === t.key;
               const n = counts[t.key];
-              const attention = t.key === 'pending' && n > 0;
+              const attention = (t.key === 'pending' || t.key === 'reported') && n > 0;
               return (
                 <TouchableOpacity key={t.key} style={[s.tab, on && s.tabOn, attention && !on && s.tabAlert]} onPress={() => setFilter(t.key)} activeOpacity={0.85}>
                   <Text style={[s.tabTxt, on && s.tabTxtOn, attention && !on && s.tabTxtAlert]} numberOfLines={1}>{t.label} {n}</Text>
@@ -146,7 +163,7 @@ export const AdminVideoUploadScreen = () => {
           {isLoading ? (
             <View style={s.loading}><ActivityIndicator size="large" color={Colors.primary} /></View>
           ) : (
-            <VideoList videos={shown} onPress={onPlay} onEdit={onEdit} onDelete={onDelete} onApprove={onApprove} onReject={onReject} emptyHint={emptyHint} />
+            <VideoList videos={shown} onPress={onPlay} onEdit={onEdit} onDelete={onDelete} onApprove={onApprove} onReject={onReject} onViewReports={setReportsFor} onDismissReports={onDismissReports} emptyHint={emptyHint} />
           )}
         </View>
       </ScrollView>
@@ -159,6 +176,7 @@ export const AdminVideoUploadScreen = () => {
         onCancel={() => setRejecting(null)}
         onSubmit={submitReject}
       />
+      <ReportDetailModal video={reportsFor} onClose={() => setReportsFor(null)} />
     </SafeAreaView>
   );
 };
