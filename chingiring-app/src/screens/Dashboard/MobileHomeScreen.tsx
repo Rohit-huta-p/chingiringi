@@ -14,12 +14,13 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, ChevronRight, ChevronDown } from 'lucide-react-native';
+import { Search, ChevronRight, ChevronDown, Bell } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
@@ -91,6 +92,7 @@ export const MobileHomeScreen = () => {
   const { width } = useWindowDimensions();
   const user = useAuthStore((s) => s.user);
   const refresh = usePullToRefresh();
+  const unreadCount = useUnreadCount();
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -266,6 +268,20 @@ export const MobileHomeScreen = () => {
             <ChevronDown size={14} color="#fff" />
           </TouchableOpacity>
         </View>
+        <TouchableOpacity
+          style={st.bellBtn}
+          onPress={() => navigation.navigate('Notifications')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+        >
+          <Bell size={20} color="#fff" strokeWidth={2.2} />
+          {unreadCount > 0 ? (
+            <View style={st.bellBadge}>
+              <Text style={st.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
       </View>
 
       <View style={st.searchRow}>
@@ -374,9 +390,31 @@ const st = StyleSheet.create({
   hrow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
   },
   greetWrap: { alignItems: 'flex-start' },
+  bellBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bellBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
   greet: { fontSize: 12.5, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.9)' },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
   locText: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#fff', maxWidth: 220 },

@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { notificationsAPI } from '../api/notifications';
+import { navigationRef } from '../navigation/RootNavigator';
 
 const PUSH_TOKEN_KEY = 'expoPushToken';
 
@@ -33,13 +34,12 @@ export function configureNotificationHandler(): void {
 }
 
 /** Tap-response listener. Returns a subscription; caller removes it on unmount.
- *  v1: NO navigation ref exists in this app, so we do NOT deep-link in-app — the OS
- *  already foregrounds the app on tap. Leave the TODO; do not build navigation-ref infra here. */
+ *  Tapping any push opens the in-app Notifications inbox. If the route isn't
+ *  registered in the mounted tree (logged out / admin), navigate is a no-op warn. */
 export function addNotificationResponseListener() {
   if (Platform.OS === 'web' || isExpoGo) return undefined;
   return Notifications.addNotificationResponseReceivedListener(() => {
-    // const data = response.notification.request.content.data; // { type, withdrawalId, orderId, ... }
-    // TODO(v1): deep-link via a navigation ref once one is added to RootNavigator.
+    if (navigationRef.isReady()) navigationRef.navigate('Notifications');
   });
 }
 

@@ -354,6 +354,7 @@ function MobileNavigator() {
         <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
         <Stack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
         <Stack.Screen name="Settings" component={isMobile ? MobileSettingsScreen : SettingsScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="About" component={isMobile ? MobileAboutScreen : AboutScreen} />
       </Stack.Navigator>
     </SafeAreaView>

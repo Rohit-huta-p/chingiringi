@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, ActivityIndicator, RefreshControl } from 'react-native';
 import { Colors } from '../../constants/theme';
 import { Card } from '../../components/Card';
+import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { Coins, ArrowDownToLine, PlaySquare } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationsAPI, AppNotification } from '../../api/notifications';
@@ -48,11 +49,33 @@ export const NotificationsScreen = () => {
   });
 
   return (
+    <View style={styles.container}>
+      {/* Mobile: pushed onto the stack (headerShown: false), so the shared
+          gradient header provides the back button. Desktop keeps the in-page
+          title (drawer layout, no back needed). */}
+      {isMobile && (
+        <MobileAuthHeader
+          kicker="UPDATES"
+          title="Notifications"
+          align="left"
+          bottomPad={20}
+          rightSlot={
+            <TouchableOpacity
+              onPress={() => markAllMut.mutate()}
+              disabled={unreadCount === 0 || markAllMut.isPending}
+              style={[styles.markAllHdrBtn, unreadCount === 0 && styles.markAllBtnDisabled]}
+            >
+              <Text style={styles.markAllHdrText}>Mark all read</Text>
+            </TouchableOpacity>
+          }
+        />
+      )}
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { padding: isMobile ? 16 : 24 }]}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
     >
+      {!isMobile && (
       <View style={styles.header}>
         <View>
           <Text style={styles.label}>UPDATES</Text>
@@ -68,6 +91,7 @@ export const NotificationsScreen = () => {
           </Text>
         </TouchableOpacity>
       </View>
+      )}
 
       {isLoading ? (
         <View style={{ padding: 40, alignItems: 'center' }}>
@@ -119,6 +143,7 @@ export const NotificationsScreen = () => {
         </View>
       )}
     </ScrollView>
+    </View>
   );
 };
 
@@ -167,6 +192,17 @@ const styles = StyleSheet.create({
   },
   markAllBtnTextDisabled: {
     color: Colors.textSecondary,
+  },
+  markAllHdrBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  markAllHdrText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   emptyCard: {
     alignItems: 'center',
