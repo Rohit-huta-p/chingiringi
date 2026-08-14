@@ -28,12 +28,7 @@ import { BannerBlock } from '../../components/BannerBlock';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
 import { tint } from '../../utils/color';
-import {
-  applyProductControls,
-  DEFAULT_CONTROLS,
-  isControlsActive,
-  ProductControlsState,
-} from '../../utils/productFilters';
+import { DEFAULT_CONTROLS, ProductControlsState } from '../../utils/productFilters';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -282,6 +277,8 @@ function TopNav({
   categories,
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
+  onControlsLaunch,
   userName,
   userAvatarUrl,
   onProfilePress,
@@ -295,6 +292,8 @@ function TopNav({
   categories: string[];
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  onSearchSubmit: () => void;
+  onControlsLaunch: () => void;
   userName?: string;
   userAvatarUrl?: string;
   onProfilePress: () => void;
@@ -316,7 +315,18 @@ function TopNav({
               style={s.navSearchInput}
               value={searchQuery}
               onChangeText={onSearchChange}
+              returnKeyType="search"
+              onSubmitEditing={onSearchSubmit}
             />
+            <TouchableOpacity
+              style={s.navSearchBtn}
+              onPress={onSearchSubmit}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+            >
+              <Search size={15} color="#fff" strokeWidth={2.5} />
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={s.navAvatar}
@@ -357,7 +367,7 @@ function TopNav({
               );
             })}
           </View>
-          <ProductControlsBar state={controls} onChange={onControlsChange} />
+          <ProductControlsBar state={controls} onChange={onControlsChange} onLaunch={onControlsLaunch} />
         </View>
       </View>
     </View>
@@ -440,28 +450,16 @@ export const HomeScreen = () => {
       (p) => (p.category ?? '').trim().toLowerCase() === name.trim().toLowerCase(),
     );
 
-  // ── Search + category filter (applied to every product grid) ──────────────
-  const hasFilter = selectedCategory !== 'All' || searchQuery.trim() !== '';
-  // A category chip is active → the "All Products" grid title shows its name.
+  // A category chip lists that category inline (with the header theming). Search
+  // and sort/filter navigate to the paginated Results page (goResults) instead.
   const categoryActive = selectedCategory !== 'All';
-  // Any active control (category, search, sort, or a price/coins filter)
-  // collapses the curated home into a single flat listing grid.
-  const isListing = hasFilter || isControlsActive(controls);
-  const matchesFilters = (p: Product) => {
-    const catOk =
-      selectedCategory === 'All' ||
-      (p.category ?? '').toLowerCase() === selectedCategory.toLowerCase();
-    const q = searchQuery.trim().toLowerCase();
-    const searchOk =
-      !q ||
-      (p.name ?? '').toLowerCase().includes(q) ||
-      (p.description ?? '').toLowerCase().includes(q);
-    return catOk && searchOk;
-  };
-  const filteredProducts = hasFilter ? products.filter(matchesFilters) : products;
-  // The flat listing grid: category/search-narrowed set, then sort + range
-  // filters applied. A no-op when every control sits at its default.
-  const listingProducts = applyProductControls(filteredProducts, controls);
+  const hasFilter = categoryActive; // drives the ProductGrid empty-state copy
+  const isListing = categoryActive;
+  const listingProducts = categoryActive
+    ? products.filter(
+        (p) => (p.category ?? '').toLowerCase() === selectedCategory.toLowerCase(),
+      )
+    : products;
 
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
 
@@ -504,6 +502,14 @@ export const HomeScreen = () => {
   const goToCategory = (category: string) => {
     navigation.navigate('CategoryProducts', { category });
   };
+
+  // Search / sort / filter open the paginated Results page, carrying the current
+  // category + optional search term.
+  const goResults = (search?: string) =>
+    navigation.navigate('CategoryProducts', {
+      category: selectedCategory !== 'All' ? selectedCategory : undefined,
+      search: search || undefined,
+    });
 
   // Banners render full-bleed: the negative horizontal margin cancels the body's
   // 32px side padding so they run edge-to-edge, while product grids stay padded.
@@ -603,6 +609,8 @@ export const HomeScreen = () => {
         categories={categoryChips}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        onSearchSubmit={() => goResults(searchQuery.trim())}
+        onControlsLaunch={() => goResults()}
         userName={userName}
         userAvatarUrl={userAvatarUrl}
         onProfilePress={() => navigation.navigate('Profile')}
@@ -827,6 +835,14 @@ const s = StyleSheet.create({
     fontFamily: Fonts.regular,
     color: Colors.text,
     outlineStyle: 'none' as any,
+  },
+  navSearchBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   navIconBtn: {
     width: 42,

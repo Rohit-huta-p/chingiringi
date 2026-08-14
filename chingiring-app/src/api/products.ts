@@ -30,6 +30,12 @@ export const productsAPI = {
     search?: string;
     featured?: string;
     sort?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    minCoins?: number;
+    maxCoins?: number;
+    minRating?: number;
+    minDiscount?: number;
   }) => {
     const response = await apiClient.get('/api/products', { params });
     return response.data;

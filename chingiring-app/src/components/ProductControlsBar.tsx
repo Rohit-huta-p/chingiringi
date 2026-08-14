@@ -102,10 +102,14 @@ export function ProductControlsBar({
   state,
   onChange,
   compact = false,
+  categories,
+  onLaunch,
 }: {
   state: ProductControlsState;
   onChange: (next: ProductControlsState) => void;
   compact?: boolean;
+  categories?: string[]; // when provided, a Category facet shows in the filter sheet
+  onLaunch?: () => void;  // when set, Sort/Filter tap calls this instead of opening a sheet (home → Results page)
 }) {
   const [sortOpen, setSortOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -116,7 +120,8 @@ export function ProductControlsBar({
     (state.priceRange !== 'all' ? 1 : 0) +
     (state.coinsRange !== 'all' ? 1 : 0) +
     (state.minDiscount > 0 ? 1 : 0) +
-    (state.minRating > 0 ? 1 : 0);
+    (state.minRating > 0 ? 1 : 0) +
+    (state.category && state.category !== 'All' ? 1 : 0);
 
   const btnStyle = compact ? s.iconBtn : s.btn;
 
@@ -124,7 +129,7 @@ export function ProductControlsBar({
     <View style={s.group}>
       <TouchableOpacity
         style={[btnStyle, sortActive && s.btnActive]}
-        onPress={() => setSortOpen(true)}
+        onPress={() => (onLaunch ? onLaunch() : setSortOpen(true))}
         activeOpacity={0.7}
         accessibilityLabel="Sort"
       >
@@ -141,7 +146,7 @@ export function ProductControlsBar({
 
       <TouchableOpacity
         style={[btnStyle, filterCount > 0 && s.btnActive]}
-        onPress={() => setFilterOpen(true)}
+        onPress={() => (onLaunch ? onLaunch() : setFilterOpen(true))}
         activeOpacity={0.7}
         accessibilityLabel="Filter"
       >
@@ -197,7 +202,7 @@ export function ProductControlsBar({
           filterCount > 0 ? (
             <TouchableOpacity
               onPress={() =>
-                onChange({ ...state, priceRange: 'all', coinsRange: 'all', minDiscount: 0, minRating: 0 })
+                onChange({ ...state, priceRange: 'all', coinsRange: 'all', minDiscount: 0, minRating: 0, category: '' })
               }
               hitSlop={8}
             >
@@ -207,6 +212,17 @@ export function ProductControlsBar({
         }
       >
         <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
+          {categories && categories.length > 0 ? (
+            <>
+              <Text style={s.groupLabel}>Category</Text>
+              <RangeChips
+                items={[{ id: '', label: 'All' }, ...categories.map((c) => ({ id: c, label: c }))]}
+                activeId={state.category && state.category !== 'All' ? state.category : ''}
+                onPress={(id) => onChange({ ...state, category: id })}
+              />
+              <View style={{ height: 18 }} />
+            </>
+          ) : null}
           <Text style={s.groupLabel}>Discount</Text>
           <RangeChips
             items={DISCOUNT_STEPS}

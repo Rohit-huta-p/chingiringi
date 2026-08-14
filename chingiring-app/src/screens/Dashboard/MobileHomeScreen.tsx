@@ -28,11 +28,7 @@ import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock } from '../../components/BannerBlock';
 import { tint } from '../../utils/color';
-import {
-  applyProductControls,
-  DEFAULT_CONTROLS,
-  isControlsActive,
-} from '../../utils/productFilters';
+import { DEFAULT_CONTROLS } from '../../utils/productFilters';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -148,22 +144,26 @@ export const MobileHomeScreen = () => {
     ? [themeColor, tint(themeColor, 0.2), tint(themeColor, 0.5)]
     : ['#1E3A8A', '#4784E2', '#91BDFF'];
 
-  // Filter + search
-  const filteredProducts = useMemo(() => {
-    let p = allProducts;
-    if (selectedCategory !== 'All') {
-      p = p.filter((x) => x.category?.toLowerCase() === selectedCategory.toLowerCase());
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      p = p.filter((x) => x.name.toLowerCase().includes(q) || x.description?.toLowerCase().includes(q));
-    }
-    return p;
-  }, [allProducts, selectedCategory, searchQuery]);
+  // A category chip lists that category inline (with the header theming). Search
+  // and sort/filter navigate to the paginated Results page instead — see the
+  // header search button and the controls' onLaunch below.
+  const listingProducts = useMemo(
+    () =>
+      selectedCategory === 'All'
+        ? []
+        : allProducts.filter(
+            (x) => (x.category ?? '').toLowerCase() === selectedCategory.toLowerCase(),
+          ),
+    [allProducts, selectedCategory],
+  );
+  const isListing = selectedCategory !== 'All';
 
-  const isFiltering = selectedCategory !== 'All' || searchQuery.trim() !== '';
-  const isListing = isFiltering || isControlsActive(controls);
-  const listingProducts = applyProductControls(filteredProducts, controls);
+  // Open the paginated Results page, carrying the current category + optional search.
+  const goResults = (search?: string) =>
+    navigation.navigate('CategoryProducts', {
+      category: selectedCategory !== 'All' ? selectedCategory : undefined,
+      search: search || undefined,
+    });
 
   const categoryNames = useMemo(
     () => categories.filter((c) => c !== 'All'),
@@ -293,10 +293,21 @@ export const MobileHomeScreen = () => {
             placeholderTextColor="#9ca3af"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            returnKeyType="search"
+            onSubmitEditing={() => goResults(searchQuery.trim())}
           />
+          <TouchableOpacity
+            style={st.searchBtn}
+            onPress={() => goResults(searchQuery.trim())}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
+            <Search size={16} color="#fff" strokeWidth={2.5} />
+          </TouchableOpacity>
         </View>
         <View style={st.controlsWrap}>
-          <ProductControlsBar state={controls} onChange={setControls} compact />
+          <ProductControlsBar state={controls} onChange={setControls} compact onLaunch={() => goResults()} />
         </View>
       </View>
 
@@ -425,6 +436,11 @@ const st = StyleSheet.create({
     backgroundColor: '#fff', borderRadius: 13, paddingHorizontal: 13, height: 44,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: Fonts.regular, color: Colors.text, height: 44 },
+  searchBtn: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center', alignItems: 'center',
+  },
 
   chipsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 13, paddingRight: 10 },
   controlsWrap: {},

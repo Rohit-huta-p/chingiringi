@@ -3,79 +3,101 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  FlatList,
   useWindowDimensions,
 } from 'react-native';
 import { ArrowLeft, Search } from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
 import { productsAPI, Product } from '../../api/products';
+import { categoriesAPI, Category } from '../../api/deals';
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
-import { applyProductControls, DEFAULT_CONTROLS } from '../../utils/productFilters';
+import {
+  DEFAULT_CONTROLS,
+  ProductControlsState,
+  controlsToQuery,
+} from '../../utils/productFilters';
 
+// ─── Results page ─────────────────────────────────────────────────────────────
+// The single destination for search / sort / filter / a category "See all".
+// Everything runs server-side (getProducts) with infinite-scroll pagination, so
+// it scales past the home's 100-item snapshot. Reached with any of:
+//   { category?, search?, controls? }  (all optional).
 
-
-// ─── Screen ───────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 24;
 
 export const CategoryProductsScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { width } = useWindowDimensions();
-  const [controls, setControls] = useState(DEFAULT_CONTROLS);
-  const [searchQuery, setSearchQuery] = useState('');
 
-  // Param key matches the `{ category }` JS-navigation payload; `name` is a
-  // fallback for a deep-linked `/category/:category` URL that parses to `name`
-  // on some navigator shapes.
-  const category: string = route.params?.category ?? route.params?.name ?? 'All';
-  const isAll = category === 'All';
-  const title = isAll ? 'All Products' : category;
+  const routeCategory: string = route.params?.category ?? route.params?.name ?? '';
+  const routeSearch: string = route.params?.search ?? '';
+  const routeControls: Partial<ProductControlsState> = route.params?.controls ?? {};
 
-  const { data: productsRes, isLoading } = useQuery({
-    queryKey: ['products', 'catalog'],
-    queryFn: () => productsAPI.getProducts({ limit: 100 }),
+  const [controls, setControls] = useState<ProductControlsState>({
+    ...DEFAULT_CONTROLS,
+    ...routeControls,
+    category:
+      routeCategory && routeCategory !== 'All'
+        ? routeCategory
+        : routeControls.category ?? '',
   });
+  const [searchInput, setSearchInput] = useState(routeSearch);
+  const [search, setSearch] = useState(routeSearch); // submitted term (drives the query)
 
-  const allProducts: Product[] =
-    productsRes?.data?.products ?? productsRes?.products ?? [];
+  // Category names for the filter facet.
+  const { data: catsRes } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoriesAPI.getCategories(),
+    staleTime: 5 * 60_000,
+  });
+  const categoryNames: string[] = (
+    ((catsRes as any)?.data?.categories ?? (catsRes as any)?.categories ?? []) as Category[]
+  )
+    .filter((c) => c.isActive !== false)
+    .map((c) => c.name);
 
-  // Same case-insensitive category match the Home screens use, so a category
-  // page shows exactly what its Home section previews.
-  const products = isAll
-    ? allProducts
-    : allProducts.filter(
-        (p) => (p.category ?? '').trim().toLowerCase() === category.trim().toLowerCase(),
-      );
+  const query = controlsToQuery(controls, { search });
 
-  // Search on top of the category filter, matching /home (name + description),
-  // then sort + range filters.
-  const q = searchQuery.trim().toLowerCase();
-  const bySearch = q
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.description ?? '').toLowerCase().includes(q),
-      )
-    : products;
-  const shown = applyProductControls(bySearch, controls);
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['products', 'results', query],
+      queryFn: ({ pageParam }) =>
+        productsAPI.getProducts({ ...query, page: pageParam, limit: PAGE_SIZE }),
+      initialPageParam: 1,
+      getNextPageParam: (last: any) => {
+        const pg = last?.data?.pagination;
+        return pg && pg.page < pg.pages ? pg.page + 1 : undefined;
+      },
+    });
+
+  const products: Product[] = (data?.pages ?? []).flatMap(
+    (pg: any) => pg?.data?.products ?? [],
+  );
+  const total: number = (data?.pages?.[0] as any)?.data?.pagination?.total ?? 0;
+
+  const title =
+    controls.category && controls.category !== 'All'
+      ? controls.category
+      : search
+        ? `“${search}”`
+        : 'All Products';
 
   const isNarrow = width < 768;
   const H_PAD = 16;
   const GAP = 12;
-  // On web the permanent sidebar (~250px) eats into the window width; cap the
-  // catalogue so cards don't stretch on very wide screens.
   const usableW = (isNarrow ? width : Math.min(width - 250, 1200)) - H_PAD * 2;
   const cols = isNarrow ? 3 : usableW > 900 ? 5 : usableW > 640 ? 4 : 3;
   const cardW = Math.floor((usableW - GAP * (cols - 1)) / cols);
 
-  const handleProductPress = (p: Product) => {
+  const handleProductPress = (p: Product) =>
     navigation.navigate('ProductDetail', { productId: p._id, product: p });
-  };
 
   return (
     <View style={s.container}>
@@ -83,56 +105,69 @@ export const CategoryProductsScreen = () => {
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <ArrowLeft size={20} color={Colors.text} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
-        {products.length > 0 && (
-          <View style={s.headerSearch}>
-            <Search size={16} color={Colors.textSecondary} />
-            <TextInput
-              style={s.headerSearchInput}
-              placeholder="Search..."
-              placeholderTextColor="#94a3b8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="search"
-            />
-          </View>
-        )}
-        <ProductControlsBar state={controls} onChange={setControls} compact={isNarrow} />
+        <View style={s.headerSearch}>
+          <Search size={16} color={Colors.textSecondary} />
+          <TextInput
+            style={s.headerSearchInput}
+            placeholder="Search products"
+            placeholderTextColor="#94a3b8"
+            value={searchInput}
+            onChangeText={setSearchInput}
+            onSubmitEditing={() => setSearch(searchInput.trim())}
+            returnKeyType="search"
+          />
+        </View>
+        <ProductControlsBar
+          state={controls}
+          onChange={setControls}
+          categories={categoryNames}
+          compact
+        />
       </View>
 
       {isLoading ? (
         <View style={s.centre}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
+      ) : isError ? (
+        <View style={s.centre}>
+          <Text style={s.emptyTitle}>Couldn’t load results</Text>
+          <Text style={s.emptySub}>Check your connection and try again.</Text>
+        </View>
       ) : products.length === 0 ? (
         <View style={s.centre}>
           <Text style={s.emptyTitle}>No products found</Text>
-          <Text style={s.emptySub}>There are no products in this category yet.</Text>
-        </View>
-      ) : shown.length === 0 ? (
-        <View style={s.centre}>
-          <Text style={s.emptyTitle}>No matches</Text>
           <Text style={s.emptySub}>Nothing matches your search or filters.</Text>
         </View>
       ) : (
-        <ScrollView
-          contentContainerStyle={s.scrollContent}
+        <FlatList
+          key={cols}
+          data={products}
+          keyExtractor={(p) => p._id}
+          numColumns={cols}
+          columnWrapperStyle={{ gap: GAP, paddingHorizontal: H_PAD }}
+          contentContainerStyle={s.listContent}
+          ListHeaderComponent={
+            <Text style={s.count}>
+              {title} · {total} {total === 1 ? 'result' : 'results'}
+            </Text>
+          }
+          renderItem={({ item }) => (
+            <ProductCard product={item} width={cardW} onPress={() => handleProductPress(item)} />
+          )}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+          }}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator style={{ marginVertical: 20 }} color={Colors.primary} />
+            ) : (
+              <View style={{ height: 40 }} />
+            )
+          }
           showsVerticalScrollIndicator={false}
-        >
-          <Text style={s.count}>
-            {shown.length} {shown.length === 1 ? 'item' : 'items'}
-          </Text>
-          <View style={[s.grid, { gap: GAP }]}>
-            {shown.map((p) => (
-              <ProductCard
-                key={p._id}
-                product={p}
-                width={cardW}
-                onPress={() => handleProductPress(p)}
-              />
-            ))}
-          </View>
-        </ScrollView>
+        />
       )}
     </View>
   );
@@ -161,13 +196,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    flexShrink: 1,
-    fontSize: 18,
-    fontFamily: Fonts.extraBold,
-    color: Colors.text,
-  },
-
   headerSearch: {
     flex: 1,
     minWidth: 90,
@@ -199,23 +227,12 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
 
-  scrollContent: { padding: 16, paddingBottom: 40, alignItems: 'center' },
+  listContent: { paddingTop: 12, paddingBottom: 24, gap: 12 },
   count: {
-    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
     marginBottom: 12,
     fontSize: 13,
     fontFamily: Fonts.medium,
     color: Colors.textSecondary,
-    maxWidth: 1200,
-    width: '100%',
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    maxWidth: 1200,
-    width: '100%',
-  },
-
-
 });
