@@ -1,5 +1,6 @@
 import User from './userModel.js';
 import Wallet from '../wallet/walletModel.js';
+import { deleteUserAndData } from './accountDeletion.js';
 
 // @desc    Update user profile
 // @route   PUT /api/profile
@@ -79,7 +80,7 @@ export const updateNotificationPrefs = async (req, res) => {
 // @route   DELETE /api/profile
 // @access  Private
 export const deleteAccount = async (req, res) => {
-  await User.findByIdAndDelete(req.user._id);
+  await deleteUserAndData(req.user._id);
 
   // Clear auth cookies
   res.cookie('accessToken', '', { maxAge: 0 });
