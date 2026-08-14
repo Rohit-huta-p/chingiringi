@@ -33,6 +33,7 @@
       ]
     },
     "web": {
+      "name": "Chingiringi",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
