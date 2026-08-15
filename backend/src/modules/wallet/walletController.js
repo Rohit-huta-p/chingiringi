@@ -4,6 +4,7 @@ import AdminSettings from '../admin/adminSettingsModel.js';
 import { notify } from '../notifications/notificationService.js';
 import ShareEvent from '../shares/shareModel.js';
 import { payoutsEnabled, firePayout } from '../payments/payoutService.js';
+import User from '../users/userModel.js';
 
 // @desc    Get current user's wallet
 // @route   GET /api/wallet
@@ -170,6 +171,18 @@ export const requestWithdrawal = async (req, res) => {
   if (method === 'Bank' && (!accountNumber || !ifsc)) {
     res.status(400);
     throw new Error('accountNumber and ifsc are required for Bank withdrawals');
+  }
+
+  // Email-verification gate — a verified email is required to withdraw. Checked
+  // before any coins are held; the app catches `EMAIL_NOT_VERIFIED`, runs the
+  // verify flow, then retries.
+  const requester = await User.findById(req.user._id).select('isEmailVerified').lean();
+  if (!requester?.isEmailVerified) {
+    return res.status(403).json({
+      status: 'error',
+      code: 'EMAIL_NOT_VERIFIED',
+      message: 'Verify your email before withdrawing.',
+    });
   }
 
   const settings = await AdminSettings.get();

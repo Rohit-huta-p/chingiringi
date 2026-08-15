@@ -230,6 +230,7 @@ export const getMe = async (req, res) => {
         role: user.role,
         referralCode: user.referralCode,
         avatarUrl: user.avatarUrl,
+        isEmailVerified: user.isEmailVerified,
       }
     }
   });

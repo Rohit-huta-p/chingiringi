@@ -4,7 +4,7 @@ import {
   useWindowDimensions, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mail, Phone, MapPin, Pencil, Gift, IndianRupee, Clock, Coins,
@@ -15,6 +15,7 @@ import { profileAPI } from '../../api/profile';
 import { walletAPI } from '../../api/wallet';
 import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
 import { LegalModal, LegalType } from '../../components/LegalModal';
+import { EmailVerifyModal } from '../../components/EmailVerifyModal';
 
 // Quick action items
 const QUICK_ACTIONS: Array<{
@@ -39,6 +40,8 @@ export const ProfileScreen = () => {
   const isNarrow = width < 1100;
   const navigation = useNavigation<any>();
   const [legal, setLegal] = useState<LegalType | null>(null);
+  const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
+  const qc = useQueryClient();
 
   // Legal & support cell tap → open the info modal.
   const onLegalPress = (label: string) => {
@@ -84,8 +87,9 @@ export const ProfileScreen = () => {
       location: '',
       referralCode: user.referralCode || '',
       avatarUrl: user.avatarUrl || '',
+      isEmailVerified: !!user.isEmailVerified,
     }
-    : { name: '', memberSince: '', email: '', phone: '', location: '', referralCode: '', avatarUrl: '' };
+    : { name: '', memberSince: '', email: '', phone: '', location: '', referralCode: '', avatarUrl: '', isEmailVerified: false };
 
   const referralTxns: any[] = referralTxData?.data?.transactions ?? [];
   const totalReferred = referralTxns.length;
@@ -145,6 +149,16 @@ export const ProfileScreen = () => {
                 <View style={s.infoRow}>
                   <Mail size={14} color="#94a3b8" strokeWidth={2} />
                   <Text style={s.infoText}>{profile.email}</Text>
+                  {profile.isEmailVerified ? (
+                    <Text style={{ marginLeft: 8, fontSize: 12, fontWeight: '700', color: '#16a34a' }}>✓ Verified</Text>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => setEmailVerifyOpen(true)}
+                      style={{ marginLeft: 8, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: '#fffbeb' }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#d97706' }}>Verify</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : null}
               {profile.phone ? (
@@ -318,6 +332,12 @@ export const ProfileScreen = () => {
       </View>
     </ScrollView>
     <LegalModal type={legal} onClose={() => setLegal(null)} />
+    <EmailVerifyModal
+      visible={emailVerifyOpen}
+      email={profile.email}
+      onClose={() => setEmailVerifyOpen(false)}
+      onVerified={() => qc.invalidateQueries({ queryKey: ['profile'] })}
+    />
     </>
   );
 };

@@ -18,6 +18,7 @@ import { ArrowDownToLine, Clock, X, ChevronRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Fonts } from '../../constants/theme';
+import { EmailVerifyModal } from '../../components/EmailVerifyModal';
 // expo-camera v17 incompatible with SDK 54 in Expo Go — disabled until version aligned
 // import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -45,6 +46,9 @@ const EMPTY_WALLET: Wallet = { _id: '', userId: '', confirmedCashback: 0, pendin
 
 function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; onClose: () => void; coinBalance: number }) {
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const hydrate = useAuthStore((s) => s.hydrate);
+  const [verifyOpen, setVerifyOpen] = useState(false);
   const [method, setMethod] = useState<'UPI' | 'Bank'>('UPI');
   const [payId, setPayId] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -95,6 +99,10 @@ function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; on
       );
     },
     onError: (e: any) => {
+      if (e?.code === 'EMAIL_NOT_VERIFIED' || e?.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
+        setVerifyOpen(true);
+        return;
+      }
       Alert.alert('Failed', e?.response?.data?.message || e?.message || 'Try again');
     },
   });
@@ -107,6 +115,7 @@ function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; on
     && !submit.isPending;
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={ws.overlay}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
@@ -216,7 +225,11 @@ function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; on
             <TouchableOpacity
               style={[ws.confirmBtn, !canSubmit && { opacity: 0.5 }]}
               activeOpacity={0.85}
-              onPress={() => canSubmit && submit.mutate()}
+              onPress={() => {
+                if (!canSubmit) return;
+                if (!user?.isEmailVerified) { setVerifyOpen(true); return; }
+                submit.mutate();
+              }}
               disabled={!canSubmit}
             >
               {submit.isPending
@@ -227,6 +240,13 @@ function WithdrawSheet({ visible, onClose, coinBalance }: { visible: boolean; on
         </KeyboardAvoidingView>
       </View>
     </Modal>
+    <EmailVerifyModal
+      visible={verifyOpen}
+      email={user?.email}
+      onClose={() => setVerifyOpen(false)}
+      onVerified={async () => { await hydrate(); submit.mutate(); }}
+    />
+    </>
   );
 }
 

@@ -43,6 +43,18 @@ export const profileAPI = {
     const response = await apiClient.delete('/api/profile');
     return response.data;
   },
+
+  // Email a 6-digit verification code to the account's email.
+  sendEmailOtp: async () => {
+    const response = await apiClient.post('/api/profile/email/send-otp');
+    return response.data;
+  },
+
+  // Verify the email with the code → sets isEmailVerified on the account.
+  verifyEmailOtp: async (otp: string) => {
+    const response = await apiClient.post('/api/profile/email/verify', { otp });
+    return response.data;
+  },
 };
 
 export const addressAPI = {

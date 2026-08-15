@@ -1,6 +1,8 @@
 import User from './userModel.js';
 import Wallet from '../wallet/walletModel.js';
 import { deleteUserAndData } from './accountDeletion.js';
+import { generateAndStoreOTP, verifyUserOTP } from '../auth/authService.js';
+import { sendMail, isEmailConfigured } from '../../services/email.js';
 
 // @desc    Update user profile
 // @route   PUT /api/profile
@@ -18,6 +20,14 @@ export const updateProfile = async (req, res) => {
   if (Object.keys(updates).length === 0) {
     res.status(400);
     throw new Error('No valid fields to update');
+  }
+
+  // Changing the email invalidates verification — the new address must be re-verified.
+  if (updates.email !== undefined) {
+    const current = await User.findById(req.user._id).select('email').lean();
+    if ((current?.email || '') !== String(updates.email).toLowerCase()) {
+      updates.isEmailVerified = false;
+    }
   }
 
   const user = await User.findByIdAndUpdate(req.user._id, updates, {
@@ -87,4 +97,65 @@ export const deleteAccount = async (req, res) => {
   res.cookie('refreshToken', '', { maxAge: 0 });
 
   res.status(200).json({ status: 'success', message: 'Account deleted' });
+};
+
+// @desc    Email a 6-digit code to verify the account's email
+// @route   POST /api/profile/email/send-otp
+// @access  Private
+export const sendEmailOtp = async (req, res) => {
+  const user = await User.findById(req.user._id).select('email isEmailVerified');
+  if (!user?.email) {
+    res.status(400);
+    throw new Error('Add an email to your profile first.');
+  }
+  if (user.isEmailVerified) {
+    return res.status(200).json({ status: 'success', message: 'Email already verified', data: { isEmailVerified: true } });
+  }
+  if (!isEmailConfigured()) {
+    res.status(503);
+    throw new Error('Email service is unavailable right now. Please try again later.');
+  }
+
+  const otp = await generateAndStoreOTP(null, user.email);
+  await sendMail({
+    to: user.email,
+    subject: 'Verify your email — Chingiringi',
+    text: `Your Chingiringi verification code is ${otp}. It expires in 5 minutes. If you didn't request this, ignore this email.`,
+    html: `<p>Your Chingiringi verification code is <strong style="font-size:20px;letter-spacing:3px">${otp}</strong>.</p><p>It expires in 5 minutes. If you didn't request this, you can ignore this email.</p>`,
+  });
+
+  res.status(200).json({ status: 'success', message: 'Verification code sent' });
+};
+
+// @desc    Verify the account's email with the 6-digit code
+// @route   POST /api/profile/email/verify   { otp }
+// @access  Private
+export const verifyEmailOtp = async (req, res) => {
+  const otp = String(req.body?.otp ?? '').trim();
+  if (!/^\d{6}$/.test(otp)) {
+    res.status(400);
+    throw new Error('Enter the 6-digit code.');
+  }
+
+  const user = await User.findById(req.user._id).select('email isEmailVerified');
+  if (!user?.email) {
+    res.status(400);
+    throw new Error('Add an email to your profile first.');
+  }
+  if (user.isEmailVerified) {
+    return res.status(200).json({ status: 'success', data: { isEmailVerified: true } });
+  }
+
+  try {
+    // Throws on an invalid/expired code or too many attempts.
+    await verifyUserOTP(user.email, otp);
+  } catch (e) {
+    res.status(400);
+    throw new Error(e?.message || 'Invalid or expired code.');
+  }
+
+  user.isEmailVerified = true;
+  await user.save({ validateBeforeSave: false });
+
+  res.status(200).json({ status: 'success', message: 'Email verified', data: { isEmailVerified: true } });
 };

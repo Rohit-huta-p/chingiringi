@@ -14,6 +14,7 @@ export interface UserType {
   role?: string;
   referralCode?: string;
   avatarUrl?: string;
+  isEmailVerified?: boolean;
   notificationPrefs?: NotificationPrefs;
 }
 

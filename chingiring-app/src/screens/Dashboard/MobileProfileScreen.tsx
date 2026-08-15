@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, Info, HelpCircle, MessageCircle,
-  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX,
+  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX, MailCheck,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -18,6 +18,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { MobileProfileHeader } from '../../components/MobileProfileHeader';
 import { ShareRewardsSummary } from '../../components/ShareRewardsSummary';
 import { LegalModal, LegalType } from '../../components/LegalModal';
+import { EmailVerifyModal } from '../../components/EmailVerifyModal';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,8 @@ export const MobileProfileScreen = () => {
   const nav = useNavigation<any>();
   const user = useAuthStore((st) => st.user);
   const [legal, setLegal] = useState<LegalType | null>(null);
+  const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
+  const hydrate = useAuthStore((st) => st.hydrate);
 
   const { data: walletRes } = useQuery({
     queryKey: ['wallet'],
@@ -236,6 +239,22 @@ export const MobileProfileScreen = () => {
             </View>
           </LinearGradient>
 
+          {/* ── Account: email verification (only when unverified) ─────────── */}
+          {user?.email && !user?.isEmailVerified ? (
+            <>
+              <Text style={s.sectionHeader}>ACCOUNT</Text>
+              <QuickAction
+                icon={MailCheck}
+                iconColor="#d97706"
+                iconBg="#fffbeb"
+                title="Verify your email"
+                subtitle={user.email}
+                rightSlot={<Text style={{ color: '#d97706', fontFamily: Fonts.semiBold, fontSize: 12 }}>Verify ›</Text>}
+                onPress={() => setEmailVerifyOpen(true)}
+              />
+            </>
+          ) : null}
+
           {/* ── My content ────────────────────────────────────────────────── */}
           <Text style={s.sectionHeader}>MY CONTENT</Text>
           <QuickAction
@@ -299,6 +318,12 @@ export const MobileProfileScreen = () => {
         </View>
       </ScrollView>
       <LegalModal type={legal} onClose={() => setLegal(null)} />
+      <EmailVerifyModal
+        visible={emailVerifyOpen}
+        email={user?.email}
+        onClose={() => setEmailVerifyOpen(false)}
+        onVerified={() => hydrate()}
+      />
     </View>
   );
 };
