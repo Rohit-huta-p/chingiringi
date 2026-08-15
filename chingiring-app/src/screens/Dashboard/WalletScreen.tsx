@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Modal, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, CheckCircle2, Wallet as WalletIcon, TrendingUp, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
+import { Wallet as WalletIcon, TrendingUp, ArrowDownToLine, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 import { walletAPI, Wallet, Transaction } from '../../api/wallet';
 import { ShareToEarnCard } from '../../components/ShareToEarnCard';
 import { PendingRewardCard } from '../../components/PendingRewardCard';
 import { WithdrawalPendingCard } from '../../components/WithdrawalPendingCard';
 import { TransactionRow } from '../../components/TransactionRow';
+import { WithdrawModal } from '../../components/WithdrawModal';
 
 // Coins→₹ conversion. Mirrors AdminSettings.coinsPerRupee default (1000);
 // 100 coins = 10 paise. The exact rate is re-locked server-side at request time.
 const COINS_PER_RUPEE = 1000;
-const MIN_WITHDRAW_RUPEES = 100;
-const QUICK_AMOUNTS = [100, 500, 1000];
-type WithdrawMethod = 'UPI' | 'Bank' | 'Paytm';
 
 const FILTER_TABS = ['All', 'Shares', 'Withdrawals'] as const;
 
@@ -37,251 +35,6 @@ const EMPTY_WALLET: Wallet = {
   pendingCoins: 0,
   lifetimeEarned: 0,
 };
-
-// react-native-web's Alert is a no-op, and this screen is web-first — route
-// through window.alert there so the user actually sees the message.
-function notify(title: string, message?: string) {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(message ? `${title}\n\n${message}` : title);
-  } else {
-    Alert.alert(title, message);
-  }
-}
-
-// ─── Withdraw Funds overlay (Figma node 64:1451) ─────────────────────────────
-function WithdrawFundsModal({ visible, onClose, coinBalance }: {
-  visible: boolean;
-  onClose: () => void;
-  coinBalance: number;
-}) {
-  const qc = useQueryClient();
-  const [method, setMethod] = useState<WithdrawMethod>('UPI');
-  const [details, setDetails] = useState('');
-  const [ifsc, setIfsc] = useState('');
-  const [amount, setAmount] = useState('');
-
-  // Withdrawal is coin-based server-side; the UI is ₹ per the design. Convert
-  // the ₹ ceiling from the withdrawable coin balance, and the entered ₹ back
-  // to coins when submitting.
-  const availableRupees = Math.floor(coinBalance / COINS_PER_RUPEE);
-  const amountNum = Number(amount) || 0;
-  const coinsToRedeem = Math.round(amountNum * COINS_PER_RUPEE);
-  const overBalance = amountNum > availableRupees;
-  const belowMin = amountNum > 0 && amountNum < MIN_WITHDRAW_RUPEES;
-
-  const detailsLabel =
-    method === 'UPI' ? 'Enter UPI ID'
-    : method === 'Paytm' ? 'Enter Paytm number'
-    : 'Account number';
-
-  const mutation = useMutation({
-    mutationFn: () => walletAPI.requestWithdrawal({
-      coins: coinsToRedeem,
-      method: method === 'Bank' ? 'Bank' : 'UPI', // Paytm rides the UPI rail
-      paymentDetails: details.trim(),
-      ...(method === 'Bank' ? { accountNumber: details.trim(), ifsc: ifsc.trim() } : {}),
-    }),
-    onSuccess: (res: any) => {
-      qc.invalidateQueries({ queryKey: ['walletSummary'] });
-      qc.invalidateQueries({ queryKey: ['wallet'] });
-      const paidInstant = !!res?.data?.instant;
-      const dest = method === 'Bank' ? 'bank account' : method === 'Paytm' ? 'Paytm' : 'UPI';
-      setAmount(''); setDetails(''); setIfsc('');
-      onClose();
-      notify(
-        paidInstant ? 'On its way 🎉' : 'Request submitted',
-        paidInstant
-          ? `₹${amountNum.toLocaleString('en-IN')} is on its way to your ${dest}.`
-          : `Your ₹${amountNum.toLocaleString('en-IN')} withdrawal is pending approval.`,
-      );
-    },
-    onError: (e: any) => notify('Withdrawal failed', e?.response?.data?.message || e?.message || 'Please try again.'),
-  });
-
-  const canSubmit =
-    amountNum >= MIN_WITHDRAW_RUPEES &&
-    !overBalance &&
-    details.trim().length > 0 &&
-    (method !== 'Bank' || ifsc.trim().length > 0) &&
-    !mutation.isPending;
-
-  const handleConfirm = () => {
-    if (!details.trim()) { notify('Missing details', `Enter your ${detailsLabel.toLowerCase()}.`); return; }
-    if (method === 'Bank' && !ifsc.trim()) { notify('Missing IFSC', 'Enter the bank IFSC code.'); return; }
-    if (amountNum < MIN_WITHDRAW_RUPEES) { notify('Amount too low', `Minimum withdrawal is ₹${MIN_WITHDRAW_RUPEES}.`); return; }
-    if (overBalance) { notify('Insufficient balance', `You can withdraw up to ₹${availableRupees}.`); return; }
-    mutation.mutate();
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={m.overlay}>
-        <View style={m.card}>
-          <View style={m.header}>
-            <Text style={m.title}>Withdraw Funds</Text>
-            <TouchableOpacity style={m.closeBtn} onPress={onClose} activeOpacity={0.7}>
-              <X size={16} color="#64748b" strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={m.availCard}>
-            <View>
-              <Text style={m.availLabel}>Available</Text>
-              <Text style={m.availAmount}>₹{availableRupees.toLocaleString('en-IN')}</Text>
-              <Text style={m.availSub}>{coinBalance.toLocaleString('en-IN')} coins</Text>
-            </View>
-            <CheckCircle2 size={22} color="#16a34a" strokeWidth={2} />
-          </View>
-
-          <Text style={m.sectionLabel}>WITHDRAW TO</Text>
-          <View style={m.segment}>
-            {(['UPI', 'Bank', 'Paytm'] as WithdrawMethod[]).map((opt) => {
-              const active = method === opt;
-              return (
-                <TouchableOpacity
-                  key={opt}
-                  style={[m.segBtn, active && m.segBtnActive]}
-                  onPress={() => setMethod(opt)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[m.segTxt, active && m.segTxtActive]}>{opt}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <TextInput
-            style={m.input}
-            value={details}
-            onChangeText={setDetails}
-            placeholder={detailsLabel}
-            placeholderTextColor="#94a3b8"
-            autoCapitalize="none"
-          />
-          {method === 'Bank' && (
-            <TextInput
-              style={[m.input, { marginTop: 10 }]}
-              value={ifsc}
-              onChangeText={setIfsc}
-              placeholder="IFSC code"
-              placeholderTextColor="#94a3b8"
-              autoCapitalize="characters"
-            />
-          )}
-
-          <Text style={m.sectionLabel}>AMOUNT</Text>
-          <TextInput
-            style={m.input}
-            value={amount}
-            onChangeText={(v) => setAmount(v.replace(/[^0-9]/g, ''))}
-            placeholder={`Minimum ₹${MIN_WITHDRAW_RUPEES}`}
-            placeholderTextColor="#94a3b8"
-            keyboardType="numeric"
-          />
-          <View style={m.chipRow}>
-            {QUICK_AMOUNTS.map((amt) => {
-              const disabled = amt > availableRupees;
-              return (
-                <TouchableOpacity
-                  key={amt}
-                  style={[m.chip, disabled && m.chipDisabled]}
-                  disabled={disabled}
-                  onPress={() => setAmount(String(amt))}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[m.chipTxt, disabled && m.chipTxtDisabled]}>₹{amt}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {(belowMin || overBalance) && (
-            <Text style={m.errTxt}>
-              {overBalance ? `You can withdraw up to ₹${availableRupees}.` : `Minimum withdrawal is ₹${MIN_WITHDRAW_RUPEES}.`}
-            </Text>
-          )}
-
-          <TouchableOpacity
-            style={[m.confirmBtn, !canSubmit && m.confirmBtnDisabled]}
-            onPress={handleConfirm}
-            disabled={!canSubmit}
-            activeOpacity={0.85}
-          >
-            {mutation.isPending
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={m.confirmTxt}>Confirm Withdrawal</Text>}
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const m = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    ...(Platform.OS === 'web' ? ({ boxShadow: '0 20px 50px rgba(0,0,0,0.25)' } as any) : {
-      shadowColor: '#000', shadowOpacity: 0.25, shadowOffset: { width: 0, height: 20 }, shadowRadius: 40, elevation: 12,
-    }),
-  },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
-  closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-
-  availCard: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#f8fafc', borderRadius: 12, padding: 16, marginBottom: 18,
-  },
-  availLabel: { fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 0.5, textTransform: 'uppercase' },
-  availAmount: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginTop: 2 },
-  availSub: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
-
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 },
-
-  segment: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  segBtn: {
-    flex: 1, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0',
-  },
-  segBtnActive: { backgroundColor: '#eff6ff', borderColor: '#3b82f6' },
-  segTxt: { fontSize: 13, fontWeight: '600', color: '#334155' },
-  segTxtActive: { color: '#3b82f6', fontWeight: '700' },
-
-  input: {
-    height: 46, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
-    paddingHorizontal: 14, fontSize: 14, color: '#0f172a', backgroundColor: '#ffffff',
-    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
-  },
-
-  chipRow: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 4 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8,
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
-  },
-  chipDisabled: { opacity: 0.4 },
-  chipTxt: { fontSize: 12, fontWeight: '700', color: '#334155' },
-  chipTxtDisabled: { color: '#94a3b8' },
-
-  errTxt: { fontSize: 12, color: '#dc2626', fontWeight: '600', marginTop: 8 },
-
-  confirmBtn: {
-    height: 48, borderRadius: 12, backgroundColor: '#4784E2',
-    alignItems: 'center', justifyContent: 'center', marginTop: 18,
-  },
-  confirmBtnDisabled: { opacity: 0.5 },
-  confirmTxt: { fontSize: 15, fontWeight: '700', color: '#ffffff' },
-});
 
 export const WalletScreen = () => {
   const { width } = useWindowDimensions();
@@ -444,7 +197,7 @@ export const WalletScreen = () => {
         )}
       </View>
 
-      <WithdrawFundsModal
+      <WithdrawModal
         visible={showWithdraw}
         onClose={() => setShowWithdraw(false)}
         coinBalance={wallet.coins ?? 0}
