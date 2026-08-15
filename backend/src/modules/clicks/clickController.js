@@ -58,7 +58,7 @@ export const logClick = async (req, res) => {
   // Merchant fallback search: no product/deal/url, but merchant + searchQuery provided.
   // Build the search URL server-side so merchant URL changes are backend deploys.
   let isFallbackSearch = false;
-  if (!originalUrl && req.body.merchant && req.body.searchQuery) {
+  if (!originalUrl && req.body.merchant && req.body.searchQuery?.trim()) {
     const rawUrl = buildMerchantSearchUrl(req.body.merchant, req.body.searchQuery);
     if (!rawUrl) {
       res.status(400);
