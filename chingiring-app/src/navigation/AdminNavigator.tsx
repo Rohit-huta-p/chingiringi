@@ -17,6 +17,7 @@ import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen'
 import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 import { AdminVideoUploadScreen } from '../screens/Admin/AdminVideoUploadScreen';
 import { MobileAdminTabBar } from '../components/MobileAdminTabBar';
+import { MobileAdminSearchQueries } from '../screens/Admin/MobileAdminSearchQueries';
 
 // Mobile layout when native, OR on a narrow web viewport (sm). Mirrors the
 // user-facing DrawerNavigator so admin renders its mobile screens on small
@@ -75,6 +76,7 @@ function MobileAdminNavigator() {
       <Tab.Screen name="AdminCoupons" component={MobileAdminCoupons} options={{ title: 'Coupons' }} />
       <Tab.Screen name="AdminCouponUsage" component={MobileAdminCouponUsage} options={{ title: 'Coupon Usage' }} />
       <Tab.Screen name="AdminProfile" component={AdminProfileScreen} options={{ title: 'Profile' }} />
+      <Tab.Screen name="AdminSearchQueries" component={MobileAdminSearchQueries} options={{ title: 'Search Queries' }} />
     </Tab.Navigator>
     </SafeAreaView>
   );
