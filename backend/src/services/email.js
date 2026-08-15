@@ -1,46 +1,46 @@
-import nodemailer from 'nodemailer';
-
-// SMTP email sender. Configured entirely via env so no provider is hard-coded:
-//   SMTP_HOST, SMTP_PORT (587 STARTTLS / 465 TLS), SMTP_USER, SMTP_PASS, MAIL_FROM
-// Works with the pratdevix.com mailbox or any SMTP (SendGrid/Resend/Mailgun SMTP).
-let transporter = null;
+// Transactional email via Resend's HTTP API. Render's free tier blocks outbound
+// SMTP, so we send over HTTPS instead of nodemailer/SMTP.
+//   Env: RESEND_API_KEY (required)
+//        MAIL_FROM       a verified-domain sender, e.g. "Chingiringi <contact@pratdevix.com>"
+// Until pratdevix.com is verified in Resend, sending only works to the account
+// owner's address via the default onboarding@resend.dev sender.
 
 export function isEmailConfigured() {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-}
-
-function getTransporter() {
-  if (transporter) return transporter;
-  if (!isEmailConfigured()) {
-    throw new Error('Email not configured (set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS).');
-  }
-  const port = Number(process.env.SMTP_PORT) || 587;
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: port === 465, // 465 = implicit TLS; 587/25 = STARTTLS
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    // Fail fast instead of hanging forever if the SMTP host can't be reached
-    // (otherwise the delete-account request blocks and the UI sticks on "Sending…").
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
-  return transporter;
+  return Boolean(process.env.RESEND_API_KEY);
 }
 
 export async function sendMail({ to, subject, text, html }) {
-  const from = process.env.MAIL_FROM || process.env.SMTP_USER;
-  return getTransporter().sendMail({ from, to, subject, text, html });
+  if (!isEmailConfigured()) throw new Error('Email not configured (set RESEND_API_KEY).');
+  const from = process.env.MAIL_FROM || 'Chingiringi <onboarding@resend.dev>';
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from, to, subject, text, html }),
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { detail = JSON.stringify(await res.json()); } catch (_) { detail = res.statusText; }
+    throw new Error(`Resend ${res.status}: ${detail}`);
+  }
+  return res.json();
 }
 
-// Tests the SMTP connection/credentials without sending. Used by the temporary
-// /delete-account/smtp-check diagnostic to surface the exact failure reason.
+// Lightweight config check for the diagnostic endpoint — confirms Resend accepts
+// the API key (no email sent).
 export async function verifyEmail() {
+  if (!isEmailConfigured()) return { ok: false, error: 'RESEND_API_KEY not set' };
   try {
-    await getTransporter().verify();
-    return { ok: true };
+    const res = await fetch('https://api.resend.com/domains', {
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+    });
+    if (res.ok) return { ok: true };
+    let detail = '';
+    try { detail = await res.text(); } catch (_) { /* ignore */ }
+    return { ok: false, error: `Resend ${res.status}`, detail };
   } catch (err) {
-    return { ok: false, error: err.message, code: err.code };
+    return { ok: false, error: err.message };
   }
 }
