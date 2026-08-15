@@ -90,6 +90,14 @@ describe('buildSearchPipeline', () => {
     expect(txt.text.score.boost.value).toBe(3);
   });
 
+  it('Atlas compound has text on description/category/merchant with boost 1 and fuzzy maxEdits 1', () => {
+    const p = buildSearchPipeline({ search: 'shoe', page: 1, limit: 12 });
+    const { compound } = p[0].$search;
+    const broadTxt = compound.should.find(c => Array.isArray(c.text?.path) && c.text.path.includes('description'));
+    expect(broadTxt.text.fuzzy.maxEdits).toBe(1);
+    expect(broadTxt.text.score.boost.value).toBe(1);
+  });
+
   it('Atlas compound filter has isActive:true equals clause', () => {
     const p = buildSearchPipeline({ search: 'shoe', page: 1, limit: 12 });
     const { compound } = p[0].$search;
