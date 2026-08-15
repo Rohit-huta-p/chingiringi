@@ -13,15 +13,15 @@ import { Colors, Fonts } from '../constants/theme';
 // this header maps the active key to its title. Add a section here and it shows
 // up in both places.
 export const ADMIN_NAV_ITEMS = [
-  { key: 'AdminDashboard',   label: 'Dashboard',  icon: LayoutDashboard },
-  { key: 'AdminWalletOps',   label: 'Wallet Ops', icon: Wallet },
-  { key: 'AdminWithdrawals', label: 'Payouts',    icon: CreditCard },
-  { key: 'AdminUsers',       label: 'Users',      icon: Users },
-  { key: 'AdminAllProducts', label: 'Products',   icon: Package },
-  { key: 'AdminStores',      label: 'Stores',     icon: Store },
-  { key: 'AdminVideos',      label: 'Videos',     icon: PlaySquare },
-  { key: 'AdminBanners',     label: 'Banners',    icon: ImageIcon },
-  { key: 'AdminCoupons',     label: 'Coupons',    icon: Ticket },
+  { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'AdminWalletOps', label: 'Wallet Ops', icon: Wallet },
+  { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
+  { key: 'AdminUsers', label: 'Users', icon: Users },
+  { key: 'AdminAllProducts', label: 'Products', icon: Package },
+  { key: 'AdminStores', label: 'Stores', icon: Store },
+  { key: 'AdminVideos', label: 'Videos', icon: PlaySquare },
+  { key: 'AdminBanners', label: 'Banners', icon: ImageIcon },
+  { key: 'AdminCoupons', label: 'Coupons', icon: Ticket },
 ];
 
 // active route key → header title. The 9 nav sections plus drill-ins that still
@@ -48,7 +48,7 @@ function userInitials(name?: string | null): string {
 export function MobileAdminNav({ active }: { active: string }) {
   const nav = useNavigation<any>();
   const userName = useAuthStore((s) => s.user?.name);
-  const title = TITLES[active] ?? 'Admin';
+  const title = TITLES[active] ?? 'Chingiringi';
 
   return (
     <View style={st.header}>

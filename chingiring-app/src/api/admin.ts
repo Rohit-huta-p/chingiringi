@@ -96,6 +96,12 @@ export const adminAPI = {
     const response = await apiClient.post('/api/products', data);
     return response.data;
   },
+  // Bulk create (CSV/paste import + paste-many links). Returns
+  // { data: { received, created, failed, errors:[{row,error}] } }.
+  bulkCreateProducts: async (products: Record<string, any>[]) => {
+    const response = await apiClient.post('/api/products/bulk', { products });
+    return response.data;
+  },
   updateProduct: async (id: string, data: Record<string, any>) => {
     const response = await apiClient.put(`/api/products/${id}`, data);
     return response.data;
@@ -251,7 +257,20 @@ export const adminAPI = {
     const response = await apiClient.post('/api/admin/fetch-url-meta', { url });
     return response.data as {
       status: string;
-      data: { image: string; title: string; price: number | null; blocked?: number; error?: string };
+      data: {
+        image: string;
+        images?: string[];
+        title: string;
+        description?: string;
+        price: number | null;
+        mrp?: number | null;
+        rating?: number | null;
+        ratingCount?: number | null;
+        merchant?: string;
+        source?: 'jsonld' | 'og';
+        blocked?: number;
+        error?: string;
+      };
     };
   },
 };
