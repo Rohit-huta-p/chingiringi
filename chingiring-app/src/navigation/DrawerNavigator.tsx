@@ -249,14 +249,16 @@ const tabStyles = StyleSheet.create({
     borderRadius: 18,
     gap: 2,
     minWidth: 56,
+    // Clip the white background to the radius. Without this — and with the old
+    // `elevation` — Android/OxygenOS drew a SQUARE shadow behind the pill, so the
+    // active tab read as squared. A flat rounded pill avoids that entirely.
+    overflow: 'hidden',
   },
   pillActive: {
+    // Flat white rounded pill. No elevation/shadow: Android renders the
+    // elevation shadow as a rectangle (ignores borderRadius), which looked
+    // squared. White-on-grey already reads as the active state.
     backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
   },
 
   // Raised Home tab — the circle pokes above the bar via negative margin.
