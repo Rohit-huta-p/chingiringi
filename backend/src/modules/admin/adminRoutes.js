@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardStats, getUsers, getAllDeals } from './adminController.js';
+import { getDashboardStats, getUsers, getAllDeals, getSearchQueries } from './adminController.js';
 import {
   getQueueSummary,
   getUserTimeline,
@@ -29,6 +29,7 @@ router.get('/dashboard', getDashboardStats);
 router.get('/users', getUsers);
 router.get('/deals', getAllDeals);
 router.get('/products', getAllProductsAdmin);
+router.get('/search-queries', getSearchQueries);
 router.post('/fetch-url-meta', fetchUrlMeta); // prefill product image/title from a buy link
 router.get('/stores', getAllStoresAdmin);
 

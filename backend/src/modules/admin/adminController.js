@@ -7,6 +7,7 @@ import ShareEvent from '../shares/shareModel.js';
 import Product from '../products/productModel.js';
 import Store from '../stores/storeModel.js';
 import AdminSettings from './adminSettingsModel.js';
+import SearchQuery from '../search/searchQueryModel.js';
 import { pctDelta, dayWindows, trendDays, fillTrend } from './dashboardStats.js';
 
 // Every number is aggregated live — no seed/mock. Fresh install → all zeros.
@@ -165,5 +166,30 @@ export const getAllDeals = async (req, res) => {
   res.json({
     status: 'success',
     data: { deals, total, page, pages: Math.ceil(total / limit) },
+  });
+};
+
+// @desc    List search queries sorted by hit count (demand log)
+// @route   GET /api/admin/search-queries
+// @access  Private/Admin
+export const getSearchQueries = async (req, res) => {
+  const page       = Math.max(1, parseInt(req.query.page)  || 1);
+  const limit      = Math.max(1, Math.min(200, parseInt(req.query.limit) || 50));
+  const missesOnly = req.query.missesOnly === 'true';
+
+  const query = missesOnly ? { lastResultCount: 0 } : {};
+
+  const [items, total] = await Promise.all([
+    SearchQuery.find(query)
+      .sort({ count: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    SearchQuery.countDocuments(query),
+  ]);
+
+  res.json({
+    status: 'success',
+    data: { items, total, page, pages: Math.ceil(total / limit) },
   });
 };
