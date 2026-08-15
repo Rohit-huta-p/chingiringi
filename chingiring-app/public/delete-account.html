@@ -93,14 +93,21 @@
   function clearBanner() { banner.style.display = 'none'; }
 
   async function postJson(path, payload) {
-    var res = await fetch(API + path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    var data = {};
-    try { data = await res.json(); } catch (_) {}
-    return { ok: res.ok, status: res.status, data: data };
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, 30000); // don't hang forever
+    try {
+      var res = await fetch(API + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal,
+      });
+      var data = {};
+      try { data = await res.json(); } catch (_) {}
+      return { ok: res.ok, status: res.status, data: data };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // Step 1 — request the code
