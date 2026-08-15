@@ -24,11 +24,9 @@ import { useUnreadCount } from '../../hooks/useUnreadCount';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
-import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock } from '../../components/BannerBlock';
 import { tint } from '../../utils/color';
-import { DEFAULT_CONTROLS } from '../../utils/productFilters';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -92,7 +90,6 @@ export const MobileHomeScreen = () => {
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [controls, setControls] = useState(DEFAULT_CONTROLS);
 
   // Data fetching
   const { data: productsRes, isLoading: productsLoading } = useQuery({
@@ -145,8 +142,8 @@ export const MobileHomeScreen = () => {
     : ['#1E3A8A', '#4784E2', '#91BDFF'];
 
   // A category chip lists that category inline (with the header theming). Search
-  // and sort/filter navigate to the paginated Results page instead — see the
-  // header search button and the controls' onLaunch below.
+  // navigates to the paginated Results page (see the header search button);
+  // sort/filter now live on that Results page, not the home.
   const listingProducts = useMemo(
     () =>
       selectedCategory === 'All'
@@ -306,9 +303,6 @@ export const MobileHomeScreen = () => {
             <Search size={16} color="#fff" strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
-        <View style={st.controlsWrap}>
-          <ProductControlsBar state={controls} onChange={setControls} compact onLaunch={() => goResults()} />
-        </View>
       </View>
 
       <View style={st.chipsRow}>
@@ -443,7 +437,6 @@ const st = StyleSheet.create({
   },
 
   chipsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 13, paddingRight: 10 },
-  controlsWrap: {},
   chipsContent: { paddingHorizontal: 14, alignItems: 'flex-end', gap: 18 },
   chip: { alignItems: 'center', paddingBottom: 8 },
   chipIcon: {

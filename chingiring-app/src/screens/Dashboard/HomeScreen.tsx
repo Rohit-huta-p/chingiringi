@@ -25,10 +25,8 @@ import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { Banner as BannerModel, bannersAPI } from '../../api/banners';
 import { BannerBlock } from '../../components/BannerBlock';
-import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductCard } from '../../components/ProductCard';
 import { tint } from '../../utils/color';
-import { DEFAULT_CONTROLS, ProductControlsState } from '../../utils/productFilters';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -278,13 +276,10 @@ function TopNav({
   searchQuery,
   onSearchChange,
   onSearchSubmit,
-  onControlsLaunch,
   userName,
   userAvatarUrl,
   onProfilePress,
   width,
-  controls,
-  onControlsChange,
   themeColor,
 }: {
   selectedCategory: string;
@@ -293,13 +288,10 @@ function TopNav({
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onSearchSubmit: () => void;
-  onControlsLaunch: () => void;
   userName?: string;
   userAvatarUrl?: string;
   onProfilePress: () => void;
   width: number;
-  controls: ProductControlsState;
-  onControlsChange: (next: ProductControlsState) => void;
   themeColor?: string;
 }) {
   return (
@@ -346,7 +338,7 @@ function TopNav({
             )}
           </TouchableOpacity>
         </View>
-        {/* Row 2: Category chips + Sort/Filter controls on the same line */}
+        {/* Row 2: Category chips */}
         <View style={s.navChipsRow}>
           <View style={s.navChips}>
             {categories.map((label) => {
@@ -367,7 +359,6 @@ function TopNav({
               );
             })}
           </View>
-          <ProductControlsBar state={controls} onChange={onControlsChange} onLaunch={onControlsLaunch} />
         </View>
       </View>
     </View>
@@ -383,7 +374,6 @@ export const HomeScreen = () => {
   const userAvatarUrl = useAuthStore((st) => st.user?.avatarUrl);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [controls, setControls] = useState(DEFAULT_CONTROLS);
   const scrollRef = useRef<ScrollView>(null);
 
   // Content width adapts to the viewport. Wide desktop has a 250px left sidebar;
@@ -610,13 +600,10 @@ export const HomeScreen = () => {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSearchSubmit={() => goResults(searchQuery.trim())}
-        onControlsLaunch={() => goResults()}
         userName={userName}
         userAvatarUrl={userAvatarUrl}
         onProfilePress={() => navigation.navigate('Profile')}
         width={contentW}
-        controls={controls}
-        onControlsChange={setControls}
         themeColor={themeColor}
       />
       <ScrollView
