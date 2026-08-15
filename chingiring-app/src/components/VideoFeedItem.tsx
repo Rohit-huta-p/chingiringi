@@ -27,9 +27,11 @@ interface Props {
   /** Tap-to-pause state + toggle for the active clip. */
   paused?: boolean;
   onTogglePause?: () => void;
-  /** Right offset for the mute button — nudged left on mobile so it clears the
-   *  right-aligned "+ Post" pill. */
+  /** Position of the mute button. It sits at the extreme right (right: 14); on
+   *  the mobile feed the screen passes a muteTop BELOW the "+ Post" pill (which
+   *  is inset-positioned above it), so the two never collide. */
   muteRight?: number;
+  muteTop?: number;
 }
 
 const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
@@ -64,7 +66,7 @@ const CaptionBlock: React.FC<{ caption?: string; website?: string }> = ({ captio
 export const VideoFeedItem: React.FC<Props> = ({
   video, isActive, muted, height, liked, likeCount,
   onToggleMute, onStorePress, onLike, onShare, onComment, onMore, bottomOffset = 58,
-  paused = false, onTogglePause, muteRight = 14,
+  paused = false, onTogglePause, muteRight = 14, muteTop = 52,
 }) => {
   const [loading, setLoading] = useState(true);
   const commentCount = video.stats?.comments ?? 0;
@@ -119,7 +121,7 @@ export const VideoFeedItem: React.FC<Props> = ({
       </Pressable>
 
       {/* Mute — top-right */}
-      <Pressable style={[s.mute, { right: muteRight }]} onPress={onToggleMute} hitSlop={10}>
+      <Pressable style={[s.mute, { right: muteRight, top: muteTop }]} onPress={onToggleMute} hitSlop={10}>
         {muted ? <VolumeX size={18} color="#fff" /> : <Volume2 size={18} color="#fff" />}
       </Pressable>
 

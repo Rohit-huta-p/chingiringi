@@ -145,7 +145,9 @@ export const MobileVideosScreen = () => {
         bottomOffset={bottomOffset}
         paused={paused && index === activeIndex}
         onTogglePause={() => setPaused((p) => !p)}
-        muteRight={isDesktopWeb ? 14 : 100}
+        // Extreme right on all form factors; on mobile it sits BELOW the
+        // inset-positioned "+ Post" pill (top = insets.top + 10, ~34px tall).
+        muteTop={isDesktopWeb ? 52 : insets.top + 56}
       />
     );
     if (isDesktopWeb) {
@@ -162,7 +164,7 @@ export const MobileVideosScreen = () => {
       );
     }
     return feedItem(itemH);
-  }, [activeIndex, muted, paused, itemH, frameH, frameW, isDesktopWeb, bottomOffset, likeOverrides, commentsFor, onStorePress, onLike, onShare]);
+  }, [activeIndex, muted, paused, itemH, frameH, frameW, isDesktopWeb, bottomOffset, insets.top, likeOverrides, commentsFor, onStorePress, onLike, onShare]);
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;

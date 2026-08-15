@@ -87,7 +87,8 @@ export const VideoScreen = () => {
       bottomOffset={bottomOffset}
       paused={paused}
       onTogglePause={() => setPaused((p) => !p)}
-      muteRight={isDesktopWeb ? 14 : 60}
+      // Extreme right; on mobile aligned with the back button's row (no Post pill here).
+      muteTop={isDesktopWeb ? 52 : insets.top + 12}
     />
   );
 
