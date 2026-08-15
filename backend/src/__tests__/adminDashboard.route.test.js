@@ -7,4 +7,9 @@ describe('Admin dashboard route', () => {
     const res = await request(app).get('/api/admin/dashboard');
     expect([401, 403]).toContain(res.statusCode);
   });
+
+  it('GET /api/admin/search-queries requires auth', async () => {
+    const res = await request(app).get('/api/admin/search-queries');
+    expect([401, 403]).toContain(res.statusCode);
+  });
 });

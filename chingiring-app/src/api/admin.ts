@@ -252,6 +252,16 @@ export const adminAPI = {
     return response.data;
   },
 
+  // ─── Search ────────────────────────────────────────────────────────────────
+  getSearchQueries: async (params?: {
+    page?: number;
+    limit?: number;
+    missesOnly?: boolean;
+  }) => {
+    const response = await apiClient.get('/api/admin/search-queries', { params });
+    return response.data;
+  },
+
   // Best-effort prefill from a product/buy link (OpenGraph image + title + price).
   fetchUrlMeta: async (url: string) => {
     const response = await apiClient.post('/api/admin/fetch-url-meta', { url });

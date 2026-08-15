@@ -97,3 +97,33 @@ export function wrapCuelinks(rawUrl, publisherId) {
   const encoded = encodeURIComponent(rawUrl);
   return `https://linksredirect.com/?cid=${encodeURIComponent(publisherId)}&source=linkkit&url=${encoded}`;
 }
+
+// ── Merchant search URL builders ──────────────────────────────────────────────
+// Called server-side at click time for search-fallback chips. The app sends
+// { merchant, searchQuery } and the server builds the URL here so a merchant
+// URL format change is a backend deploy, not an app store release.
+
+function myntraSlug(q) {
+  return q
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')   // strip punctuation
+    .replace(/\s+/g, '-')          // spaces → hyphens
+    .trim();
+}
+
+const MERCHANT_SEARCH_BUILDERS = {
+  amazon:   (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}`,
+  flipkart: (q) => `https://www.flipkart.com/search?q=${encodeURIComponent(q)}`,
+  myntra:   (q) => `https://www.myntra.com/${myntraSlug(q)}?rawQuery=${encodeURIComponent(q)}`,
+  meesho:   (q) => `https://www.meesho.com/search?q=${encodeURIComponent(q)}`,
+};
+
+/**
+ * Build the search-results URL for a merchant given a query string.
+ * Returns null for unknown merchants — caller should 400.
+ */
+export function buildMerchantSearchUrl(merchant, searchQuery) {
+  const builder = MERCHANT_SEARCH_BUILDERS[merchant];
+  if (!builder) return null;
+  return builder(searchQuery.trim());
+}

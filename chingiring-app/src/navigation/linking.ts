@@ -50,8 +50,9 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       AdminInventory:   'admin/inventory',
       AdminBanners:     'admin/banners',
       AdminCoupons:     'admin/coupons',
-      AdminCouponUsage: 'admin/coupons/:couponId/usage',
-      AdminProfile:     'admin/profile',
+      AdminCouponUsage:    'admin/coupons/:couponId/usage',
+      AdminSearchQueries:  'admin/search-queries',
+      AdminProfile:        'admin/profile',
 
       // ── User: mobile shape (Stack > MainTabs > tabs) ───────────────────
       // Every tab gets its own path *nested under an `app/` prefix* (e.g.

@@ -12,6 +12,7 @@ import { AdminWithdrawalsScreen } from '../screens/Admin/AdminWithdrawalsScreen'
 import { AdminUsersScreen } from '../screens/Admin/AdminUsersScreen';
 import { AdminBannersScreen } from '../screens/Admin/AdminBannersScreen';
 import { AdminCouponsScreen } from '../screens/Admin/AdminCouponsScreen';
+import { MobileAdminSearchQueries } from '../screens/Admin/MobileAdminSearchQueries';
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 import { AdminVideoUploadScreen } from '../screens/Admin/AdminVideoUploadScreen';
@@ -55,6 +56,7 @@ export default function DesktopAdminDrawer() {
       <Drawer.Screen name="AdminInventory" component={AdminInventoryScreen} />
       <Drawer.Screen name="AdminBanners" component={AdminBannersScreen} />
       <Drawer.Screen name="AdminCoupons" component={AdminCouponsScreen} />
+      <Drawer.Screen name="AdminSearchQueries" component={MobileAdminSearchQueries} options={{ title: 'Search Queries' }} />
       {/* Reachable from the top-bar profile badge; hidden from the sidebar. */}
       <Drawer.Screen
         name="AdminProfile"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
   ProductControlsState,
   controlsToQuery,
 } from '../../utils/productFilters';
+import { MerchantSearchStrip } from '../../components/MerchantSearchStrip';
 
 // ─── Results page ─────────────────────────────────────────────────────────────
 // The single destination for search / sort / filter / a category "See all".
@@ -50,6 +51,17 @@ export const CategoryProductsScreen = () => {
   });
   const [searchInput, setSearchInput] = useState(routeSearch);
   const [search, setSearch] = useState(routeSearch); // submitted term (drives the query)
+
+  // Debounce live search — fire 250ms after the user stops typing.
+  // onSubmitEditing still calls setSearch immediately for keyboard-submit.
+  useEffect(() => {
+    if (!searchInput.trim()) {
+      setSearch('');
+      return;
+    }
+    const timer = setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // Category names for the filter facet.
   const { data: catsRes } = useQuery({
@@ -81,6 +93,7 @@ export const CategoryProductsScreen = () => {
     (pg: any) => pg?.data?.products ?? [],
   );
   const total: number = (data?.pages?.[0] as any)?.data?.pagination?.total ?? 0;
+  const nearMisses: Product[] = (data?.pages?.[0] as any)?.data?.nearMisses ?? [];
 
   const title =
     controls.category && controls.category !== 'All'
@@ -135,10 +148,37 @@ export const CategoryProductsScreen = () => {
           <Text style={s.emptySub}>Check your connection and try again.</Text>
         </View>
       ) : products.length === 0 ? (
-        <View style={s.centre}>
-          <Text style={s.emptyTitle}>No products found</Text>
-          <Text style={s.emptySub}>Nothing matches your search or filters.</Text>
-        </View>
+        <FlatList
+          // key must encode BOTH cols and whether nearMisses are present.
+          // React Native forbids changing numColumns without remounting.
+          key={nearMisses.length > 0 ? `empty-grid-${cols}` : 'empty-no-grid'}
+          data={nearMisses}
+          keyExtractor={(p) => p._id}
+          numColumns={nearMisses.length > 0 ? cols : 1}
+          columnWrapperStyle={
+            nearMisses.length > 0
+              ? { gap: GAP, paddingHorizontal: H_PAD }
+              : undefined
+          }
+          contentContainerStyle={s.listContent}
+          ListHeaderComponent={
+            <View style={s.centre}>
+              <Text style={s.emptyTitle}>No products found</Text>
+              {search && nearMisses.length > 0 ? (
+                <Text style={s.emptySub}>No exact match — closest in store:</Text>
+              ) : (
+                <Text style={s.emptySub}>Nothing matches your search or filters.</Text>
+              )}
+            </View>
+          }
+          renderItem={({ item }) => (
+            <ProductCard product={item} width={cardW} onPress={() => handleProductPress(item)} />
+          )}
+          ListFooterComponent={
+            search ? <MerchantSearchStrip searchQuery={search} /> : <View style={{ height: 40 }} />
+          }
+          showsVerticalScrollIndicator={false}
+        />
       ) : (
         <FlatList
           key={cols}
@@ -160,11 +200,15 @@ export const CategoryProductsScreen = () => {
           }}
           onEndReachedThreshold={0.6}
           ListFooterComponent={
-            isFetchingNextPage ? (
-              <ActivityIndicator style={{ marginVertical: 20 }} color={Colors.primary} />
-            ) : (
+            <>
+              {isFetchingNextPage ? (
+                <ActivityIndicator style={{ marginVertical: 20 }} color={Colors.primary} />
+              ) : null}
+              {search && !hasNextPage ? (
+                <MerchantSearchStrip searchQuery={search} title="Also search on:" />
+              ) : null}
               <View style={{ height: 40 }} />
-            )
+            </>
           }
           showsVerticalScrollIndicator={false}
         />

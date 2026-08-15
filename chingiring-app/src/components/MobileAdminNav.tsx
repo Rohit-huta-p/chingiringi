@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Wallet, CreditCard, Users, Package, Store,
-  Image as ImageIcon, Ticket, PlaySquare,
+  Image as ImageIcon, Ticket, PlaySquare, Search,
 } from 'lucide-react-native';
 import { useAuthStore } from '../store';
 import { Colors, Fonts } from '../constants/theme';
@@ -13,18 +13,19 @@ import { Colors, Fonts } from '../constants/theme';
 // this header maps the active key to its title. Add a section here and it shows
 // up in both places.
 export const ADMIN_NAV_ITEMS = [
-  { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'AdminWalletOps', label: 'Wallet Ops', icon: Wallet },
-  { key: 'AdminWithdrawals', label: 'Payouts', icon: CreditCard },
-  { key: 'AdminUsers', label: 'Users', icon: Users },
-  { key: 'AdminAllProducts', label: 'Products', icon: Package },
-  { key: 'AdminStores', label: 'Stores', icon: Store },
-  { key: 'AdminVideos', label: 'Videos', icon: PlaySquare },
-  { key: 'AdminBanners', label: 'Banners', icon: ImageIcon },
-  { key: 'AdminCoupons', label: 'Coupons', icon: Ticket },
+  { key: 'AdminDashboard',    label: 'Dashboard',  icon: LayoutDashboard },
+  { key: 'AdminWalletOps',    label: 'Wallet Ops', icon: Wallet },
+  { key: 'AdminWithdrawals',  label: 'Payouts',    icon: CreditCard },
+  { key: 'AdminUsers',        label: 'Users',      icon: Users },
+  { key: 'AdminAllProducts',  label: 'Products',   icon: Package },
+  { key: 'AdminStores',       label: 'Stores',     icon: Store },
+  { key: 'AdminVideos',       label: 'Videos',     icon: PlaySquare },
+  { key: 'AdminBanners',      label: 'Banners',    icon: ImageIcon },
+  { key: 'AdminCoupons',      label: 'Coupons',    icon: Ticket },
+  { key: 'AdminSearchQueries', label: 'Search',    icon: Search },
 ];
 
-// active route key → header title. The 9 nav sections plus drill-ins that still
+// active route key → header title. The 10 nav sections plus drill-ins that still
 // render this header (e.g. Deals).
 const TITLES: Record<string, string> = {
   ...Object.fromEntries(ADMIN_NAV_ITEMS.map((i) => [i.key, i.label])),

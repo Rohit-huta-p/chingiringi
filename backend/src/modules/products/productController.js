@@ -1,5 +1,7 @@
 import Product from './productModel.js';
 import { merchantFromUrl } from '../../utils/merchant.js';
+import { buildSearchPipeline } from './searchPipeline.js';
+import SearchQuery from '../search/searchQueryModel.js';
 
 // @desc    Get all products (public — only active)
 // @route   GET /api/products
@@ -11,7 +13,7 @@ export const getProducts = async (req, res) => {
     category,
     search,
     featured,
-    sort = 'newest',
+    sort = null,          // null → relevance when searching, newest otherwise
     minPrice,
     maxPrice,
     minCoins,
@@ -22,74 +24,97 @@ export const getProducts = async (req, res) => {
 
   const num = (v) => (v === undefined || v === '' ? undefined : Number(v));
 
-  // ── Match (all optional). $text stays in the first stage so the text index
-  //    is used; category is an exact case-insensitive match.
-  const match = { isActive: true };
-  if (category) match.category = { $regex: `^${category}$`, $options: 'i' };
-  if (featured === 'true') match.isFeatured = true;
-  if (search) match.$text = { $search: search };
-
-  const priceRange = {};
-  if (num(minPrice) !== undefined) priceRange.$gte = num(minPrice);
-  if (num(maxPrice) !== undefined) priceRange.$lte = num(maxPrice);
-  if (Object.keys(priceRange).length) match.price = priceRange;
-
-  const coinsRange = {};
-  if (num(minCoins) !== undefined) coinsRange.$gte = num(minCoins);
-  if (num(maxCoins) !== undefined) coinsRange.$lte = num(maxCoins);
-  if (Object.keys(coinsRange).length) match.coinsPrice = coinsRange;
-
-  if (num(minRating) !== undefined) match.rating = { $gte: num(minRating) };
-
-  // ── Sort: whitelist the client SortKeys (+ legacy mongo strings). 'discount'
-  //    sorts on the computed field below. _id is a stable tie-break for paging.
-  const SORT = {
-    price_asc: { price: 1 },
-    price_desc: { price: -1 },
-    newest: { createdAt: -1 },
-    best: { sold: -1 },
-    discount: { _discount: -1 },
-    '-createdAt': { createdAt: -1 },
-  };
-  const sortSpec = { ...(SORT[sort] || SORT.newest), _id: 1 };
-
-  // Discount % = (mrp − price)/mrp × 100 when mrp is set and above price; else 0.
-  const discountExpr = {
-    $cond: [
-      { $and: [{ $gt: ['$mrp', 0] }, { $gt: ['$mrp', '$price'] }] },
-      { $multiply: [{ $divide: [{ $subtract: ['$mrp', '$price'] }, '$mrp'] }, 100] },
-      0,
-    ],
+  const opts = {
+    search: search?.trim() || undefined,
+    category: category || undefined,
+    featured: featured === 'true',
+    sort: sort || null,
+    minPrice:    num(minPrice),
+    maxPrice:    num(maxPrice),
+    minCoins:    num(minCoins),
+    maxCoins:    num(maxCoins),
+    minRating:   num(minRating),
+    minDiscount: num(minDiscount),
+    page:  Math.max(1, Number(page) || 1),
+    limit: Math.max(1, Number(limit) || 12),
   };
 
-  const pipeline = [{ $match: match }, { $addFields: { _discount: discountExpr } }];
-  if (num(minDiscount) !== undefined && num(minDiscount) > 0) {
-    pipeline.push({ $match: { _discount: { $gte: num(minDiscount) } } });
+  const pipeline = buildSearchPipeline(opts);
+
+  let result;
+  try {
+    [result] = await Product.aggregate(pipeline);
+  } catch (err) {
+    // Atlas Search index missing or unavailable — degrade to $text search.
+    // The $text index is kept on the schema specifically for this fallback.
+    // Atlas-specific errors: local rejection of $search stage, mongot remote error,
+    // or "index not found" (the production deploy-gate failure). All other errors
+    // (timeouts, disk, schema) are real — rethrow them.
+    const isAtlasErr = opts.search && (
+      err.message?.includes('$search') ||
+      err.message?.includes('mongot') ||
+      err.message?.includes('Search index') ||
+      err.code === 40324   // Unrecognized pipeline stage name: '$search'
+    );
+    if (isAtlasErr) {
+      console.error('[search] Atlas Search unavailable, degrading to $text:', err.message);
+      const degradedOpts = { ...opts, search: undefined };
+      const degradedPipeline = buildSearchPipeline(degradedOpts);
+      // Add $text match manually at the front
+      const textMatch = { isActive: true, $text: { $search: opts.search } };
+      degradedPipeline.unshift({ $match: textMatch });
+      [result] = await Product.aggregate(degradedPipeline);
+    } else {
+      throw err;
+    }
   }
-  pipeline.push({ $sort: sortSpec });
 
-  const pageN = Math.max(1, Number(page) || 1);
-  const limitN = Math.max(1, Number(limit) || 12);
-  pipeline.push({
-    $facet: {
-      products: [{ $skip: (pageN - 1) * limitN }, { $limit: limitN }, { $project: { _discount: 0 } }],
-      total: [{ $count: 'count' }],
-    },
-  });
-
-  const [result] = await Product.aggregate(pipeline);
   const products = result?.products ?? [];
-  const total = result?.total?.[0]?.count ?? 0;
+  const total    = result?.total?.[0]?.count ?? 0;
+
+  // Near-miss: if the filtered search returned nothing, run the same Atlas query
+  // WITHOUT the non-search filters (drop category, price, coins, rating, discount).
+  // Returns up to 6 products so the user sees something instead of a blank page.
+  // Runs server-side in the same request — no second round-trip from the client.
+  let nearMisses = [];
+  const hasFilters = !!(opts.category || opts.minPrice != null || opts.maxPrice != null ||
+    opts.minCoins != null || opts.maxCoins != null || opts.minRating != null || opts.minDiscount != null);
+  if (total === 0 && opts.search && hasFilters) {
+    try {
+      const nearPipeline = buildSearchPipeline({
+        search: opts.search,
+        sort: null,     // relevance order
+        page: 1,
+        limit: 6,
+        // intentionally no category / price / coins / rating / discount
+      });
+      const [nearResult] = await Product.aggregate(nearPipeline);
+      nearMisses = nearResult?.products ?? [];
+    } catch {
+      // near-miss failure is non-fatal; empty array is fine
+    }
+  }
+
+  // Demand log — fire-and-forget. A failure here must never affect the response.
+  if (opts.search && opts.page === 1 && opts.search.trim().length >= 3) {
+    const q = opts.search.toLowerCase().replace(/\s+/g, ' ').trim();
+    SearchQuery.findOneAndUpdate(
+      { q },
+      { $inc: { count: 1 }, $set: { lastResultCount: total, lastSeenAt: new Date() } },
+      { upsert: true, new: false },
+    ).catch(() => {});
+  }
 
   res.status(200).json({
     status: 'success',
     data: {
       products,
+      nearMisses,
       pagination: {
-        page: pageN,
-        limit: limitN,
+        page:  opts.page,
+        limit: opts.limit,
         total,
-        pages: Math.ceil(total / limitN),
+        pages: Math.ceil(total / opts.limit),
       },
     },
   });
