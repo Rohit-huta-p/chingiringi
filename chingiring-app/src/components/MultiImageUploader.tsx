@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Platform,
   ActivityIndicator,
 } from 'react-native';
-import { Upload, X, Plus, Link2, AlertCircle } from 'lucide-react-native';
+import { Upload, X, Plus, Link2, AlertCircle, ClipboardPaste } from 'lucide-react-native';
 import { Colors } from '../constants/theme';
-import { useImageUpload } from './useImageUpload';
+import { useImageUpload, importRemoteImage } from './useImageUpload';
 
 interface Props {
   /** Current image URLs. First entry is the cover. */
@@ -41,7 +41,8 @@ export const MultiImageUploader: React.FC<Props> = ({
   const th = aspect ? Math.round(tw / aspect) : tw;
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
-  const { uploading, error, isConfigured, pick } = useImageUpload(folder);
+  const [dragActive, setDragActive] = useState(false);
+  const { uploading, error, isConfigured, pick, uploadFile } = useImageUpload(folder);
 
   const atMax = value.length >= max;
 
@@ -70,8 +71,73 @@ export const MultiImageUploader: React.FC<Props> = ({
     setShowUrlInput(false);
   };
 
+  // ── Web paste + drag-drop ──────────────────────────────────────────────────
+  // Lets the admin right-click a product image → Copy Image, then paste (⌘V while
+  // hovering) or drag it straight onto the uploader — no Save-As, no file picker.
+  // Image blobs upload to Cloudinary; dropped/pasted image URLs are auto-hosted.
+  // DOM listeners are attached once and read the latest props via refs.
+  const dropRef = useRef<any>(null);
+  const hoveredRef = useRef(false);
+  const appendRef = useRef(append);        appendRef.current = append;
+  const uploadFileRef = useRef(uploadFile); uploadFileRef.current = uploadFile;
+  const disabledRef = useRef(disabled);    disabledRef.current = disabled;
+  const atMaxRef = useRef(atMax);          atMaxRef.current = atMax;
+  const folderRef = useRef(folder);        folderRef.current = folder;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node: any = dropRef.current;
+    if (!node || typeof node.addEventListener !== 'function') return;
+
+    const busy = () => disabledRef.current || atMaxRef.current;
+    const importUrl = async (url: string) => {
+      try { appendRef.current(await importRemoteImage(url, folderRef.current)); }
+      catch { appendRef.current(url); }
+    };
+    const handleBlob = (file: File) => uploadFileRef.current(file as any, (u) => appendRef.current(u));
+
+    const onDragOver = (e: DragEvent) => { if (busy()) return; e.preventDefault(); setDragActive(true); };
+    const onDragLeave = () => setDragActive(false);
+    const onDrop = (e: DragEvent) => {
+      setDragActive(false);
+      if (busy()) return;
+      e.preventDefault();
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) { handleBlob(file); return; }
+      const url = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain');
+      if (url && /^https?:\/\//i.test(url.trim())) importUrl(url.trim());
+    };
+    const onEnter = () => { hoveredRef.current = true; };
+    const onLeave = () => { hoveredRef.current = false; };
+    const onPaste = (e: ClipboardEvent) => {
+      if (!hoveredRef.current || busy()) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return; // don't hijack real fields
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const img = items.find((it) => it.type.startsWith('image/'));
+      if (img) { const f = img.getAsFile(); if (f) { e.preventDefault(); handleBlob(f); } return; }
+      const text = e.clipboardData?.getData('text') ?? '';
+      if (/^https?:\/\//i.test(text.trim())) { e.preventDefault(); importUrl(text.trim()); }
+    };
+
+    node.addEventListener('dragover', onDragOver);
+    node.addEventListener('dragleave', onDragLeave);
+    node.addEventListener('drop', onDrop);
+    node.addEventListener('mouseenter', onEnter);
+    node.addEventListener('mouseleave', onLeave);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      node.removeEventListener('dragover', onDragOver);
+      node.removeEventListener('dragleave', onDragLeave);
+      node.removeEventListener('drop', onDrop);
+      node.removeEventListener('mouseenter', onEnter);
+      node.removeEventListener('mouseleave', onLeave);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, []);
+
   return (
-    <View style={styles.wrap}>
+    <View ref={dropRef} style={[styles.wrap, dragActive && styles.wrapDrag]}>
       {/* Thumbnail grid + add tile */}
       <View style={styles.grid}>
         {value.map((url, i) => (
@@ -110,7 +176,7 @@ export const MultiImageUploader: React.FC<Props> = ({
         {/* Add tile */}
         {!atMax ? (
           <TouchableOpacity
-            style={[styles.addTile, { width: tw, height: th }, uploading && styles.addTileBusy]}
+            style={[styles.addTile, { width: tw, height: th }, uploading && styles.addTileBusy, dragActive && styles.addTileDrag]}
             onPress={() => pick(append)}
             disabled={disabled || uploading}
             activeOpacity={0.85}
@@ -136,6 +202,16 @@ export const MultiImageUploader: React.FC<Props> = ({
         {value.length}/{max} · first image is the cover
         {value.length > 1 ? ' · tap another to make it cover' : ''}
       </Text>
+
+      {/* Web: paste / drag hint — the fast path for merchant images */}
+      {Platform.OS === 'web' && !atMax ? (
+        <View style={styles.pasteHint}>
+          <ClipboardPaste size={12} color={Colors.primary} strokeWidth={2} />
+          <Text style={styles.pasteHintText}>
+            Copy Image on the site, then paste (⌘/Ctrl+V) or drag it here — no download needed.
+          </Text>
+        </View>
+      ) : null}
 
       {/* "Or paste a URL" escape hatch (appends) */}
       {!showUrlInput && !atMax ? (
@@ -194,6 +270,11 @@ const THUMB = 84;
 
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
+  wrapDrag: {
+    ...(Platform.OS === 'web'
+      ? ({ outline: `2px dashed ${Colors.primary}`, outlineOffset: 4, borderRadius: 12 } as any)
+      : {}),
+  },
 
   grid: {
     flexDirection: 'row',
@@ -259,6 +340,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addTileBusy: { opacity: 0.7 },
+  addTileDrag: { borderColor: Colors.primary, borderStyle: 'solid', backgroundColor: '#eff6ff' },
   addIcon: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: '#eff6ff',
@@ -267,6 +349,11 @@ const styles = StyleSheet.create({
   addText: { fontSize: 11, fontWeight: '600', color: Colors.text },
 
   helper: { fontSize: 11, color: Colors.textSecondary },
+  pasteHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    backgroundColor: '#eff6ff', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5,
+  },
+  pasteHintText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
 
   // URL toggle + input
   urlToggle: {

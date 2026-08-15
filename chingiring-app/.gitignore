@@ -13,6 +13,9 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 *.jks
+# EAS signing secrets — keystore passwords live here, never commit
+credentials.json
+credentials/
 *.p8
 *.p12
 *.key

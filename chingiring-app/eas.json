@@ -14,8 +14,8 @@
         "EXPO_PUBLIC_API_URL": "https://chingiringi-backend.onrender.com",
         "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dxdeiyj8w",
         "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "chingi_uploads",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "239068170488-6rke5m2t8c5ru5047nkccisaunak7rf6.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "239068170488-hop43ida3iu8h79q7bb2re2d61kbjgpg.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1098396907431-fn0iug47o419lc64cb5s0nin8vhpb720.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1098396907431-lpctksv3r572adp179vh07f0nfo1jh1v.apps.googleusercontent.com",
         "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
       },
       "android": {
@@ -26,14 +26,29 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://chingiringi-backend.onrender.com",
+        "EXPO_PUBLIC_SHARE_BASE": "https://chingiringi.com",
         "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dxdeiyj8w",
         "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "chingi_uploads",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "239068170488-6rke5m2t8c5ru5047nkccisaunak7rf6.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "239068170488-hop43ida3iu8h79q7bb2re2d61kbjgpg.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1098396907431-fn0iug47o419lc64cb5s0nin8vhpb720.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1098396907431-lpctksv3r572adp179vh07f0nfo1jh1v.apps.googleusercontent.com",
         "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
       },
       "android": {
         "buildType": "apk"
+      }
+    },
+    "playstore": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://chingiringi-backend.onrender.com",
+        "EXPO_PUBLIC_SHARE_BASE": "https://chingiringi.com",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dxdeiyj8w",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "chingi_uploads",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1098396907431-fn0iug47o419lc64cb5s0nin8vhpb720.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1098396907431-lpctksv3r572adp179vh07f0nfo1jh1v.apps.googleusercontent.com"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },

@@ -538,10 +538,10 @@ const StoreCard: React.FC<{
           </View>
         )}
         {/* coin badge top-left */}
-        <View style={styles.coinBadge}>
+        {/* <View style={styles.coinBadge}>
           <Tag size={11} color="#fff" />
           <Text style={styles.coinBadgeText}>{store.userDiscountPercent}% OFF</Text>
-        </View>
+        </View> */}
         {/* hottest badge */}
         {store.isFeatured && (
           <View style={styles.hotBadge}>

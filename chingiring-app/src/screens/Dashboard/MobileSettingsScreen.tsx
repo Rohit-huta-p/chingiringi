@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
   ActivityIndicator,
   Image,
   RefreshControl,
@@ -81,6 +82,12 @@ export const MobileSettingsScreen = () => {
   });
 
   const handleLogout = () => {
+    // Alert.alert is a no-op on react-native-web (the mobile-web view), so the
+    // confirm never shows and logout never fires. Use the browser confirm there.
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined' || window.confirm('Are you sure you want to log out?')) logout();
+      return;
+    }
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log Out', style: 'destructive', onPress: () => logout() },

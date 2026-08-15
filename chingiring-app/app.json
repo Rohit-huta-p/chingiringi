@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "chingiring-app",
+    "name": "Chingiringi",
     "slug": "chingiring-app",
     "scheme": "chingiring",
     "version": "1.0.0",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vcrohithuta.chingiringapp",
+      "bundleIdentifier": "tech.pratdevix.chingiringi",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -27,7 +27,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.vcrohithuta.chingiringapp",
+      "package": "com.chingiringi.app",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]

@@ -16,6 +16,50 @@ const UPLOAD_URL    = CLOUD_NAME
   ? `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`
   : '';
 
+/** True when the Cloudinary env vars are present (upload/import will work). */
+export const cloudinaryConfigured = !!CLOUD_NAME && !!UPLOAD_PRESET;
+
+/** True for URLs already hosted on our Cloudinary — skip re-importing these. */
+export const isCloudinaryUrl = (url: string) => /res\.cloudinary\.com/i.test(url);
+
+// Low-level unsigned upload. `file` is a browser File, an RN file descriptor, or
+// a remote https URL string — Cloudinary fetches remote URLs server-side, which
+// is how we auto-host scraped / pasted image URLs with no manual download.
+async function postToCloudinary(file: CloudFile | string, folder?: string): Promise<string> {
+  if (!cloudinaryConfigured) {
+    throw new Error(
+      'Cloudinary is not configured. Set EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ' +
+      'and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env.',
+    );
+  }
+  const fd = new FormData();
+  fd.append('file', file as any);
+  fd.append('upload_preset', UPLOAD_PRESET);
+  if (folder) fd.append('folder', folder);
+
+  const res = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Cloudinary upload failed (${res.status}): ${text.slice(0, 120)}`);
+  }
+  const json = await res.json();
+  if (!json.secure_url) throw new Error('Cloudinary returned no secure_url');
+  return json.secure_url as string;
+}
+
+/**
+ * Import a remote image URL into Cloudinary; returns the hosted secure_url.
+ * Cloudinary downloads the URL server-side, so the admin never saves/re-uploads
+ * by hand. Already-hosted Cloudinary URLs pass through unchanged. Callable
+ * outside React — used by bulk import + link autofill.
+ */
+export async function importRemoteImage(remoteUrl: string, folder?: string): Promise<string> {
+  const u = (remoteUrl ?? '').trim();
+  if (!u) throw new Error('Empty image URL');
+  if (isCloudinaryUrl(u)) return u;
+  return postToCloudinary(u, folder);
+}
+
 /**
  * Shared image picker → Cloudinary uploader.
  *
@@ -23,39 +67,20 @@ const UPLOAD_URL    = CLOUD_NAME
  * Native: opens the photo library via expo-image-picker.
  *
  * `pick(onUploaded)` runs the whole flow (choose → upload → callback with the
- * secure URL). Callers decide what to do with the URL — set a single value, or
- * append to a gallery.
+ * secure URL). `uploadFile(file, onUploaded)` uploads an already-obtained File /
+ * blob (used by paste + drag-drop). Callers decide what to do with the URL — set
+ * a single value, or append to a gallery.
  *
- * On migrating to AWS S3 later: swap uploadToCloudinary() for an S3 signed PUT.
+ * On migrating to AWS S3 later: swap postToCloudinary() for an S3 signed PUT.
  * The hook's surface (`pick` / `uploading` / `error`) stays the same.
  */
 export function useImageUpload(folder?: string) {
   const [uploading, setUploading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
 
-  const isConfigured = !!CLOUD_NAME && !!UPLOAD_PRESET;
+  const isConfigured = cloudinaryConfigured;
 
-  const uploadToCloudinary = async (file: CloudFile): Promise<string> => {
-    if (!isConfigured) {
-      throw new Error(
-        'Cloudinary is not configured. Set EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ' +
-        'and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env.',
-      );
-    }
-    const fd = new FormData();
-    fd.append('file', file as any);
-    fd.append('upload_preset', UPLOAD_PRESET);
-    if (folder) fd.append('folder', folder);
-
-    const res = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Cloudinary upload failed (${res.status}): ${text.slice(0, 120)}`);
-    }
-    const json = await res.json();
-    if (!json.secure_url) throw new Error('Cloudinary returned no secure_url');
-    return json.secure_url as string;
-  };
+  const uploadToCloudinary = (file: CloudFile): Promise<string> => postToCloudinary(file, folder);
 
   const handleFile = async (file: CloudFile, onUploaded: (url: string) => void) => {
     setError(null);
@@ -120,5 +145,8 @@ export function useImageUpload(folder?: string) {
     else openNativePicker(onUploaded);
   };
 
-  return { uploading, error, setError, isConfigured, pick };
+  /** Upload an already-obtained File/blob (from paste or drag-drop). */
+  const uploadFile = (file: CloudFile, onUploaded: (url: string) => void) => handleFile(file, onUploaded);
+
+  return { uploading, error, setError, isConfigured, pick, uploadFile };
 }

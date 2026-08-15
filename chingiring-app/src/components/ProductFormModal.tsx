@@ -14,12 +14,14 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  X, Package, Image as ImageIcon, Type as TypeIcon, Link2, Coins, Tag, Star,
+  X, Package, Image as ImageIcon, Type as TypeIcon, Link2, Coins, Tag, Star, Sparkles,
 } from 'lucide-react-native';
 import { MultiImageUploader } from './MultiImageUploader';
 import { CategoryPicker } from './CategoryPicker';
 import { ProductCard } from './ProductCard';
 import type { Product } from '../api/products';
+import { adminAPI } from '../api/admin';
+import { importRemoteImage, cloudinaryConfigured } from './useImageUpload';
 import { Colors, Gradient } from '../constants/theme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -89,6 +91,56 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
 
   const [errors, setErrors]     = useState<FormErrors>({});
   const [submitting, setSubmit] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [fetchNote, setFetchNote] = useState('');
+
+  // Autofill from the buy link — scrapes JSON-LD/OG (title, images, price, MRP,
+  // rating, merchant) and fills only the fields still empty, so a partial manual
+  // entry is never clobbered. Best-effort: Amazon often blocks server fetches.
+  const handleAutofill = async () => {
+    const url = form.affiliateUrl.trim();
+    if (!url) { setFetchNote('Paste a buy link above first.'); return; }
+    setFetching(true); setFetchNote('');
+    try {
+      const res = await adminAPI.fetchUrlMeta(url);
+      const d = res?.data ?? {};
+      const rawImgs = (d.images?.length ? d.images : d.image ? [d.image] : []).filter(Boolean);
+      // Auto-host scraped images into Cloudinary — no manual download. Keeps the
+      // original link for any image whose import fails.
+      let imgs = rawImgs;
+      if (rawImgs.length && cloudinaryConfigured) {
+        setFetchNote('Hosting images…');
+        imgs = await Promise.all(rawImgs.map((u) => importRemoteImage(u, 'chingiringi/products').catch(() => u)));
+      }
+      setForm((f) => ({
+        ...f,
+        name:        f.name.trim()        || d.title || '',
+        description: f.description.trim() || d.description || '',
+        images:      f.images.length ? f.images : imgs,
+        price:       f.price.trim()       || (d.price != null ? String(d.price) : ''),
+        mrp:         f.mrp.trim()         || (d.mrp != null ? String(d.mrp) : ''),
+        rating:      f.rating.trim()      || (d.rating != null ? String(d.rating) : ''),
+        ratingCount: f.ratingCount.trim() || (d.ratingCount != null ? String(d.ratingCount) : ''),
+        merchant:    f.merchant.trim()    || d.merchant || '',
+      }));
+      const got = [
+        d.title && 'title', d.description && 'description',
+        imgs.length && `${imgs.length} image${imgs.length > 1 ? 's' : ''}`,
+        d.price != null && 'price', d.mrp != null && 'MRP', d.rating != null && 'rating', d.merchant && 'merchant',
+      ].filter(Boolean);
+      setFetchNote(
+        got.length
+          ? `Filled ${got.join(', ')}. Review before saving.`
+          : d.blocked
+            ? 'The site blocked the fetch — fill the fields manually.'
+            : 'Couldn’t read this page — fill the fields manually.',
+      );
+    } catch {
+      setFetchNote('Fetch failed — check the link or fill manually.');
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -279,6 +331,18 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                     autoCorrect={false}
                     keyboardType="url"
                   />
+                  <TouchableOpacity
+                    style={[st.autofillBtn, (fetching || !form.affiliateUrl.trim()) && { opacity: 0.55 }]}
+                    onPress={handleAutofill}
+                    disabled={fetching || !form.affiliateUrl.trim()}
+                    activeOpacity={0.85}
+                  >
+                    {fetching
+                      ? <ActivityIndicator size="small" color={Colors.primary} />
+                      : <Sparkles size={14} color={Colors.primary} strokeWidth={2.4} />}
+                    <Text style={st.autofillBtnText}>{fetching ? 'Fetching…' : 'Autofill from link'}</Text>
+                  </TouchableOpacity>
+                  {fetchNote ? <Text style={st.fieldHint}>{fetchNote}</Text> : null}
                 </Field>
                 <Field label="Merchant">
                   <TextInput
@@ -544,6 +608,13 @@ const st = StyleSheet.create({
   inputFocus: { borderColor: Colors.primary },
   inputErr: { borderColor: '#ef4444', backgroundColor: '#fef2f2' },
   inputDisabled: { backgroundColor: '#f1f5f9', color: '#94a3b8' },
+  autofillBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    alignSelf: 'flex-start', marginTop: 8,
+    borderWidth: 1, borderColor: Colors.primary, backgroundColor: '#eff6ff',
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9,
+  },
+  autofillBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.primary },
   textarea: { minHeight: 80, paddingTop: 12 },
 
   row3: { flexDirection: 'row', gap: 10 },

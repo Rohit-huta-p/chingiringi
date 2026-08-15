@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   safe: {},
   belowRow: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 16
   },
   row: {
     flexDirection: 'row',
