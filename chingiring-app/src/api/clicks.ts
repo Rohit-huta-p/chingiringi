@@ -20,6 +20,8 @@ export interface LogClickPayload {
   productId?: string;
   url?: string;
   source?: string;
+  merchant?: string;      // for merchant fallback search chips
+  searchQuery?: string;   // for merchant fallback search chips
 }
 
 export interface LogClickResult {
