@@ -3,17 +3,16 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
   Share, Platform, RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ChevronLeft, Download, ArrowUpRight, ArrowDownLeft, Gift, Coins as CoinsIcon,
+  Download, ArrowUpRight, ArrowDownLeft, Gift, Coins as CoinsIcon,
   Inbox,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
-import { Colors, Fonts, Gradient } from '../../constants/theme';
+import { Colors, Fonts } from '../../constants/theme';
 import { walletAPI, Transaction } from '../../api/wallet';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import MobileAuthHeader from '../../components/MobileAuthHeader';
 
 // ─── Filter chip groups ─────────────────────────────────────────────────────
 // "Shares" = coin_credit (share rewards); "Withdrawals" = the rupee payouts.
@@ -22,25 +21,25 @@ type TypeFilter = 'all' | 'shares' | 'withdrawal';
 type PeriodFilter = 'all' | '7d' | '30d' | '90d';
 
 const TYPE_CHIPS: { key: TypeFilter; label: string }[] = [
-  { key: 'all',        label: 'All' },
-  { key: 'shares',     label: 'Shares' },
+  { key: 'all', label: 'All' },
+  { key: 'shares', label: 'Shares' },
   { key: 'withdrawal', label: 'Withdrawals' },
 ];
 
 const COINS_PER_RUPEE = 1000; // 1,000 coins = 1 rupee (mirrors AdminSettings default)
 
 const PERIOD_CHIPS: { key: PeriodFilter; label: string }[] = [
-  { key: 'all',  label: 'All Time' },
-  { key: '7d',   label: 'Last 7 Days' },
-  { key: '30d',  label: 'Last 30 Days' },
-  { key: '90d',  label: 'Last 90 Days' },
+  { key: 'all', label: 'All Time' },
+  { key: '7d', label: 'Last 7 Days' },
+  { key: '30d', label: 'Last 30 Days' },
+  { key: '90d', label: 'Last 90 Days' },
 ];
 
 type StatusFilter = 'all' | 'pending' | 'paid' | 'rejected';
 const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
-  { key: 'all',      label: 'All' },
-  { key: 'pending',  label: 'Under review' },
-  { key: 'paid',     label: 'Paid' },
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Under review' },
+  { key: 'paid', label: 'Paid' },
   { key: 'rejected', label: 'Rejected' },
 ];
 const PAGE_SIZE = 15;
@@ -135,17 +134,17 @@ function TxnRow({ tx }: { tx: Transaction }) {
   const title =
     tx.metadata?.brand ||
     (tx.type === 'withdrawal' ? 'Withdrawal'
-      : tx.type === 'referral'   ? `Referral bonus`
-      : tx.type.startsWith('coin') ? 'Coin transaction'
-      : tx.description || 'Transaction');
+      : tx.type === 'referral' ? `Referral bonus`
+        : tx.type.startsWith('coin') ? 'Coin transaction'
+          : tx.description || 'Transaction');
 
   const typeLabel =
-    tx.type === 'cashback'     ? 'Cashback'
-    : tx.type === 'withdrawal' ? 'Withdrawal'
-    : tx.type === 'referral'   ? 'Referral'
-    : tx.type === 'coin_credit' || tx.type === 'coin_debit' ? 'Coins'
-    : tx.type === 'bonus'      ? 'Bonus'
-    : tx.type;
+    tx.type === 'cashback' ? 'Cashback'
+      : tx.type === 'withdrawal' ? 'Withdrawal'
+        : tx.type === 'referral' ? 'Referral'
+          : tx.type === 'coin_credit' || tx.type === 'coin_debit' ? 'Coins'
+            : tx.type === 'bonus' ? 'Bonus'
+              : tx.type;
 
   return (
     <View style={css.row}>
@@ -204,7 +203,7 @@ function Chip({
 export const MobileTransactionHistoryScreen = () => {
   const nav = useNavigation<any>();
   const refresh = usePullToRefresh();
-  const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -264,38 +263,20 @@ export const MobileTransactionHistoryScreen = () => {
 
   return (
     <View style={css.root}>
-      {/* ── Header: blue gradient + back + title + export ─────────────── */}
-      <LinearGradient
-        colors={Gradient.brand}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={css.headerGradient}
-      >
-        <SafeAreaView edges={['top']} style={css.headerSafe}>
-          <View style={css.blobLeft} />
-          <View style={css.blobRight} />
-
-          <View style={css.headerRow}>
-            <TouchableOpacity
-              style={css.iconBtn}
-              onPress={() => nav.goBack()}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <ChevronLeft size={20} color="#fff" strokeWidth={2.2} />
-            </TouchableOpacity>
-
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={css.headerKicker}>ACCOUNT</Text>
-              <Text style={css.headerTitle}>Transaction History</Text>
-            </View>
-
-            <TouchableOpacity style={css.exportBtn} onPress={handleExport} activeOpacity={0.85}>
-              <Download size={14} color="#fff" strokeWidth={2.2} />
-              <Text style={css.exportBtnText}>Export</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+      {/* Shared mobile header — gradient + safe-area + working back button
+          (navigation.goBack), with Export as the right-side slot. */}
+      <MobileAuthHeader
+        title="Transaction History"
+        kicker="ACCOUNT"
+        align="left"
+        bottomPad={20}
+        rightSlot={
+          <TouchableOpacity style={css.exportBtn} onPress={handleExport} activeOpacity={0.85}>
+            <Download size={14} color="#fff" strokeWidth={2.2} />
+            <Text style={css.exportBtnText}>Export</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -392,39 +373,7 @@ export const MobileTransactionHistoryScreen = () => {
 const css = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F0F4F8' },
 
-  // Header
-  headerGradient: {
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    overflow: 'hidden',
-  },
-  headerSafe: { paddingBottom: 22, position: 'relative' },
-  blobLeft: {
-    position: 'absolute',
-    top: -20, left: -30,
-    width: 110, height: 110, borderRadius: 55,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-  },
-  blobRight: {
-    position: 'absolute',
-    top: 30, right: -20,
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-  },
-  headerRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 14, gap: 8,
-  },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  headerKicker: {
-    color: 'rgba(255,255,255,0.75)', fontSize: 10, fontFamily: Fonts.bold,
-    letterSpacing: 1, marginBottom: 2,
-  },
-  headerTitle: { color: '#fff', fontSize: 18, fontFamily: Fonts.extraBold },
+  // Header — Export button (rendered inside MobileAuthHeader's rightSlot)
   exportBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
@@ -476,8 +425,8 @@ const css = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   rowTitle: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.text },
-  rowMeta:  { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
-  rowDesc:  { fontSize: 11, color: '#94a3b8', marginTop: 1 },
+  rowMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  rowDesc: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
   rowAmount: { fontSize: 14, fontFamily: Fonts.extraBold, marginBottom: 4 },
 
   statusPill: {
