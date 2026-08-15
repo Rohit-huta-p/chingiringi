@@ -1,7 +1,7 @@
 import express from 'express';
 import {
   privacyPage, termsPage, aboutPage,
-  deleteAccountPage, deleteAccountRequest, deleteAccountConfirm, deleteAccountSmtpCheck,
+  deleteAccountPage, deleteAccountRequest, deleteAccountConfirm,
 } from './legalController.js';
 
 // Public, unauthenticated HTML pages for store listings (Google Play etc.):
@@ -17,7 +17,6 @@ router.get('/about', aboutPage);
 //   POST /delete-account/request  { email }       → emails a 6-digit code
 //   POST /delete-account/confirm  { email, otp }  → verifies the code + deletes
 router.get('/delete-account', deleteAccountPage);
-router.get('/delete-account/smtp-check', deleteAccountSmtpCheck); // TEMP diagnostic
 router.post('/delete-account/request', deleteAccountRequest);
 router.post('/delete-account/confirm', deleteAccountConfirm);
 

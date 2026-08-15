@@ -72,17 +72,11 @@ await sendMail({
 - `POST /delete-account/confirm { email, otp }` → verify code → `deleteUserAndData`.
 - Page: `https://chingiringi.com/delete-account/` (source:
   `chingiring-app/public/delete-account/index.html`, mirrored as `delete-account.html`).
-- **Temporary diagnostic:** `GET /delete-account/smtp-check` → `{"ok":true}` when
-  the Resend key is valid. **Remove this route before public launch**
-  (`legalRoutes.js` + `deleteAccountSmtpCheck` in `legalController.js`).
 
 ## Testing
 
 ```bash
-# Is the Resend key wired correctly? (expects {"configured":true,"ok":true})
-curl -s https://chingiringi-backend.onrender.com/delete-account/smtp-check
-
-# End-to-end: run the flow on the page, or:
+# Trigger the flow (run it on the page, or):
 curl -sX POST https://chingiringi-backend.onrender.com/delete-account/request \
   -H 'Content-Type: application/json' -d '{"email":"you@example.com"}'
 ```

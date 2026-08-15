@@ -1,7 +1,7 @@
 import { PRIVACY_MD, TERMS_MD, ABOUT_MD } from './legalDocs.js';
 import User from '../users/userModel.js';
 import { generateAndStoreOTP, verifyUserOTP } from '../auth/authService.js';
-import { sendMail, isEmailConfigured, verifyEmail } from '../../services/email.js';
+import { sendMail, isEmailConfigured } from '../../services/email.js';
 import { deleteUserAndData } from '../users/accountDeletion.js';
 
 // Dependency-free markdown → HTML for our own trusted legal docs. Handles the
@@ -148,12 +148,4 @@ export const deleteAccountConfirm = async (req, res) => {
     status: 'success',
     message: 'Your account and associated data have been permanently deleted.',
   });
-};
-
-// TEMP diagnostic — verifies the SMTP connection (no email sent) so we can see
-// exactly why the verification email hangs/fails. Remove once email works.
-export const deleteAccountSmtpCheck = async (req, res) => {
-  if (!isEmailConfigured()) return res.status(503).json({ configured: false });
-  const result = await verifyEmail();
-  return res.status(result.ok ? 200 : 502).json({ configured: true, ...result });
 };
