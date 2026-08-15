@@ -47,7 +47,16 @@ export const getProducts = async (req, res) => {
   } catch (err) {
     // Atlas Search index missing or unavailable — degrade to $text search.
     // The $text index is kept on the schema specifically for this fallback.
-    if (opts.search) {
+    // Atlas-specific errors: local rejection of $search stage, mongot remote error,
+    // or "index not found" (the production deploy-gate failure). All other errors
+    // (timeouts, disk, schema) are real — rethrow them.
+    const isAtlasErr = opts.search && (
+      err.message?.includes('$search') ||
+      err.message?.includes('mongot') ||
+      err.message?.includes('Search index') ||
+      err.code === 40324   // Unrecognized pipeline stage name: '$search'
+    );
+    if (isAtlasErr) {
       console.error('[search] Atlas Search unavailable, degrading to $text:', err.message);
       const degradedOpts = { ...opts, search: undefined };
       const degradedPipeline = buildSearchPipeline(degradedOpts);
