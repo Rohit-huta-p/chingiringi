@@ -30,6 +30,7 @@ import {
   Grid3X3,
   X,
   Check,
+  Upload,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +38,7 @@ import { useAuthStore } from '../../store';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 import { adminAPI } from '../../api/admin';
 import { ProductFormModal, ProductFormValues } from '../../components/ProductFormModal';
+import { BulkImportModal } from '../../components/BulkImportModal';
 
 function userInitials(name?: string | null): string {
   if (!name) return 'A';
@@ -161,6 +163,7 @@ export const MobileAdminProducts = () => {
   const { width: winW } = useWindowDimensions();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -292,6 +295,13 @@ export const MobileAdminProducts = () => {
               <Text style={s.pageTitle} numberOfLines={1}>Products </Text>
               <Text style={s.pageSub}>Manage store products</Text>
             </View>
+            <TouchableOpacity
+              style={s.importBtn}
+              onPress={() => setShowBulk(true)}
+              activeOpacity={0.85}
+            >
+              <Upload size={17} color="#4784E2" strokeWidth={2.4} />
+            </TouchableOpacity>
             <TouchableOpacity
               style={s.addBtn}
               onPress={() => { setEditProduct(null); setShowForm(true); }}
@@ -470,6 +480,12 @@ export const MobileAdminProducts = () => {
         product={editProduct}
         onSubmit={handleSave}
       />
+
+      <BulkImportModal
+        visible={showBulk}
+        onClose={() => setShowBulk(false)}
+        onImported={invalidate}
+      />
     </SafeAreaView>
   );
 };
@@ -500,6 +516,7 @@ const s = StyleSheet.create({
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 },
   pageTitle: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
   pageSub: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  importBtn: { justifyContent: 'center', alignItems: 'center', width: 42, height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#4784E2', backgroundColor: '#eff6ff', flexShrink: 0 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#22c55e', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, flexShrink: 0 },
   addBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 

@@ -6,12 +6,13 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Plus, X, Edit2, Trash2, Search, Package, Circle, SlidersHorizontal, Check,
+  Plus, X, Edit2, Trash2, Search, Package, Circle, SlidersHorizontal, Check, Upload,
 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Colors, Spacing, Gradient } from '../../constants/theme';
 import { adminAPI } from '../../api/admin';
 import { ProductFormModal, ProductFormValues } from '../../components/ProductFormModal';
+import { BulkImportModal } from '../../components/BulkImportModal';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 export function AdminProductsScreen() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -254,21 +256,31 @@ export function AdminProductsScreen() {
           <Text style={styles.pageTitle}>Product Management</Text>
           <Text style={styles.pageSubtitle}>Manage store products</Text>
         </View>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => { setEditProduct(null); setShowForm(true); }}
-          style={styles.addBtnWrap}
-        >
-          <LinearGradient
-            colors={Gradient.brand}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.addBtn}
+        <View style={styles.headerBtns}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setShowBulk(true)}
+            style={styles.bulkBtn}
           >
-            <Plus size={18} color="#fff" strokeWidth={2.5} />
-            <Text style={styles.addBtnText}>Add Product</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <Upload size={17} color={Colors.primary} strokeWidth={2.4} />
+            <Text style={styles.bulkBtnText}>Bulk import</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => { setEditProduct(null); setShowForm(true); }}
+            style={styles.addBtnWrap}
+          >
+            <LinearGradient
+              colors={Gradient.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.addBtn}
+            >
+              <Plus size={18} color="#fff" strokeWidth={2.5} />
+              <Text style={styles.addBtnText}>Add Product</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats cards */}
@@ -488,6 +500,12 @@ export function AdminProductsScreen() {
         product={editProduct}
         onSubmit={handleSave}
       />
+
+      <BulkImportModal
+        visible={showBulk}
+        onClose={() => setShowBulk(false)}
+        onImported={invalidate}
+      />
     </ScrollView>
   );
 }
@@ -507,6 +525,19 @@ const styles = StyleSheet.create({
   },
   pageTitle: { fontSize: 28, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   pageSubtitle: { fontSize: 14, color: Colors.textSecondary, marginTop: 4 },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bulkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: '#eff6ff',
+  },
+  bulkBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 14 },
   addBtnWrap: { borderRadius: 22, overflow: 'hidden' },
   addBtn: {
     flexDirection: 'row',
