@@ -427,7 +427,7 @@ The exact location or wording may vary depending on the version of the App.
 
 You may also request deletion through our external account-deletion webpage:
 
-**https://chingiringi.com/delete-account**
+**https://chingiringi.com/delete-account/**
 
 If this webpage is unavailable or the URL changes, the current account-deletion webpage will be linked from the official Chingiringi website.
 
