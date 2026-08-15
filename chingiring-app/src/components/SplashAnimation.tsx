@@ -87,17 +87,8 @@ export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400 }) =
   const whiteWipeScale = useRef(new Animated.Value(0.01)).current;
   const gradientOpacity = useRef(new Animated.Value(1)).current;
 
-  // logoGroup contains [badge | gap | wordmark]. Flex centres the whole group,
-  // which puts the badge to the LEFT of viewport-centre. To start with the badge
-  // visually centred (Frame 1+2), we offset the group RIGHT by half of (gap+text)
-  // and animate that offset to 0 in Phase 3 so the group ends up centred (Frame 4).
-  const TEXT_PLUS_GAP = 220; // "ChingiRingi" @ 32px bold ≈ 204px + 16 gap
-  const startGroupShift = TEXT_PLUS_GAP / 2;
-
-  const logoTranslateX = useRef(new Animated.Value(startGroupShift)).current;
-
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslateX = useRef(new Animated.Value(24)).current;
+  const textTranslateY = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
 
@@ -117,14 +108,13 @@ export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400 }) =
       Animated.timing(ring2Progress, { toValue: 1, duration: T.rippleLifeMs, delay: T.phase2Start + T.rippleOffset * 1, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
       Animated.timing(ring3Progress, { toValue: 1, duration: T.rippleLifeMs, delay: T.phase2Start + T.rippleOffset * 2, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
 
-      // ── Phase 3: gradient fade + logo shift + white wipe ───────────────────
+      // ── Phase 3: gradient fade + white wipe ────────────────────────────────
       Animated.timing(whiteWipeScale, { toValue: wipeFinalScale, duration: T.phase3Dur + 50, delay: T.phase3Start, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
       Animated.timing(gradientOpacity, { toValue: 0, duration: T.phase3Dur, delay: T.phase3Start + 150, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
-      Animated.timing(logoTranslateX, { toValue: 0, duration: T.phase3Dur, delay: T.phase3Start, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
 
-      // ── Phase 4: wordmark ─────────────────────────────────────────────────
+      // ── Phase 4: wordmark slides up below logo ────────────────────────────
       Animated.timing(textOpacity, { toValue: 1, duration: T.phase4Dur, delay: T.phase4Start, useNativeDriver: ND }),
-      Animated.timing(textTranslateX, { toValue: 0, duration: T.phase4Dur, delay: T.phase4Start, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
+      Animated.timing(textTranslateY, { toValue: 0, duration: T.phase4Dur, delay: T.phase4Start, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
     ]).start(({ finished }) => {
       if (!finished) return;
       if (holdMs > 0) {
@@ -172,13 +162,8 @@ export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400 }) =
         <Animated.View style={[st.ring, { opacity: ring3.opacity, transform: [{ scale: ring3.scale }] }]} />
       </View>
 
-      {/* Logo + wordmark group — group is centred, translates left in Phase 3 */}
-      <Animated.View
-        style={[
-          st.logoGroup,
-          { transform: [{ translateX: logoTranslateX }] },
-        ]}
-      >
+      {/* Logo + wordmark group — logo centred, wordmark slides up below */}
+      <View style={st.logoGroup}>
         <Animated.View
           style={[
             st.logoBadge,
@@ -197,12 +182,12 @@ export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400 }) =
         <Animated.Text
           style={[
             st.wordmark,
-            { opacity: textOpacity, transform: [{ translateX: textTranslateX }] },
+            { opacity: textOpacity, transform: [{ translateY: textTranslateY }] },
           ]}
         >
           ChingiRingi
         </Animated.Text>
-      </Animated.View>
+      </View>
     </View>
   );
 };
@@ -244,9 +229,9 @@ const st = StyleSheet.create({
   },
 
   logoGroup: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
     zIndex: 10,
   },
 
