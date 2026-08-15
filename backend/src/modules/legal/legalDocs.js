@@ -12,7 +12,7 @@ This Privacy Policy applies to the Chingiringi application distributed through G
 
 **Developer:** Pratdevix Tech Studio (OPC) Private Limited  
 **Registered Address:** FL-B-101, Venkatesh Nisarg, Near Hotel Ashirwad, 56/3/1, Pune – 411041, Maharashtra, India 
-**Privacy / Support Email:** contact@pratdevix.com  
+**Privacy / Support Email:** support@chingiringi.com  
 **Website:** https://pratdevix.com
 
 This Privacy Policy should be read together with the Chingiringi Terms & Conditions.
@@ -510,7 +510,7 @@ We do not knowingly permit children to use features that require age or legal el
 
 If you believe that a child has provided personal information to Chingiringi in circumstances where appropriate consent or authorization was required, please contact us at:
 
-**contact@pratdevix.com**
+**support@chingiringi.com**
 
 If we become aware that personal information has been collected in violation of applicable requirements, we will take appropriate steps to address the situation.
 
@@ -550,7 +550,7 @@ The updated Privacy Policy will be made available through the Platform and at th
 If you have questions, concerns, complaints, or requests relating to this Privacy Policy or our handling of personal information, you may contact us at:
 
 **Pratdevix Tech Studio (OPC) Private Limited**  
-**Privacy / Support Email:** contact@pratdevix.com  
+**Privacy / Support Email:** support@chingiringi.com  
 **Website:** https://pratdevix.com
 **Registered Address:** FL-B-101, Venkatesh Nisarg, Near Hotel Ashirwad, 56/3/1, Pune – 411041, Maharashtra, India 
 

@@ -131,7 +131,7 @@
         showBanner('error', r.data.message || 'Could not send a code. Please try again.');
       }
     } catch (_) {
-      showBanner('error', 'Network error. Please try again, or email contact@pratdevix.com.');
+      showBanner('error', 'Network error. Please try again, or email support@chingiringi.com.');
     } finally {
       btn.disabled = false; btn.textContent = 'Send verification code';
     }
@@ -156,7 +156,7 @@
         btn.disabled = false; btn.textContent = 'Permanently delete my account';
       }
     } catch (_) {
-      showBanner('error', 'Network error. Please try again, or email contact@pratdevix.com.');
+      showBanner('error', 'Network error. Please try again, or email support@chingiringi.com.');
       btn.disabled = false; btn.textContent = 'Permanently delete my account';
     }
   });
