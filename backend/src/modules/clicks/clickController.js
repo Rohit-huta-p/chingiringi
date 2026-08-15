@@ -68,6 +68,11 @@ export const logClick = async (req, res) => {
     isFallbackSearch = true;
   }
 
+  if (!originalUrl && req.body.merchant && !req.body.searchQuery?.trim()) {
+    res.status(400);
+    throw new Error('merchant requires a non-empty searchQuery');
+  }
+
   if (!originalUrl) {
     res.status(400);
     throw new Error('Either dealId, productId, or url is required');

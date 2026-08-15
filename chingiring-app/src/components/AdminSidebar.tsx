@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import {
   LayoutDashboard, Wallet, Users, Package, Store,
   Grid3X3, ClipboardList, Warehouse, Image as ImageIcon, Ticket,
-  LogOut, ChevronDown, ChevronUp, X, Coins, PlaySquare,
+  LogOut, ChevronDown, ChevronUp, X, Coins, PlaySquare, Search,
 } from 'lucide-react-native';
 import { Colors, Spacing } from '../constants/theme';
 import { useAuthStore } from '../store';
@@ -29,6 +29,7 @@ const ADMIN_NAV = [
   { key: 'AdminVideos', label: 'Videos', icon: PlaySquare },
   { key: 'AdminBanners', label: 'Banners', icon: ImageIcon },
   { key: 'AdminCoupons', label: 'Coupons', icon: Ticket },
+  { key: 'AdminSearchQueries', label: 'Search Queries', icon: Search },
 ];
 
 export function AdminSidebar({ navigation, state }: any) {

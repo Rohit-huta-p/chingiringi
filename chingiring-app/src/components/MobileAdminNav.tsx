@@ -25,7 +25,7 @@ export const ADMIN_NAV_ITEMS = [
   { key: 'AdminSearchQueries', label: 'Search',     icon: Search },
 ];
 
-// active route key → header title. The 9 nav sections plus drill-ins that still
+// active route key → header title. The 10 nav sections plus drill-ins that still
 // render this header (e.g. Deals).
 const TITLES: Record<string, string> = {
   ...Object.fromEntries(ADMIN_NAV_ITEMS.map((i) => [i.key, i.label])),

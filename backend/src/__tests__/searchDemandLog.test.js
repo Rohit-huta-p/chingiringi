@@ -19,8 +19,7 @@ describe('Demand log', () => {
         if (
           errorMsg.includes('ECONNREFUSED') ||
           errorMsg.includes('MongoNotConnected') ||
-          errorMsg.includes('buffering timed out') ||
-          errorMsg.includes('$search')
+          errorMsg.includes('buffering timed out')
         ) {
           console.warn('Skipping: MongoDB or Atlas Search not available');
           return;

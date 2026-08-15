@@ -107,7 +107,7 @@ export function buildSearchPipeline({
   // ── Stage 2: $match — remaining filters ──────────────────────────────────
   // isActive is already handled by Atlas filter when search is present.
   const match = search ? {} : { isActive: true };
-  if (category) match.category = { $regex: `^${category}$`, $options: 'i' };
+  if (category) match.category = { $regex: `^${category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
   if (featured) match.isFeatured = true;
 
   const priceRange = {};

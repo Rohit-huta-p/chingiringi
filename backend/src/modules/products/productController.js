@@ -47,7 +47,7 @@ export const getProducts = async (req, res) => {
   } catch (err) {
     // Atlas Search index missing or unavailable — degrade to $text search.
     // The $text index is kept on the schema specifically for this fallback.
-    if (opts.search && err.message?.includes('$search')) {
+    if (opts.search) {
       console.error('[search] Atlas Search unavailable, degrading to $text:', err.message);
       const degradedOpts = { ...opts, search: undefined };
       const degradedPipeline = buildSearchPipeline(degradedOpts);
@@ -68,7 +68,9 @@ export const getProducts = async (req, res) => {
   // Returns up to 6 products so the user sees something instead of a blank page.
   // Runs server-side in the same request — no second round-trip from the client.
   let nearMisses = [];
-  if (total === 0 && opts.search) {
+  const hasFilters = !!(opts.category || opts.minPrice != null || opts.maxPrice != null ||
+    opts.minCoins != null || opts.maxCoins != null || opts.minRating != null || opts.minDiscount != null);
+  if (total === 0 && opts.search && hasFilters) {
     try {
       const nearPipeline = buildSearchPipeline({
         search: opts.search,
@@ -85,7 +87,7 @@ export const getProducts = async (req, res) => {
   }
 
   // Demand log — fire-and-forget. A failure here must never affect the response.
-  if (opts.search) {
+  if (opts.search && opts.page === 1 && opts.search.trim().length >= 3) {
     const q = opts.search.toLowerCase().replace(/\s+/g, ' ').trim();
     SearchQuery.findOneAndUpdate(
       { q },
