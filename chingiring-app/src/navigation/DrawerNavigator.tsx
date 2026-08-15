@@ -29,6 +29,9 @@ import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
 import { MobileReferenceScreen } from '../screens/Dashboard/MobileReferenceScreen';
 import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
+import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
+import { LoginScreen } from '../screens/Auth/LoginScreen';
+import { SignupScreen } from '../screens/Auth/SignupScreen';
 import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
 import { VideoScreen } from '../screens/Dashboard/VideoScreen';
 import { BlockedAccountsScreen } from '../screens/Dashboard/BlockedAccountsScreen';
@@ -358,6 +361,17 @@ function MobileNavigator() {
         <Stack.Screen name="Settings" component={isMobile ? MobileSettingsScreen : SettingsScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="About" component={isMobile ? MobileAboutScreen : AboutScreen} />
+        {/* Auth modal screens — navigated to by AuthGateContext when guest taps a gated CTA */}
+        <Stack.Screen
+          name="AuthLogin"
+          component={isMobile ? MobileLoginScreen : LoginScreen}
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="AuthSignup"
+          component={SignupScreen}
+          options={{ presentation: 'modal' }}
+        />
       </Stack.Navigator>
     </SafeAreaView>
   );

@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, useWindowDimensions, Platform } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Lock } from 'lucide-react-native';
 import { VideoFeedItem } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
 import { VideoMoreSheet } from '../../components/VideoMoreSheet';
@@ -11,6 +11,8 @@ import { useVideoEngagement } from '../../hooks/useVideoFeed';
 import { shareVideo } from '../../utils/shareVideo';
 import { videosAPI, FeedVideo } from '../../api/videos';
 import { Colors, Fonts } from '../../constants/theme';
+import { useAuthStore } from '../../store';
+import { useAuthGate } from '../../context/AuthGateContext';
 
 /**
  * A single shareable clip — the landing page for /video/:videoId. Registered at
@@ -52,6 +54,26 @@ export const VideoScreen = () => {
     const ok = await shareVideo(video);
     if (ok) share.mutate(video._id); // count only — no coins
   }, [video, share]);
+
+  const user = useAuthStore((s) => s.user);
+  const { requireAuth } = useAuthGate();
+
+  useEffect(() => {
+    if (!user) requireAuth(undefined, { title: 'Sign in to watch videos', subtitle: 'Watch and share short clips from the community.', icon: 'video' });
+  }, []);
+
+  if (!user) {
+    return (
+      <View style={s.center}>
+        <Lock size={40} color="rgba(255,255,255,0.35)" strokeWidth={1.5} />
+        <Text style={s.errTitle}>Sign in to watch</Text>
+        <Text style={s.errSub}>Create an account to watch and share videos.</Text>
+        <Pressable style={s.cta} onPress={() => requireAuth(undefined, { title: 'Sign in to watch videos', icon: 'video' })}>
+          <Text style={s.ctaTxt}>Sign in</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isLoading) return <View style={s.center}><ActivityIndicator color="#fff" size="large" /></View>;
   if (isError || !video) {

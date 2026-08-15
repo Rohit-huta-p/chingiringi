@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,13 @@ const logo = require('../../../assets/chingi-logo.png');
 
 export const MobileLoginScreen = ({ navigation }: any) => {
   const hydrate = useAuthStore((s) => s.hydrate);
+  const user = useAuthStore((s) => s.user);
+
+  // Auto-dismiss when user transitions null → truthy (covers Google sign-in,
+  // OTP flows, and any other async auth path that lands here as a modal).
+  useEffect(() => {
+    if (user && navigation.canGoBack()) navigation.goBack();
+  }, [user]);
 
   const [identifier, setIdentifier] = useState('');   // username or email
   const [password, setPassword] = useState('');

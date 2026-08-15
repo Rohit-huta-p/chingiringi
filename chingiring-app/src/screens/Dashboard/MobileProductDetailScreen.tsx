@@ -29,6 +29,7 @@ import { clicksAPI } from '../../api/clicks';
 import { productsAPI } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
 import { useAuthStore } from '../../store';
+import { useAuthGate } from '../../context/AuthGateContext';
 import { cloudinaryFill } from '../../utils/cloudinary';
 
 // Mobile hero is a fixed 4:3 shape that scales with width (not a pinned height),
@@ -444,6 +445,7 @@ function ProductDetailMobile({
 export const MobileProductDetailScreen = () => {
   const navigation = useNavigation();
   const user = useAuthStore((s) => s.user);
+  const { requireAuth } = useAuthGate();
   const route = useRoute<any>();
   const passedDeal    = route.params?.deal;
   const dealId        = route.params?.dealId;
@@ -507,13 +509,13 @@ export const MobileProductDetailScreen = () => {
         <ProductDetailMobile
           product={productForView}
           onBack={() => navigation.goBack()}
-          onShare={() => canShare && setShareOpen(true)}
-          onBuy={handleBuy}
+          onShare={() => requireAuth(() => { canShare && setShareOpen(true); }, { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends buy via your link.', icon: 'share' })}
+          onBuy={() => requireAuth(handleBuy, { title: 'Sign in to buy', subtitle: 'Track your cashback and purchase history.', icon: 'cart' })}
           canBuy={!!buyUrl}
           reviews={reviews}
           reviewCount={reviewCount}
           averageRating={averageRating}
-          onWriteReview={() => setReviewOpen(true)}
+          onWriteReview={() => requireAuth(() => setReviewOpen(true), { title: 'Sign in to review', subtitle: 'Share your experience with this product.', icon: 'star' })}
           onOpenProduct={(p) => (navigation as any).navigate('ProductDetail', { productId: p._id, product: p })}
         />
         <WriteReviewModal

@@ -12,6 +12,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { Colors, Fonts, Gradient } from '../../constants/theme';
 import { useAuthStore } from '../../store';
+import { useAuthGate } from '../../context/AuthGateContext';
+import { AuthGateOverlay } from '../../components/AuthModal';
 import { walletAPI, Wallet } from '../../api/wallet';
 import { referralsAPI } from '../../api/referrals';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
@@ -91,6 +93,7 @@ function QuickAction({
 export const MobileProfileScreen = () => {
   const nav = useNavigation<any>();
   const user = useAuthStore((st) => st.user);
+  const { requireAuth } = useAuthGate();
   const [legal, setLegal] = useState<LegalType | null>(null);
   const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
   const hydrate = useAuthStore((st) => st.hydrate);
@@ -182,6 +185,12 @@ export const MobileProfileScreen = () => {
               action="Processing  ›"
               actionColor="#f59e0b"
             />
+            {!user && (
+              <AuthGateOverlay
+                onPress={() => requireAuth(undefined, { title: 'Sign in to see your coins', icon: 'wallet' })}
+                borderRadius={12}
+              />
+            )}
           </View>
 
 
@@ -237,6 +246,13 @@ export const MobileProfileScreen = () => {
                 <Share2 size={16} color="#fff" strokeWidth={2.2} />
               </TouchableOpacity>
             </View>
+            {!user && (
+              <AuthGateOverlay
+                onPress={() => requireAuth(undefined, { title: 'Sign in to refer & earn', subtitle: 'Earn ₹25 for each friend you refer.', icon: 'gift' })}
+                dark
+                borderRadius={16}
+              />
+            )}
           </LinearGradient>
 
           {/* ── Account: email verification (only when unverified) ─────────── */}
@@ -256,23 +272,31 @@ export const MobileProfileScreen = () => {
           ) : null}
 
           {/* ── My content ────────────────────────────────────────────────── */}
-          <Text style={s.sectionHeader}>MY CONTENT</Text>
-          <QuickAction
-            icon={PlaySquare}
-            iconColor="#7c3aed"
-            iconBg="#f5f3ff"
-            title="My Videos"
-            subtitle="Post clips & manage your videos"
-            onPress={() => nav.navigate('MyVideos')}
-          />
-          <QuickAction
-            icon={UserX}
-            iconColor="#dc2626"
-            iconBg="#fef2f2"
-            title="Blocked accounts"
-            subtitle="Creators hidden from your video feed"
-            onPress={() => nav.navigate('BlockedAccounts')}
-          />
+          <View style={{ position: 'relative' }}>
+            <Text style={s.sectionHeader}>MY CONTENT</Text>
+            <QuickAction
+              icon={PlaySquare}
+              iconColor="#7c3aed"
+              iconBg="#f5f3ff"
+              title="My Videos"
+              subtitle="Post clips & manage your videos"
+              onPress={() => nav.navigate('MyVideos')}
+            />
+            <QuickAction
+              icon={UserX}
+              iconColor="#dc2626"
+              iconBg="#fef2f2"
+              title="Blocked accounts"
+              subtitle="Creators hidden from your video feed"
+              onPress={() => nav.navigate('BlockedAccounts')}
+            />
+            {!user && (
+              <AuthGateOverlay
+                onPress={() => requireAuth(undefined, { title: 'Sign in to see your content', icon: 'video' })}
+                borderRadius={12}
+              />
+            )}
+          </View>
 
           {/* ── Legal & Support ───────────────────────────────────────────── */}
           <Text style={s.sectionHeader}>LEGAL & SUPPORT</Text>

@@ -5,8 +5,10 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PlaySquare, ChevronUp, ChevronDown, Plus } from 'lucide-react-native';
+import { PlaySquare, ChevronUp, ChevronDown, Plus, Lock } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
+import { useAuthStore } from '../../store';
+import { useAuthGate } from '../../context/AuthGateContext';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
@@ -20,6 +22,8 @@ export const MobileVideosScreen = () => {
   const navigation = useNavigation<any>();
   const { videos, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useVideoFeed();
   const { like, share, view, qc } = useVideoEngagement();
+  const user = useAuthStore((s) => s.user);
+  const { requireAuth } = useAuthGate();
 
   // Dev fallback so the feed renders before the backend/Cloudflare are live.
   const data: FeedVideo[] = videos.length ? videos : (__DEV__ ? SAMPLE_VIDEOS : []);
@@ -108,6 +112,11 @@ export const MobileVideosScreen = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [isDesktopWeb, goTo]);
 
+  // Gate: fire auth modal once on mount for unauthenticated visitors.
+  useEffect(() => {
+    if (!user) requireAuth(undefined, { title: 'Sign in to watch', subtitle: 'Watch and create short clips from the community.', icon: 'video' });
+  }, []);
+
   const onStorePress = useCallback((_store: VideoStore) => {
     navigation.navigate('Stores');
   }, [navigation]);
@@ -165,6 +174,21 @@ export const MobileVideosScreen = () => {
     }
     return feedItem(itemH);
   }, [activeIndex, muted, paused, itemH, frameH, frameW, isDesktopWeb, bottomOffset, insets.top, likeOverrides, commentsFor, onStorePress, onLike, onShare]);
+
+  if (!user) {
+    return (
+      <View style={[s.center, { backgroundColor: '#0b0d12', gap: 16 }]}>
+        <Lock size={40} color="rgba(255,255,255,0.3)" strokeWidth={1.5} />
+        <Text style={[s.emptyTitle, { textAlign: 'center', paddingHorizontal: 32 }]}>Sign in to watch videos</Text>
+        <Pressable
+          style={[s.retry, { backgroundColor: Colors.primary }]}
+          onPress={() => requireAuth(undefined, { title: 'Sign in to watch', icon: 'video' })}
+        >
+          <Text style={[s.retryTxt, { color: '#fff' }]}>Sign in</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isLoading && !data.length) {
     return <View style={s.center}><ActivityIndicator color="#fff" /></View>;

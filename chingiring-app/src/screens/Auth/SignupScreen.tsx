@@ -3,7 +3,7 @@ import { AuthLayout } from './AuthLayout';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { Colors } from '../../constants/theme';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
 import { referralsAPI } from '../../api/referrals';
@@ -21,6 +21,11 @@ export const SignupScreen = ({ navigation, route }: any) => {
 
   const hydrate = useAuthStore((state) => state.hydrate);
   const setShowWelcome = useAuthStore((state) => state.setShowWelcome);
+  const user = useAuthStore((state) => state.user);
+
+  useEffect(() => {
+    if (user && navigation.canGoBack()) navigation.goBack();
+  }, [user]);
 
   const signupMutation = useMutation({
     mutationFn: authAPI.signup,

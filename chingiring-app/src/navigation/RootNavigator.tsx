@@ -1,15 +1,13 @@
 import { useRef } from 'react';
-import { Platform } from 'react-native';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { Platform, View, ActivityIndicator } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../store';
-import AuthNavigator from './AuthNavigator';
 import ResponsiveNavigator from './DrawerNavigator';
 import AdminNavigator from './AdminNavigator';
 import { linking, documentTitle } from './linking';
 import { WelcomeModal } from '../components/WelcomeModal';
-
-/** Module-level container ref so non-component code (push-tap handler) can navigate. */
-export const navigationRef = createNavigationContainerRef<any>();
+import { navigationRef } from '../lib/navigationRef';
+import { AuthGateProvider } from '../context/AuthGateContext';
 
 function trackScreen(name: string) {
   if (Platform.OS !== 'web') return;
@@ -17,8 +15,8 @@ function trackScreen(name: string) {
 }
 
 export default function RootNavigator() {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
+  const isReady = useAuthStore((state) => state.isReady);
   const routeNameRef = useRef<string | undefined>();
 
   return (
@@ -36,15 +34,19 @@ export default function RootNavigator() {
           }
         }}
       >
-        {!isAuthenticated ? (
-          <AuthNavigator />
+        {!isReady ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="large" />
+          </View>
         ) : user?.role === 'admin' ? (
           <AdminNavigator />
         ) : (
-          <ResponsiveNavigator />
+          <AuthGateProvider>
+            <ResponsiveNavigator />
+          </AuthGateProvider>
         )}
       </NavigationContainer>
-      {isAuthenticated && user?.role !== 'admin' ? <WelcomeModal /> : null}
+      {user && user?.role !== 'admin' ? <WelcomeModal /> : null}
     </>
   );
 }

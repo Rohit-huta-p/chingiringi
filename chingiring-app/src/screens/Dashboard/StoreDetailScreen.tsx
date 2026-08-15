@@ -8,13 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2,
+  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
 import { sharesAPI } from '../../api/shares';
 import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
+import { useAuthGate } from '../../context/AuthGateContext';
 import type { StoreCategory } from '../../data/offlineStores';
 
 // Category accent colors — mirrors the map/list on OfflineStoresScreen.
@@ -55,6 +56,7 @@ export const StoreDetailScreen: React.FC = () => {
 
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const { requireAuth } = useAuthGate();
   const [shareOpen, setShareOpen] = useState(false);
 
   const storeId: string | undefined = route.params?.storeId;
@@ -92,6 +94,17 @@ export const StoreDetailScreen: React.FC = () => {
 
   const callStore = () => {
     if (store.phone) Linking.openURL(`tel:${store.phone.replace(/\s+/g, '')}`).catch(() => {});
+  };
+
+  // Open Google Maps directions to the store — exact coords when we have them
+  // (parsed from the admin's Maps link), else fall back to the address text.
+  // Universal link: opens the Maps app on native, google.com/maps on web.
+  const openDirections = () => {
+    const dest =
+      store.lat != null && store.lng != null
+        ? `${store.lat},${store.lng}`
+        : encodeURIComponent([store.address, store.area, store.city].filter(Boolean).join(', '));
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}`).catch(() => {});
   };
 
   return (
@@ -172,7 +185,7 @@ export const StoreDetailScreen: React.FC = () => {
                 <Text style={styles.btnGhostText}>Call</Text>
               </Pressable>
             )}
-            <Pressable onPress={() => setShareOpen(true)} style={[styles.btn, styles.btnShare, !isWide && { flex: 1 }]}>
+            <Pressable onPress={() => requireAuth(() => setShareOpen(true), { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends visit the store via your link.', icon: 'share' })} style={[styles.btn, styles.btnShare, !isWide && { flex: 1 }]}>
               <Share2 size={16} color={Colors.primary} />
               <Text style={styles.btnShareText}>Share &amp; Earn {quotaRes?.data?.coinsPerShare ?? 50} CR</Text>
             </Pressable>
@@ -222,6 +235,15 @@ export const StoreDetailScreen: React.FC = () => {
                 )}
               </View>
             </View>
+            <Pressable
+              onPress={() => requireAuth(openDirections, { title: 'Sign in for directions', subtitle: 'Access store navigation and location details.', icon: 'navigation' })}
+              style={styles.dirBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Get directions"
+            >
+              <Navigation size={16} color="#fff" />
+              <Text style={styles.dirBtnText}>Get directions</Text>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
@@ -298,6 +320,14 @@ const styles = StyleSheet.create({
   infoline: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   infoText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
   infoSub: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+
+  dirBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    alignSelf: 'flex-start', marginTop: 6, marginLeft: 26,
+    backgroundColor: Colors.primary,
+    paddingVertical: 11, paddingHorizontal: 20, borderRadius: 12,
+  },
+  dirBtnText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
 });
 
 export default StoreDetailScreen;

@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { notificationsAPI } from '../api/notifications';
-import { navigationRef } from '../navigation/RootNavigator';
+import { navigationRef } from './navigationRef';
 
 const PUSH_TOKEN_KEY = 'expoPushToken';
 
