@@ -16,6 +16,7 @@ import { dealsAPI } from '../../api/deals';
 import { productsAPI } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
 import { useAuthStore } from '../../store';
+import { useAuthGate } from '../../context/AuthGateContext';
 import { cloudinaryFill } from '../../utils/cloudinary';
 
 const SIZES = ['30', '32', '34', '36'];
@@ -128,6 +129,7 @@ export const ProductDetailScreen = () => {
   const isDesktop = screenWidth >= 768;
   const navigation = useNavigation();
   const user = useAuthStore((s) => s.user);
+  const { requireAuth } = useAuthGate();
   const route = useRoute<any>();
   const passedDeal = route.params?.deal;
   const dealId = route.params?.dealId;
@@ -193,7 +195,10 @@ export const ProductDetailScreen = () => {
     // Product shares MUST go through our ShareSheet (no "Copy" loophole). Every
     // product-mode trigger (CTA + the image-panel share icons) routes here.
     // handleShare below is the deal-mode / OS-sheet path only (deals never credit).
-    if (isProductMode) { setShareOpen(true); return; }
+    if (isProductMode) {
+      requireAuth(() => setShareOpen(true), { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends buy via your link.', icon: 'share' });
+      return;
+    }
     const shareTitle = isProductMode
       ? (product?.title || product?.name || 'Check out this product')
       : (deal?.title || deal?.description || 'Check out this deal');
@@ -240,11 +245,13 @@ export const ProductDetailScreen = () => {
   };
 
   // Product "Buy Now" \u2014 opens the product's buy/affiliate link (product mode).
-  const handleBuyNow = async () => {
-    const url = product?.affiliateUrl;
-    if (!url) return;
-    try { await Linking.openURL(url); }
-    catch { Alert.alert('Error', 'Could not open the link.'); }
+  const handleBuyNow = () => {
+    requireAuth(async () => {
+      const url = product?.affiliateUrl;
+      if (!url) return;
+      try { await Linking.openURL(url); }
+      catch { Alert.alert('Error', 'Could not open the link.'); }
+    }, { title: 'Sign in to buy', subtitle: 'Track your cashback and purchase history.', icon: 'cart' });
   };
 
   // \u2500\u2500 Deal-mode bindings (used when navigation passes deal/dealId) \u2500\u2500
@@ -478,7 +485,7 @@ export const ProductDetailScreen = () => {
         ) : (
           <Button
             title={`Share & Earn ${quotaRes?.data?.coinsPerShare ?? 50} CR ↗`}
-            onPress={() => setShareOpen(true)}
+            onPress={() => requireAuth(() => setShareOpen(true), { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends buy via your link.', icon: 'share' })}
             style={styles.buyBtnMain}
           />
         )}
@@ -502,7 +509,7 @@ export const ProductDetailScreen = () => {
           sharesLeft={sharesLeft}
           sharesCap={sharesCap}
           coinsPerShare={quotaRes?.data?.coinsPerShare ?? 50}
-          onShare={() => setShareOpen(true)}
+          onShare={() => requireAuth(() => setShareOpen(true), { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends buy via your link.', icon: 'share' })}
         />
       </View>
 
@@ -569,7 +576,7 @@ export const ProductDetailScreen = () => {
         <Text style={styles.reviewsTitle}>
           Reviews <Text style={styles.reviewsCount}>({reviewCount})</Text>
         </Text>
-        <TouchableOpacity style={styles.writeReviewBtn} activeOpacity={0.85} onPress={() => setReviewOpen(true)}>
+        <TouchableOpacity style={styles.writeReviewBtn} activeOpacity={0.85} onPress={() => requireAuth(() => setReviewOpen(true), { title: 'Sign in to review', subtitle: 'Share your experience with this product.', icon: 'star' })}>
           <Text style={styles.writeReviewText}>{'✎'}  Write Review</Text>
         </TouchableOpacity>
       </View>
