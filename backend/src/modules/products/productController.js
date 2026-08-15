@@ -1,6 +1,7 @@
 import Product from './productModel.js';
 import { merchantFromUrl } from '../../utils/merchant.js';
 import { buildSearchPipeline } from './searchPipeline.js';
+import SearchQuery from '../search/searchQueryModel.js';
 
 // @desc    Get all products (public — only active)
 // @route   GET /api/products
@@ -81,6 +82,16 @@ export const getProducts = async (req, res) => {
     } catch {
       // near-miss failure is non-fatal; empty array is fine
     }
+  }
+
+  // Demand log — fire-and-forget. A failure here must never affect the response.
+  if (opts.search) {
+    const q = opts.search.toLowerCase().replace(/\s+/g, ' ').trim();
+    SearchQuery.findOneAndUpdate(
+      { q },
+      { $inc: { count: 1 }, $set: { lastResultCount: total, lastSeenAt: new Date() } },
+      { upsert: true, new: false },
+    ).catch(() => {});
   }
 
   res.status(200).json({
