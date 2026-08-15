@@ -12,9 +12,15 @@ describe('buildSearchPipeline', () => {
     expect(p.some(s => s.$search)).toBe(false);
   });
 
-  it('has isActive:true in $match (not in Atlas filter) when search is absent', () => {
+  it('has isActive:true in $match when search is absent', () => {
     const p = buildSearchPipeline({ page: 1, limit: 12 });
     expect(p[0].$match?.isActive).toBe(true);
+  });
+
+  it('has isActive:true in $match even when search is present (defensive — Atlas filter can be misconfigured)', () => {
+    const p = buildSearchPipeline({ search: 'shoe', page: 1, limit: 12 });
+    const m = p.find(s => s.$match?.isActive === true);
+    expect(m).toBeTruthy();
   });
 
   it('puts $match AFTER $search when both are present', () => {

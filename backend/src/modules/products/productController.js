@@ -54,6 +54,8 @@ export const getProducts = async (req, res) => {
       err.message?.includes('$search') ||
       err.message?.includes('mongot') ||
       err.message?.includes('Search index') ||
+      err.message?.includes('search index') ||   // lowercase variant from some driver versions
+      err.message?.includes('autocomplete') ||   // autocomplete field not mapped in Atlas index
       err.code === 40324   // Unrecognized pipeline stage name: '$search'
     );
     if (isAtlasErr) {
@@ -71,6 +73,25 @@ export const getProducts = async (req, res) => {
 
   const products = result?.products ?? [];
   const total    = result?.total?.[0]?.count ?? 0;
+
+  // $text safety-net: Atlas returned 0 results without an error (index built but document
+  // not yet synced, or index misconfigured). Fall back to MongoDB's own $text index
+  // so the user sees results while Atlas catches up.
+  if (result && result.total?.[0]?.count === 0 && opts.search) {
+    try {
+      const textOpts = { ...opts, search: undefined };
+      const textPipeline = buildSearchPipeline(textOpts);
+      const textMatch = { isActive: true, $text: { $search: opts.search } };
+      textPipeline.unshift({ $match: textMatch });
+      const [textResult] = await Product.aggregate(textPipeline);
+      if ((textResult?.total?.[0]?.count ?? 0) > 0) {
+        console.warn('[search] Atlas returned 0 — using $text fallback for:', opts.search);
+        result = textResult;
+      }
+    } catch {
+      // $text unavailable or index missing — keep Atlas's 0-result response
+    }
+  }
 
   // Near-miss: if the filtered search returned nothing, run the same Atlas query
   // WITHOUT the non-search filters (drop category, price, coins, rating, discount).

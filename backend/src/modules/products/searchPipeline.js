@@ -105,8 +105,9 @@ export function buildSearchPipeline({
   }
 
   // ── Stage 2: $match — remaining filters ──────────────────────────────────
-  // isActive is already handled by Atlas filter when search is present.
-  const match = search ? {} : { isActive: true };
+  // isActive: always include on the MongoDB side as a safety net — Atlas filter
+  // handles it inside the engine, but a misconfigured index can silently skip it.
+  const match = { isActive: true };
   if (category) match.category = { $regex: `^${category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
   if (featured) match.isFeatured = true;
 
