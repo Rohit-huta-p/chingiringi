@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, ScrollView, Platform, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView, ScrollView, Platform, Text, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Card } from '../../components/Card';
 import { Colors } from '../../constants/theme';
 // import { Ionicons } from '@expo/vector-icons';
@@ -19,14 +19,16 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   title,
   subtitle
 }) => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768; // AuthLayout only renders on web; wide = desktop
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         
-        <View style={styles.contentWrapper}>
+        <View style={[styles.contentWrapper, isDesktop && styles.contentWrapperLg]}>
           {showBackButton && (
             <TouchableOpacity style={styles.backButton} onPress={onBackPress}>
               {/* <Ionicons name="arrow-back" size={20} color={Colors.textSecondary} /> */}
@@ -37,7 +39,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
           {title && <View style={styles.headerContainer}>{title}</View>}
           {subtitle && <View style={styles.subtitleContainer}>{subtitle}</View>}
 
-          <Card style={styles.card}>
+          <Card style={isDesktop ? [styles.card, styles.cardLg] : styles.card}>
             {children}
           </Card>
         </View>
@@ -62,6 +64,12 @@ const styles = StyleSheet.create({
   contentWrapper: {
     width: '100%',
     maxWidth: 480, // Desktop/Tablet width constraint
+  },
+  contentWrapperLg: {
+    maxWidth: 560, // wider auth card on desktop
+  },
+  cardLg: {
+    padding: 44, // roomier on desktop
   },
   backButton: {
     flexDirection: 'row',

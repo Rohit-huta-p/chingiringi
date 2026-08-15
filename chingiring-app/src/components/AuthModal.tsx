@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Modal, View, Text, Pressable, StyleSheet,
+  Modal, View, Text, Pressable, StyleSheet, useWindowDimensions, Platform,
 } from 'react-native';
 import {
   ShoppingBag, Wallet, Gift, Video, ShoppingCart,
@@ -32,6 +32,8 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ visible, opts, onClose }: AuthModalProps) {
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
   const iconKey: AuthGateIcon = opts?.icon ?? 'default';
   const { Icon, bg, color } = ICONS[iconKey] ?? ICONS.default;
   const title    = opts?.title    ?? 'Sign in to continue';
@@ -55,7 +57,7 @@ export function AuthModal({ visible, opts, onClose }: AuthModalProps) {
         {/* Tapping the scrim dismisses */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-        <View style={s.card}>
+        <View style={[s.card, isDesktop && s.cardLg]}>
           <View style={[s.iconWrap, { backgroundColor: bg }]}>
             <Icon size={26} color={color} strokeWidth={1.8} />
           </View>
@@ -142,6 +144,10 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     shadowRadius: 28,
     elevation: 12,
+  },
+  cardLg: {
+    maxWidth: 460, // larger guest-gate modal on desktop
+    padding: 40,
   },
   iconWrap: {
     width: 56,

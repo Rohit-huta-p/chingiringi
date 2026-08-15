@@ -45,6 +45,15 @@
         flex: 1;
       }
     </style>
+    <style id="focus-reset">
+      /* Drop the browser's default blue focus outline on form controls — the
+         app's inputs already indicate focus via their own border styling. */
+      input:focus,
+      textarea:focus,
+      select:focus {
+        outline: none !important;
+      }
+    </style>
   </head>
 
   <body>

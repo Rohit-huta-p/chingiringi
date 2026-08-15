@@ -2,7 +2,9 @@ import React, {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
 import { useAuthStore } from '../store';
+import { useWindowDimensions, Platform } from 'react-native';
 import { AuthModal } from '../components/AuthModal';
+import { DesktopAuthModal } from '../components/DesktopAuthModal';
 import { navigationRef } from '../lib/navigationRef';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -32,6 +34,8 @@ const AUTH_SCREENS = ['AuthLogin', 'AuthSignup'];
 
 export function AuthGateProvider({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
   const [visible, setVisible] = useState(false);
   const [opts, setOpts] = useState<AuthGateOpts | undefined>();
   const pendingCb = useRef<(() => void) | null>(null);
@@ -47,34 +51,37 @@ export function AuthGateProvider({ children }: { children: React.ReactNode }) {
     setVisible(true);
   }, []);
 
-  // When user transitions null → truthy (login/signup completed):
-  // 1. Pop any auth modal screens off the stack.
-  // 2. Fire the pending action after navigation settles.
-  useEffect(() => {
-    if (!user || !pendingCb.current) return;
+  // Fire the pending action + close. The desktop modal calls this when auth is
+  // truly done (login / verify / "later") — it may hold on the OTP step after
+  // signup, so completion is modal-driven there, not the raw user transition.
+  const complete = useCallback(() => {
+    setVisible(false);
     const cb = pendingCb.current;
     pendingCb.current = null;
-    setVisible(false);
+    if (cb) setTimeout(cb, 250);
+  }, []);
 
-    // Pop auth screens if they're on top of the stack.
+  // Mobile: auth happens on a pushed route screen (AuthLogin/AuthSignup), so the
+  // modal can't call back — detect the null → truthy transition, pop the route,
+  // then complete. Desktop is driven by DesktopAuthModal.onComplete, so skip here
+  // (otherwise it would close + continue at account creation, before verify).
+  useEffect(() => {
+    if (!user || !pendingCb.current || isDesktop) return;
     const currentRoute = navigationRef.getCurrentRoute();
     if (currentRoute && AUTH_SCREENS.includes(currentRoute.name)) {
       navigationRef.goBack();
     }
-
-    // Delay so navigation finishes animating before the action runs.
-    const t = setTimeout(cb, 350);
-    return () => clearTimeout(t);
+    complete();
   }, [user]);
 
   return (
     <AuthGateContext.Provider value={{ requireAuth }}>
       {children}
-      <AuthModal
-        visible={visible}
-        opts={opts}
-        onClose={() => setVisible(false)}
-      />
+      {isDesktop ? (
+        <DesktopAuthModal visible={visible} opts={opts} onComplete={complete} onCancel={() => setVisible(false)} />
+      ) : (
+        <AuthModal visible={visible} opts={opts} onClose={() => setVisible(false)} />
+      )}
     </AuthGateContext.Provider>
   );
 }
