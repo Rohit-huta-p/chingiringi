@@ -2,7 +2,7 @@ import ClickEvent from './clickModel.js';
 import Deal from '../deals/dealModel.js';
 import Product from '../products/productModel.js';
 import AdminSettings from '../admin/adminSettingsModel.js';
-import { detectMerchant, appendSubid, ensureAmazonTag, wrapCuelinks } from './subidBuilder.js';
+import { detectMerchant, appendSubid, ensureAmazonTag, wrapCuelinks, buildMerchantSearchUrl } from './subidBuilder.js';
 
 /**
  * Build the subid string we attach to outgoing affiliate URLs.
@@ -54,6 +54,20 @@ export const logClick = async (req, res) => {
     }
     originalUrl = productDoc.affiliateUrl;
   }
+
+  // Merchant fallback search: no product/deal/url, but merchant + searchQuery provided.
+  // Build the search URL server-side so merchant URL changes are backend deploys.
+  let isFallbackSearch = false;
+  if (!originalUrl && req.body.merchant && req.body.searchQuery) {
+    const rawUrl = buildMerchantSearchUrl(req.body.merchant, req.body.searchQuery);
+    if (!rawUrl) {
+      res.status(400);
+      throw new Error(`Unknown merchant for fallback search: ${req.body.merchant}`);
+    }
+    originalUrl = rawUrl;
+    isFallbackSearch = true;
+  }
+
   if (!originalUrl) {
     res.status(400);
     throw new Error('Either dealId, productId, or url is required');
@@ -72,6 +86,12 @@ export const logClick = async (req, res) => {
     preparedUrl = ensureAmazonTag(preparedUrl, settings.amazonAssociateTag);
   }
   if (dealDoc?.viaCuelinks && settings.cuelinksPublisherId) {
+    preparedUrl = wrapCuelinks(preparedUrl, settings.cuelinksPublisherId);
+  }
+
+  // Non-Amazon fallback search clicks earn via Cuelinks (no direct affiliate
+  // program for Flipkart/Myntra/Meesho). Amazon earns via the associate tag above.
+  if (isFallbackSearch && rawMerchant !== 'amazon' && settings.cuelinksPublisherId) {
     preparedUrl = wrapCuelinks(preparedUrl, settings.cuelinksPublisherId);
   }
 
