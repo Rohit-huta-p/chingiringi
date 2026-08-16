@@ -1,11 +1,10 @@
 import React, {
-  createContext, useCallback, useContext, useEffect, useRef, useState,
+  createContext, useCallback, useContext, useRef, useState,
 } from 'react';
 import { useAuthStore } from '../store';
 import { useWindowDimensions, Platform } from 'react-native';
-import { AuthModal } from '../components/AuthModal';
+import { MobileAuthModal } from '../components/MobileAuthModal';
 import { DesktopAuthModal } from '../components/DesktopAuthModal';
-import { navigationRef } from '../lib/navigationRef';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,14 +25,9 @@ type AuthGateCtx = {
 
 const AuthGateContext = createContext<AuthGateCtx>({ requireAuth: () => {} });
 
-// ─── Auth screen names registered in the modal stack ─────────────────────────
-
-const AUTH_SCREENS = ['AuthLogin', 'AuthSignup'];
-
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AuthGateProvider({ children }: { children: React.ReactNode }) {
-  const user = useAuthStore((s) => s.user);
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
   const [visible, setVisible] = useState(false);
@@ -51,9 +45,9 @@ export function AuthGateProvider({ children }: { children: React.ReactNode }) {
     setVisible(true);
   }, []);
 
-  // Fire the pending action + close. The desktop modal calls this when auth is
-  // truly done (login / verify / "later") — it may hold on the OTP step after
-  // signup, so completion is modal-driven there, not the raw user transition.
+  // Fire the pending action + close. Both modals hold the whole flow inline
+  // (login / signup / OTP verify) and call this only when auth is truly done —
+  // completion is modal-driven, not a navigation event.
   const complete = useCallback(() => {
     setVisible(false);
     const cb = pendingCb.current;
@@ -61,27 +55,18 @@ export function AuthGateProvider({ children }: { children: React.ReactNode }) {
     if (cb) setTimeout(cb, 250);
   }, []);
 
-  // Mobile: auth happens on a pushed route screen (AuthLogin/AuthSignup), so the
-  // modal can't call back — detect the null → truthy transition, pop the route,
-  // then complete. Desktop is driven by DesktopAuthModal.onComplete, so skip here
-  // (otherwise it would close + continue at account creation, before verify).
-  useEffect(() => {
-    if (!user || !pendingCb.current || isDesktop) return;
-    const currentRoute = navigationRef.getCurrentRoute();
-    if (currentRoute && AUTH_SCREENS.includes(currentRoute.name)) {
-      navigationRef.goBack();
-    }
-    complete();
-  }, [user]);
+  // Same props on both — desktop split-screen card, mobile full-screen sheet.
+  const AuthModalComponent = isDesktop ? DesktopAuthModal : MobileAuthModal;
 
   return (
     <AuthGateContext.Provider value={{ requireAuth }}>
       {children}
-      {isDesktop ? (
-        <DesktopAuthModal visible={visible} opts={opts} onComplete={complete} onCancel={() => setVisible(false)} />
-      ) : (
-        <AuthModal visible={visible} opts={opts} onClose={() => setVisible(false)} />
-      )}
+      <AuthModalComponent
+        visible={visible}
+        opts={opts}
+        onComplete={complete}
+        onCancel={() => setVisible(false)}
+      />
     </AuthGateContext.Provider>
   );
 }

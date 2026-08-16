@@ -44,15 +44,16 @@ export const AuthCTA = ({ label, onPress, loading }: any) => (
 
 interface ScaffoldProps {
   mode: 'login' | 'signup';
-  onSwitch: () => void;        // go to the other screen
-  onGoogle: () => void;
+  onSwitch?: () => void;       // toggle to the other mode (omit when hideChrome)
+  onGoogle?: () => void;
   googleLoading?: boolean;
+  hideChrome?: boolean;        // hide the toggle + OR + Google (e.g. the verify step)
   children: React.ReactNode;   // fields + forgot/error + CTA
   footer?: React.ReactNode;    // terms text etc.
 }
 
 export const MobileAuthScaffold: React.FC<ScaffoldProps> = ({
-  mode, onSwitch, onGoogle, googleLoading, children, footer,
+  mode, onSwitch, onGoogle, googleLoading, hideChrome, children, footer,
 }) => {
   const isLogin = mode === 'login';
   return (
@@ -73,27 +74,33 @@ export const MobileAuthScaffold: React.FC<ScaffoldProps> = ({
 
         {/* ── White sheet ────────────────────────────────────────────── */}
         <View style={s.sheet}>
-          <View style={s.seg}>
-            <TouchableOpacity style={[s.segBtn, isLogin && s.segOn]} onPress={isLogin ? undefined : onSwitch} activeOpacity={0.9}>
-              <Text style={[s.segTxt, isLogin && s.segTxtOn]}>Sign in</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.segBtn, !isLogin && s.segOn]} onPress={!isLogin ? undefined : onSwitch} activeOpacity={0.9}>
-              <Text style={[s.segTxt, !isLogin && s.segTxtOn]}>Create account</Text>
-            </TouchableOpacity>
-          </View>
+          {!hideChrome && (
+            <View style={s.seg}>
+              <TouchableOpacity style={[s.segBtn, isLogin && s.segOn]} onPress={isLogin ? undefined : onSwitch} activeOpacity={0.9}>
+                <Text style={[s.segTxt, isLogin && s.segTxtOn]}>Sign in</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.segBtn, !isLogin && s.segOn]} onPress={!isLogin ? undefined : onSwitch} activeOpacity={0.9}>
+                <Text style={[s.segTxt, !isLogin && s.segTxtOn]}>Create account</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {children}
 
-          <View style={s.orRow}><View style={s.orLine} /><Text style={s.orTxt}>OR</Text><View style={s.orLine} /></View>
+          {!hideChrome && (
+            <>
+              <View style={s.orRow}><View style={s.orLine} /><Text style={s.orTxt}>OR</Text><View style={s.orLine} /></View>
 
-          <TouchableOpacity style={[s.google, googleLoading && { opacity: 0.7 }]} onPress={onGoogle} disabled={googleLoading} activeOpacity={0.9}>
-            {googleLoading ? <ActivityIndicator color={Colors.primary} /> : (
-              <>
-                <View style={s.gG}><Text style={s.gGtxt}>G</Text></View>
-                <Text style={s.googleTxt}>{isLogin ? 'Continue with Google' : 'Sign up with Google'}</Text>
-              </>
-            )}
-          </TouchableOpacity>
+              <TouchableOpacity style={[s.google, googleLoading && { opacity: 0.7 }]} onPress={onGoogle} disabled={googleLoading} activeOpacity={0.9}>
+                {googleLoading ? <ActivityIndicator color={Colors.primary} /> : (
+                  <>
+                    <View style={s.gG}><Text style={s.gGtxt}>G</Text></View>
+                    <Text style={s.googleTxt}>{isLogin ? 'Continue with Google' : 'Sign up with Google'}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
 
           {footer}
         </View>

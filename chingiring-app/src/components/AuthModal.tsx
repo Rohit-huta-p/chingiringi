@@ -2,28 +2,30 @@ import React from 'react';
 import {
   Modal, View, Text, Pressable, StyleSheet, useWindowDimensions, Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   ShoppingBag, Wallet, Gift, Video, ShoppingCart,
-  Share2, Navigation, Star, Lock, LogIn, UserPlus,
+  Share2, Navigation, Star, Lock, ArrowRight,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { navigationRef } from '../lib/navigationRef';
 import type { AuthGateIcon, AuthGateOpts } from '../context/AuthGateContext';
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
+// The contextual icon shown in the gate header (rendered white on the gradient).
 
-const ICONS: Record<AuthGateIcon, { Icon: any; bg: string; color: string }> = {
-  default:    { Icon: ShoppingBag,  bg: '#eff6ff', color: Colors.primary },
-  wallet:     { Icon: Wallet,       bg: '#eff6ff', color: Colors.primary },
-  gift:       { Icon: Gift,         bg: '#f5f3ff', color: '#7c3aed' },
-  video:      { Icon: Video,        bg: 'rgba(71,132,226,0.12)', color: Colors.primary },
-  cart:       { Icon: ShoppingCart, bg: '#eff6ff', color: Colors.primary },
-  share:      { Icon: Share2,       bg: '#eff6ff', color: Colors.primary },
-  navigation: { Icon: Navigation,   bg: '#eff6ff', color: Colors.primary },
-  star:       { Icon: Star,         bg: '#fef3c7', color: '#d97706' },
+const ICONS: Record<AuthGateIcon, any> = {
+  default: ShoppingBag,
+  wallet: Wallet,
+  gift: Gift,
+  video: Video,
+  cart: ShoppingCart,
+  share: Share2,
+  navigation: Navigation,
+  star: Star,
 };
 
-// ─── AuthModal ────────────────────────────────────────────────────────────────
+
 
 interface AuthModalProps {
   visible: boolean;
@@ -35,8 +37,8 @@ export function AuthModal({ visible, opts, onClose }: AuthModalProps) {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
   const iconKey: AuthGateIcon = opts?.icon ?? 'default';
-  const { Icon, bg, color } = ICONS[iconKey] ?? ICONS.default;
-  const title    = opts?.title    ?? 'Sign in to continue';
+  const Icon = ICONS[iconKey] ?? ICONS.default;
+  const title = opts?.title ?? 'Sign in to continue';
   const subtitle = opts?.subtitle ?? 'Earn CR, share products, and manage\nyour wallet — all in one place.';
 
   const goTo = (screen: string) => {
@@ -58,32 +60,38 @@ export function AuthModal({ visible, opts, onClose }: AuthModalProps) {
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
         <View style={[s.card, isDesktop && s.cardLg]}>
-          <View style={[s.iconWrap, { backgroundColor: bg }]}>
-            <Icon size={26} color={color} strokeWidth={1.8} />
+          {/* ── Editorial gradient header ─────────────────────────────── */}
+          <View style={s.hero}>
+            <LinearGradient colors={['#5B3AA8', '#3A6FC9', Colors.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={['transparent', 'rgba(6,10,20,0.34)']} start={{ x: 0, y: 0.3 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
+            <View style={s.iconTile}>
+              <Icon size={25} color="#fff" strokeWidth={1.9} />
+            </View>
+            <Text style={s.title}>{title}</Text>
+            <Text style={s.subtitle}>{subtitle}</Text>
           </View>
 
-          <Text style={s.title}>{title}</Text>
-          <Text style={s.subtitle}>{subtitle}</Text>
+          {/* ── Actions ───────────────────────────────────────────────── */}
+          <View style={s.body}>
+            <Pressable
+              style={({ pressed }) => [s.btnPrimary, pressed && s.pressed]}
+              onPress={() => goTo('AuthLogin')}
+            >
+              <Text style={s.btnPrimaryText}>Sign in</Text>
+              <ArrowRight size={17} color="#fff" strokeWidth={2.3} />
+            </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [s.btnPrimary, pressed && s.pressed]}
-            onPress={() => goTo('AuthLogin')}
-          >
-            <LogIn size={16} color="#fff" strokeWidth={2} />
-            <Text style={s.btnPrimaryText}>Sign in</Text>
-          </Pressable>
+            <Pressable
+              style={({ pressed }) => [s.btnSecondary, pressed && s.pressed]}
+              onPress={() => goTo('AuthSignup')}
+            >
+              <Text style={s.btnSecondaryText}>Create account</Text>
+            </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [s.btnSecondary, pressed && s.pressed]}
-            onPress={() => goTo('AuthSignup')}
-          >
-            <UserPlus size={16} color={Colors.primary} strokeWidth={2} />
-            <Text style={s.btnSecondaryText}>Create account</Text>
-          </Pressable>
-
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.skip}>Continue browsing</Text>
-          </Pressable>
+            <Pressable onPress={onClose} hitSlop={10} style={s.skipWrap}>
+              <Text style={s.skip}>Continue browsing</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -126,51 +134,63 @@ export function AuthGateOverlay({ onPress, dark = false, borderRadius = 14 }: Ov
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.55)',
+    backgroundColor: 'rgba(8,12,22,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 22,
-    padding: 28,
+    borderRadius: 24,
     width: '100%',
-    maxWidth: 340,
-    alignItems: 'center',
-    // Subtle shadow
+    maxWidth: 360,
+    overflow: 'hidden',
     shadowColor: '#0f172a',
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 12 },
-    shadowRadius: 28,
-    elevation: 12,
+    shadowOpacity: 0.22,
+    shadowOffset: { width: 0, height: 16 },
+    shadowRadius: 34,
+    elevation: 14,
   },
   cardLg: {
-    maxWidth: 460, // larger guest-gate modal on desktop
-    padding: 40,
+    maxWidth: 420, // larger guest-gate modal on desktop
   },
-  iconWrap: {
+  hero: {
+    paddingTop: 30,
+    paddingBottom: 26,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  iconTile: {
     width: 56,
     height: 56,
     borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   title: {
     fontSize: 20,
-    fontFamily: Fonts.bold,
-    color: Colors.text,
+    fontFamily: Fonts.extraBold,
+    color: '#fff',
     textAlign: 'center',
-    marginBottom: 6,
+    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.9)',
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    marginTop: 6,
+    lineHeight: 18,
+    maxWidth: 260,
+  },
+  body: {
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   btnPrimary: {
     flexDirection: 'row',
@@ -180,7 +200,6 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: 13,
     paddingVertical: 14,
-    width: '100%',
     marginBottom: 10,
   },
   btnPrimaryText: {
@@ -192,25 +211,24 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     borderRadius: 13,
     paddingVertical: 13,
-    width: '100%',
     borderWidth: 1.5,
     borderColor: Colors.primary,
-    marginBottom: 18,
+    marginBottom: 14,
   },
   btnSecondaryText: {
     color: Colors.primary,
     fontSize: 15,
     fontFamily: Fonts.bold,
   },
+  skipWrap: { alignItems: 'center' },
   skip: {
     fontSize: 13,
     color: Colors.textSecondary,
     fontFamily: Fonts.medium,
   },
-  pressed: { opacity: 0.82 },
+  pressed: { opacity: 0.85 },
 });
 
 const o = StyleSheet.create({
@@ -222,7 +240,7 @@ const o = StyleSheet.create({
     gap: 6,
   },
   light: { backgroundColor: 'rgba(240,244,248,0.88)' },
-  dark:  { backgroundColor: 'rgba(8,12,22,0.82)' },
+  dark: { backgroundColor: 'rgba(8,12,22,0.82)' },
   text: {
     fontSize: 13,
     fontFamily: Fonts.semiBold,
