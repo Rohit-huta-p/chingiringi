@@ -8,7 +8,7 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
+  Animated,
   RefreshControl,
   Platform,
   useWindowDimensions,
@@ -105,6 +105,20 @@ export const MobileHomeScreen = () => {
     queryFn: () => categoriesAPI.getCategories(),
   });
 
+  // Shimmer pulse — one Animated.Value drives all skeleton placeholders in unison.
+  const shimmerAnim = React.useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    if (!productsLoading) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 0.35, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [productsLoading, shimmerAnim]);
+
   // Normalise responses
   const allProducts: Product[] =
     productsRes?.data?.products ?? productsRes?.products ?? [];
@@ -149,8 +163,8 @@ export const MobileHomeScreen = () => {
       selectedCategory === 'All'
         ? []
         : allProducts.filter(
-            (x) => (x.category ?? '').toLowerCase() === selectedCategory.toLowerCase(),
-          ),
+          (x) => (x.category ?? '').toLowerCase() === selectedCategory.toLowerCase(),
+        ),
     [allProducts, selectedCategory],
   );
   const isListing = selectedCategory !== 'All';
@@ -173,6 +187,44 @@ export const MobileHomeScreen = () => {
 
   const RAIL_CARD_W = 150;
   const GRID_CARD_W = Math.floor((width - 16 * 2 - 12 * 2) / 3); // responsive 3-col, always fits
+
+  // ── Skeleton placeholders (shimmer pulse on backend-dependent content) ────
+  const sk = (w: number | string, h: number, r = 8) => (
+    <Animated.View style={{ width: w as any, height: h, borderRadius: r, backgroundColor: '#dde3ea', opacity: shimmerAnim }} />
+  );
+
+  const skeletonChips = [1, 2, 3, 4, 5, 6].map((i) => (
+    <View key={`sk-chip-${i}`} style={st.chip}>
+      <Animated.View style={[st.chipIcon, { backgroundColor: 'rgba(255,255,255,0.2)', opacity: shimmerAnim }]} />
+      <Animated.View style={{ width: 24 + i * 5, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)', opacity: shimmerAnim }} />
+    </View>
+  ));
+
+  const skeletonRail = (key: string, titleW = 100) => (
+    <View key={key} style={st.sec}>
+      <View style={st.secHead}>
+        {sk(titleW, 16)}
+        {sk(50, 12, 6)}
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.rail}>
+        {[1, 2, 3].map((i) => (
+          <View key={i} style={{ width: RAIL_CARD_W, borderRadius: 12 }}>
+            {sk(RAIL_CARD_W, 110, 12)}
+            <View style={{ padding: 8, gap: 6 }}>
+              {sk('80%', 11, 4)}
+              {sk('50%', 13, 4)}
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  const skeletonContent: HomeItem[] = [
+    { kind: 'node', node: <View style={[st.bannerWrap, { marginTop: 0 }]}>{sk('100%', 130, 14)}</View>, key: 'sk-banner' },
+    { kind: 'node', node: skeletonRail('sk-rail-1', 110), key: 'sk-rail-1' },
+    { kind: 'node', node: skeletonRail('sk-rail-2', 80), key: 'sk-rail-2' },
+  ];
 
   // One horizontal rail: title + "See all" + up to 10 cards. Shared by the
   // "All Products" rail and every per-category rail.
@@ -239,13 +291,8 @@ export const MobileHomeScreen = () => {
     return blocks;
   };
 
-  if (productsLoading) {
-    return (
-      <View style={[st.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
+  // (skeleton loading replaces the old full-screen spinner — header renders
+  //  immediately; only backend-dependent chips + content show placeholders)
 
   // ── Header (kept as an element, not a function, so the search field keeps
   //    focus and the chips stay in sync as state changes). ──
@@ -259,10 +306,10 @@ export const MobileHomeScreen = () => {
     >
       <View style={st.hrow}>
         <View style={st.greetWrap}>
-          <Text style={st.greet}>{greeting()}</Text>
+          <Text style={st.greet}>{greeting()},</Text>
           <TouchableOpacity style={st.locRow} activeOpacity={0.7}>
             <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
-            <ChevronDown size={14} color="#fff" />
+            {/* <ChevronDown size={14} color="#fff" /> */}
           </TouchableOpacity>
         </View>
         <TouchableOpacity
@@ -312,7 +359,7 @@ export const MobileHomeScreen = () => {
           style={{ flex: 1 }}
           contentContainerStyle={st.chipsContent}
         >
-          {categories.map((cat) => {
+          {productsLoading ? skeletonChips : categories.map((cat) => {
             const on = selectedCategory === cat;
             return (
               <TouchableOpacity key={cat} style={st.chip} onPress={() => setSelectedCategory(cat)} activeOpacity={0.8}>
@@ -336,11 +383,13 @@ export const MobileHomeScreen = () => {
   // Rows below the header. Filter/search → 3-up grid rows; otherwise the curated
   // rails/banners. Each is one FlatList item so only visible rows mount (native
   // virtualization — this is the scroll-lag fix).
-  const listData: HomeItem[] = isListing
-    ? (listingProducts.length === 0
+  const listData: HomeItem[] = productsLoading
+    ? skeletonContent
+    : isListing
+      ? (listingProducts.length === 0
         ? [{ kind: 'empty', key: 'empty' }]
         : chunk(listingProducts, 3).map((row, i) => ({ kind: 'gridRow', products: row, key: `grid-${i}` })))
-    : flushFirst(categoryRailBlocks()).map((node, i) => ({ kind: 'node', node, key: `block-${i}` }));
+      : flushFirst(categoryRailBlocks()).map((node, i) => ({ kind: 'node', node, key: `block-${i}` }));
 
   const renderHomeItem = ({ item }: { item: HomeItem }) => {
     if (item.kind === 'empty') {

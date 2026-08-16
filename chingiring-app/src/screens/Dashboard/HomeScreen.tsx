@@ -7,7 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
+  Animated,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -409,6 +409,50 @@ export const HomeScreen = () => {
     staleTime: 60_000,
   });
 
+  // ── Skeleton shimmer (same pattern as MobileHomeScreen) ─────────────────
+  const shimmerAnim = useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    if (!productsLoading) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 0.35, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [productsLoading, shimmerAnim]);
+
+  const sk = (w: number | string, h: number, r = 8) => (
+    <Animated.View style={{ width: w as any, height: h, borderRadius: r, backgroundColor: '#dde3ea', opacity: shimmerAnim }} />
+  );
+
+  const skeletonGrid = (key: string, titleW: number) => (
+    <View key={key} style={s.section}>
+      <View style={s.sectionHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Animated.View style={[s.sectionAccent, { opacity: shimmerAnim }]} />
+          {sk(titleW, 18)}
+        </View>
+        {sk(60, 14, 6)}
+      </View>
+      {[0, 1].map((rIdx) => (
+        <View key={rIdx} style={[s.productRow, { gap: 16, marginBottom: rIdx === 0 ? 16 : 0 }]}>
+          {Array.from({ length: gridCols }, (_, i) => (
+            <View key={i} style={{ flex: 1, borderRadius: 12 }}>
+              <Animated.View style={{ width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: '#dde3ea', opacity: shimmerAnim }} />
+              <View style={{ padding: 10, gap: 6 }}>
+                {sk('85%', 12, 4)}
+                {sk('60%', 11, 4)}
+                {sk('40%', 14, 4)}
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+
   // Extract arrays with fallback normalization (handles a few backend shapes:
   // { data: { products } }, { products }, { data: Product[] }, raw array).
   const products: Product[] =
@@ -453,13 +497,8 @@ export const HomeScreen = () => {
 
   const allBanners: BannerModel[] = bannerRes?.data?.banners ?? [];
 
-  if (productsLoading) {
-    return (
-      <View style={[s.root, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
+  // (skeleton loading replaces the old full-screen spinner — TopNav renders
+  //  immediately; only backend-dependent grids/banners show placeholders)
 
   const onProductPress = (product: Product) => {
     // Pass the product so the detail screen can render instantly,
@@ -617,7 +656,13 @@ export const HomeScreen = () => {
               filter) collapses the curated home to ONLY the flat listing grid,
               with no banners. Otherwise the curated sections render with placed
               banners interleaved by rowIndex. */}
-          {isListing ? (
+          {productsLoading ? (
+            <>
+              <View style={s.bannerFull}>{sk('100%', 200, 16)}</View>
+              {skeletonGrid('sk-grid-1', 120)}
+              {skeletonGrid('sk-grid-2', 90)}
+            </>
+          ) : isListing ? (
             // A category / search / sort filter collapses the home to just the
             // matching grid. Banners are category-anchored, so there's no row to
             // place them after here — the curated view is where banners live.
