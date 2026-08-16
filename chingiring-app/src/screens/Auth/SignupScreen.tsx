@@ -1,15 +1,18 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
+import { User, AtSign, Mail, Phone, Lock, Gift, Eye, EyeOff } from 'lucide-react-native';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
-import { Colors } from '../../constants/theme';
+import { Colors, Fonts } from '../../constants/theme';
 import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
 import { referralsAPI } from '../../api/referrals';
 // Removed secureStore imports for HTTP only flow
 import { useAuthStore } from '../../store';
+import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
 import { EmailVerifyModal } from '../../components/EmailVerifyModal';
+import { MobileAuthScaffold, AuthField, AuthCTA } from '../../components/MobileAuthScaffold';
 
 export const SignupScreen = ({ navigation, route }: any) => {
   const [name, setName] = useState('');
@@ -26,6 +29,10 @@ export const SignupScreen = ({ navigation, route }: any) => {
 
   const [verifyOpen, setVerifyOpen] = useState(false);
   const isNewUserRef = useRef(false);
+  const [showPw, setShowPw] = useState(false);
+  const { width } = useWindowDimensions();
+  const isMobile = Platform.OS !== 'web' || width < 768;
+  const { signIn: googleSignIn, loading: googleLoading } = useGoogleSignIn(setErrorMsg);
 
   useEffect(() => {
     if (user && navigation.canGoBack()) navigation.goBack();
@@ -65,6 +72,12 @@ export const SignupScreen = ({ navigation, route }: any) => {
     await hydrate();
   };
 
+  // Toggle → login. Route is 'AuthLogin' in the guest stack, 'Login' under AuthNavigator.
+  const goLogin = () => {
+    const names = navigation.getState()?.routeNames ?? [];
+    navigation.navigate((names.includes('AuthLogin') ? 'AuthLogin' : 'Login') as never);
+  };
+
   const handleSignup = () => {
     setErrorMsg('');
     // Only send what's provided
@@ -90,41 +103,79 @@ export const SignupScreen = ({ navigation, route }: any) => {
 
   return (
     <>
-    <AuthLayout title={Header} subtitle={Subtitle}>
-      <Input label="Full Name" placeholder="Your name" value={name} onChangeText={setName} />
-      <Input label="Username" placeholder="Your username" value={username} onChangeText={setUsername} />
-      <Input label="Email" placeholder="your@email.com" keyboardType="email-address" value={email} onChangeText={setEmail} />
-      <Input label="Phone Number" placeholder="10-digit mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-      <Input label="Password" placeholder="At least 6 characters" secureTextEntry value={password} onChangeText={setPassword} />
-      <Input label="Referral code (optional)" placeholder="e.g. A1B2C3D4" autoCapitalize="characters" value={referralCode} onChangeText={setReferralCode} />
+      {isMobile ? (
+        <MobileAuthScaffold
+          mode="signup"
+          onSwitch={goLogin}
+          onGoogle={googleSignIn}
+          googleLoading={googleLoading}
+          footer={
+            <Text style={styles.mTerms}>
+              By signing up, you agree to our <Text style={styles.mTermsLink}>Terms of Service</Text> and <Text style={styles.mTermsLink}>Privacy Policy</Text>
+            </Text>
+          }
+        >
+          <AuthField label="Full name" icon={User} placeholder="Your name" value={name} onChangeText={setName} />
+          <AuthField label="Username" icon={AtSign} placeholder="Your username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
+          <AuthField label="Email" icon={Mail} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+          <AuthField label="Phone (optional if email given)" icon={Phone} placeholder="10-digit mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+          <AuthField
+            label="Password"
+            icon={Lock}
+            placeholder="At least 6 characters"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPw}
+            autoCapitalize="none"
+            right={
+              <TouchableOpacity onPress={() => setShowPw((v) => !v)} hitSlop={8}>
+                {showPw ? <EyeOff size={16} color="#98a2b3" /> : <Eye size={16} color="#98a2b3" />}
+              </TouchableOpacity>
+            }
+          />
+          <AuthField label="Referral code (optional)" icon={Gift} placeholder="e.g. A1B2C3D4" value={referralCode} onChangeText={setReferralCode} autoCapitalize="characters" />
 
-      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+          {errorMsg ? <Text style={styles.mError}>{errorMsg}</Text> : null}
 
-      <Button
-        title="Create Account ->"
-        onPress={handleSignup}
-        style={styles.mainButton}
-        loading={signupMutation.isPending}
-        disabled={signupMutation.isPending}
+          <AuthCTA label="Create account" onPress={handleSignup} loading={signupMutation.isPending} />
+        </MobileAuthScaffold>
+      ) : (
+        <AuthLayout title={Header} subtitle={Subtitle}>
+          <Input label="Full Name" placeholder="Your name" value={name} onChangeText={setName} />
+          <Input label="Username" placeholder="Your username" value={username} onChangeText={setUsername} />
+          <Input label="Email" placeholder="your@email.com" keyboardType="email-address" value={email} onChangeText={setEmail} />
+          <Input label="Phone Number" placeholder="10-digit mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+          <Input label="Password" placeholder="At least 6 characters" secureTextEntry value={password} onChangeText={setPassword} />
+          <Input label="Referral code (optional)" placeholder="e.g. A1B2C3D4" autoCapitalize="characters" value={referralCode} onChangeText={setReferralCode} />
+
+          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+          <Button
+            title="Create Account ->"
+            onPress={handleSignup}
+            style={styles.mainButton}
+            loading={signupMutation.isPending}
+            disabled={signupMutation.isPending}
+          />
+
+          <Text style={styles.termsText}>
+            By signing up, you agree to our <Text style={styles.linkText}>Terms of Service</Text> and <Text style={styles.linkText}>Privacy Policy</Text>
+          </Text>
+
+          <View style={styles.footerContainer}>
+            <Text style={styles.footerText}>Already have an account? </Text>
+            <Button title="Sign in" variant="text" onPress={() => navigation.navigate('Login')} textStyle={styles.loginText} />
+          </View>
+        </AuthLayout>
+      )}
+
+      <EmailVerifyModal
+        visible={verifyOpen}
+        email={email}
+        cancelLabel="I'll verify later"
+        onVerified={() => {}}
+        onClose={finishVerify}
       />
-
-      <Text style={styles.termsText}>
-        By signing up, you agree to our <Text style={styles.linkText}>Terms of Service</Text> and <Text style={styles.linkText}>Privacy Policy</Text>
-      </Text>
-
-      <View style={styles.footerContainer}>
-        <Text style={styles.footerText}>Already have an account? </Text>
-        <Button title="Sign in" variant="text" onPress={() => navigation.navigate('Login')} textStyle={styles.loginText} />
-      </View>
-    </AuthLayout>
-
-    <EmailVerifyModal
-      visible={verifyOpen}
-      email={email}
-      cancelLabel="I'll verify later"
-      onVerified={() => {}}
-      onClose={finishVerify}
-    />
     </>
   );
 };
@@ -182,5 +233,25 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontWeight: '700',
+  },
+  mError: {
+    color: '#ef4444',
+    fontSize: 13,
+    fontFamily: Fonts.semiBold,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  mTerms: {
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 20,
+    lineHeight: 16,
+  },
+  mTermsLink: {
+    color: '#64748b',
+    fontFamily: Fonts.semiBold,
+    textDecorationLine: 'underline',
   },
 });
