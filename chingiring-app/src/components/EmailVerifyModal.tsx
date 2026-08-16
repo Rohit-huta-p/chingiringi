@@ -8,14 +8,18 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { MailOpen } from 'lucide-react-native';
 import { profileAPI } from '../api/profile';
 import { Colors, Fonts } from '../constants/theme';
+import { openMailInbox } from '../lib/openMail';
 
 interface Props {
   visible: boolean;
   email?: string;
   onClose: () => void;
   onVerified: () => void;
+  /** Label for the dismiss link. Signup passes "I'll verify later". */
+  cancelLabel?: string;
 }
 
 /**
@@ -23,7 +27,7 @@ interface Props {
  * enters it, and `onVerified` fires on success. Reused by the profile screen and
  * the withdrawal gate.
  */
-export const EmailVerifyModal: React.FC<Props> = ({ visible, email, onClose, onVerified }) => {
+export const EmailVerifyModal: React.FC<Props> = ({ visible, email, onClose, onVerified, cancelLabel = 'Cancel' }) => {
   const [code, setCode] = useState('');
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -106,13 +110,18 @@ export const EmailVerifyModal: React.FC<Props> = ({ visible, email, onClose, onV
           </TouchableOpacity>
 
           <View style={st.row}>
+            <TouchableOpacity style={st.openMail} onPress={() => openMailInbox(email)} activeOpacity={0.85}>
+              <MailOpen size={15} color={Colors.primary} strokeWidth={2} />
+              <Text style={st.openMailTxt}>Open mail</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={send} disabled={sending}>
               <Text style={st.link}>{sending ? 'Sending…' : 'Resend code'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={[st.link, { color: '#64748b' }]}>Cancel</Text>
-            </TouchableOpacity>
           </View>
+
+          <TouchableOpacity onPress={onClose} style={st.laterWrap} hitSlop={8}>
+            <Text style={st.later}>{cancelLabel}</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -139,8 +148,12 @@ const st = StyleSheet.create({
   err: { color: '#ef4444', fontSize: 12.5, fontFamily: Fonts.medium, marginTop: 8 },
   btn: { marginTop: 16, height: 48, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   btnText: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
+  openMail: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#fff' },
+  openMailTxt: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.primary },
   link: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.primary },
+  laterWrap: { alignItems: 'center', marginTop: 14 },
+  later: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
 });
 
 export default EmailVerifyModal;

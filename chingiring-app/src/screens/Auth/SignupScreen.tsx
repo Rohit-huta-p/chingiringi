@@ -3,12 +3,13 @@ import { AuthLayout } from './AuthLayout';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { Colors } from '../../constants/theme';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
 import { referralsAPI } from '../../api/referrals';
 // Removed secureStore imports for HTTP only flow
 import { useAuthStore } from '../../store';
+import { EmailVerifyModal } from '../../components/EmailVerifyModal';
 
 export const SignupScreen = ({ navigation, route }: any) => {
   const [name, setName] = useState('');
@@ -23,6 +24,9 @@ export const SignupScreen = ({ navigation, route }: any) => {
   const setShowWelcome = useAuthStore((state) => state.setShowWelcome);
   const user = useAuthStore((state) => state.user);
 
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const isNewUserRef = useRef(false);
+
   useEffect(() => {
     if (user && navigation.canGoBack()) navigation.goBack();
   }, [user]);
@@ -31,17 +35,35 @@ export const SignupScreen = ({ navigation, route }: any) => {
     mutationFn: authAPI.signup,
     onSuccess: async (data: any) => {
       setErrorMsg('');
-      if (data?.isNewUser) setShowWelcome(true);
       // Capture the referral BEFORE hydrate — hydrate() triggers the native
       // claim(), which can only confirm a referral that's already pending.
       const code = referralCode.trim();
       if (code) { try { await referralsAPI.apply(code); } catch { /* bad code: ignore, signup still succeeds */ } }
-      await hydrate();
+      if (email.trim()) {
+        // Pause on the email-OTP step (same as desktop). Do NOT hydrate yet: the
+        // auth gate completes the instant `user` is set, which would pop this
+        // screen and continue before the user verifies. Hydrate on finish.
+        isNewUserRef.current = !!data?.isNewUser;
+        setVerifyOpen(true);
+      } else {
+        if (data?.isNewUser) setShowWelcome(true);
+        await hydrate();
+      }
     },
     onError: (error: any) => {
       setErrorMsg(error.message || 'Signup failed. Please try again.');
     }
   });
+
+  // Verified OR "I'll verify later" → mark welcome, then hydrate: `user` flips
+  // truthy, the effect above pops the screen, and the auth gate fires the
+  // pending action. The token is already stored (set at signup), so the OTP
+  // send/verify calls inside EmailVerifyModal are authorized without hydrate.
+  const finishVerify = async () => {
+    setVerifyOpen(false);
+    if (isNewUserRef.current) setShowWelcome(true);
+    await hydrate();
+  };
 
   const handleSignup = () => {
     setErrorMsg('');
@@ -67,6 +89,7 @@ export const SignupScreen = ({ navigation, route }: any) => {
   );
 
   return (
+    <>
     <AuthLayout title={Header} subtitle={Subtitle}>
       <Input label="Full Name" placeholder="Your name" value={name} onChangeText={setName} />
       <Input label="Username" placeholder="Your username" value={username} onChangeText={setUsername} />
@@ -94,6 +117,15 @@ export const SignupScreen = ({ navigation, route }: any) => {
         <Button title="Sign in" variant="text" onPress={() => navigation.navigate('Login')} textStyle={styles.loginText} />
       </View>
     </AuthLayout>
+
+    <EmailVerifyModal
+      visible={verifyOpen}
+      email={email}
+      cancelLabel="I'll verify later"
+      onVerified={() => {}}
+      onClose={finishVerify}
+    />
+    </>
   );
 };
 

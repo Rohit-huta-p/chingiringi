@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Pressable, Linking,
+  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, Lock, Eye, EyeOff, User, AtSign, Phone, X, ArrowRight, MailOpen } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { authAPI } from '../api/auth';
 import { profileAPI } from '../api/profile';
 import { useAuthStore } from '../store';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn';
+import { openMailInbox } from '../lib/openMail';
 import type { AuthGateOpts } from '../context/AuthGateContext';
 
 // Desktop split-screen auth. Editorial image on the left, login/signup form on
@@ -20,19 +21,6 @@ import type { AuthGateOpts } from '../context/AuthGateContext';
 // To use a real photo on the left, replace the "photo" <LinearGradient> with:
 //   <Image source={require('../../assets/auth-hero.jpg')}
 //          style={StyleSheet.absoluteFill} resizeMode="cover" />
-
-// Best-effort "open the inbox" for common providers; falls back to the OS mail app.
-const MAIL_INBOX: Record<string, string> = {
-  'gmail.com': 'https://mail.google.com/mail/u/0/#inbox',
-  'googlemail.com': 'https://mail.google.com/mail/u/0/#inbox',
-  'outlook.com': 'https://outlook.live.com/mail/0/inbox',
-  'hotmail.com': 'https://outlook.live.com/mail/0/inbox',
-  'live.com': 'https://outlook.live.com/mail/0/inbox',
-  'yahoo.com': 'https://mail.yahoo.com/',
-  'icloud.com': 'https://www.icloud.com/mail',
-  'proton.me': 'https://mail.proton.me/u/0/inbox',
-  'protonmail.com': 'https://mail.proton.me/u/0/inbox',
-};
 
 interface Props {
   visible: boolean;
@@ -111,11 +99,6 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
     } finally {
       setVerifying(false);
     }
-  };
-
-  const openMail = () => {
-    const domain = (email.split('@')[1] || '').toLowerCase();
-    Linking.openURL(MAIL_INBOX[domain] || 'mailto:').catch(() => {});
   };
 
   const loginMut = useMutation({
@@ -211,7 +194,7 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
                 </TouchableOpacity>
 
                 <View style={st.vRow}>
-                  <TouchableOpacity style={st.openMail} onPress={openMail} activeOpacity={0.85}>
+                  <TouchableOpacity style={st.openMail} onPress={() => openMailInbox(email)} activeOpacity={0.85}>
                     <MailOpen size={15} color={Colors.primary} strokeWidth={2} />
                     <Text style={st.openMailTxt}>Open mail</Text>
                   </TouchableOpacity>
