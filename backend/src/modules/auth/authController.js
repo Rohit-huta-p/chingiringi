@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { OAuth2Client } from 'google-auth-library';
 import { createUser, verifyPassword, generateAndStoreOTP, verifyUserOTP, findOrCreateGoogleUser } from './authService.js';
-import { generateTokens } from '../../utils/generateToken.js';
+import { generateTokens, AUTH_COOKIE_OPTS } from '../../utils/generateToken.js';
 import User from '../users/userModel.js';
 import jwt from 'jsonwebtoken';
 
@@ -164,14 +164,8 @@ export const logout = async (req, res) => {
     }
   }
 
-  res.cookie('accessToken', '', {
-    httpOnly: true,
-    expires: new Date(0),
-  });
-  res.cookie('refreshToken', '', {
-    httpOnly: true,
-    expires: new Date(0),
-  });
+  res.cookie('accessToken', '', { ...AUTH_COOKIE_OPTS, expires: new Date(0) });
+  res.cookie('refreshToken', '', { ...AUTH_COOKIE_OPTS, expires: new Date(0) });
 
   res.status(200).json({ status: 'success', message: 'Logged out successfully' });
 };

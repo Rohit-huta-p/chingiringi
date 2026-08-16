@@ -7,6 +7,15 @@ import jwt from 'jsonwebtoken';
 const REFRESH_DAYS = Number(process.env.JWT_REFRESH_DAYS) || 7;
 const REFRESH_MAX_AGE_MS = REFRESH_DAYS * 24 * 60 * 60 * 1000;
 
+// Shared cookie attributes. CLEARING a cookie must use the same secure/sameSite
+// as setting it — in prod (cross-site, SameSite=None) the browser silently
+// drops a clearing Set-Cookie without these attrs, so logout never sticks.
+export const AUTH_COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+};
+
 export const generateTokens = async (res, user) => {
   const accessToken = jwt.sign(
     { id: user._id, role: user.role },
@@ -22,17 +31,13 @@ export const generateTokens = async (res, user) => {
 
   // Access Token Cookie
   res.cookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // Use secure cookies only in production
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Must be 'none' for cross-site subdomains in prod
+    ...AUTH_COOKIE_OPTS,
     maxAge: 15 * 60 * 1000, // 15 minutes
   });
 
   // Refresh Token Cookie
   res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    ...AUTH_COOKIE_OPTS,
     maxAge: REFRESH_MAX_AGE_MS,
   });
 

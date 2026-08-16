@@ -3,6 +3,7 @@ import Wallet from '../wallet/walletModel.js';
 import { deleteUserAndData } from './accountDeletion.js';
 import { generateAndStoreOTP, verifyUserOTP } from '../auth/authService.js';
 import { sendMail, isEmailConfigured } from '../../services/email.js';
+import { AUTH_COOKIE_OPTS } from '../../utils/generateToken.js';
 
 // @desc    Update user profile
 // @route   PUT /api/profile
@@ -92,9 +93,10 @@ export const updateNotificationPrefs = async (req, res) => {
 export const deleteAccount = async (req, res) => {
   await deleteUserAndData(req.user._id);
 
-  // Clear auth cookies
-  res.cookie('accessToken', '', { maxAge: 0 });
-  res.cookie('refreshToken', '', { maxAge: 0 });
+  // Clear auth cookies — must carry the same secure/sameSite attrs as login
+  // or prod browsers drop the clearing Set-Cookie (cross-site).
+  res.cookie('accessToken', '', { ...AUTH_COOKIE_OPTS, maxAge: 0 });
+  res.cookie('refreshToken', '', { ...AUTH_COOKIE_OPTS, maxAge: 0 });
 
   res.status(200).json({ status: 'success', message: 'Account deleted' });
 };

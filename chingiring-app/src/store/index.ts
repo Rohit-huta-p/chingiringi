@@ -3,6 +3,7 @@ import { authAPI } from '../api/auth';
 import { referralsAPI } from '../api/referrals';
 import { clearTokens, getCachedUser, setCachedUser, hasStoredAccessToken, isNative } from '../api/client';
 import { unregisterForPush } from '../lib/push';
+import { navigationRef } from '../lib/navigationRef';
 import type { NotificationPrefs } from '../api/notifications';
 
 export interface UserType {
@@ -99,5 +100,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Clear stored tokens + cached user (native) and purge state
     await clearTokens();
     set({ isAuthenticated: false, user: null, showWelcome: false });
+    // Land on Home: reset to the root's first route — "Home" on the desktop
+    // drawer, "MainTabs" (initial tab Home) on the mobile stack. Covers every
+    // caller (logout buttons + delete-account) in one place. Admin logout
+    // swaps the whole navigator anyway, so the reset there is harmless.
+    if (navigationRef.isReady()) {
+      const name = navigationRef.getRootState()?.routeNames?.[0];
+      if (name) navigationRef.resetRoot({ index: 0, routes: [{ name }] });
+    }
   },
 }));
