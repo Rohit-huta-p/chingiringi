@@ -12,7 +12,6 @@ import {
 import { ArrowDownToLine, Clock, ChevronRight, ArrowUpRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
 import { Fonts } from '../../constants/theme';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -30,13 +29,8 @@ const FILTER_MAP: Record<string, string | undefined> = {
   All: undefined, Shares: 'coin_credit', Withdrawals: 'withdrawal',
 };
 const COINS_PER_RUPEE = 1000;
-// ponytail: streak hardcoded, add /api/wallet/streak endpoint when ready
-const STREAK_DAYS = 4;
 // ponytail: payout goal is a static milestone, make dynamic if needed
 const PAYOUT_GOAL = 300; // ₹
-
-const RING_R = 26;
-const RING_CIRC = 2 * Math.PI * RING_R; // ≈ 163.4
 
 const EMPTY_WALLET: Wallet = {
   _id: '', userId: '', confirmedCashback: 0, pendingCashback: 0,
@@ -72,7 +66,6 @@ export const MobileWalletScreen = () => {
   const rupees = Math.floor((w.coins ?? 0) / COINS_PER_RUPEE);
   const goalPct = Math.min(100, (rupees / PAYOUT_GOAL) * 100);
   const toGoal = Math.max(0, PAYOUT_GOAL - rupees);
-  const ringOffset = RING_CIRC * (1 - Math.min(STREAK_DAYS / 7, 1));
   const firstName = user?.name?.split(' ')[0] || 'there';
   const hasPending = pendingWithdrawals.count > 0 || shareRewards.pending > 0;
 
@@ -88,9 +81,10 @@ export const MobileWalletScreen = () => {
     <View style={m.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-        {/* ── COBALT HERO ───────────────────────────────────────────── */}
+        {/* ── HERO — same brand gradient as the home header ─────────── */}
         <LinearGradient
-          colors={['#2F6BFF', '#1E3FC0']}
+          colors={['#1E3A8A', '#4784E2', '#91BDFF']}
+          locations={[0, 0.6, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={m.hero}
@@ -100,52 +94,23 @@ export const MobileWalletScreen = () => {
           <View pointerEvents="none" style={[m.blob, m.blobBL]} />
 
           <SafeAreaView edges={['top']} style={m.heroInner}>
-            {/* greeting + streak pill */}
+            {/* greeting */}
             <View style={m.heroTop}>
               <Text style={m.greeting}>Hi, {firstName} 👋</Text>
-              <View style={m.streakPill}>
-                <Text style={m.streakFire}>🔥</Text>
-                <Text style={m.streakTxt}>{STREAK_DAYS}-day streak</Text>
-              </View>
             </View>
 
-            {/* balance + ring */}
+            {/* balance */}
             <View style={m.heroMid}>
               <View style={{ flex: 1 }}>
                 <Text style={m.heroLabel}>Coin Balance</Text>
                 <Text style={m.heroAmt}>{(w.coins ?? 0).toLocaleString('en-IN')}</Text>
                 <Text style={m.heroSub}>{'≈ ₹'}{rupees.toLocaleString('en-IN')}{' to withdraw'}</Text>
               </View>
-
-              {/* streak ring */}
-              <View style={m.ringWrap}>
-                <Svg width={64} height={64} style={{ transform: [{ rotate: '-90deg' }] }}>
-                  <Circle
-                    cx={32} cy={32} r={RING_R}
-                    fill="none"
-                    stroke="rgba(255,255,255,0.22)"
-                    strokeWidth={7}
-                  />
-                  <Circle
-                    cx={32} cy={32} r={RING_R}
-                    fill="none"
-                    stroke="#FBBF24"
-                    strokeWidth={7}
-                    strokeLinecap="round"
-                    strokeDasharray={RING_CIRC}
-                    strokeDashoffset={ringOffset}
-                  />
-                </Svg>
-                <View style={m.ringLabel} pointerEvents="none">
-                  <Text style={m.ringNum}>{STREAK_DAYS}</Text>
-                  <Text style={m.ringDay}>DAYS</Text>
-                </View>
-              </View>
             </View>
 
             {/* withdraw */}
             <TouchableOpacity style={m.heroWithdraw} onPress={() => setShowWithdraw(true)} activeOpacity={0.9}>
-              <ArrowDownToLine size={16} color="#1E3FC0" strokeWidth={2.6} />
+              <ArrowDownToLine size={16} color="#1E3A8A" strokeWidth={2.6} />
               <Text style={m.heroWithdrawTxt}>Withdraw</Text>
             </TouchableOpacity>
           </SafeAreaView>
@@ -248,8 +213,8 @@ const m = StyleSheet.create({
     borderBottomRightRadius: 28,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 8px 24px rgba(30,63,192,.32)' } as any)
-      : { shadowColor: '#1E3FC0', shadowOpacity: 0.32, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16, elevation: 10 }),
+      ? ({ boxShadow: '0 8px 24px rgba(30,58,138,.32)' } as any)
+      : { shadowColor: '#1E3A8A', shadowOpacity: 0.32, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16, elevation: 10 }),
   },
   blob: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.10)' },
   blobTR: { width: 200, height: 200, top: -70, right: -50 },
@@ -258,29 +223,17 @@ const m = StyleSheet.create({
 
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 },
   greeting: { fontSize: 20, fontFamily: Fonts.extraBold, color: '#fff', letterSpacing: -.01 },
-  streakPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999,
-    paddingHorizontal: 11, paddingVertical: 6,
-  },
-  streakFire: { fontSize: 14 },
-  streakTxt: { fontSize: 12.5, fontFamily: Fonts.bold, color: '#fff' },
 
   heroMid: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   heroLabel: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 2 },
   heroAmt: { fontSize: 42, fontWeight: '800', color: '#fff', letterSpacing: -.02, fontVariant: ['tabular-nums'] },
   heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 4 },
 
-  ringWrap: { position: 'relative', width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
-  ringLabel: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  ringNum: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#fff', lineHeight: 18 },
-  ringDay: { fontSize: 8, fontFamily: Fonts.bold, color: 'rgba(255,255,255,0.8)', letterSpacing: .06 },
-
   heroWithdraw: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13,
   },
-  heroWithdrawTxt: { fontSize: 15, fontFamily: Fonts.extraBold, color: '#1E3FC0' },
+  heroWithdrawTxt: { fontSize: 15, fontFamily: Fonts.extraBold, color: '#1E3A8A' },
 
   // Goal bar
   goalCard: {
