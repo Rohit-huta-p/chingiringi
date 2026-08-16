@@ -5,7 +5,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/store';
 import { configureNotificationHandler, addNotificationResponseListener, registerForPush } from './src/lib/push';
-import { View, Text } from 'react-native';
+import { View, Text, Linking } from 'react-native';
+import { initReferralCapture } from './src/lib/referralCapture';
+import { parseReferralCode } from './src/utils/referralLink';
 import { useFonts } from 'expo-font';
 import { SplashAnimation } from './src/components/SplashAnimation';
 import {
@@ -47,6 +49,17 @@ export default function App() {
 
   useEffect(() => {
     hydrate();
+  }, []);
+
+  // Capture a referral code from the entry URL (web location / native deep link)
+  // and from links opened while the app runs, so a guest keeps it until sign-in.
+  useEffect(() => {
+    initReferralCapture();
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const code = parseReferralCode(url);
+      if (code) useAuthStore.getState().setPendingReferralCode(code);
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

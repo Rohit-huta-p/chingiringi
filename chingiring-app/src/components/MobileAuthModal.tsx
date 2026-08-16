@@ -14,6 +14,7 @@ import { openMailInbox } from '../lib/openMail';
 import { navigationRef } from '../lib/navigationRef';
 import { MobileAuthScaffold, AuthField, AuthCTA } from './MobileAuthScaffold';
 import type { AuthGateOpts } from '../context/AuthGateContext';
+import { REFEREE_REWARD_LABEL } from '../constants/referral';
 
 // Mobile guest auth — the whole flow (login / signup / email-OTP verify) inline
 // in one full-screen modal, the phone counterpart to DesktopAuthModal. Rendered
@@ -35,6 +36,7 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
   const hydrate = useAuthStore((s) => s.hydrate);
   const setShowWelcome = useAuthStore((s) => s.setShowWelcome);
   const user = useAuthStore((s) => s.user);
+  const pendingRef = useAuthStore((s) => s.pendingReferralCode);
 
   const [step, setStep] = useState<'form' | 'verify'>('form');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -60,6 +62,11 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
   useEffect(() => {
     if (visible) { setStep('form'); setError(''); setOtp(''); setOtpErr(''); setOtpInfo(''); }
   }, [visible]);
+
+  // Referred guest: default to the signup tab + prefill the code from the stash.
+  useEffect(() => {
+    if (visible && pendingRef) { setMode('signup'); setReferralCode(pendingRef); }
+  }, [visible, pendingRef]);
 
   // Auto-complete on login / Google success (form step only — the verify step
   // manages its own close so signup can pause on the OTP).
@@ -103,7 +110,7 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
       setError('');
       // Apply referral BEFORE hydrate — hydrate()'s claim only confirms a pending referral.
       const code = referralCode.trim();
-      if (code) { try { await referralsAPI.apply(code); } catch { /* bad code: ignore */ } }
+      if (code) { try { await referralsAPI.apply(code); } catch { /* bad code: ignore */ } useAuthStore.getState().clearPendingReferral(); }
       if (email.trim()) {
         // Pause on the OTP step. Set step BEFORE hydrate so the auto-complete
         // effect doesn't fire when the user becomes authenticated.
@@ -204,6 +211,12 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
             </>
           ) : (
             <>
+              {pendingRef ? (
+                <View style={st.refNote}>
+                  <Gift size={14} color={Colors.primary} strokeWidth={2.2} />
+                  <Text style={st.refNoteTxt}>You've been referred — create your account to claim {REFEREE_REWARD_LABEL}.</Text>
+                </View>
+              ) : null}
               <AuthField label="Full name" icon={User} placeholder="Your name" value={name} onChangeText={setName} />
               <AuthField label="Username" icon={AtSign} placeholder="Your username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
               <AuthField label="Email" icon={Mail} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
@@ -234,6 +247,8 @@ const st = StyleSheet.create({
   later: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
   forgotWrap: { alignSelf: 'flex-end', marginTop: -2, marginBottom: 6 },
   forgot: { fontSize: 12.5, fontFamily: Fonts.bold, color: Colors.primary },
+  refNote: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#eef4ff', borderRadius: 10, paddingVertical: 9, paddingHorizontal: 11, marginBottom: 12 },
+  refNoteTxt: { flex: 1, fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.primary, lineHeight: 17 },
 });
 
 export default MobileAuthModal;

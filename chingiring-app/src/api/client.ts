@@ -77,6 +77,26 @@ export async function setCachedUser(user: any): Promise<void> {
   window.localStorage.setItem('cachedUser', payload);
 }
 
+// Pending referral code — stashed when a guest arrives via a referral link so it
+// survives browsing/reload until they sign in. Same storage split as tokens
+// (SecureStore native / localStorage web).
+export async function getStoredReferralCode(): Promise<string | null> {
+  if (isNative) return SecureStore.getItemAsync('pendingReferralCode');
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  return window.localStorage.getItem('pendingReferralCode');
+}
+
+export async function setStoredReferralCode(code: string | null): Promise<void> {
+  if (isNative) {
+    if (code) await SecureStore.setItemAsync('pendingReferralCode', code);
+    else await SecureStore.deleteItemAsync('pendingReferralCode');
+    return;
+  }
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  if (code) window.localStorage.setItem('pendingReferralCode', code);
+  else window.localStorage.removeItem('pendingReferralCode');
+}
+
 export async function hasStoredAccessToken(): Promise<boolean> {
   const t = await getToken('accessToken');
   return !!t;

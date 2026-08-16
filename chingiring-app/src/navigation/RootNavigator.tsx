@@ -8,6 +8,7 @@ import { linking, documentTitle } from './linking';
 import { WelcomeModal } from '../components/WelcomeModal';
 import { navigationRef } from '../lib/navigationRef';
 import { AuthGateProvider } from '../context/AuthGateContext';
+import { ReferralBanner } from '../components/ReferralBanner';
 
 function trackScreen(name: string) {
   if (Platform.OS !== 'web') return;
@@ -43,6 +44,7 @@ export default function RootNavigator() {
         ) : (
           <AuthGateProvider>
             <ResponsiveNavigator />
+            <ReferralBanner />
           </AuthGateProvider>
         )}
       </NavigationContainer>

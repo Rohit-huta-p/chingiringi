@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { authAPI } from '../api/auth';
 import { referralsAPI } from '../api/referrals';
-import { clearTokens, getCachedUser, setCachedUser, hasStoredAccessToken, isNative } from '../api/client';
+import { clearTokens, getCachedUser, setCachedUser, hasStoredAccessToken, isNative, setStoredReferralCode } from '../api/client';
 import { unregisterForPush } from '../lib/push';
 import { navigationRef } from '../lib/navigationRef';
 import type { NotificationPrefs } from '../api/notifications';
@@ -28,6 +28,12 @@ interface AuthState {
   dismissWelcome: () => void;
   hydrate: () => Promise<void>;
   logout: () => Promise<void>;
+  // Referral capture for logged-out guests (lib/referralCapture + ReferralBanner)
+  pendingReferralCode: string | null;
+  referralBannerDismissed: boolean;
+  setPendingReferralCode: (code: string | null) => void;
+  dismissReferralBanner: () => void;
+  clearPendingReferral: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -40,6 +46,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   // `isNewUser`), consumed once by WelcomeModal, then dismissed.
   setShowWelcome: (v) => set({ showWelcome: v }),
   dismissWelcome: () => set({ showWelcome: false }),
+
+  // Referral capture (guest arrives via a referral link). setPending persists via
+  // client storage so it survives reload/browse; cleared once applied on signup.
+  pendingReferralCode: null,
+  referralBannerDismissed: false,
+  setPendingReferralCode: (code) => { setStoredReferralCode(code); set({ pendingReferralCode: code }); },
+  dismissReferralBanner: () => set({ referralBannerDismissed: true }),
+  clearPendingReferral: () => { setStoredReferralCode(null); set({ pendingReferralCode: null, referralBannerDismissed: false }); },
 
   hydrate: async () => {
     // ─── 1. Offline-first on native: show cached user immediately if token exists ───

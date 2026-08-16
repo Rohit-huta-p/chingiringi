@@ -3,15 +3,17 @@ import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mail, Lock, Eye, EyeOff, User, AtSign, Phone, X, ArrowRight, MailOpen } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, User, AtSign, Phone, Gift, X, ArrowRight, MailOpen } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { Colors, Fonts } from '../constants/theme';
 import { authAPI } from '../api/auth';
+import { referralsAPI } from '../api/referrals';
 import { profileAPI } from '../api/profile';
 import { useAuthStore } from '../store';
 import { useGoogleSignIn } from '../hooks/useGoogleSignIn';
 import { openMailInbox } from '../lib/openMail';
 import type { AuthGateOpts } from '../context/AuthGateContext';
+import { REFEREE_REWARD_LABEL } from '../constants/referral';
 
 // Desktop split-screen auth. Editorial image on the left, login/signup form on
 // the right with a Sign-in / Create-account toggle — replaces the /login and
@@ -46,6 +48,7 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
   const hydrate = useAuthStore((s) => s.hydrate);
   const setShowWelcome = useAuthStore((s) => s.setShowWelcome);
   const user = useAuthStore((s) => s.user);
+  const pendingRef = useAuthStore((s) => s.pendingReferralCode);
 
   const [step, setStep] = useState<'form' | 'verify'>('form');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -56,6 +59,7 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState('');
 
   // Verify step
@@ -71,6 +75,11 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
     if (user && visible && step === 'form') onComplete();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Referred guest: default to signup + prefill the code from the stash.
+  useEffect(() => {
+    if (visible && pendingRef) { setMode('signup'); setReferralCode(pendingRef); }
+  }, [visible, pendingRef]);
 
   // Signup completion — after verify success or "Later". Marks a new user for
   // the welcome modal, then fires the pending gated action.
@@ -110,6 +119,9 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
     mutationFn: authAPI.signup,
     onSuccess: async () => {
       setError('');
+      // Apply referral BEFORE hydrate — hydrate()'s claim only confirms a pending referral.
+      const code = referralCode.trim();
+      if (code) { try { await referralsAPI.apply(code); } catch { /* bad code: ignore */ } useAuthStore.getState().clearPendingReferral(); }
       if (email.trim()) {
         // Stay open for email verification. Set step BEFORE hydrate so the
         // auto-close effect doesn't fire when the user becomes authenticated.
@@ -208,7 +220,7 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
             ) : (
               <>
                 <Text style={st.fhead}>{isLogin ? (opts?.title ?? 'Welcome back') : 'Create your account'}</Text>
-                <Text style={st.fsub}>{isLogin ? (opts?.subtitle ?? 'Sign in to continue earning cashback.') : 'Start earning cashback in minutes.'}</Text>
+                <Text style={st.fsub}>{isLogin ? (opts?.subtitle ?? 'Sign in to continue earning cashback.') : (pendingRef ? `Create your account to claim ${REFEREE_REWARD_LABEL} — referred with code ${pendingRef}.` : 'Start earning cashback in minutes.')}</Text>
 
                 <View style={st.seg}>
                   <TouchableOpacity style={[st.segBtn, isLogin && st.segOn]} onPress={() => { setMode('login'); setError(''); }}>
@@ -239,6 +251,7 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
                       <TextInput style={st.input} placeholder="Create a password" placeholderTextColor="#9AA6B8" value={password} onChangeText={setPassword} secureTextEntry={!showPw} autoCapitalize="none" />
                       <TouchableOpacity onPress={() => setShowPw((v) => !v)}>{showPw ? <EyeOff size={16} color="#9AA6B8" /> : <Eye size={16} color="#9AA6B8" />}</TouchableOpacity>
                     </View>
+                    <Field icon={Gift} placeholder="Referral code (optional)" value={referralCode} onChangeText={setReferralCode} autoCapitalize="characters" />
                   </>
                 )}
 
