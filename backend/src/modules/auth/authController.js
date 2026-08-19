@@ -84,7 +84,11 @@ export const googleAuth = async (req, res) => {
   try {
     const ticket = await googleClient.verifyIdToken({ idToken, audience: audiences });
     payload = ticket.getPayload();
-  } catch {
+  } catch (verifyErr) {
+    // Log the real reason so it appears in Render/server logs
+    console.error('[googleAuth] verifyIdToken failed:', verifyErr?.message);
+    console.error('[googleAuth] audiences used:', audiences);
+    console.error('[googleAuth] token prefix (first 40 chars):', idToken?.slice(0, 40));
     res.status(401);
     throw new Error('Invalid Google token');
   }
