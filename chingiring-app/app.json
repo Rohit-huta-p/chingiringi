@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "tech.pratdevix.chingiringi",
+      "bundleIdentifier": "com.chingiringi.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -54,7 +54,8 @@
         {
           "android": {
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": true
           }
         }
       ],
@@ -62,8 +63,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "7655785a-1a11-4fe8-ad8c-d6a4056a7e22"
+        "projectId": "d0d7487b-cf61-4259-995a-621490ff2f3c"
       }
-    }
+    },
+    "owner": "pratdevix-tech-studios"
   }
 }

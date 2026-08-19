@@ -45,7 +45,7 @@
         "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dxdeiyj8w",
         "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "chingi_uploads",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1098396907431-fn0iug47o419lc64cb5s0nin8vhpb720.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1098396907431-lpctksv3r572adp179vh07f0nfo1jh1v.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1098396907431-3euseboh6u72pt2o5qkeeiv59km05ubo.apps.googleusercontent.com"
       },
       "android": {
         "buildType": "app-bundle"
