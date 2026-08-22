@@ -1,9 +1,20 @@
 import express from 'express';
-import { getActiveStreams } from './streamController.js';
+import {
+  createStream,
+  viewerToken,
+  endStream,
+  getActiveStreams,
+} from './streamController.js';
+import { protect } from '../../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// GET /api/streams/active — public
+// Public
 router.get('/active', getActiveStreams);
+
+// Authenticated (broadcaster)
+router.post('/',              protect, createStream);
+router.post('/:id/viewer-token', protect, viewerToken);
+router.post('/:id/end',      protect, endStream);
 
 export default router;
