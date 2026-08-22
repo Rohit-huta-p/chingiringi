@@ -153,7 +153,12 @@ export const BroadcasterScreen: React.FC = () => {
           <FlipHorizontal size={22} color="#fff" />
         </Pressable>
 
-        {/* Mute mic */}
+        {/* Mute mic
+            WIRING NEEDED (KI-8): currently toggles local UI state only.
+            After Daily.co integration (see DAILY_INTEGRATION.md):
+              callObject.setLocalAudio(!muted);
+            Must be called inside the onPress alongside setMuted() once
+            callObject is available from a module-level ref or context. */}
         <Pressable
           onPress={() => setMuted((m) => !m)}
           style={[styles.controlBtn, muted && styles.controlBtnMuted]}
