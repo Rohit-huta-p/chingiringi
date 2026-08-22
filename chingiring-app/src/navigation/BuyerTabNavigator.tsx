@@ -136,7 +136,7 @@ const Tab = createBottomTabNavigator();
 function BuyerBottomTabs() {
   return (
     <Tab.Navigator
-      initialRouteName="Cashback"
+      initialRouteName="LiveDiscovery"
       backBehavior="history"
       tabBar={(props) => <BuyerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}

@@ -25,7 +25,7 @@ function trackScreen(name: string) {
 export default function RootNavigator() {
   const user    = useAuthStore((state) => state.user);
   const isReady = useAuthStore((state) => state.isReady);
-  const routeNameRef = useRef<string | undefined>();
+  const routeNameRef = useRef<string | undefined>(undefined);
 
   // Resolve which top-level navigator to render.
   // Priority: loading → unauthed → admin → buyer → seller → role picker → legacy
