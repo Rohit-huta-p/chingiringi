@@ -1,4 +1,5 @@
 import Store from './storeModel.js';
+import Stream from '../streams/streamModel.js';
 import { formatTime, isOpenNow } from './storeHours.js';
 import { resolveGoogleMapsCoords } from './googleMapsCoords.js';
 
@@ -109,6 +110,124 @@ export const deleteStore = async (req, res) => {
     throw new Error('Store not found');
   }
   res.status(200).json({ status: 'success', message: 'Store deleted' });
+};
+
+// @desc    Get the store owned by the authenticated user
+// @route   GET /api/stores/mine
+// @access  Private
+export const getMyStore = async (req, res) => {
+  const store = await Store.findOne({ ownerId: req.user._id })
+    .populate('products')
+    .lean();
+  if (!store) {
+    res.status(404);
+    throw new Error('No store found for this account');
+  }
+  res.status(200).json({ status: 'success', data: { store: decorate(store) } });
+};
+
+// @desc    Get live-commerce stats for a store
+// @route   GET /api/stores/:id/stats
+// @access  Public
+export const getStoreStats = async (req, res) => {
+  const store = await Store.findById(req.params.id).select('followerCount').lean();
+  if (!store) {
+    res.status(404);
+    throw new Error('Store not found');
+  }
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const [streamStats, totalProducts] = await Promise.all([
+    Stream.aggregate([
+      { $match: { storeId: store._id } },
+      {
+        $group: {
+          _id: null,
+          totalStreams: { $sum: 1 },
+          viewsLast7Days: {
+            $sum: {
+              $cond: [{ $gte: ['$startedAt', sevenDaysAgo] }, '$viewerCount', 0],
+            },
+          },
+        },
+      },
+    ]),
+    // Count products via the products module (avoid circular dep — use mongoose directly)
+    (async () => {
+      try {
+        const mongoose = await import('mongoose');
+        return mongoose.default.model('Product').countDocuments({ storeId: req.params.id });
+      } catch {
+        return 0;
+      }
+    })(),
+  ]);
+
+  const stats = streamStats[0] || { totalStreams: 0, viewsLast7Days: 0 };
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      followerCount: store.followerCount,
+      totalStreams: stats.totalStreams,
+      viewsLast7Days: stats.viewsLast7Days,
+      totalProducts,
+    },
+  });
+};
+
+// @desc    Submit / update verification doc; admin can approve/reject
+// @route   PATCH /api/stores/:id/verification
+// @access  Private (seller = submit; admin = approve/reject)
+export const updateVerification = async (req, res) => {
+  const store = await Store.findById(req.params.id);
+  if (!store) {
+    res.status(404);
+    throw new Error('Store not found');
+  }
+
+  const isAdmin = req.user.role === 'admin';
+  const isOwner = store.ownerId?.toString() === req.user._id.toString();
+
+  if (!isAdmin && !isOwner) {
+    res.status(403);
+    throw new Error('Not authorised to update verification for this store');
+  }
+
+  if (isAdmin) {
+    // Admin approves or rejects
+    const { status, rejectionReason } = req.body;
+    const allowed = ['verified', 'rejected', 'pending', 'unverified'];
+    if (!allowed.includes(status)) {
+      res.status(400);
+      throw new Error(`status must be one of: ${allowed.join(', ')}`);
+    }
+    store.verificationStatus = status;
+    if (status === 'rejected' && rejectionReason) {
+      store.verificationDoc.rejectionReason = rejectionReason;
+    }
+    if (status === 'verified') store.isVerified = true;
+    if (status === 'rejected' || status === 'unverified') store.isVerified = false;
+  } else {
+    // Seller submits a doc
+    const { docType, docUrl } = req.body;
+    if (!docType || !docUrl) {
+      res.status(400);
+      throw new Error('docType and docUrl are required');
+    }
+    store.verificationStatus = 'pending';
+    store.verificationDoc = {
+      type: docType,
+      url: docUrl,
+      submittedAt: new Date(),
+      rejectionReason: '',
+    };
+  }
+
+  await store.save();
+  res.status(200).json({ status: 'success', data: { verificationStatus: store.verificationStatus } });
 };
 
 // @desc    Admin list (all stores incl. inactive, WITH deal terms)

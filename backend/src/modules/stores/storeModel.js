@@ -56,6 +56,24 @@ const storeSchema = new mongoose.Schema(
       accountLast4: { type: String, default: '' },
     },
 
+    // ── Live commerce ownership ──────────────────────────────
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', sparse: true },
+    followerCount: { type: Number, default: 0, min: 0 },
+    isLive: { type: Boolean, default: false },
+
+    // ── Seller verification ──────────────────────────────────
+    verificationStatus: {
+      type: String,
+      enum: ['unverified', 'pending', 'verified', 'rejected'],
+      default: 'unverified',
+    },
+    verificationDoc: {
+      type:            { type: String, default: '' },
+      url:             { type: String, default: '' },
+      submittedAt:     { type: Date },
+      rejectionReason: { type: String, default: '' },
+    },
+
     // ── Flags ────────────────────────────────────────────────
     isActive: { type: Boolean, default: true },
     isFeatured: { type: Boolean, default: false },
