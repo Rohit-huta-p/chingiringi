@@ -140,12 +140,14 @@ export const SellerProfileScreen: React.FC = () => {
   const store: Store | undefined =
     storeData?.data?.store ?? storeData?.store ?? passedStore;
 
-  // Fetch products for this store (param `store` may not be wired in backend yet)
+  // Fetch products assigned to this store via GET /api/products?storeId=:id
+  // Products are platform-managed — admin assigns storeId to surface them here.
+  // Stores with no assigned products show an empty state.
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['storeProducts', storeId],
     queryFn: async () => {
       try {
-        return await productsAPI.getProducts({ limit: 20 });
+        return await productsAPI.getProducts({ storeId, limit: 20 });
       } catch {
         return { data: { products: [] } };
       }

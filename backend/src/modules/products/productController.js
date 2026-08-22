@@ -12,6 +12,7 @@ export const getProducts = async (req, res) => {
     limit = 12,
     category,
     search,
+    storeId,
     featured,
     sort = null,          // null → relevance when searching, newest otherwise
     minPrice,
@@ -27,6 +28,7 @@ export const getProducts = async (req, res) => {
   const opts = {
     search: search?.trim() || undefined,
     category: category || undefined,
+    storeId: storeId || undefined,
     featured: featured === 'true',
     sort: sort || null,
     minPrice:    num(minPrice),

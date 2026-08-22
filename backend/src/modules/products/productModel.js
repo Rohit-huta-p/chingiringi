@@ -100,6 +100,15 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Optional store association — products without storeId are platform-wide.
+    // Sellers cannot create products themselves; admin assigns storeId to surface
+    // a product on that store's public profile.
+    storeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Store',
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

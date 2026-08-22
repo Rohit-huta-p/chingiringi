@@ -28,6 +28,7 @@ export const productsAPI = {
     limit?: number;
     category?: string;
     search?: string;
+    storeId?: string;  // Filter to products assigned to a specific store
     featured?: string;
     sort?: string;
     minPrice?: number;
