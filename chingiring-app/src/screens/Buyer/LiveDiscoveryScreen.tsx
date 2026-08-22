@@ -135,9 +135,11 @@ export const LiveDiscoveryScreen: React.FC = () => {
   useEffect(() => {
     if (tab !== 'live') return;
 
-    // Resolve socket URL from the same base as the API client
+    // Connect to the /stream Socket.io namespace (same namespace the backend
+    // emits viewer_count_update and stream_ended on). Root namespace won't
+    // receive these events.
     const baseURL: string = (apiClient.defaults.baseURL as string) ?? 'http://localhost:8000';
-    const socket = io(baseURL, { path: '/socket.io', transports: ['websocket'] });
+    const socket = io(`${baseURL}/stream`, { transports: ['websocket'] });
     socketRef.current = socket;
 
     socket.on('viewer_count_update', ({ streamId, count }: { streamId: string; count: number }) => {

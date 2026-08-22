@@ -20,6 +20,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LayoutDashboard, Store, Video, User } from 'lucide-react-native';
+// Note: LayoutDashboard + Video kept — still used in SELLER_TAB_ICON_MAP below.
 import { Colors, Fonts } from '../constants/theme';
 
 // Profile tab reuses the existing mobile profile screen
@@ -33,34 +34,19 @@ import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 import { BusinessOnboardingScreen } from '../screens/Seller/BusinessOnboardingScreen';
 import { StoreVerificationScreen } from '../screens/Seller/StoreVerificationScreen';
 
-// ─── Placeholder screens (replaced in S4 by real seller screens) ──────────
+// Seller dashboard + GoLive (Sprint 6 integration)
+import { SellerDashboardScreen } from '../screens/Seller/SellerDashboardScreen';
+import { GoLiveTabScreen } from '../screens/Seller/GoLiveTabScreen';
+import { BroadcasterScreen } from '../screens/Live/BroadcasterScreen';
 
-function SellerDashboardPlaceholder() {
-  return (
-    <View style={styles.placeholder}>
-      <LayoutDashboard size={40} color={Colors.orange} />
-      <Text style={styles.placeholderTitle}>Dashboard</Text>
-      <Text style={styles.placeholderSub}>Coming in Sprint 4</Text>
-    </View>
-  );
-}
+// ─── MyStore placeholder (S4 TODO — replace when MyStoreScreen is built) ──
 
 function MyStorePlaceholder() {
   return (
     <View style={styles.placeholder}>
       <Store size={40} color={Colors.orange} />
       <Text style={styles.placeholderTitle}>My Store</Text>
-      <Text style={styles.placeholderSub}>Coming in Sprint 4</Text>
-    </View>
-  );
-}
-
-function GoLivePlaceholder() {
-  return (
-    <View style={styles.placeholder}>
-      <Video size={40} color={Colors.orange} />
-      <Text style={styles.placeholderTitle}>Go Live</Text>
-      <Text style={styles.placeholderSub}>Coming in Sprint 4</Text>
+      <Text style={styles.placeholderSub}>Coming in Sprint 7</Text>
     </View>
   );
 }
@@ -154,10 +140,10 @@ function SellerBottomTabs() {
       tabBar={(props) => <SellerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tab.Screen name="Dashboard" component={SellerDashboardPlaceholder} options={{ tabBarLabel: 'Dashboard' }} />
-      <Tab.Screen name="MyStore"   component={MyStorePlaceholder}         options={{ tabBarLabel: 'My Store' }} />
-      <Tab.Screen name="GoLive"    component={GoLivePlaceholder}           options={{ tabBarLabel: 'Go Live' }} />
-      <Tab.Screen name="Profile"   component={MobileProfileScreen}         options={{ tabBarLabel: 'Profile' }} />
+      <Tab.Screen name="Dashboard" component={SellerDashboardScreen} options={{ tabBarLabel: 'Dashboard' }} />
+      <Tab.Screen name="MyStore"   component={MyStorePlaceholder}    options={{ tabBarLabel: 'My Store' }} />
+      <Tab.Screen name="GoLive"    component={GoLiveTabScreen}       options={{ tabBarLabel: 'Go Live' }} />
+      <Tab.Screen name="Profile"   component={MobileProfileScreen}   options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
   );
 }
@@ -169,9 +155,11 @@ export default function SellerTabNavigator() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF7ED' }} edges={['top', 'left', 'right']}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="MainTabs"           component={SellerBottomTabs} />
+        <Stack.Screen name="MainTabs"            component={SellerBottomTabs} />
         <Stack.Screen name="BusinessOnboarding" component={BusinessOnboardingScreen} />
         <Stack.Screen name="StoreVerification"  component={StoreVerificationScreen} />
+        <Stack.Screen name="BroadcasterScreen"  component={BroadcasterScreen}
+          options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="EditProfile"        component={MobileEditProfileScreen} />
         <Stack.Screen name="Settings"           component={MobileSettingsScreen} />
         <Stack.Screen name="Notifications"      component={NotificationsScreen} />
