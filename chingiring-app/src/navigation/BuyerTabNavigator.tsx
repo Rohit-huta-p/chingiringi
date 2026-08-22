@@ -35,6 +35,11 @@ import { MobileWalletScreen } from '../screens/Dashboard/MobileWalletScreen';
 import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 
+// Buyer screens (Sprint 2)
+import { LiveDiscoveryScreen } from '../screens/Buyer/LiveDiscoveryScreen';
+import { BuyerOnboardingScreen } from '../screens/Buyer/BuyerOnboardingScreen';
+import { ViewerScreen } from '../screens/Live/ViewerScreen';
+
 // Stack screens (detail views reachable from any tab)
 import { MobileEditProfileScreen } from '../screens/Dashboard/MobileEditProfileScreen';
 import { MyAddressScreen } from '../screens/Dashboard/MyAddressScreen';
@@ -49,21 +54,6 @@ import { BlockedAccountsScreen } from '../screens/Dashboard/BlockedAccountsScree
 import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
 import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
 import { SignupScreen } from '../screens/Auth/SignupScreen';
-
-// ─── Placeholder — LiveDiscoveryScreen (built in S2) ──────────────────────
-function LiveDiscoveryPlaceholder() {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background }}>
-      <Radio size={40} color={Colors.primary} />
-      <Text style={{ marginTop: 16, fontFamily: Fonts.semiBold, fontSize: 18, color: Colors.text }}>
-        Live Discovery
-      </Text>
-      <Text style={{ marginTop: 8, fontFamily: Fonts.regular, fontSize: 14, color: Colors.textSecondary }}>
-        Coming in Sprint 2
-      </Text>
-    </View>
-  );
-}
 
 // ─── Tab icon map ──────────────────────────────────────────────────────────
 const BUYER_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
@@ -148,7 +138,7 @@ function BuyerBottomTabs() {
       tabBar={(props) => <BuyerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tab.Screen name="LiveDiscovery" component={LiveDiscoveryPlaceholder} options={{ tabBarLabel: 'Live' }} />
+      <Tab.Screen name="LiveDiscovery" component={LiveDiscoveryScreen} options={{ tabBarLabel: 'Live' }} />
       <Tab.Screen name="Cashback"      component={MobileHomeScreen}         options={{ tabBarLabel: 'Cashback' }} />
       <Tab.Screen name="Stores"        component={OfflineStoresScreen}      options={{ tabBarLabel: 'Stores' }} />
       <Tab.Screen name="Wallet"        component={MobileWalletScreen}       options={{ tabBarLabel: 'Wallet' }} />
@@ -176,6 +166,8 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="Settings"          component={MobileSettingsScreen} />
         <Stack.Screen name="Notifications"     component={NotificationsScreen} />
         <Stack.Screen name="About"             component={MobileAboutScreen} />
+        <Stack.Screen name="BuyerOnboarding"   component={BuyerOnboardingScreen} />
+        <Stack.Screen name="ViewerScreen"      component={ViewerScreen} />
         <Stack.Screen
           name="AuthLogin"
           component={MobileLoginScreen}

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Image,
-  Linking, Alert, ActivityIndicator, useWindowDimensions,
+  Linking, Alert, ActivityIndicator, useWindowDimensions, ToastAndroid, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation,
+  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation, UserPlus, UserCheck,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
@@ -16,6 +16,7 @@ import { sharesAPI } from '../../api/shares';
 import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
+import { useFollow } from '../../hooks/useFollow';
 import type { StoreCategory } from '../../data/offlineStores';
 
 // Category accent colors — mirrors the map/list on OfflineStoresScreen.
@@ -58,6 +59,8 @@ export const StoreDetailScreen: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const { requireAuth } = useAuthGate();
   const [shareOpen, setShareOpen] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const { follow, unfollow, isFollowing } = useFollow();
 
   const storeId: string | undefined = route.params?.storeId;
   const passed: Store | undefined = route.params?.store;
@@ -91,6 +94,35 @@ export const StoreDetailScreen: React.FC = () => {
   const heroImg = store.images?.[0];              // real photo only (logo isn't a good hero)
   const photos = (store.images ?? []).slice(0, 8);
   const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+
+  const following = store ? isFollowing(store._id) : false;
+
+  const showToast = (msg: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(msg, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', msg, [{ text: 'OK' }], { cancelable: true });
+    }
+  };
+
+  const handleFollowToggle = async () => {
+    if (!store) return;
+    requireAuth(async () => {
+      setFollowBusy(true);
+      try {
+        if (following) {
+          await unfollow(store._id);
+        } else {
+          await follow(store._id);
+          showToast(`Following ${store.name} — you'll see them first in your feed`);
+        }
+      } catch {
+        showToast('Something went wrong. Please try again.');
+      } finally {
+        setFollowBusy(false);
+      }
+    }, { title: 'Sign in to follow stores', subtitle: 'See live streams and deals first when you follow a store.', icon: 'star' });
+  };
 
   const callStore = () => {
     if (store.phone) Linking.openURL(`tel:${store.phone.replace(/\s+/g, '')}`).catch(() => {});
@@ -183,6 +215,34 @@ export const StoreDetailScreen: React.FC = () => {
               <Pressable onPress={callStore} style={[styles.btn, styles.btnGhost]}>
                 <Phone size={16} color="#fff" />
                 <Text style={styles.btnGhostText}>Call</Text>
+              </Pressable>
+            )}
+            {/* Follow / Following toggle — buyers only (hide for admin / own store) */}
+            {user?.role !== 'admin' && (
+              <Pressable
+                onPress={handleFollowToggle}
+                disabled={followBusy}
+                style={[
+                  styles.btn,
+                  following ? styles.btnFollowing : styles.btnFollow,
+                  followBusy && styles.btnDisabled,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={following ? 'Unfollow store' : 'Follow store'}
+              >
+                {followBusy ? (
+                  <ActivityIndicator size="small" color={following ? Colors.primary : '#fff'} />
+                ) : following ? (
+                  <>
+                    <UserCheck size={15} color={Colors.primary} />
+                    <Text style={styles.btnFollowingText}>Following ✓</Text>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={15} color="#fff" />
+                    <Text style={styles.btnFollowText}>+ Follow</Text>
+                  </>
+                )}
               </Pressable>
             )}
             <Pressable onPress={() => requireAuth(() => setShareOpen(true), { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends visit the store via your link.', icon: 'share' })} style={[styles.btn, styles.btnShare, !isWide && { flex: 1 }]}>
@@ -303,6 +363,11 @@ const styles = StyleSheet.create({
   btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 18, borderRadius: 12 },
   btnGhost: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'transparent' },
   btnGhostText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+  btnFollow: { backgroundColor: Colors.primary },
+  btnFollowText: { color: '#fff', fontSize: 13, fontFamily: Fonts.bold },
+  btnFollowing: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: Colors.primary },
+  btnFollowingText: { color: Colors.primary, fontSize: 13, fontFamily: Fonts.bold },
+  btnDisabled: { opacity: 0.55 },
   btnShare: { backgroundColor: '#fff' },
   btnShareText: { color: Colors.primary, fontSize: 14.5, fontFamily: Fonts.bold },
 

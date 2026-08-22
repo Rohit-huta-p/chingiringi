@@ -27,6 +27,7 @@ import { ShoppingBag, Store } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import apiClient from '../../api/client';
+import { navigationRef } from '../../lib/navigationRef';
 
 type Role = 'buyer' | 'seller';
 
@@ -42,6 +43,15 @@ export default function RoleSelectionScreen() {
       await apiClient.patch('/api/profile/role', { role });
       // Update Zustand — this causes RootNavigator to fork into the correct navigator
       setRole(role);
+      // For new buyers: navigate to the onboarding flow once the BuyerTabNavigator
+      // has mounted. A short delay lets the navigator tree settle before we push.
+      if (role === 'buyer') {
+        setTimeout(() => {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate('BuyerOnboarding' as never);
+          }
+        }, 200);
+      }
     } catch (err: any) {
       const message =
         err?.response?.data?.message ??
