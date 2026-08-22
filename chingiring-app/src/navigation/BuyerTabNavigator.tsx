@@ -32,13 +32,16 @@ import { Colors, Fonts } from '../constants/theme';
 // Existing screens reused in tabs
 import { MobileHomeScreen } from '../screens/Dashboard/MobileHomeScreen';
 import { MobileWalletScreen } from '../screens/Dashboard/MobileWalletScreen';
-import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 
-// Buyer screens (Sprint 2)
+// Buyer screens (Sprint 2 + Sprint 5)
 import { LiveDiscoveryScreen } from '../screens/Buyer/LiveDiscoveryScreen';
 import { BuyerOnboardingScreen } from '../screens/Buyer/BuyerOnboardingScreen';
+import { BuyerProfileScreen } from '../screens/Buyer/BuyerProfileScreen';
 import { ViewerScreen } from '../screens/Live/ViewerScreen';
+
+// Seller public profile (Sprint 5 B2)
+import { SellerProfileScreen } from '../screens/Seller/SellerProfileScreen';
 
 // Stack screens (detail views reachable from any tab)
 import { MobileEditProfileScreen } from '../screens/Dashboard/MobileEditProfileScreen';
@@ -142,7 +145,7 @@ function BuyerBottomTabs() {
       <Tab.Screen name="Cashback"      component={MobileHomeScreen}         options={{ tabBarLabel: 'Cashback' }} />
       <Tab.Screen name="Stores"        component={OfflineStoresScreen}      options={{ tabBarLabel: 'Stores' }} />
       <Tab.Screen name="Wallet"        component={MobileWalletScreen}       options={{ tabBarLabel: 'Wallet' }} />
-      <Tab.Screen name="Profile"       component={MobileProfileScreen}      options={{ tabBarLabel: 'Profile' }} />
+      <Tab.Screen name="Profile"       component={BuyerProfileScreen}       options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
   );
 }
@@ -168,6 +171,7 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="About"             component={MobileAboutScreen} />
         <Stack.Screen name="BuyerOnboarding"   component={BuyerOnboardingScreen} />
         <Stack.Screen name="ViewerScreen"      component={ViewerScreen} />
+        <Stack.Screen name="SellerProfile"     component={SellerProfileScreen} />
         <Stack.Screen
           name="AuthLogin"
           component={MobileLoginScreen}
