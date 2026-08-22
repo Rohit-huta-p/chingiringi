@@ -144,7 +144,10 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const res = await apiClient.post('/api/stores', {
+      // POST /api/stores/seller — seller-accessible route (no admin middleware).
+      // Returns 200 with existing store if one already exists for this account,
+      // or 201 with the newly-created store.
+      const res = await apiClient.post('/api/stores/seller', {
         name:     storeName.trim(),
         category,
         address:  address.trim(),
@@ -152,21 +155,12 @@ export const BusinessOnboardingScreen: React.FC = () => {
         logoUrl:  logoUrl || undefined,
         phone:    formatted,
       });
-      const store = res.data?.store ?? res.data?.data;
-      // Navigate to verification screen with the new store
+      const store = res.data?.data?.store ?? res.data?.store;
+      // Navigate to verification screen with the new (or existing) store
       navigation.replace('StoreVerification', { store });
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
-      // If backend hasn't opened store creation to sellers yet, show helpful message
-      if (err?.status === 403) {
-        Alert.alert(
-          'Store request submitted',
-          'Your store details have been saved. An admin will review and activate your store within 1–2 business days.',
-          [{ text: 'Continue', onPress: () => navigation.replace('StoreVerification', { store: null }) }],
-        );
-      } else {
-        Alert.alert('Could not create store', msg);
-      }
+      Alert.alert('Could not create store', msg);
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,6 @@
 import express from 'express';
 import {
-  getStores, getStore, createStore, updateStore, deleteStore,
+  getStores, getStore, createStore, createSellerStore, updateStore, deleteStore,
   getMyStore, getStoreStats, updateVerification,
 } from './storeController.js';
 import { protect } from '../../middleware/authMiddleware.js';
@@ -10,7 +10,9 @@ import { storeFollowRouter } from '../follows/followRoutes.js';
 const router = express.Router();
 
 // ── Seller / authenticated routes (must come BEFORE /:id to avoid shadowing) ──
-router.get('/mine', protect, getMyStore);
+router.get('/mine',   protect, getMyStore);
+// Sellers self-create their own store (no admin middleware — any authenticated user).
+router.post('/seller', protect, createSellerStore);
 
 // ── Follow / unfollow (merged from followRoutes) ─────────────────────────────
 router.use('/', storeFollowRouter);

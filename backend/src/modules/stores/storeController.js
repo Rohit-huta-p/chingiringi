@@ -85,6 +85,48 @@ export const createStore = async (req, res) => {
   res.status(201).json({ status: 'success', data: { store } });
 };
 
+// @desc    Seller self-creates their own store
+// @route   POST /api/stores/seller
+// @access  Private (any authenticated user with role === 'seller')
+export const createSellerStore = async (req, res) => {
+  // Prevent duplicate stores — one store per seller account.
+  const existing = await Store.findOne({ ownerId: req.user._id });
+  if (existing) {
+    // Return the existing store so the frontend can navigate to verification.
+    return res.status(200).json({
+      status: 'success',
+      message: 'Store already exists for this account.',
+      data: { store: existing },
+    });
+  }
+
+  const { name, category, address, area, city, logoUrl, phone } = req.body;
+
+  if (!name || !category || !address) {
+    res.status(400);
+    throw new Error('name, category, and address are required.');
+  }
+
+  // shortName = first 2 words of the store name (truncated display label).
+  const shortName = req.body.shortName
+    || name.trim().split(/\s+/).slice(0, 2).join(' ');
+
+  const store = await Store.create({
+    name:               name.trim(),
+    shortName,
+    category,
+    address:            address.trim(),
+    area:               area?.trim()    || '',
+    city:               city?.trim()    || 'Bengaluru',
+    logoUrl:            logoUrl         || '',
+    phone:              phone           || '',
+    ownerId:            req.user._id,
+    verificationStatus: 'unverified',
+  });
+
+  res.status(201).json({ status: 'success', data: { store } });
+};
+
 // @desc    Update store (admin only)
 // @route   PUT /api/stores/:id
 // @access  Private/Admin
