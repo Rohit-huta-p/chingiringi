@@ -1,0 +1,16 @@
+node_modules/
+.expo/
+android/
+ios/Pods/
+ios/build/
+build/
+dist/
+.git/
+graphify-out/
+screenshots/
+scripts/
+*.csv
+*.json
+*.pdf
+*.png
+*.jpg
