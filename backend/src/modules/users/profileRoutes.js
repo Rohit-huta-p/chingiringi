@@ -4,6 +4,7 @@ import {
   getProfile,
   updateProfile,
   updateNotificationPrefs,
+  updateRole,
   deleteAccount,
   sendEmailOtp,
   verifyEmailOtp,
@@ -23,6 +24,7 @@ const emailOtpLimiter = rateLimit({
 
 router.get('/', getProfile);
 router.put('/', updateProfile);
+router.patch('/role', updateRole);
 router.patch('/notification-prefs', updateNotificationPrefs);
 router.post('/email/send-otp', emailOtpLimiter, sendEmailOtp);
 router.post('/email/verify', emailOtpLimiter, verifyEmailOtp);

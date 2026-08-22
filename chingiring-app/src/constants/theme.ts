@@ -20,6 +20,8 @@ export const Colors = {
   primary: '#4784E2',
   primaryLight: '#8BB9FD',
   primaryLight10: '#E9F4FF',
+  orange: '#F97316',
+  navy: '#0C1A3D',
   background: '#F0F4F8',
   backgroundGrey: '#F3F5F7',
   surface: '#ffffff',

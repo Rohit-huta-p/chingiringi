@@ -12,7 +12,7 @@ export interface UserType {
   username: string;
   email?: string;
   phone?: string;
-  role?: string;
+  role?: 'buyer' | 'seller' | 'admin' | null;
   referralCode?: string;
   avatarUrl?: string;
   isEmailVerified?: boolean;
@@ -26,6 +26,7 @@ interface AuthState {
   showWelcome: boolean;
   setShowWelcome: (v: boolean) => void;
   dismissWelcome: () => void;
+  setRole: (role: UserType['role']) => void;
   hydrate: () => Promise<void>;
   logout: () => Promise<void>;
   // Referral capture for logged-out guests (lib/referralCapture + ReferralBanner)
@@ -46,6 +47,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   // `isNewUser`), consumed once by WelcomeModal, then dismissed.
   setShowWelcome: (v) => set({ showWelcome: v }),
   dismissWelcome: () => set({ showWelcome: false }),
+
+  // Role selection — called after PATCH /users/me/role confirms the save.
+  setRole: (role) => set((state) => ({
+    user: state.user ? { ...state.user, role } : null,
+  })),
 
   // Referral capture (guest arrives via a referral link). setPending persists via
   // client storage so it survives reload/browse; cleared once applied on signup.
