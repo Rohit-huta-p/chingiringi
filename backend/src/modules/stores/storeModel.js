@@ -40,11 +40,13 @@ const storeSchema = new mongoose.Schema(
     openDays: [{ type: Number, min: 0, max: 6 }], // empty = every day
 
     // ── Deal terms (admin-only; stripped from public responses) ──
+    // Admin-configured deal fields — not required at seller onboarding (default 0).
+    // Admin sets these later when activating the store's cashback deal.
     userDiscountPercent: {
-      type: Number, required: [true, 'User discount % is required'], min: 0, max: 100,
+      type: Number, default: 0, min: 0, max: 100,
     },
     platformCommissionPercent: {
-      type: Number, required: [true, 'Commission % is required'], min: 0, max: 100,
+      type: Number, default: 0, min: 0, max: 100,
     },
     maxDiscountCap: { type: Number, default: 0, min: 0 }, // 0 = no cap
     minBillAmount: { type: Number, default: 0, min: 0 },
