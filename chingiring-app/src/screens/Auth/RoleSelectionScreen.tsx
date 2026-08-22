@@ -31,6 +31,34 @@ import { navigationRef } from '../../lib/navigationRef';
 
 type Role = 'buyer' | 'seller';
 
+/**
+ * Navigate to `routeName` once the navigation tree is ready.
+ *
+ * After setRole() the RootNavigator unmounts RoleSelectionScreen and mounts the
+ * role-specific navigator. The new navigator may not have registered itself with
+ * navigationRef yet when this code runs. Rather than betting on a fixed 200ms
+ * delay (fragile on low-end devices), we poll isReady() with growing intervals
+ * up to MAX_ATTEMPTS times (~3.6 s total budget) and silently give up if it
+ * never becomes ready — the user lands on the correct tab navigator's default
+ * screen, which is a valid fallback.
+ */
+function navigateWhenReady(routeName: string, maxAttempts = 8, baseDelayMs = 100) {
+  let attempt = 0;
+  const tryNavigate = () => {
+    attempt += 1;
+    if (navigationRef.isReady()) {
+      navigationRef.navigate(routeName as never);
+    } else if (attempt < maxAttempts) {
+      // Linear back-off: 100ms, 200ms, 300ms … 700ms (total ~3.6s)
+      setTimeout(tryNavigate, baseDelayMs * attempt);
+    }
+    // Silently give up after maxAttempts — the role navigator already mounted,
+    // so the user is on the correct tab; onboarding can be reached from the
+    // My Store / Profile tab if they choose.
+  };
+  setTimeout(tryNavigate, baseDelayMs);
+}
+
 export default function RoleSelectionScreen() {
   const setRole = useAuthStore((s) => s.setRole);
   const [loading, setLoading] = useState<Role | null>(null);
@@ -41,23 +69,14 @@ export default function RoleSelectionScreen() {
 
     try {
       await apiClient.patch('/api/profile/role', { role });
-      // Update Zustand — this causes RootNavigator to fork into the correct navigator
+      // Update Zustand — this causes RootNavigator to swap in the correct navigator
       setRole(role);
-      // For new buyers: navigate to the onboarding flow once the BuyerTabNavigator
-      // has mounted. A short delay lets the navigator tree settle before we push.
+      // Deep-link into the onboarding screen once the new navigator has mounted.
+      // navigateWhenReady() retries with growing delays instead of a fixed 200ms bet.
       if (role === 'buyer') {
-        setTimeout(() => {
-          if (navigationRef.isReady()) {
-            navigationRef.navigate('BuyerOnboarding' as never);
-          }
-        }, 200);
+        navigateWhenReady('BuyerOnboarding');
       } else if (role === 'seller') {
-        // New seller → push BusinessOnboardingScreen once SellerTabNavigator mounts
-        setTimeout(() => {
-          if (navigationRef.isReady()) {
-            navigationRef.navigate('BusinessOnboarding' as never);
-          }
-        }, 200);
+        navigateWhenReady('BusinessOnboarding');
       }
     } catch (err: any) {
       const message =
