@@ -29,6 +29,10 @@ import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen'
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 
+// Seller onboarding screens (Sprint 3)
+import { BusinessOnboardingScreen } from '../screens/Seller/BusinessOnboardingScreen';
+import { StoreVerificationScreen } from '../screens/Seller/StoreVerificationScreen';
+
 // ─── Placeholder screens (replaced in S4 by real seller screens) ──────────
 
 function SellerDashboardPlaceholder() {
@@ -165,11 +169,13 @@ export default function SellerTabNavigator() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF7ED' }} edges={['top', 'left', 'right']}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="MainTabs"    component={SellerBottomTabs} />
-        <Stack.Screen name="EditProfile" component={MobileEditProfileScreen} />
-        <Stack.Screen name="Settings"    component={MobileSettingsScreen} />
-        <Stack.Screen name="Notifications" component={NotificationsScreen} />
-        <Stack.Screen name="About"       component={MobileAboutScreen} />
+        <Stack.Screen name="MainTabs"           component={SellerBottomTabs} />
+        <Stack.Screen name="BusinessOnboarding" component={BusinessOnboardingScreen} />
+        <Stack.Screen name="StoreVerification"  component={StoreVerificationScreen} />
+        <Stack.Screen name="EditProfile"        component={MobileEditProfileScreen} />
+        <Stack.Screen name="Settings"           component={MobileSettingsScreen} />
+        <Stack.Screen name="Notifications"      component={NotificationsScreen} />
+        <Stack.Screen name="About"              component={MobileAboutScreen} />
       </Stack.Navigator>
     </SafeAreaView>
   );

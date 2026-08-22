@@ -51,6 +51,13 @@ export default function RoleSelectionScreen() {
             navigationRef.navigate('BuyerOnboarding' as never);
           }
         }, 200);
+      } else if (role === 'seller') {
+        // New seller → push BusinessOnboardingScreen once SellerTabNavigator mounts
+        setTimeout(() => {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate('BusinessOnboarding' as never);
+          }
+        }, 200);
       }
     } catch (err: any) {
       const message =
