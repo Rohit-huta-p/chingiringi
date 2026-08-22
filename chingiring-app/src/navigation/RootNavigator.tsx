@@ -63,13 +63,16 @@ export default function RootNavigator() {
       );
     }
 
-    // role === null, undefined, or legacy 'user' value → prompt for role selection
-    // (new sign-ups land here after OTP/Google auth)
-    if (user.role == null || user.role === ('user' as any)) {
+    // Any unrecognised / legacy role → role picker. This catches:
+    //   null, undefined, 'user' (old backend default), or any future unknown value.
+    //   The explicit string list is safer than == null alone on web where the
+    //   value might arrive as the string "null" from some serialisation paths.
+    const ROLED = ['buyer', 'seller', 'admin'];
+    if (!user.role || !ROLED.includes(user.role)) {
       return <RoleSelectionScreen />;
     }
 
-    // Fallback: existing desktop/web responsive navigator
+    // Fallback: existing desktop/web responsive navigator (should not reach here)
     return (
       <AuthGateProvider>
         <ResponsiveNavigator />
@@ -97,7 +100,8 @@ export default function RootNavigator() {
       >
         {resolveNavigator()}
       </NavigationContainer>
-      {user && user?.role !== 'admin' ? <WelcomeModal /> : null}
+      {/* WelcomeModal only after a role is confirmed — never on the role-picker itself */}
+      {user && user.role === 'buyer' || user?.role === 'seller' ? <WelcomeModal /> : null}
     </>
   );
 }
