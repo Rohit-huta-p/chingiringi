@@ -37,19 +37,8 @@ import { StoreVerificationScreen } from '../screens/Seller/StoreVerificationScre
 // Seller dashboard + GoLive (Sprint 6 integration)
 import { SellerDashboardScreen } from '../screens/Seller/SellerDashboardScreen';
 import { GoLiveTabScreen } from '../screens/Seller/GoLiveTabScreen';
+import { MyStoreScreen } from '../screens/Seller/MyStoreScreen';
 import { BroadcasterScreen } from '../screens/Live/BroadcasterScreen';
-
-// ─── MyStore placeholder (S4 TODO — replace when MyStoreScreen is built) ──
-
-function MyStorePlaceholder() {
-  return (
-    <View style={styles.placeholder}>
-      <Store size={40} color={Colors.orange} />
-      <Text style={styles.placeholderTitle}>My Store</Text>
-      <Text style={styles.placeholderSub}>Coming in Sprint 7</Text>
-    </View>
-  );
-}
 
 // ─── Tab icon map ──────────────────────────────────────────────────────────
 const SELLER_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
@@ -141,7 +130,7 @@ function SellerBottomTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Dashboard" component={SellerDashboardScreen} options={{ tabBarLabel: 'Dashboard' }} />
-      <Tab.Screen name="MyStore"   component={MyStorePlaceholder}    options={{ tabBarLabel: 'My Store' }} />
+      <Tab.Screen name="MyStore"   component={MyStoreScreen}         options={{ tabBarLabel: 'My Store' }} />
       <Tab.Screen name="GoLive"    component={GoLiveTabScreen}       options={{ tabBarLabel: 'Go Live' }} />
       <Tab.Screen name="Profile"   component={MobileProfileScreen}   options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
