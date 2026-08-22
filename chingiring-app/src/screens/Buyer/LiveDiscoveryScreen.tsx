@@ -155,8 +155,11 @@ export const LiveDiscoveryScreen: React.FC = () => {
 
   const handleStreamPress = useCallback((stream: LiveStream) => {
     navigation.navigate('ViewerScreen', {
-      streamId: stream._id,
-      storeName: stream.storeName,
+      streamId:     stream._id,
+      storeName:    stream.storeName,
+      storeLogoUrl: stream.storeLogoUrl,
+      streamTitle:  stream.title,
+      storeId:      stream.storeId,
     });
   }, [navigation]);
 
