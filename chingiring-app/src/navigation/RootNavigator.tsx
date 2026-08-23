@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Platform, View, ActivityIndicator } from 'react-native';
+import { Platform, View, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../store';
 import AuthNavigator from './AuthNavigator';
@@ -26,6 +26,10 @@ export default function RootNavigator() {
   const user    = useAuthStore((state) => state.user);
   const isReady = useAuthStore((state) => state.isReady);
   const routeNameRef = useRef<string | undefined>(undefined);
+  const { width } = useWindowDimensions();
+  // Desktop web (≥ 768px) gets the full sidebar/drawer; mobile and native get
+  // the pill-tab navigator regardless of role.
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   // Resolve which top-level navigator to render.
   // Priority: loading → unauthed → admin → buyer → seller → role picker → legacy
@@ -49,7 +53,8 @@ export default function RootNavigator() {
     if (user.role === 'buyer') {
       return (
         <AuthGateProvider>
-          <BuyerTabNavigator />
+          {/* Desktop web: full sidebar drawer (matches main). Mobile / native: pill tab bar. */}
+          {isDesktopWeb ? <ResponsiveNavigator /> : <BuyerTabNavigator />}
           <ReferralModal />
         </AuthGateProvider>
       );
