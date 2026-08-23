@@ -155,8 +155,9 @@ export const OfflineStoresScreen: React.FC = () => {
     (filters.openNow ? 1 : 0) + (filters.minDiscount > 0 ? 1 : 0) + (filters.minRating > 0 ? 1 : 0);
 
   const openCount = filtered.filter((s) => s.isOpen).length;
-  const showMap = !isNarrow || viewMode === 'map';
-  const showLive = !isNarrow || viewMode === 'live';
+  // Toggle is active on both mobile and desktop — only the selected panel renders.
+  const showMap  = viewMode === 'map';
+  const showLive = viewMode === 'live';
 
   return (
     <View
@@ -238,7 +239,23 @@ export const OfflineStoresScreen: React.FC = () => {
           </View>
 
           <View style={styles.headerRight}>
-
+            {/* Live | Map toggle — same behaviour as mobile */}
+            <View style={styles.viewToggle}>
+              <Pressable
+                onPress={() => setViewMode('live')}
+                style={[styles.toggleBtn, viewMode === 'live' && styles.toggleBtnActive]}
+              >
+                <Radio size={14} color={viewMode === 'live' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setViewMode('map')}
+                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+              >
+                <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
+              </Pressable>
+            </View>
 
             <View style={styles.sortGroup}>
               <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
