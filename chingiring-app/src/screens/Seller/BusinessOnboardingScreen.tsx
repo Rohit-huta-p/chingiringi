@@ -1,13 +1,13 @@
 /**
  * BusinessOnboardingScreen — 4-step wizard for new sellers.
  *
- * Step 1 — Store basics: name + category
- * Step 2 — Location: address + "Use my location" autofill
- * Step 3 — Logo: ImageUploader (optional — can skip)
- * Step 4 — WhatsApp: +91 phone number
+ * Step 1 — Details:  store name + short name + category
+ * Step 2 — Location:  address + area + city
+ * Step 3 — Media:     logo (optional) + WhatsApp phone
+ * Step 4 — Review:    summary card + submit
  *
- * On finish: POST /api/stores → navigate to StoreVerificationScreen.
- * All active elements, progress dots, and CTAs use Colors.orange (#F97316).
+ * On finish: POST /api/stores/seller → navigate to StoreVerificationScreen.
+ * All active elements, the progress bar, and CTAs use Colors.orange (#F97316).
  */
 import React, { useState } from 'react';
 import {
@@ -16,6 +16,8 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  TextInput,
+  Image,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
@@ -47,18 +49,29 @@ const STORE_CATEGORIES = [
 
 type StoreCategory = (typeof STORE_CATEGORIES)[number]['label'];
 
-// ── Progress dots ─────────────────────────────────────────────────────────
 const TOTAL_STEPS = 4;
+const STEP_LABELS = ['Details', 'Location', 'Media', 'Review'] as const;
 
-const ProgressDots: React.FC<{ step: number }> = ({ step }) => (
-  <View style={styles.dots}>
-    {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-      <View key={i} style={[styles.dot, i + 1 <= step && styles.dotActive]} />
-    ))}
+// ── Sticky progress header ─────────────────────────────────────────────────
+const ProgressHeader: React.FC<{ step: number; top: number }> = ({ step, top }) => (
+  <View style={[styles.progressHeader, { paddingTop: top + 12 }]}>
+    <View style={styles.progressTrack}>
+      <View style={[styles.progressFill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
+    </View>
+    <View style={styles.stepLabelsRow}>
+      {STEP_LABELS.map((label, i) => {
+        const active = i + 1 === step;
+        return (
+          <Text key={label} style={[styles.stepLabel, active && styles.stepLabelActive]}>
+            {label}
+          </Text>
+        );
+      })}
+    </View>
   </View>
 );
 
-// ── Step header ───────────────────────────────────────────────────────────
+// ── Step header (title + sub, inside the card) ────────────────────────────
 const StepHeader: React.FC<{ title: string; sub: string }> = ({ title, sub }) => (
   <View style={styles.stepHead}>
     <Text style={styles.stepTitle}>{title}</Text>
@@ -66,22 +79,12 @@ const StepHeader: React.FC<{ title: string; sub: string }> = ({ title, sub }) =>
   </View>
 );
 
-// ── Orange CTA button ─────────────────────────────────────────────────────
-const OrangeBtn: React.FC<{
-  label: string;
-  onPress: () => void;
-  loading?: boolean;
-  disabled?: boolean;
-}> = ({ label, onPress, loading, disabled }) => (
-  <Pressable
-    onPress={onPress}
-    disabled={disabled || loading}
-    style={[styles.cta, (disabled || loading) && styles.ctaDisabled]}
-  >
-    {loading
-      ? <ActivityIndicator color="#fff" />
-      : <Text style={styles.ctaText}>{label}</Text>}
-  </Pressable>
+// ── Summary row (Step 4 review card) ───────────────────────────────────────
+const SummaryRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <View style={styles.summaryRow}>
+    <Text style={styles.summaryLabel}>{label}</Text>
+    <Text style={styles.summaryValue} numberOfLines={2}>{value || '—'}</Text>
+  </View>
 );
 
 // ── Main screen ───────────────────────────────────────────────────────────
@@ -93,19 +96,38 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
   // Form state
   const [storeName,  setStoreName]  = useState('');
+  const [shortName,  setShortName]  = useState('');
+  const [shortNameTouched, setShortNameTouched] = useState(false);
   const [category,   setCategory]   = useState<StoreCategory | ''>('');
   const [address,    setAddress]    = useState('');
   const [area,       setArea]       = useState('');
+  const [city,       setCity]       = useState('Bengaluru');
   const [logoUrl,    setLogoUrl]    = useState('');
   const [phone,      setPhone]      = useState('');
 
   const [locationBusy, setLocationBusy] = useState(false);
   const [submitting,   setSubmitting]   = useState(false);
 
+  // Auto-suggest short name from the first 2 words of the store name, until
+  // the seller edits it manually — then their choice always wins.
+  const handleStoreNameChange = (t: string) => {
+    setStoreName(t);
+    if (!shortNameTouched) {
+      setShortName(t.trim().split(/\s+/).slice(0, 2).join(' '));
+    }
+  };
+  const handleShortNameChange = (t: string) => {
+    setShortNameTouched(true);
+    setShortName(t);
+  };
+
   // ── Validation ──────────────────────────────────────────────────────────
-  const step1Valid = storeName.trim().length >= 2 && category !== '';
-  const step2Valid = address.trim().length >= 5;
-  const step4Valid = phone.trim().replace(/\D/g, '').length >= 10;
+  const step1Valid = storeName.trim().length >= 2 && shortName.trim().length >= 1 && category !== '';
+  const step2Valid = address.trim().length >= 5 && city.trim().length >= 1;
+  const phoneDigits = phone.trim().replace(/\D/g, '');
+  const step3Valid = phoneDigits.length >= 10;
+
+  const canAdvance = step === 1 ? step1Valid : step === 2 ? step2Valid : step === 3 ? step3Valid : true;
 
   // ── Step 2: Use my location ─────────────────────────────────────────────
   const handleUseLocation = async () => {
@@ -117,14 +139,14 @@ export const BusinessOnboardingScreen: React.FC = () => {
         return;
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      // Reverse-geocode to get a human-readable address
       const [geo] = await Location.reverseGeocodeAsync({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
       });
       if (geo) {
         setAddress([geo.name, geo.street].filter(Boolean).join(', '));
-        setArea([geo.district, geo.subregion, geo.city].filter(Boolean).join(', '));
+        setArea([geo.district, geo.subregion].filter(Boolean).join(', '));
+        if (geo.city) setCity(geo.city);
       }
     } catch {
       Alert.alert('Could not get location', 'Please type your address manually.');
@@ -135,12 +157,12 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
   // ── Final submit ────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    const raw = phone.trim().replace(/\D/g, '');
-    if (raw.length < 10) {
+    if (phoneDigits.length < 10) {
       Alert.alert('Invalid number', 'Please enter a valid 10-digit WhatsApp number.');
+      setStep(3);
       return;
     }
-    const formatted = raw.length === 10 ? `+91${raw}` : `+${raw}`;
+    const formatted = phoneDigits.length === 10 ? `+91${phoneDigits}` : `+${phoneDigits}`;
 
     setSubmitting(true);
     try {
@@ -148,15 +170,16 @@ export const BusinessOnboardingScreen: React.FC = () => {
       // Returns 200 with existing store if one already exists for this account,
       // or 201 with the newly-created store.
       const res = await apiClient.post('/api/stores/seller', {
-        name:     storeName.trim(),
+        name:      storeName.trim(),
+        shortName: shortName.trim(),
         category,
-        address:  address.trim(),
-        area:     area.trim() || undefined,
-        logoUrl:  logoUrl || undefined,
-        phone:    formatted,
+        address:   address.trim(),
+        area:      area.trim() || undefined,
+        city:      city.trim() || undefined,
+        logoUrl:   logoUrl || undefined,
+        phone:     formatted,
       });
       const store = res.data?.data?.store ?? res.data?.store;
-      // Navigate to verification screen with the new (or existing) store
       navigation.replace('StoreVerification', { store });
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
@@ -166,25 +189,21 @@ export const BusinessOnboardingScreen: React.FC = () => {
     }
   };
 
+  const goNext = () => {
+    if (!canAdvance) return;
+    if (step === 4) { handleSubmit(); return; }
+    setStep((s) => (s + 1) as any);
+  };
+  const goBack = () => setStep((s) => (s > 1 ? ((s - 1) as any) : s));
+
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={[styles.root, { paddingTop: insets.top }]}>
-        {/* Back arrow (hidden on step 1 — user got here from RoleSelection) */}
-        {step > 1 && (
-          <Pressable
-            onPress={() => setStep((s) => (s - 1) as any)}
-            hitSlop={10}
-            style={styles.backBtn}
-          >
-            <ChevronLeft size={22} color={Colors.text} />
-          </Pressable>
-        )}
-
-        <ProgressDots step={step} />
+      <View style={styles.root}>
+        <ProgressHeader step={step} top={insets.top} />
 
         <ScrollView
           style={{ flex: 1 }}
@@ -192,9 +211,9 @@ export const BusinessOnboardingScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Step 1: Store basics ── */}
+          {/* ── Step 1: Details ── */}
           {step === 1 && (
-            <View style={styles.stepBody}>
+            <View style={styles.card}>
               <StepHeader
                 title="Tell us about your store"
                 sub="Choose a name and category that customers will see."
@@ -204,9 +223,17 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 label="Store name"
                 placeholder="e.g. Rohit's Boutique"
                 value={storeName}
-                onChangeText={setStoreName}
+                onChangeText={handleStoreNameChange}
                 autoCapitalize="words"
                 maxLength={60}
+              />
+              <Input
+                label="Short name"
+                placeholder="Shown in compact displays"
+                value={shortName}
+                onChangeText={handleShortNameChange}
+                autoCapitalize="words"
+                maxLength={24}
               />
 
               <Text style={styles.fieldLabel}>Category</Text>
@@ -231,18 +258,12 @@ export const BusinessOnboardingScreen: React.FC = () => {
                   );
                 })}
               </View>
-
-              <OrangeBtn
-                label="Next →"
-                onPress={() => setStep(2)}
-                disabled={!step1Valid}
-              />
             </View>
           )}
 
           {/* ── Step 2: Location ── */}
           {step === 2 && (
-            <View style={styles.stepBody}>
+            <View style={styles.card}>
               <StepHeader
                 title="Where is your store?"
                 sub="Customers will use this to find and visit you."
@@ -261,34 +282,43 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 </Text>
               </Pressable>
 
+              {/* Address — custom multiline field (Input.tsx is single-line only) */}
+              <View style={styles.fieldWrap}>
+                <Text style={styles.fieldLabel}>Address</Text>
+                <TextInput
+                  style={styles.multilineInput}
+                  placeholder="Shop no. / building name, street"
+                  placeholderTextColor={Colors.textSecondary}
+                  value={address}
+                  onChangeText={setAddress}
+                  autoCapitalize="sentences"
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+
               <Input
-                label="Street address"
-                placeholder="Shop no. / building name, street"
-                value={address}
-                onChangeText={setAddress}
-                autoCapitalize="sentences"
-              />
-              <Input
-                label="Area / Locality (optional)"
+                label="Area / Neighbourhood"
                 placeholder="e.g. Koramangala, Indiranagar"
                 value={area}
                 onChangeText={setArea}
                 autoCapitalize="sentences"
               />
-
-              <OrangeBtn
-                label="Next →"
-                onPress={() => setStep(3)}
-                disabled={!step2Valid}
+              <Input
+                label="City"
+                placeholder="Bengaluru"
+                value={city}
+                onChangeText={setCity}
+                autoCapitalize="words"
               />
             </View>
           )}
 
-          {/* ── Step 3: Logo ── */}
+          {/* ── Step 3: Media ── */}
           {step === 3 && (
-            <View style={styles.stepBody}>
+            <View style={styles.card}>
               <StepHeader
-                title="Add your store logo"
+                title="Logo & contact number"
                 sub="A great logo helps customers recognise you instantly."
               />
 
@@ -299,48 +329,64 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 folder="seller-logos"
               />
 
-              <OrangeBtn
-                label="Next →"
-                onPress={() => setStep(4)}
-              />
-              <Pressable onPress={() => setStep(4)} style={styles.skipBtn}>
-                <Text style={styles.skipText}>Skip for now</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* ── Step 4: WhatsApp ── */}
-          {step === 4 && (
-            <View style={styles.stepBody}>
-              <StepHeader
-                title="Your WhatsApp number"
-                sub="Buyers can tap to message you directly from your store page."
-              />
-
               <Input
                 label="WhatsApp number"
                 placeholder="98765 43210"
                 value={phone}
                 onChangeText={(t) => setPhone(t.replace(/[^\d\s+\-()]/g, ''))}
                 keyboardType="phone-pad"
-                leftIcon={
-                  <Text style={styles.dialCode}>+91</Text>
-                }
+                leftIcon={<Text style={styles.dialCode}>+91</Text>}
                 maxLength={15}
               />
               <Text style={styles.hint}>
-                Enter your 10-digit mobile number. We'll format it as +91 automatically.
+                Buyers can tap to message you directly from your store page.
               </Text>
+            </View>
+          )}
 
-              <OrangeBtn
-                label="Create My Store"
-                onPress={handleSubmit}
-                loading={submitting}
-                disabled={!step4Valid}
+          {/* ── Step 4: Review & Submit ── */}
+          {step === 4 && (
+            <View style={styles.card}>
+              <StepHeader
+                title="Review your details"
+                sub="Make sure everything looks right before you submit."
               />
+
+              <View style={styles.summaryCard}>
+                {logoUrl ? (
+                  <Image source={{ uri: logoUrl }} style={styles.summaryLogo} resizeMode="cover" />
+                ) : null}
+                <SummaryRow label="Store name" value={storeName} />
+                <SummaryRow label="Short name" value={shortName} />
+                <SummaryRow label="Category" value={category} />
+                <SummaryRow label="Address" value={address} />
+                <SummaryRow label="Area" value={area} />
+                <SummaryRow label="City" value={city} />
+                <SummaryRow label="WhatsApp" value={phone ? `+91 ${phoneDigits}` : ''} />
+              </View>
             </View>
           )}
         </ScrollView>
+
+        {/* ── Bottom nav: Back ghost link + Next/Submit ── */}
+        <View style={[styles.navRow, { paddingBottom: insets.bottom + 12 }]}>
+          {step > 1 ? (
+            <Pressable onPress={goBack} hitSlop={10} style={styles.backLink}>
+              <ChevronLeft size={18} color={Colors.textSecondary} />
+              <Text style={styles.backLinkText}>Back</Text>
+            </Pressable>
+          ) : <View />}
+
+          <Pressable
+            onPress={goNext}
+            disabled={!canAdvance || submitting}
+            style={[styles.nextBtn, (!canAdvance || submitting) && styles.nextBtnDisabled]}
+          >
+            {submitting
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.nextBtnText}>{step === 4 ? 'Create My Store' : 'Next →'}</Text>}
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -348,48 +394,63 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
 // ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.surface },
+  root: { flex: 1, backgroundColor: Colors.background },
 
-  backBtn: {
-    position: 'absolute',
-    top: 52,
-    left: 16,
-    zIndex: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  // Sticky progress header
+  progressHeader: {
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.backgroundGrey,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
     backgroundColor: Colors.backgroundGrey,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
-
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'center',
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
-  },
-  dotActive: {
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
     backgroundColor: Colors.orange,
-    width: 22,
+  },
+  stepLabelsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  stepLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: Colors.textSecondary,
+  },
+  stepLabelActive: {
+    fontFamily: Fonts.semiBold,
+    color: Colors.orange,
   },
 
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 40,
-    paddingTop: 8,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  stepBody: { gap: 16 },
 
-  stepHead: { gap: 6, marginBottom: 4 },
+  // Step card
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  stepHead: { gap: 6, marginBottom: -4 },
   stepTitle: {
     fontSize: 22,
     fontFamily: Fonts.extraBold,
@@ -402,11 +463,23 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
+  fieldWrap: { gap: 8, marginBottom: -8 },
   fieldLabel: {
     fontSize: 14,
     fontFamily: Fonts.semiBold,
     color: Colors.text,
-    marginBottom: -8,
+  },
+  multilineInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    backgroundColor: Colors.backgroundGrey,
+    minHeight: 80,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontFamily: Fonts.regular,
+    color: Colors.text,
   },
 
   // Category grid
@@ -451,7 +524,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    marginBottom: 4,
+    marginBottom: -4,
   },
   locationBtnText: {
     fontSize: 13,
@@ -459,31 +532,75 @@ const styles = StyleSheet.create({
     color: Colors.orange,
   },
 
-  // CTA
-  cta: {
+  // Review summary
+  summaryCard: {
+    backgroundColor: Colors.backgroundGrey,
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
+  },
+  summaryLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignSelf: 'center',
+    marginBottom: 4,
+    backgroundColor: Colors.border,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: Colors.textSecondary,
+  },
+  summaryValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 13,
+    fontFamily: Fonts.semiBold,
+    color: Colors.text,
+  },
+
+  // Bottom nav
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: Colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: Colors.backgroundGrey,
+  },
+  backLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingRight: 8,
+  },
+  backLinkText: {
+    fontSize: 15,
+    fontFamily: Fonts.semiBold,
+    color: Colors.textSecondary,
+  },
+  nextBtn: {
     backgroundColor: Colors.orange,
     borderRadius: 14,
     paddingVertical: 15,
+    paddingHorizontal: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    minWidth: 140,
   },
-  ctaDisabled: { opacity: 0.45 },
-  ctaText: {
+  nextBtnDisabled: { opacity: 0.45 },
+  nextBtnText: {
     color: '#fff',
     fontSize: 15,
     fontFamily: Fonts.bold,
-  },
-
-  // Skip
-  skipBtn: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  skipText: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
   },
 
   // Misc

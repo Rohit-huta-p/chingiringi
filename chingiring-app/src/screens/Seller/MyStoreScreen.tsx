@@ -2,11 +2,14 @@
  * MyStoreScreen — "My Store" tab for sellers.
  *
  * Fetches the seller's store via GET /api/stores/mine and shows:
- *   - Store header (logo, name, category, verification badge)
+ *   - Store header (logo, name, category badge, verification badge, stats)
  *   - Verification status banner → links to StoreVerificationScreen
- *   - Quick-edit info rows (address, phone, hours)
- *   - Products placeholder (products are admin-managed; placeholder until
- *     seller product management is built in a future sprint)
+ *   - Product grid (GET /api/products?storeId=) — real data, read-only.
+ *     NOTE: product create/update/delete is admin-only on the backend today
+ *     (POST/PUT/DELETE /api/products require the `admin` middleware — there
+ *     is no seller-scoped product-management route yet). The FAB and empty
+ *     state are shown per spec, but surface that limitation instead of
+ *     opening a save flow that would 403 for a real seller.
  *   - "Set up store" empty state if GET /stores/mine returns 404
  */
 import React from 'react';
@@ -17,9 +20,10 @@ import {
   ScrollView,
   Pressable,
   Image,
+  FlatList,
   ActivityIndicator,
   RefreshControl,
-  Linking,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -27,82 +31,75 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Store,
   BadgeCheck,
-  ShieldAlert,
-  ShieldCheck,
-  Clock,
-  Phone,
-  MapPin,
-  ChevronRight,
+  Plus,
   Package,
-  MessageCircle,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { verificationAPI, type SellerStore } from '../../api/verification';
+import { productsAPI, type Product } from '../../api/products';
+import apiClient from '../../api/client';
 
-// ── Verification status banner ─────────────────────────────────────────────
-
-interface VerifBannerProps {
-  store: SellerStore;
-  onVerify: () => void;
+async function fetchStoreStats(storeId: string): Promise<{ totalStreams: number }> {
+  try {
+    const res = await apiClient.get(`/api/stores/${storeId}/stats`);
+    return { totalStreams: res.data?.totalStreams ?? 0 };
+  } catch {
+    return { totalStreams: 0 };
+  }
 }
 
-const VerifBanner: React.FC<VerifBannerProps> = ({ store, onVerify }) => {
+const COMING_SOON = () =>
+  Alert.alert(
+    'Coming soon',
+    'Seller-managed products are on the way. For now, contact support to add or update your product listings.',
+  );
+
+// ── Verification banner ─────────────────────────────────────────────────
+
+const VerifBanner: React.FC<{ store: SellerStore; onVerify: () => void }> = ({ store, onVerify }) => {
   const status = store.verificationStatus ?? 'unverified';
+  if (status === 'verified') return null;
 
-  if (status === 'verified') {
-    return (
-      <View style={[styles.banner, { backgroundColor: '#F0FDF4', borderColor: '#22C55E' }]}>
-        <ShieldCheck size={16} color="#16A34A" />
-        <Text style={[styles.bannerText, { color: '#15803D' }]}>
-          Store verified — live streaming and verified badge unlocked.
-        </Text>
-      </View>
-    );
-  }
-
-  const configs = {
-    pending:    { bg: '#FFFBEB', border: '#F59E0B', color: '#92400E', text: 'Documents under review — 1–2 business days.', icon: <Clock size={16} color="#D97706" /> },
-    rejected:   { bg: '#FEF2F2', border: '#EF4444', color: '#991B1B', text: store.verificationDoc?.rejectionReason ? `Rejected: ${store.verificationDoc.rejectionReason}` : 'Verification rejected. Tap to resubmit.', icon: <ShieldAlert size={16} color="#DC2626" /> },
-    unverified: { bg: '#EFF6FF', border: '#3B82F6', color: '#1E40AF', text: 'Verify your store to enable live streaming.', icon: <ShieldAlert size={16} color="#2563EB" /> },
-  };
-  const cfg = configs[status as keyof typeof configs] ?? configs.unverified;
+  const text =
+    status === 'pending'
+      ? 'Documents under review — 1–2 business days.'
+      : status === 'rejected'
+        ? (store.verificationDoc?.rejectionReason
+            ? `Rejected: ${store.verificationDoc.rejectionReason}`
+            : 'Verification rejected. Tap to resubmit.')
+        : 'Verify your store to unlock live streaming.';
 
   return (
-    <Pressable
-      onPress={onVerify}
-      style={[styles.banner, { backgroundColor: cfg.bg, borderColor: cfg.border }]}
-    >
-      {cfg.icon}
-      <Text style={[styles.bannerText, { color: cfg.color }]}>{cfg.text}</Text>
-      <ChevronRight size={14} color={cfg.border} />
+    <Pressable onPress={onVerify} style={styles.banner}>
+      <Text style={styles.bannerText}>{text}</Text>
+      <Text style={styles.bannerLink}>Verify →</Text>
     </Pressable>
   );
 };
 
-// ── Info row ──────────────────────────────────────────────────────────────
+// ── Product card ───────────────────────────────────────────────────────────
 
-interface InfoRowProps {
-  icon: React.ReactNode;
-  label: string;
-  value?: string;
-  onPress?: () => void;
-}
-
-const InfoRow: React.FC<InfoRowProps> = ({ icon, label, value, onPress }) => (
-  <Pressable
-    onPress={onPress}
-    style={[styles.infoRow, !onPress && { opacity: 0.7 }]}
-    disabled={!onPress}
-  >
-    <View style={styles.infoIcon}>{icon}</View>
-    <View style={{ flex: 1 }}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue} numberOfLines={2}>
-        {value || '—'}
-      </Text>
+const ProductGridCard: React.FC<{ product: Product }> = ({ product }) => (
+  <View style={styles.pCard}>
+    <View style={styles.pImageBox}>
+      {product.imageUrl ? (
+        <Image source={{ uri: product.imageUrl }} style={styles.pImage} resizeMode="cover" />
+      ) : (
+        <View style={[styles.pImage, styles.pImageFallback]}>
+          <Package size={28} color={Colors.textSecondary} />
+        </View>
+      )}
+      <View style={[styles.stockBadge, product.isActive ? styles.stockBadgeIn : styles.stockBadgeOut]}>
+        <Text style={[styles.stockBadgeText, !product.isActive && styles.stockBadgeTextOut]}>
+          {product.isActive ? 'In Stock' : 'Out of Stock'}
+        </Text>
+      </View>
     </View>
-    {onPress && <ChevronRight size={14} color={Colors.textSecondary} />}
-  </Pressable>
+    <View style={styles.pBody}>
+      <Text style={styles.pName} numberOfLines={2}>{product.name}</Text>
+      <Text style={styles.pPrice}>₹{product.price.toLocaleString('en-IN')}</Text>
+    </View>
+  </View>
 );
 
 // ── Main screen ───────────────────────────────────────────────────────────
@@ -122,15 +119,20 @@ export const MyStoreScreen: React.FC = () => {
     staleTime: 60_000,
   });
 
-  const handleCallStore = () => {
-    if (store?.phone) Linking.openURL(`tel:${store.phone}`).catch(() => {});
-  };
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ['seller', 'storeProducts', store?._id],
+    queryFn: () => productsAPI.getProducts({ storeId: store!._id, limit: 50 }),
+    enabled: !!store?._id,
+    staleTime: 60_000,
+  });
+  const products: Product[] = productsData?.data?.products ?? productsData?.products ?? [];
 
-  const handleWhatsApp = () => {
-    if (!store?.phone) return;
-    const num = store.phone.replace(/\D/g, '');
-    Linking.openURL(`https://wa.me/${num}`).catch(() => {});
-  };
+  const { data: stats = { totalStreams: 0 } } = useQuery({
+    queryKey: ['seller', 'stats', store?._id],
+    queryFn: () => fetchStoreStats(store!._id),
+    enabled: !!store?._id,
+    staleTime: 60_000,
+  });
 
   if (isLoading) {
     return (
@@ -141,7 +143,6 @@ export const MyStoreScreen: React.FC = () => {
   }
 
   // ── No store yet ──────────────────────────────────────────────────────
-
   if (!store) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
@@ -160,100 +161,83 @@ export const MyStoreScreen: React.FC = () => {
     );
   }
 
-  // ── Store detail ─────────────────────────────────────────────────────
-
   const isVerified = store.verificationStatus === 'verified';
 
   return (
-    <ScrollView
-      style={[styles.root, { paddingTop: insets.top }]}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefetching}
-          onRefresh={refetch}
-          colors={[Colors.orange]}
-          tintColor={Colors.orange}
-        />
-      }
-    >
-      {/* ── Store header ── */}
-      <View style={styles.header}>
-        {store.logoUrl ? (
-          <Image source={{ uri: store.logoUrl }} style={styles.logo} resizeMode="cover" />
-        ) : (
-          <View style={[styles.logo, styles.logoFallback]}>
-            <Text style={styles.logoInitial}>
-              {(store.name ?? 'S')[0].toUpperCase()}
-            </Text>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <FlatList
+        data={products}
+        keyExtractor={(p) => p._id}
+        numColumns={2}
+        columnWrapperStyle={products.length ? styles.gridRow : undefined}
+        contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 90 }}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[Colors.orange]} tintColor={Colors.orange} />
+        }
+        renderItem={({ item }) => <ProductGridCard product={item} />}
+        ListHeaderComponent={
+          <View style={{ marginBottom: 12 }}>
+            {/* ── Store header card ── */}
+            <View style={styles.header}>
+              <View style={styles.headerRow}>
+                {store.logoUrl ? (
+                  <Image source={{ uri: store.logoUrl }} style={styles.logo} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.logo, styles.logoFallback]}>
+                    <Text style={styles.logoInitial}>{(store.name ?? 'S')[0].toUpperCase()}</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
+                    {isVerified && <BadgeCheck size={18} color={Colors.primary} />}
+                  </View>
+                  <View style={styles.catRow}>
+                    <View style={styles.catChip}>
+                      <Text style={styles.catChipText}>{store.category}</Text>
+                    </View>
+                    {!!store.area && <Text style={styles.areaText} numberOfLines={1}>{store.area}</Text>}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.statsRow}>
+                <Text style={styles.statText}>{products.length} Products</Text>
+                <Text style={styles.statDot}>·</Text>
+                <Text style={styles.statText}>{(store.followerCount ?? 0).toLocaleString('en-IN')} Followers</Text>
+                <Text style={styles.statDot}>·</Text>
+                <Text style={styles.statText}>{stats.totalStreams} Streams</Text>
+              </View>
+            </View>
+
+            <View style={{ paddingHorizontal: 4, marginTop: 12 }}>
+              <VerifBanner store={store} onVerify={() => navigation.navigate('StoreVerification', { store })} />
+            </View>
+
+            <Text style={styles.sectionTitle}>Products</Text>
           </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <View style={styles.nameRow}>
-            <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-            {isVerified && <BadgeCheck size={18} color={Colors.primary} />}
-          </View>
-          <Text style={styles.storeCategory}>{store.category}</Text>
-          <Text style={styles.followerCount}>
-            {(store.followerCount ?? 0).toLocaleString('en-IN')} followers
-          </Text>
-        </View>
-      </View>
+        }
+        ListEmptyComponent={
+          productsLoading ? (
+            <ActivityIndicator color={Colors.orange} style={{ marginTop: 24 }} />
+          ) : (
+            <View style={styles.productsEmpty}>
+              <Package size={56} color={Colors.textSecondary} />
+              <Text style={styles.productsEmptyTitle}>Add your first product</Text>
+              <Text style={styles.productsEmptySub}>Showcase what you sell during live streams</Text>
+              <Pressable style={styles.addProductBtn} onPress={COMING_SOON}>
+                <Text style={styles.addProductBtnText}>Add Product</Text>
+              </Pressable>
+            </View>
+          )
+        }
+      />
 
-      <View style={styles.divider} />
-
-      {/* ── Verification banner ── */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
-        <VerifBanner
-          store={store}
-          onVerify={() => navigation.navigate('StoreVerification', { store })}
-        />
-      </View>
-
-      {/* ── Info section ── */}
-      <Text style={styles.sectionLabel}>STORE INFO</Text>
-      <View style={styles.card}>
-        <InfoRow
-          icon={<MapPin size={16} color={Colors.orange} />}
-          label="Address"
-          value={[store.address, store.area, store.city].filter(Boolean).join(', ')}
-        />
-        <View style={styles.cardDivider} />
-        <InfoRow
-          icon={<Phone size={16} color={Colors.orange} />}
-          label="Phone"
-          value={store.phone || 'Not set'}
-          onPress={store.phone ? handleCallStore : undefined}
-        />
-        <View style={styles.cardDivider} />
-        <InfoRow
-          icon={<MessageCircle size={16} color="#25D366" />}
-          label="WhatsApp"
-          value={store.phone || 'Not set'}
-          onPress={store.phone ? handleWhatsApp : undefined}
-        />
-      </View>
-
-      {/* ── Products placeholder ── */}
-      <Text style={styles.sectionLabel}>PRODUCTS</Text>
-      <View style={[styles.card, styles.productsPlaceholder]}>
-        <Package size={36} color={Colors.border} />
-        <Text style={styles.productsTitle}>Product management coming soon</Text>
-        <Text style={styles.productsSub}>
-          Products are currently managed by the platform team.
-          Contact support to add or update your product listings.
-        </Text>
-      </View>
-
-      {/* ── Edit store CTA ── */}
-      <Pressable
-        style={styles.editBtn}
-        onPress={() => navigation.navigate('StoreVerification', { store })}
-      >
-        <Text style={styles.editBtnText}>Manage Verification</Text>
+      {/* ── FAB ── */}
+      <Pressable style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={COMING_SOON} accessibilityLabel="Add product">
+        <Plus size={26} color="#fff" />
       </Pressable>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -266,78 +250,72 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: 20,
+    backgroundColor: Colors.surface, borderRadius: 16, padding: 20, gap: 14,
   },
-  logo: {
-    width: 64, height: 64, borderRadius: 16,
-    backgroundColor: Colors.backgroundGrey,
-  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  logo: { width: 60, height: 60, borderRadius: 30, backgroundColor: Colors.backgroundGrey },
   logoFallback: {
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.orange,
+    backgroundColor: 'rgba(249,115,22,0.15)',
   },
-  logoInitial: { color: '#fff', fontSize: 26, fontFamily: Fonts.extraBold },
+  logoInitial: { color: Colors.orange, fontSize: 24, fontFamily: Fonts.extraBold },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  storeName: { fontSize: 18, fontFamily: Fonts.extraBold, color: Colors.text, flexShrink: 1 },
-  storeCategory: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.textSecondary, marginTop: 2 },
-  followerCount: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+  storeName: { fontSize: 18, fontFamily: Fonts.extraBold, color: Colors.navy, flexShrink: 1 },
+  catRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
+  catChip: {
+    backgroundColor: Colors.backgroundGrey, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  catChipText: { fontSize: 11, fontFamily: Fonts.semiBold, color: Colors.text },
+  areaText: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, flexShrink: 1 },
 
-  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 16 },
+  statsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
+  statDot: { color: Colors.textSecondary },
 
   banner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 12,
+    backgroundColor: '#FEF9C3', borderWidth: 1, borderColor: '#FDE047', borderRadius: 10,
+    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8,
   },
-  bannerText: { flex: 1, fontSize: 13, fontFamily: Fonts.semiBold, lineHeight: 18 },
+  bannerText: { flex: 1, fontSize: 13, fontFamily: Fonts.regular, color: Colors.text },
+  bannerLink: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.orange },
 
-  sectionLabel: {
-    fontSize: 10, fontFamily: Fonts.extraBold, color: Colors.textSecondary,
-    letterSpacing: 0.8, textTransform: 'uppercase',
-    marginHorizontal: 16, marginTop: 20, marginBottom: 8,
-  },
+  sectionTitle: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text, marginTop: 16, marginBottom: 4, paddingHorizontal: 4 },
 
-  card: {
-    marginHorizontal: 16, backgroundColor: Colors.surface,
-    borderRadius: 14, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+  gridRow: { gap: 12, paddingHorizontal: 4 },
+  pCard: {
+    flex: 1, backgroundColor: Colors.surface, borderRadius: 12, overflow: 'hidden', marginBottom: 12,
   },
-  cardDivider: { height: 1, backgroundColor: Colors.border, marginLeft: 52 },
+  pImageBox: { width: '100%', height: 120, backgroundColor: Colors.backgroundGrey, position: 'relative' },
+  pImage: { width: '100%', height: '100%' },
+  pImageFallback: { alignItems: 'center', justifyContent: 'center' },
+  stockBadge: { position: 'absolute', top: 6, right: 6, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  stockBadgeIn: { backgroundColor: Colors.orange },
+  stockBadgeOut: { backgroundColor: '#E2E8F0' },
+  stockBadgeText: { fontSize: 9, fontFamily: Fonts.bold, color: '#fff' },
+  stockBadgeTextOut: { color: Colors.textSecondary },
+  pBody: { padding: 10, gap: 4 },
+  pName: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.text, lineHeight: 17 },
+  pPrice: { fontSize: 15, fontFamily: Fonts.bold, color: Colors.primary },
 
-  infoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingVertical: 12, paddingHorizontal: 14,
+  productsEmpty: { alignItems: 'center', paddingVertical: 48, gap: 8 },
+  productsEmptyTitle: { fontSize: 17, fontFamily: Fonts.semiBold, color: Colors.text, marginTop: 4 },
+  productsEmptySub: { fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  addProductBtn: {
+    marginTop: 12, borderWidth: 1.5, borderColor: Colors.orange, borderRadius: 12,
+    paddingVertical: 11, paddingHorizontal: 24,
   },
-  infoIcon: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: Colors.backgroundGrey, alignItems: 'center', justifyContent: 'center',
-  },
-  infoLabel: { fontSize: 11, fontFamily: Fonts.semiBold, color: Colors.textSecondary, marginBottom: 1 },
-  infoValue: { fontSize: 14, fontFamily: Fonts.regular, color: Colors.text },
+  addProductBtnText: { color: Colors.orange, fontSize: 14, fontFamily: Fonts.bold },
 
-  productsPlaceholder: {
-    alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 8,
+  fab: {
+    position: 'absolute', right: 20,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: Colors.orange, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6,
   },
-  productsTitle: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.text, textAlign: 'center' },
-  productsSub: {
-    fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary,
-    textAlign: 'center', lineHeight: 18,
-  },
-
-  editBtn: {
-    margin: 16, marginTop: 20,
-    backgroundColor: Colors.orange, borderRadius: 14,
-    paddingVertical: 14, alignItems: 'center',
-  },
-  editBtnText: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold },
 
   emptyTitle: { fontSize: 18, fontFamily: Fonts.bold, color: Colors.text, textAlign: 'center' },
-  emptySub: {
-    fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary,
-    textAlign: 'center', lineHeight: 21,
-  },
-  setupBtn: {
-    marginTop: 8, backgroundColor: Colors.orange, borderRadius: 12,
-    paddingVertical: 13, paddingHorizontal: 32,
-  },
+  emptySub: { fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary, textAlign: 'center', lineHeight: 21 },
+  setupBtn: { marginTop: 8, backgroundColor: Colors.orange, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 32 },
   setupBtnText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
 });

@@ -3,10 +3,13 @@
  *
  * Fetches the seller's store (GET /api/stores/mine) and store stats
  * (GET /api/stores/:id/stats) and renders:
- *   - Greeting + store name
- *   - Metric tiles: Followers · Streams · Products · Views (7d)
- *   - Verification status banner (links to StoreVerification if unverified)
- *   - Quick action: "Go Live" (navigates to GoLive tab)
+ *   - Navy greeting header (time-of-day + first name)
+ *   - Verification banner (links to StoreVerification if unverified)
+ *   - 2×2 metric tiles: Followers · Streams · Views (7d) · Products
+ *   - "Ready to go live?" CTA card (navigates to the GoLive tab)
+ *   - Recent Streams (no per-store stream history API yet — shown as an
+ *     honest empty state rather than fabricated rows; wire in once
+ *     GET /api/streams?storeId= exists)
  */
 import React from 'react';
 import {
@@ -22,13 +25,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
-  LayoutDashboard,
-  Users,
+  UsersRound,
   Video,
   Package,
   Eye,
-  ShieldCheck,
-  ShieldAlert,
+  Camera,
   ChevronRight,
   Radio,
 } from 'lucide-react-native';
@@ -43,6 +44,7 @@ interface SellerStore {
   name: string;
   category: string;
   verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
+  verificationDoc?: { rejectionReason?: string };
   ownerId?: string;
 }
 
@@ -73,46 +75,34 @@ async function fetchStoreStats(storeId: string): Promise<StoreStats> {
 
 // ── Metric tile ───────────────────────────────────────────────────────────
 
-interface MetricTileProps {
-  icon: React.ReactNode;
-  label: string;
-  value: number | string;
-  accent?: string;
-}
-
-const MetricTile: React.FC<MetricTileProps> = ({ icon, label, value, accent = Colors.orange }) => (
-  <View style={[styles.tile, { borderColor: accent + '33' }]}>
-    <View style={[styles.tileIcon, { backgroundColor: accent + '18' }]}>{icon}</View>
-    <Text style={[styles.tileValue, { color: accent }]}>{value}</Text>
+const MetricTile: React.FC<{ icon: React.ReactNode; label: string; value: number | string }> = ({
+  icon, label, value,
+}) => (
+  <View style={styles.tile}>
+    <View style={styles.tileIcon}>{icon}</View>
+    <Text style={styles.tileValue}>{value}</Text>
     <Text style={styles.tileLabel}>{label}</Text>
   </View>
 );
 
-// ── Verification banner ───────────────────────────────────────────────────
+// ── Verification banner (single visual treatment; copy adapts to status) ──
 
-interface VerifBannerProps {
-  status: SellerStore['verificationStatus'];
-  onPress: () => void;
-}
-
-const VerifBanner: React.FC<VerifBannerProps> = ({ status, onPress }) => {
+const VerifBanner: React.FC<{ status: SellerStore['verificationStatus']; rejectionReason?: string; onPress: () => void }> = ({
+  status, rejectionReason, onPress,
+}) => {
   if (status === 'verified') return null;
 
-  const configs = {
-    pending:    { bg: '#FFFBEB', border: '#F59E0B', text: 'Verification under review — usually 1–2 business days.', icon: <ShieldAlert size={16} color="#D97706" /> },
-    rejected:   { bg: '#FEF2F2', border: '#EF4444', text: 'Verification rejected. Tap to resubmit your documents.', icon: <ShieldAlert size={16} color="#DC2626" /> },
-    unverified: { bg: '#EFF6FF', border: '#3B82F6', text: 'Verify your store to unlock live streaming.', icon: <ShieldAlert size={16} color="#2563EB" /> },
-  };
-  const cfg = configs[status ?? 'unverified'];
+  const text =
+    status === 'pending'
+      ? "⚠️ Verification pending — we'll notify you within 1–2 business days"
+      : status === 'rejected'
+        ? `⚠️ Verification rejected${rejectionReason ? `: ${rejectionReason}` : ''} — tap to resubmit`
+        : "⚠️ Your store isn't verified yet — go live capability is locked";
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.banner, { backgroundColor: cfg.bg, borderColor: cfg.border }]}
-    >
-      {cfg.icon}
-      <Text style={styles.bannerText} numberOfLines={2}>{cfg.text}</Text>
-      <ChevronRight size={16} color={cfg.border} />
+    <Pressable onPress={onPress} style={styles.banner}>
+      <Text style={styles.bannerText} numberOfLines={2}>{text}</Text>
+      <Text style={styles.bannerLink}>Verify now →</Text>
     </Pressable>
   );
 };
@@ -142,12 +132,16 @@ export const SellerDashboardScreen: React.FC = () => {
     staleTime: 60_000,
   });
 
+  const firstName = (user?.name ?? '').trim().split(/\s+/)[0] || 'there';
   const greeting = () => {
     const h = new Date().getHours();
     if (h < 12) return 'Good morning';
     if (h < 17) return 'Good afternoon';
     return 'Good evening';
   };
+  const dateStr = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
 
   if (storeLoading) {
     return (
@@ -159,8 +153,8 @@ export const SellerDashboardScreen: React.FC = () => {
 
   return (
     <ScrollView
-      style={[styles.root, { paddingTop: insets.top }]}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 32, gap: 20, padding: 16 }}
+      style={styles.root}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -171,87 +165,88 @@ export const SellerDashboardScreen: React.FC = () => {
         />
       }
     >
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View style={styles.headerIcon}>
-          <LayoutDashboard size={22} color={Colors.orange} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>{greeting()},</Text>
-          <Text style={styles.storeName} numberOfLines={1}>
-            {store?.name ?? user?.name ?? 'Seller'}
-          </Text>
-        </View>
+      {/* ── Greeting header ── */}
+      <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
+        <Text style={styles.greeting}>{greeting()}, {firstName}! 👋</Text>
+        <Text style={styles.dateText}>{dateStr}</Text>
       </View>
 
-      {/* ── Verification banner ── */}
-      {store && (
-        <VerifBanner
-          status={store.verificationStatus}
-          onPress={() => navigation.navigate('StoreVerification', { store })}
-        />
-      )}
+      <View style={styles.body}>
+        {/* ── Verification banner ── */}
+        {store && (
+          <VerifBanner
+            status={store.verificationStatus}
+            rejectionReason={store.verificationDoc?.rejectionReason}
+            onPress={() => navigation.navigate('StoreVerification', { store })}
+          />
+        )}
 
-      {/* ── Metric tiles ── */}
-      <Text style={styles.sectionLabel}>YOUR STORE</Text>
-      <View style={styles.tiles}>
-        <MetricTile
-          icon={<Users size={18} color={Colors.orange} />}
-          label="Followers"
-          value={stats.followerCount.toLocaleString('en-IN')}
-          accent={Colors.orange}
-        />
-        <MetricTile
-          icon={<Video size={18} color="#8B5CF6" />}
-          label="Streams"
-          value={stats.totalStreams}
-          accent="#8B5CF6"
-        />
-        <MetricTile
-          icon={<Package size={18} color="#10B981" />}
-          label="Products"
-          value={stats.totalProducts}
-          accent="#10B981"
-        />
-        <MetricTile
-          icon={<Eye size={18} color="#3B82F6" />}
-          label="Views 7d"
-          value={stats.viewsLast7Days.toLocaleString('en-IN')}
-          accent="#3B82F6"
-        />
-      </View>
-
-      {/* ── Go Live CTA ── */}
-      <Pressable
-        style={styles.goLiveCta}
-        onPress={() => navigation.navigate('GoLive')}
-        accessibilityRole="button"
-        accessibilityLabel="Go Live"
-      >
-        <View style={styles.goLiveCtaIcon}>
-          <Radio size={20} color="#fff" />
+        {/* ── Metric tiles ── */}
+        <View style={styles.tiles}>
+          <MetricTile
+            icon={<UsersRound size={32} color={Colors.orange} />}
+            label="Followers"
+            value={stats.followerCount.toLocaleString('en-IN')}
+          />
+          <MetricTile
+            icon={<Video size={32} color={Colors.orange} />}
+            label="Streams"
+            value={stats.totalStreams}
+          />
+          <MetricTile
+            icon={<Eye size={32} color={Colors.orange} />}
+            label="Views (7d)"
+            value={stats.viewsLast7Days.toLocaleString('en-IN')}
+          />
+          <MetricTile
+            icon={<Package size={32} color={Colors.orange} />}
+            label="Products"
+            value={stats.totalProducts}
+          />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.goLiveCtaTitle}>Go Live</Text>
-          <Text style={styles.goLiveCtaSub}>Start a live stream and sell to your followers</Text>
-        </View>
-        <ChevronRight size={18} color="#fff" />
-      </Pressable>
 
-      {/* ── No store state ── */}
-      {!store && !storeLoading && (
-        <View style={styles.noStore}>
-          <ShieldCheck size={40} color={Colors.border} />
-          <Text style={styles.noStoreTitle}>No store yet</Text>
-          <Text style={styles.noStoreSub}>Complete store setup to start selling.</Text>
+        {/* ── Go Live CTA ── */}
+        <View style={styles.goLiveCard}>
+          <View style={styles.goLiveIconWrap}>
+            <Camera size={32} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.goLiveTitle}>Ready to go live?</Text>
+            <Text style={styles.goLiveSub}>Start a stream and connect with buyers</Text>
+          </View>
           <Pressable
-            style={styles.setupBtn}
-            onPress={() => navigation.navigate('BusinessOnboarding')}
+            style={styles.goLiveBtn}
+            onPress={() => navigation.navigate('GoLive')}
+            accessibilityRole="button"
+            accessibilityLabel="Start Stream"
           >
-            <Text style={styles.setupBtnText}>Set up my store</Text>
+            <Text style={styles.goLiveBtnText}>Start Stream →</Text>
           </Pressable>
         </View>
-      )}
+
+        {/* ── Recent streams ── */}
+        <Text style={styles.sectionTitle}>Recent Streams</Text>
+        <View style={styles.streamsEmpty}>
+          <Radio size={28} color={Colors.border} />
+          <Text style={styles.streamsEmptyText}>
+            Your streams will show up here once you go live.
+          </Text>
+        </View>
+
+        {/* ── No store state ── */}
+        {!store && (
+          <View style={styles.noStore}>
+            <Text style={styles.noStoreTitle}>No store yet</Text>
+            <Text style={styles.noStoreSub}>Complete store setup to start selling.</Text>
+            <Pressable
+              style={styles.setupBtn}
+              onPress={() => navigation.navigate('BusinessOnboarding')}
+            >
+              <Text style={styles.setupBtnText}>Set up my store</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
     </ScrollView>
   );
 };
@@ -261,46 +256,63 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerIcon: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center',
+  header: {
+    backgroundColor: Colors.navy,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
-  greeting: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary },
-  storeName: { fontSize: 20, fontFamily: Fonts.extraBold, color: Colors.text },
+  greeting: { fontSize: 22, fontFamily: Fonts.extraBold, color: '#fff' },
+  dateText: { fontSize: 13, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+
+  body: { padding: 16, gap: 16 },
 
   banner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1, borderRadius: 12, padding: 12,
+    backgroundColor: '#FEF9C3',
+    borderWidth: 1,
+    borderColor: '#FDE047',
+    borderRadius: 10,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  bannerText: { flex: 1, fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.text, lineHeight: 18 },
+  bannerText: { flex: 1, fontSize: 13, fontFamily: Fonts.regular, color: Colors.text, lineHeight: 18 },
+  bannerLink: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.orange },
 
-  sectionLabel: {
-    fontSize: 10, fontFamily: Fonts.extraBold, color: Colors.textSecondary,
-    letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: -8,
-  },
-
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: {
-    flex: 1, minWidth: '45%', borderRadius: 14, borderWidth: 1,
-    backgroundColor: Colors.surface, padding: 14, gap: 6, alignItems: 'flex-start',
+    flexBasis: '47%', flexGrow: 1,
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 18, gap: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
   },
-  tileIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  tileValue: { fontSize: 22, fontFamily: Fonts.extraBold },
-  tileLabel: { fontSize: 12, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  tileIcon: { marginBottom: 4 },
+  tileValue: { fontSize: 28, fontFamily: Fonts.extraBold, color: Colors.navy },
+  tileLabel: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary },
 
-  goLiveCta: {
+  goLiveCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: Colors.orange, borderRadius: 16, padding: 16,
+    backgroundColor: Colors.orange, borderRadius: 14, padding: 20,
   },
-  goLiveCtaIcon: {
-    width: 40, height: 40, borderRadius: 12,
+  goLiveIconWrap: {
+    width: 48, height: 48, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center',
   },
-  goLiveCtaTitle: { fontSize: 16, fontFamily: Fonts.bold, color: '#fff' },
-  goLiveCtaSub: { fontSize: 12, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+  goLiveTitle: { fontSize: 18, fontFamily: Fonts.extraBold, color: '#fff' },
+  goLiveSub: { fontSize: 13, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  goLiveBtn: {
+    borderWidth: 1.5, borderColor: '#fff', borderRadius: 10,
+    paddingVertical: 8, paddingHorizontal: 12,
+  },
+  goLiveBtnText: { color: '#fff', fontSize: 12, fontFamily: Fonts.semiBold },
 
-  noStore: { alignItems: 'center', paddingVertical: 32, gap: 10 },
+  sectionTitle: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text, marginTop: 4 },
+  streamsEmpty: {
+    backgroundColor: Colors.surface, borderRadius: 10, padding: 20,
+    alignItems: 'center', gap: 8,
+  },
+  streamsEmptyText: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary, textAlign: 'center' },
+
+  noStore: { alignItems: 'center', paddingVertical: 24, gap: 8 },
   noStoreTitle: { fontSize: 16, fontFamily: Fonts.bold, color: Colors.text },
   noStoreSub: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary },
   setupBtn: {
