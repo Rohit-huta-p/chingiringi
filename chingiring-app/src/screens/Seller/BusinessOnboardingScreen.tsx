@@ -35,6 +35,8 @@ import apiClient from '../../api/client';
 // ── Store categories (predefined; CategoryPicker is admin-only) ───────────
 // CategoryPicker uses adminAPI.getCategories() which is gated to admin role.
 // We use a simple single-select grid of the canonical store categories instead.
+// NB: must match backend STORE_CATEGORIES enum exactly (storeModel.js) — no
+// 'Other' option, since the schema would 400 on an unrecognised value.
 const STORE_CATEGORIES = [
   { label: 'Fashion',     emoji: '👗' },
   { label: 'Electronics', emoji: '📱' },
@@ -44,7 +46,6 @@ const STORE_CATEGORIES = [
   { label: 'Jewellery',   emoji: '💍' },
   { label: 'Sports',      emoji: '⚽' },
   { label: 'Beauty',      emoji: '💄' },
-  { label: 'Other',       emoji: '🏪' },
 ] as const;
 
 type StoreCategory = (typeof STORE_CATEGORIES)[number]['label'];

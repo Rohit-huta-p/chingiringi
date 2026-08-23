@@ -22,7 +22,7 @@ import { ProductCard } from './ProductCard';
 import type { Product } from '../api/products';
 import { adminAPI } from '../api/admin';
 import { importRemoteImage, cloudinaryConfigured } from './useImageUpload';
-import { Colors, Gradient } from '../constants/theme';
+import { Colors, Fonts, Gradient } from '../constants/theme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -539,7 +539,7 @@ const st = StyleSheet.create({
     width: 34, height: 34, borderRadius: 10,
     backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center',
   },
-  modalTitle: { fontSize: 17, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  modalTitle: { fontSize: 17, fontFamily: Fonts.extraBold, color: Colors.text, letterSpacing: -0.2 },
   modalSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
   closeBtn: {
     width: 32, height: 32, borderRadius: 16,
@@ -560,7 +560,7 @@ const st = StyleSheet.create({
   },
   previewCap: {
     alignSelf: 'flex-start',
-    fontSize: 11, fontWeight: '800', color: Colors.textSecondary,
+    fontSize: 11, fontFamily: Fonts.extraBold, color: Colors.textSecondary,
     letterSpacing: 0.6, textTransform: 'uppercase',
   },
   previewInline: { alignItems: 'center', marginBottom: 6 },
@@ -578,7 +578,7 @@ const st = StyleSheet.create({
     width: 24, height: 24, borderRadius: 7,
     backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center',
   },
-  sectionHeadText: { fontSize: 13, fontWeight: '800', color: Colors.text, letterSpacing: 0.2 },
+  sectionHeadText: { fontSize: 13, fontFamily: Fonts.extraBold, color: Colors.text, letterSpacing: 0.2 },
 
   // Fields
   field: { marginTop: 12 },
@@ -588,10 +588,10 @@ const st = StyleSheet.create({
     alignItems: 'baseline',
     marginBottom: 6,
   },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  fieldLabel: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.text },
   fieldHint: { fontSize: 11, color: Colors.textSecondary, marginTop: 6 },
-  req: { color: '#ef4444' },
-  errText: { fontSize: 11, color: '#dc2626', fontWeight: '600' },
+  req: { color: Colors.danger },
+  errText: { fontSize: 11, color: Colors.danger, fontFamily: Fonts.semiBold },
 
   input: {
     borderWidth: 1,
@@ -614,7 +614,7 @@ const st = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.primary, backgroundColor: '#eff6ff',
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9,
   },
-  autofillBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.primary },
+  autofillBtnText: { fontSize: 12.5, fontFamily: Fonts.bold, color: Colors.primary },
   textarea: { minHeight: 80, paddingTop: 12 },
 
   row3: { flexDirection: 'row', gap: 10 },
@@ -637,10 +637,10 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelBtnText: { color: Colors.text, fontWeight: '600', fontSize: 14 },
+  cancelBtnText: { color: Colors.text, fontFamily: Fonts.semiBold, fontSize: 14 },
   submitBtnWrap: { flex: 2, borderRadius: 10, overflow: 'hidden' },
   submitBtn: { paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  submitBtnText: { color: '#fff', fontFamily: Fonts.bold, fontSize: 15 },
 });
 
 export default ProductFormModal;
