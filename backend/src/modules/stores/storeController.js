@@ -35,12 +35,18 @@ const decorate = (s) => ({
 // @route   GET /api/stores
 // @access  Public
 export const getStores = async (req, res) => {
-  const { page = 1, limit = 50, category, search, featured, sort = '-createdAt' } = req.query;
+  const { page = 1, limit = 50, category, search, featured, sort = '-createdAt', verificationStatus } = req.query;
 
-  const filter = { isActive: true };
+  // When filtering by verificationStatus (admin use), don't restrict to isActive
+  // so we catch stores in any lifecycle state.
+  const filter = verificationStatus ? {} : { isActive: true };
   if (category && category !== 'All') filter.category = category;
   if (featured === 'true') filter.isFeatured = true;
   if (search) filter.$text = { $search: search };
+  if (verificationStatus) {
+    const statuses = String(verificationStatus).split(',').map((s) => s.trim()).filter(Boolean);
+    filter.verificationStatus = statuses.length === 1 ? statuses[0] : { $in: statuses };
+  }
 
   const skip = (Number(page) - 1) * Number(limit);
 

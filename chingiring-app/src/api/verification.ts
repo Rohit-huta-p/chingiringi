@@ -60,4 +60,34 @@ export const verificationAPI = {
     const res = await apiClient.patch(`/api/stores/${storeId}/verification`, payload);
     return res.data?.store ?? res.data?.data;
   },
+
+  // ── Admin-only ────────────────────────────────────────────────────────────
+
+  /**
+   * GET /api/stores?verificationStatus=pending,rejected&limit=100
+   * Returns stores whose verification is pending or rejected (admin review queue).
+   * Pass statuses=[] to get all.
+   */
+  adminListVerifications: async (
+    statuses: VerificationStatus[] = ['pending', 'rejected'],
+  ): Promise<SellerStore[]> => {
+    const params: Record<string, string> = { limit: '100', sort: '-updatedAt' };
+    if (statuses.length > 0) params.verificationStatus = statuses.join(',');
+    const res = await apiClient.get('/api/stores', { params });
+    return (res.data?.data?.stores ?? res.data?.stores ?? []) as SellerStore[];
+  },
+
+  /**
+   * PATCH /api/stores/:id/verification
+   * Admin approves or rejects a store verification.
+   */
+  adminSetStatus: async (
+    storeId: string,
+    status: 'verified' | 'rejected',
+    rejectionReason?: string,
+  ): Promise<void> => {
+    const body: Record<string, string> = { status };
+    if (rejectionReason) body.rejectionReason = rejectionReason;
+    await apiClient.patch(`/api/stores/${storeId}/verification`, body);
+  },
 };

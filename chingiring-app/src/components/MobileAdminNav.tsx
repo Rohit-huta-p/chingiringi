@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
   LayoutDashboard, Wallet, CreditCard, Users, Package, Store,
-  Image as ImageIcon, Ticket, PlaySquare, Search,
+  Image as ImageIcon, Ticket, PlaySquare, Search, ShieldCheck,
 } from 'lucide-react-native';
 import { useAuthStore } from '../store';
 import { Colors, Fonts } from '../constants/theme';
@@ -18,8 +18,9 @@ export const ADMIN_NAV_ITEMS = [
   { key: 'AdminWithdrawals',  label: 'Payouts',    icon: CreditCard },
   { key: 'AdminUsers',        label: 'Users',      icon: Users },
   { key: 'AdminAllProducts',  label: 'Products',   icon: Package },
-  { key: 'AdminStores',       label: 'Stores',     icon: Store },
-  { key: 'AdminVideos',       label: 'Videos',     icon: PlaySquare },
+  { key: 'AdminStores',              label: 'Stores',        icon: Store },
+  { key: 'AdminStoreVerifications', label: 'Verifications', icon: ShieldCheck },
+  { key: 'AdminVideos',             label: 'Videos',        icon: PlaySquare },
   { key: 'AdminBanners',      label: 'Banners',    icon: ImageIcon },
   { key: 'AdminCoupons',      label: 'Coupons',    icon: Ticket },
   { key: 'AdminSearchQueries', label: 'Search',    icon: Search },
