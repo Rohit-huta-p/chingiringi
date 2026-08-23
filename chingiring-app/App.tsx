@@ -36,7 +36,7 @@ const queryClient = new QueryClient({
 // (React Native doesn't auto-select font weight variants from a family name)
 
 export default function App() {
-  const { isReady, hydrate, isAuthenticated, user } = useAuthStore();
+  const { hydrate, isAuthenticated, user } = useAuthStore();
   const [splashDone, setSplashDone] = useState(false);
 
   const [fontsLoaded] = useFonts({
@@ -81,10 +81,13 @@ export default function App() {
     Text.defaultProps = { ...(Text.defaultProps ?? {}), style: { fontFamily: 'Outfit_400Regular' } };
   }
 
-  // Show the animated splash until both (1) hydration is done AND (2) the
-  // splash timeline has finished playing. This guarantees the user sees the
-  // full animation even on fast-hydrating sessions.
-  if (!splashDone || !isReady || !fontsLoaded) {
+  // Show the animated splash only for its own fixed timeline (+ fonts) —
+  // auth hydration is intentionally NOT awaited here anymore. It used to
+  // block here too, which meant a cold/slow backend response to /auth/me
+  // froze the splash on its last frame for as long as that request took.
+  // RootNavigator has its own `!isReady` loading state, and the Home
+  // screen skeleton-loads its own data, so we hand off to those instead.
+  if (!splashDone || !fontsLoaded) {
     return (
       <View style={{ flex: 1 }}>
         <SplashAnimation onComplete={() => setSplashDone(true)} />

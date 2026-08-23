@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Platform, View, ActivityIndicator } from 'react-native';
+import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../store';
 import ResponsiveNavigator from './DrawerNavigator';
@@ -17,7 +17,6 @@ function trackScreen(name: string) {
 
 export default function RootNavigator() {
   const user = useAuthStore((state) => state.user);
-  const isReady = useAuthStore((state) => state.isReady);
   const routeNameRef = useRef<string | undefined>();
 
   return (
@@ -35,11 +34,7 @@ export default function RootNavigator() {
           }
         }}
       >
-        {!isReady ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="large" />
-          </View>
-        ) : user?.role === 'admin' ? (
+        {user?.role === 'admin' ? (
           <AdminNavigator />
         ) : (
           <AuthGateProvider>
