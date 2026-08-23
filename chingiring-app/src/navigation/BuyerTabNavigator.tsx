@@ -26,7 +26,7 @@ import {
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Wallet, Store, User, Radio } from 'lucide-react-native';
+import { Home, Wallet, Store, User, Play } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 
 // Existing screens reused in tabs
@@ -60,11 +60,11 @@ import { SignupScreen } from '../screens/Auth/SignupScreen';
 
 // ─── Tab icon map ──────────────────────────────────────────────────────────
 const BUYER_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
-  LiveDiscovery: Radio,
-  Cashback:      Home,
-  Stores:        Store,
-  Wallet:        Wallet,
-  Profile:       User,
+  Videos:  Play,
+  Stores:  Store,
+  Home:    Home,
+  Wallet:  Wallet,
+  Profile: User,
 };
 
 // ─── Custom tab bar (pill design, same as DrawerNavigator MobileTabBar) ───
@@ -79,7 +79,7 @@ function BuyerMobileTabBar({ state, descriptors, navigation }: any) {
           const label = options.tabBarLabel ?? route.name;
           const isFocused = state.index === index;
           const Icon = BUYER_TAB_ICON_MAP[route.name];
-          const isCashback = route.name === 'Cashback';
+          const isCashback = route.name === 'Home';
 
           const onPress = () => {
             const event = navigation.emit({
@@ -136,16 +136,16 @@ const Tab = createBottomTabNavigator();
 function BuyerBottomTabs() {
   return (
     <Tab.Navigator
-      initialRouteName="LiveDiscovery"
+      initialRouteName="Home"
       backBehavior="history"
       tabBar={(props) => <BuyerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tab.Screen name="LiveDiscovery" component={LiveDiscoveryScreen} options={{ tabBarLabel: 'Live' }} />
-      <Tab.Screen name="Cashback"      component={MobileHomeScreen}         options={{ tabBarLabel: 'Cashback' }} />
-      <Tab.Screen name="Stores"        component={OfflineStoresScreen}      options={{ tabBarLabel: 'Stores' }} />
-      <Tab.Screen name="Wallet"        component={MobileWalletScreen}       options={{ tabBarLabel: 'Wallet' }} />
-      <Tab.Screen name="Profile"       component={BuyerProfileScreen}       options={{ tabBarLabel: 'Profile' }} />
+      <Tab.Screen name="Videos"  component={LiveDiscoveryScreen} options={{ tabBarLabel: 'Videos' }} />
+      <Tab.Screen name="Stores"  component={OfflineStoresScreen} options={{ tabBarLabel: 'Stores' }} />
+      <Tab.Screen name="Home"    component={MobileHomeScreen}    options={{ tabBarLabel: 'Home' }} />
+      <Tab.Screen name="Wallet"  component={MobileWalletScreen}  options={{ tabBarLabel: 'Wallet' }} />
+      <Tab.Screen name="Profile" component={BuyerProfileScreen}  options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
   );
 }

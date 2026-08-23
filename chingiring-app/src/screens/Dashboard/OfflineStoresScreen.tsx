@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TextInput,
   Pressable,
   Image,
@@ -26,7 +27,10 @@ import {
   Minus,
   Check,
   X,
+  Radio,
+  Users,
 } from 'lucide-react-native';
+import { fetchActiveStreams, type LiveStream } from '../Buyer/LiveDiscoveryScreen';
 import * as Location from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
@@ -57,6 +61,9 @@ export const OfflineStoresScreen: React.FC = () => {
   // Match the navigator: desktop two-pane only on web ≥768; native stays mobile.
   const isNarrow = Platform.OS !== 'web' || width < 768;
   const navigation = useNavigation<any>();
+
+  // Live | Stores sub-tab toggle
+  const [storeTab, setStoreTab] = useState<'live' | 'stores'>('live');
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
@@ -111,6 +118,14 @@ export const OfflineStoresScreen: React.FC = () => {
     queryFn: () => storesAPI.list({ limit: 50 }),
   });
 
+  // Active live streams — shared query key with LiveDiscoveryScreen so React Query dedupes
+  const { data: liveStreams = [], isLoading: liveLoading } = useQuery<LiveStream[]>({
+    queryKey: ['streams', 'active'],
+    queryFn: fetchActiveStreams,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
+
   // Daily share quota — screen-level (not per-card); same query key the
   // per-store share action invalidates.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
@@ -158,6 +173,72 @@ export const OfflineStoresScreen: React.FC = () => {
       {isNarrow ? (
         // ── Mobile: blue gradient header + stacked controls ─────────────
         <>
+          {/* Live | Stores sub-tab toggle */}
+          <View style={styles.subTabRow}>
+            <Pressable
+              onPress={() => setStoreTab('live')}
+              style={[styles.subTab, storeTab === 'live' && styles.subTabActive]}
+            >
+              <Radio size={14} color={storeTab === 'live' ? '#fff' : Colors.textSecondary} />
+              <Text style={[styles.subTabText, storeTab === 'live' && styles.subTabTextActive]}>Live</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setStoreTab('stores')}
+              style={[styles.subTab, storeTab === 'stores' && styles.subTabActive]}
+            >
+              <Text style={[styles.subTabText, storeTab === 'stores' && styles.subTabTextActive]}>Stores</Text>
+            </Pressable>
+          </View>
+
+          {/* ── Live sub-tab ── */}
+          {storeTab === 'live' && (
+            <View style={{ flex: 1, backgroundColor: Colors.background }}>
+              {liveLoading ? (
+                <ActivityIndicator color={Colors.primary} style={{ marginTop: 48 }} />
+              ) : liveStreams.length === 0 ? (
+                <View style={styles.liveEmpty}>
+                  <Radio size={44} color={Colors.border} />
+                  <Text style={styles.liveEmptyTitle}>No one is live right now</Text>
+                  <Text style={styles.liveEmptySub}>Check back soon — stores go live throughout the day.</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={liveStreams}
+                  keyExtractor={(item) => item._id}
+                  contentContainerStyle={{ padding: 12, paddingBottom: 100 }}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={({ pressed }) => [styles.liveCard, pressed && { opacity: 0.85 }]}
+                      onPress={() => navigation.navigate('ViewerScreen', { streamId: item._id, storeId: item.storeId })}
+                    >
+                      <View style={styles.liveCardAvatar}>
+                        {item.storeLogoUrl ? (
+                          <Image source={{ uri: item.storeLogoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        ) : (
+                          <Text style={styles.liveCardAvatarText}>{item.storeName[0]?.toUpperCase()}</Text>
+                        )}
+                        <View style={styles.liveBadge}>
+                          <Radio size={8} color="#fff" />
+                          <Text style={styles.liveBadgeText}>LIVE</Text>
+                        </View>
+                      </View>
+                      <View style={styles.liveCardInfo}>
+                        <Text style={styles.liveCardStore} numberOfLines={1}>{item.storeName}</Text>
+                        <Text style={styles.liveCardTitle} numberOfLines={2}>{item.title}</Text>
+                        <View style={styles.liveCardViewers}>
+                          <Users size={12} color={Colors.textSecondary} />
+                          <Text style={styles.liveCardViewerText}>{item.viewerCount.toLocaleString('en-IN')} watching</Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  )}
+                />
+              )}
+            </View>
+          )}
+
+          {/* ── Stores sub-tab (existing content) ── */}
+          {storeTab === 'stores' && <>
           <MobileAuthHeader
             hideBack
             title="Nearby Stores"
@@ -204,6 +285,7 @@ export const OfflineStoresScreen: React.FC = () => {
               <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
             </ScrollView>
           </View>
+          </>}
         </>
       ) : (
         // ── Desktop: existing horizontal header (unchanged) ─────────────
@@ -632,6 +714,125 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingHorizontal: 24,
     paddingVertical: 20,
+  },
+
+  // ── Live | Stores sub-tab toggle ────────────────────────────────────────
+  subTabRow: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 0,
+    gap: 4,
+  },
+  subTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 6,
+  },
+  subTabActive: {
+    backgroundColor: Colors.primary,
+  },
+  subTabText: {
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  subTabTextActive: {
+    color: '#fff',
+    fontFamily: Fonts.semiBold,
+  },
+
+  // ── Live stream cards ────────────────────────────────────────────────────
+  liveCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    marginBottom: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  liveCardAvatar: {
+    width: 80,
+    height: 80,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  liveCardAvatarText: {
+    fontSize: 28,
+    fontFamily: Fonts.bold,
+    color: '#fff',
+  },
+  liveBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.danger,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  liveBadgeText: {
+    fontSize: 9,
+    fontFamily: Fonts.bold,
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  liveCardInfo: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'center',
+    gap: 3,
+  },
+  liveCardStore: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 13,
+    color: Colors.text,
+  },
+  liveCardTitle: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  liveCardViewers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  liveCardViewerText: {
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: Colors.textSecondary,
+  },
+  liveEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 12,
+  },
+  liveEmptyTitle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  liveEmptySub: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
 
   // Mobile search pill — mirrors the Home search bar (white, rounded, 44px).
