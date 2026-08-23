@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TextInput,
   Pressable,
   Image,
@@ -17,7 +18,8 @@ import {
   Search,
   MapPin,
   Map as MapIcon,
-  List,
+  Radio,
+  Users,
   Tag,
   Star,
   Clock,
@@ -27,6 +29,7 @@ import {
   Check,
   X,
 } from 'lucide-react-native';
+import { fetchActiveStreams, type LiveStream } from '../Buyer/LiveDiscoveryScreen';
 import * as Location from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
@@ -43,7 +46,7 @@ import {
 } from '../../data/offlineStores';
 
 type SortKey = 'discount' | 'rating';
-type ViewMode = 'list' | 'map';
+type ViewMode = 'live' | 'map';
 type StoreFilters = { openNow: boolean; minDiscount: number; minRating: number };
 
 const DEFAULT_FILTERS: StoreFilters = { openNow: false, minDiscount: 0, minRating: 0 };
@@ -61,7 +64,7 @@ export const OfflineStoresScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
   const [sort, setSort] = useState<SortKey>('discount');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('live');
   const [filters, setFilters] = useState<StoreFilters>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -111,6 +114,13 @@ export const OfflineStoresScreen: React.FC = () => {
     queryFn: () => storesAPI.list({ limit: 50 }),
   });
 
+  const { data: liveStreams = [], isLoading: liveLoading } = useQuery<LiveStream[]>({
+    queryKey: ['streams', 'active'],
+    queryFn: fetchActiveStreams,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
+
   // Daily share quota — screen-level (not per-card); same query key the
   // per-store share action invalidates.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
@@ -146,7 +156,7 @@ export const OfflineStoresScreen: React.FC = () => {
 
   const openCount = filtered.filter((s) => s.isOpen).length;
   const showMap = !isNarrow || viewMode === 'map';
-  const showList = !isNarrow || viewMode === 'list';
+  const showLive = !isNarrow || viewMode === 'live';
 
   return (
     <View
@@ -180,11 +190,11 @@ export const OfflineStoresScreen: React.FC = () => {
           <View style={styles.mobileControlsRow}>
             <View style={styles.viewToggle}>
               <Pressable
-                onPress={() => setViewMode('list')}
-                style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
+                onPress={() => setViewMode('live')}
+                style={[styles.toggleBtn, viewMode === 'live' && styles.toggleBtnActive]}
               >
-                <List size={14} color={viewMode === 'list' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
+                <Radio size={14} color={viewMode === 'live' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
               </Pressable>
               <Pressable
                 onPress={() => setViewMode('map')}
@@ -332,29 +342,49 @@ export const OfflineStoresScreen: React.FC = () => {
           </View>
         )}
 
-        {showList && (
-          <ScrollView
+        {showLive && (
+          liveLoading ? (
+            <View style={[isNarrow ? styles.listColMobile : styles.listColDesktop, { justifyContent: 'center', alignItems: 'center' }]}>
+              <ActivityIndicator color={PRIMARY} />
+            </View>
+          ) : liveStreams.length === 0 ? (
+            <View style={[isNarrow ? styles.listColMobile : styles.listColDesktop, styles.emptyState]}>
+              <Radio size={40} color={Colors.border} />
+              <Text style={styles.emptyText}>No one is live right now</Text>
+            </View>
+          ) : (
+          <FlatList
             style={isNarrow ? styles.listColMobile : styles.listColDesktop}
             contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
             showsVerticalScrollIndicator={false}
-          >
-            {filtered.map((s) => (
-              <StoreCard
-                key={s._id}
-                store={s}
-                onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
-              />
-            ))}
-            {filtered.length === 0 && (
-              <View style={styles.emptyState}>
-                {isLoading ? (
-                  <ActivityIndicator color={Colors.primary} />
-                ) : (
-                  <Text style={styles.emptyText}>No stores match your filters.</Text>
-                )}
-              </View>
+            data={liveStreams}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => (
+              <Pressable
+                style={({ pressed }) => [styles.liveCard, pressed && { opacity: 0.85 }]}
+                onPress={() => navigation.navigate('ViewerScreen', { streamId: item._id, storeId: item.storeId })}
+              >
+                <View style={styles.liveCardAvatar}>
+                  {item.storeLogoUrl
+                    ? <Image source={{ uri: item.storeLogoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                    : <Text style={styles.liveCardAvatarText}>{item.storeName[0]?.toUpperCase()}</Text>}
+                  <View style={styles.liveBadge}>
+                    <Radio size={8} color="#fff" />
+                    <Text style={styles.liveBadgeText}>LIVE</Text>
+                  </View>
+                </View>
+                <View style={styles.liveCardInfo}>
+                  <Text style={styles.liveCardStore} numberOfLines={1}>{item.storeName}</Text>
+                  <Text style={styles.liveCardTitle} numberOfLines={2}>{item.title}</Text>
+                  <View style={styles.liveCardViewers}>
+                    <Users size={12} color={Colors.textSecondary} />
+                    <Text style={styles.liveCardViewerText}>{item.viewerCount.toLocaleString('en-IN')} watching</Text>
+                  </View>
+                </View>
+              </Pressable>
             )}
-          </ScrollView>
+          />
+          )
         )}
       </View>
 
@@ -633,6 +663,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
   },
+
+  // ── Live stream cards (shown when viewMode === 'live') ──────────────────
+  liveCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    marginBottom: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  liveCardAvatar: {
+    width: 80,
+    height: 80,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  liveCardAvatarText: { fontSize: 28, fontFamily: Fonts.bold, color: '#fff' },
+  liveBadge: {
+    position: 'absolute', bottom: 6, left: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.danger, borderRadius: 4,
+    paddingHorizontal: 5, paddingVertical: 2,
+  },
+  liveBadgeText: { fontSize: 9, fontFamily: Fonts.bold, color: '#fff', letterSpacing: 0.5 },
+  liveCardInfo: { flex: 1, padding: 10, justifyContent: 'center', gap: 3 },
+  liveCardStore: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.text },
+  liveCardTitle: { fontFamily: Fonts.regular, fontSize: 12, color: Colors.textSecondary },
+  liveCardViewers: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  liveCardViewerText: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textSecondary },
 
   // Mobile search pill — mirrors the Home search bar (white, rounded, 44px).
   mobileSearchBar: {
