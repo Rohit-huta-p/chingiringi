@@ -42,7 +42,8 @@ export interface LiveStream {
 async function fetchActiveStreams(): Promise<LiveStream[]> {
   try {
     const res = await apiClient.get('/api/streams/active');
-    return res.data?.streams ?? res.data?.data ?? [];
+    const payload = res.data?.data?.streams ?? res.data?.streams ?? res.data?.data ?? res.data;
+    return Array.isArray(payload) ? payload : [];
   } catch {
     return []; // graceful: backend may not be ready yet
   }
