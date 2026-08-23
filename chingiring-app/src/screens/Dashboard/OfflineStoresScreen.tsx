@@ -1,15 +1,3 @@
-/**
- * OfflineStoresScreen — Buyer tab "Stores" (Store List)
- *
- * Mockup: https://claude.ai/code/artifact/d95d61f4-9f60-402e-aea9-97651dbcc8a5
- *         + Follow States: https://claude.ai/code/artifact/1c500789-0ef3-465e-92fb-cf93a18cc2a2
- *         + Empty States:  https://claude.ai/code/artifact/7b76149b-db0c-46d5-ac40-970000927423
- *
- * Mobile header/pills mirror LiveDiscoveryScreen exactly (same components,
- * same navigate('LiveDiscovery')/navigate('Stores') sibling-tab pattern) so
- * the two screens read as one continuous "Live | Stores" surface. The
- * desktop two-pane (list + map) layout below is unchanged.
- */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -24,9 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  Linking,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Search,
   MapPin,
@@ -40,8 +26,6 @@ import {
   Minus,
   Check,
   X,
-  MessageCircle,
-  Radio,
 } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -53,7 +37,6 @@ import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
 import { storesAPI, type Store } from '../../api/stores';
 import { sharesAPI } from '../../api/shares';
-import { fetchActiveStreams } from '../Buyer/LiveDiscoveryScreen';
 import {
   STORE_CATEGORIES,
   type StoreCategory,
@@ -68,18 +51,6 @@ const DISCOUNT_STEPS = [0, 10, 20, 30];
 const RATING_STEPS = [0, 4, 4.5];
 
 const PRIMARY = Colors.primary;
-
-// Haversine distance in km between the shopper's GPS fix and a store's pin.
-// Pure client-side math over data we already have — no backend change.
-function distanceKm(from: { lat: number; lng: number }, toLat: number, toLng: number): number {
-  const R = 6371;
-  const dLat = ((toLat - from.lat) * Math.PI) / 180;
-  const dLng = ((toLng - from.lng) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((from.lat * Math.PI) / 180) * Math.cos((toLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
 
 export const OfflineStoresScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -140,16 +111,6 @@ export const OfflineStoresScreen: React.FC = () => {
     queryFn: () => storesAPI.list({ limit: 50 }),
   });
 
-  // Same queryKey LiveDiscoveryScreen uses — React Query shares the cache
-  // instead of double-fetching when both screens are mounted.
-  const { data: activeStreams = [] } = useQuery({
-    queryKey: ['streams', 'active'],
-    queryFn: fetchActiveStreams,
-    refetchInterval: 30_000,
-    staleTime: 10_000,
-  });
-  const liveStoreIds = useMemo(() => new Set(activeStreams.map((s) => s.storeId)), [activeStreams]);
-
   // Daily share quota — screen-level (not per-card); same query key the
   // per-store share action invalidates.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
@@ -180,18 +141,12 @@ export const OfflineStoresScreen: React.FC = () => {
     return list;
   }, [stores, search, activeCategory, sort, filters]);
 
-  // Mobile list only: live stores pinned into their own section up top.
-  const liveStores = useMemo(() => filtered.filter((s) => liveStoreIds.has(s._id)), [filtered, liveStoreIds]);
-  const otherStores = useMemo(() => filtered.filter((s) => !liveStoreIds.has(s._id)), [filtered, liveStoreIds]);
-
   const filterCount =
     (filters.openNow ? 1 : 0) + (filters.minDiscount > 0 ? 1 : 0) + (filters.minRating > 0 ? 1 : 0);
 
   const openCount = filtered.filter((s) => s.isOpen).length;
   const showMap = !isNarrow || viewMode === 'map';
   const showList = !isNarrow || viewMode === 'list';
-
-  const goToLive = () => navigation.navigate('LiveDiscovery');
 
   return (
     <View
@@ -201,33 +156,25 @@ export const OfflineStoresScreen: React.FC = () => {
       ]}
     >
       {isNarrow ? (
-        // ── Mobile: blue gradient header + Live/Stores pills + controls ──
+        // ── Mobile: blue gradient header + stacked controls ─────────────
         <>
-          <MobileAuthHeader hideBack title="Stores" align="left">
+          <MobileAuthHeader
+            hideBack
+            title="Nearby Stores"
+            align="left"
+          >
+            {/* Search bar inside the header — matches the Home search pill */}
             <View style={styles.mobileSearchBar}>
               <Search size={18} color={Colors.primary} />
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search stores near you…"
+                placeholder="Search stores, categories..."
                 placeholderTextColor="#9ca3af"
                 style={styles.mobileSearchInput}
               />
             </View>
           </MobileAuthHeader>
-
-          {/* Live / Stores toggle pills — mirrors LiveDiscoveryScreen exactly */}
-          <View style={styles.pillsRow}>
-            <View style={styles.pills}>
-              <Pressable onPress={goToLive} style={styles.pill}>
-                <View style={styles.liveDot} />
-                <Text style={styles.pillText}>Live</Text>
-              </Pressable>
-              <Pressable style={[styles.pill, styles.pillStoresActive]}>
-                <Text style={[styles.pillText, styles.pillTextStoresActive]}>Stores</Text>
-              </Pressable>
-            </View>
-          </View>
 
           {/* List/Map + Sort pills */}
           <View style={styles.mobileControlsRow}>
@@ -324,7 +271,7 @@ export const OfflineStoresScreen: React.FC = () => {
         <View style={styles.statusLeft}>
           <View style={styles.openDot} />
           <Text style={styles.statusText}>
-            <Text style={{ fontFamily: Fonts.bold, color: Colors.text }}>{openCount} stores</Text>{' '}
+            <Text style={{ fontWeight: '700', color: Colors.text }}>{openCount} stores</Text>{' '}
             open now
           </Text>
           <Text style={styles.statusSep}>·</Text>
@@ -391,61 +338,19 @@ export const OfflineStoresScreen: React.FC = () => {
             contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
             showsVerticalScrollIndicator={false}
           >
-            {isNarrow ? (
-              // ── Mobile: Live Now (pinned) + Nearby Stores sections ──
-              <>
-                {liveStores.length > 0 && (
-                  <>
-                    <View style={styles.sectionHead}>
-                      <View style={styles.sectionHeadDot} />
-                      <Text style={styles.sectionHeadLabelLive}>Live Now</Text>
-                      <Text style={styles.sectionHeadCount}>{liveStores.length} store{liveStores.length === 1 ? '' : 's'}</Text>
-                      <View style={styles.sectionHeadSepLive} />
-                    </View>
-                    {liveStores.map((s) => (
-                      <StoreCard
-                        key={s._id}
-                        store={s}
-                        isLive
-                        distanceKm={coords && s.lat != null && s.lng != null ? distanceKm(coords, s.lat, s.lng) : null}
-                        onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
-                      />
-                    ))}
-                    <View style={styles.sectionHead2}>
-                      <Text style={styles.sectionHead2Label}>Nearby Stores</Text>
-                      <View style={styles.sectionHead2Sep} />
-                    </View>
-                  </>
-                )}
-                {otherStores.map((s) => (
-                  <StoreCard
-                    key={s._id}
-                    store={s}
-                    isLive={false}
-                    distanceKm={coords && s.lat != null && s.lng != null ? distanceKm(coords, s.lat, s.lng) : null}
-                    onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
-                  />
-                ))}
-              </>
-            ) : (
-              filtered.map((s) => (
-                <StoreCard
-                  key={s._id}
-                  store={s}
-                  isLive={liveStoreIds.has(s._id)}
-                  distanceKm={coords && s.lat != null && s.lng != null ? distanceKm(coords, s.lat, s.lng) : null}
-                  onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
-                />
-              ))
-            )}
+            {filtered.map((s) => (
+              <StoreCard
+                key={s._id}
+                store={s}
+                onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
+              />
+            ))}
             {filtered.length === 0 && (
               <View style={styles.emptyState}>
                 {isLoading ? (
                   <ActivityIndicator color={Colors.primary} />
                 ) : (
-                  <EmptyStores onClearFilters={activeCategory !== 'All' || !!search.trim() || filterCount > 0 ? () => {
-                    setActiveCategory('All'); setSearch(''); setFilters(DEFAULT_FILTERS);
-                  } : undefined} />
+                  <Text style={styles.emptyText}>No stores match your filters.</Text>
                 )}
               </View>
             )}
@@ -562,17 +467,8 @@ const CATEGORY_COLOR: Record<StoreCategory, string> = {
 };
 
 // Deterministic tile color from the store id/name — stable per store, varied across.
-const AVATAR_COLORS: [string, string][] = [
-  ['#1d4ed8', '#3b82f6'],
-  ['#7e22ce', '#a855f7'],
-  ['#be185d', '#ec4899'],
-  ['#b45309', '#f59e0b'],
-  ['#047857', '#10b981'],
-  ['#0369a1', '#0ea5e9'],
-  ['#b91c1c', '#ef4444'],
-  ['#c2410c', '#f97316'],
-];
-function avatarGradient(seed: string): [string, string] {
+const AVATAR_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#0EA5E9', '#EF4444', '#F97316'];
+function avatarColor(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
@@ -599,7 +495,7 @@ const CategoryChip: React.FC<{
     <Text
       style={[
         styles.chipText,
-        active && { color: '#fff', fontFamily: Fonts.bold },
+        active && { color: '#fff', fontWeight: '700' },
       ]}
     >
       {label}
@@ -614,32 +510,10 @@ const LegendRow: React.FC<{ color: string; label: string }> = ({ color, label })
   </View>
 );
 
-// Empty state — matches https://claude.ai/code/artifact/7b76149b (map-pin illustration).
-const EmptyStores: React.FC<{ onClearFilters?: () => void }> = ({ onClearFilters }) => (
-  <View style={styles.emptyStores}>
-    <View style={styles.emptyStoresIconWrap}>
-      <MapPin size={44} color={Colors.textSecondary} />
-    </View>
-    <Text style={styles.emptyStoresTitle}>No stores nearby</Text>
-    <Text style={styles.emptyStoresSub}>
-      {onClearFilters
-        ? "We couldn't find any stores matching your search or filters."
-        : "We don't have stores listed in your area yet — check back soon."}
-    </Text>
-    {onClearFilters && (
-      <Pressable onPress={onClearFilters} style={styles.emptyStoresBtn}>
-        <Text style={styles.emptyStoresBtnText}>Clear filters</Text>
-      </Pressable>
-    )}
-  </View>
-);
-
 const StoreCard: React.FC<{
   store: Store;
-  isLive: boolean;
-  distanceKm: number | null;
   onPress: () => void;
-}> = ({ store, isLive, distanceKm: distKm, onPress }) => {
+}> = ({ store, onPress }) => {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [shareOpen, setShareOpen] = useState(false);
@@ -647,38 +521,32 @@ const StoreCard: React.FC<{
   // Same query key the screen-level quota badge and the invalidate call below use.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
   const initial = (store.shortName || store.name || '?').trim().charAt(0).toUpperCase() || '?';
-  const tileGradient = avatarGradient(store._id || store.name || '');
-
-  const openWhatsApp = (e: any) => {
-    e.stopPropagation();
-    if (!store.phone) return;
-    const digits = store.phone.replace(/[^\d]/g, '');
-    Linking.openURL(`https://wa.me/${digits}`).catch(() => {});
-  };
+  const tileColor = avatarColor(store._id || store.name || '');
 
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.storeCard, isLive && styles.storeCardLive]}
+      style={styles.storeCard}
     >
-      {/* Avatar — gradient tile with initial, or logo; pulsing LIVE ring when live */}
-      <View style={styles.avaWrap}>
-        <View style={[styles.ava, !store.logoUrl && { overflow: 'hidden' }]}>
-          {store.logoUrl ? (
-            <Image source={{ uri: store.logoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          ) : (
-            <LinearGradient colors={tileGradient} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }} style={styles.avaGradient}>
-              <Text style={styles.avaInitial}>{initial}</Text>
-            </LinearGradient>
-          )}
-        </View>
-        {isLive && (
-          <>
-            <View style={styles.liveRing} pointerEvents="none" />
-            <View style={styles.liveRingBadge}>
-              <Text style={styles.liveRingBadgeText}>LIVE</Text>
-            </View>
-          </>
+      {/* Logo, or a colored tile with the store initial */}
+      <View style={[styles.storeImage, !store.logoUrl && { backgroundColor: tileColor }]}>
+        {store.logoUrl ? (
+          <Image source={{ uri: store.logoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <View style={styles.storeInitialWrap}>
+            <Text style={styles.storeInitial}>{initial}</Text>
+          </View>
+        )}
+        {/* coin badge top-left */}
+        {/* <View style={styles.coinBadge}>
+          <Tag size={11} color="#fff" />
+          <Text style={styles.coinBadgeText}>{store.userDiscountPercent}% OFF</Text>
+        </View> */}
+        {/* hottest badge */}
+        {store.isFeatured && (
+          <View style={styles.hotBadge}>
+            <Text style={styles.hotBadgeText}>Hottest</Text>
+          </View>
         )}
       </View>
 
@@ -688,46 +556,43 @@ const StoreCard: React.FC<{
           <Text style={styles.storeName} numberOfLines={1}>
             {store.name}
           </Text>
-          {store.isVerified && (
-            <View style={styles.verifiedBadge}>
-              <Check size={9} color={PRIMARY} strokeWidth={3} />
-              <Text style={styles.verifiedBadgeText}>Verified</Text>
-            </View>
-          )}
+          <View style={[styles.ocPill, store.isOpen ? styles.ocOpen : styles.ocClosed]}>
+            <View style={[styles.ocDot, { backgroundColor: store.isOpen ? '#0F9D6E' : '#64748B' }]} />
+            <Text style={[styles.ocText, { color: store.isOpen ? '#0F9D6E' : '#64748B' }]}>
+              {store.isOpen ? 'Open' : 'Closed'}
+            </Text>
+          </View>
+        </View>
+        <View
+          style={[
+            styles.categoryPill,
+            { backgroundColor: `${CATEGORY_COLOR[store.category]}1A` },
+          ]}
+        >
+          <Text style={[styles.categoryPillText, { color: CATEGORY_COLOR[store.category] }]}>
+            {store.category}
+          </Text>
         </View>
 
         <View style={styles.metaRow}>
-          {isLive ? (
-            <View style={styles.liveMeta}>
-              <Radio size={11} color={Colors.danger} />
-              <Text style={styles.liveMetaText}>Live now</Text>
-            </View>
-          ) : (
-            <>
-              <View style={[styles.ocDot, { backgroundColor: store.isOpen ? '#0F9D6E' : '#64748B' }]} />
-              <Text style={[styles.ocText, { color: store.isOpen ? '#0F9D6E' : '#64748B' }]}>
-                {store.isOpen ? 'Open' : 'Closed'}
-              </Text>
-            </>
-          )}
-          <Text style={styles.metaSep}>·</Text>
-          <Text style={styles.metaText}>{store.category}</Text>
-          {distKm != null ? (
-            <>
-              <Text style={styles.metaSep}>·</Text>
-              <Text style={styles.metaText}>{distKm < 10 ? distKm.toFixed(1) : Math.round(distKm)} km</Text>
-            </>
-          ) : store.area ? (
-            <>
-              <Text style={styles.metaSep}>·</Text>
-              <Text style={styles.metaText} numberOfLines={1}>{store.area}</Text>
-            </>
-          ) : null}
+          <View style={styles.metaItem}>
+            <Star size={12} color="#F59E0B" fill="#F59E0B" />
+            <Text style={styles.metaText}>
+              {store.rating} <Text style={styles.metaMuted}>({store.reviewsCount})</Text>
+            </Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Clock size={12} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>{store.opensAt}</Text>
+          </View>
         </View>
 
-        {!!store.description && (
-          <Text style={styles.storeDesc} numberOfLines={1}>{store.description}</Text>
-        )}
+        <View style={styles.addressRow}>
+          <MapPin size={11} color="#10B981" />
+          <Text style={styles.addressText} numberOfLines={1}>
+            {store.address}
+          </Text>
+        </View>
 
         <Pressable
           onPress={(e) => {
@@ -740,14 +605,6 @@ const StoreCard: React.FC<{
           <Text style={styles.shareCta}>Share &amp; Earn {quotaRes?.data?.coinsPerShare ?? 50} CR</Text>
         </Pressable>
       </View>
-
-      {/* WhatsApp quick-tap — verified businesses only, matches Follow States legend */}
-      {store.isVerified && !!store.phone && (
-        <Pressable onPress={openWhatsApp} hitSlop={8} style={styles.waBtn}>
-          <MessageCircle size={17} color="#fff" />
-        </Pressable>
-      )}
-
       <ShareSheet
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
@@ -796,38 +653,13 @@ const styles = StyleSheet.create({
     outlineStyle: 'none' as any,
   },
 
-  // Live / Stores toggle pills — identical component to LiveDiscoveryScreen.
-  pillsRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  pills: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 3,
-    alignSelf: 'flex-start',
-    gap: 2,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-  },
-  pillStoresActive: { backgroundColor: Colors.primaryLight10 },
-  pillText: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
-  pillTextStoresActive: { color: Colors.primary },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.danger },
-
   // Mobile control rows that sit below the gradient header
   mobileControlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 12,
   },
 
@@ -842,7 +674,7 @@ const styles = StyleSheet.create({
   headerLeft: { gap: 4 },
   title: {
     fontSize: 22,
-    fontFamily: Fonts.extraBold,
+    fontWeight: '800',
     color: Colors.text,
   },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -886,8 +718,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
   },
-  toggleBtnActive: { backgroundColor: Colors.primaryLight10 },
-  toggleText: { fontSize: 12, color: Colors.textSecondary, fontFamily: Fonts.semiBold },
+  toggleBtnActive: { backgroundColor: '#E9F4FF' },
+  toggleText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   toggleTextActive: { color: PRIMARY },
 
   sortGroup: { flexDirection: 'row', gap: 6 },
@@ -902,8 +734,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  sortPillActive: { backgroundColor: Colors.primaryLight10, borderColor: PRIMARY },
-  sortPillText: { fontSize: 12, color: Colors.textSecondary, fontFamily: Fonts.semiBold },
+  sortPillActive: { backgroundColor: '#E9F4FF', borderColor: PRIMARY },
+  sortPillText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   sortPillTextActive: { color: PRIMARY },
 
   avatar: {
@@ -914,7 +746,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: '#fff', fontFamily: Fonts.bold, fontSize: 13 },
+  avatarText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   // Chip row
   chipRow: { gap: 8, paddingVertical: 4, marginBottom: 10 },
@@ -931,7 +763,7 @@ const styles = StyleSheet.create({
   },
   chipActiveDark: { backgroundColor: '#0F172A', borderColor: '#0F172A' },
   chipDot: { width: 8, height: 8, borderRadius: 4 },
-  chipText: { fontSize: 13, fontFamily: Fonts.medium, color: Colors.text },
+  chipText: { fontSize: 13, fontWeight: '500', color: Colors.text },
 
   // Status
   statusRow: {
@@ -941,11 +773,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   statusLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  openDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.success },
+  openDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
   statusText: { fontSize: 12, color: Colors.textSecondary },
   statusSep: { color: Colors.textSecondary, fontSize: 12 },
   filtersBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  filtersText: { fontSize: 12, color: PRIMARY, fontFamily: Fonts.bold },
+  filtersText: { fontSize: 12, color: PRIMARY, fontWeight: '700' },
   filterBadge: {
     minWidth: 16,
     height: 16,
@@ -956,7 +788,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginLeft: 2,
   },
-  filterBadgeTxt: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
+  filterBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '700' },
   shareQuotaText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10 },
 
   // Filter bottom-sheet
@@ -1051,17 +883,7 @@ const styles = StyleSheet.create({
   // Desktop: fixed-width left list (RN-Web ScrollView won't grow reliably with flex).
   listColDesktop: { width: 420, flexGrow: 0, flexShrink: 0 },
   listColMobile: { flex: 1, width: '100%' },
-  listContent: { paddingRight: 4, paddingBottom: 30, gap: 10 },
-
-  // Live Now / Nearby Stores section headers (mobile)
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 2 },
-  sectionHeadDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.danger },
-  sectionHeadLabelLive: { fontSize: 11, fontFamily: Fonts.bold, color: Colors.danger, textTransform: 'uppercase', letterSpacing: 0.6 },
-  sectionHeadCount: { fontSize: 11, color: Colors.textSecondary, fontFamily: Fonts.medium },
-  sectionHeadSepLive: { flex: 1, height: 1, backgroundColor: 'rgba(239,68,68,0.2)' },
-  sectionHead2: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 10, paddingBottom: 6, paddingHorizontal: 2 },
-  sectionHead2Label: { fontSize: 11, fontFamily: Fonts.bold, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6 },
-  sectionHead2Sep: { flex: 1, height: 1, backgroundColor: Colors.border },
+  listContent: { paddingRight: 4, paddingBottom: 30, gap: 12 },
 
   // Map overlays
   nearbyBadge: {
@@ -1085,11 +907,11 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.danger,
+    backgroundColor: '#EF4444',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nearbyText: { fontSize: 12, fontFamily: Fonts.bold, color: Colors.text },
+  nearbyText: { fontSize: 12, fontWeight: '700', color: Colors.text },
   legend: {
     position: 'absolute',
     bottom: 14,
@@ -1106,7 +928,7 @@ const styles = StyleSheet.create({
   },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: 11, color: Colors.text, fontFamily: Fonts.medium },
+  legendText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
   zoomGroup: {
     position: 'absolute',
     bottom: 14,
@@ -1132,90 +954,90 @@ const styles = StyleSheet.create({
   storeCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    overflow: 'visible',
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 14,
+    padding: 12,
     gap: 12,
   },
-  storeCardLive: { borderColor: 'rgba(220,38,38,0.25)' },
-
-  avaWrap: { position: 'relative', flexShrink: 0, width: 52, height: 52 },
-  ava: { width: 52, height: 52, borderRadius: 26 },
-  avaGradient: { flex: 1, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  avaInitial: { color: 'rgba(255,255,255,0.9)', fontSize: 18, fontFamily: Fonts.extraBold },
-  liveRing: {
-    position: 'absolute', top: -3, left: -3, right: -3, bottom: -3,
-    borderRadius: 29, borderWidth: 2.5, borderColor: Colors.danger,
+  storeCardSelected: {
+    borderColor: PRIMARY,
+    backgroundColor: '#F5FAFF',
   },
-  liveRingBadge: {
-    position: 'absolute', bottom: -5, left: 0, right: 0, alignItems: 'center',
-  },
-  liveRingBadgeText: {
-    backgroundColor: Colors.danger, color: '#fff', fontSize: 9, fontFamily: Fonts.bold,
-    borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1.5, borderWidth: 1.5, borderColor: '#fff',
+  storeImage: {
+    width: 92,
+    height: 92,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    position: 'relative',
     overflow: 'hidden',
   },
-
-  storeBody: { flex: 1, gap: 3, minWidth: 0 },
-  storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  storeName: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.text, flexShrink: 1 },
-  verifiedBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    backgroundColor: Colors.primaryLight10, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1.5, flexShrink: 0,
+  storeInitialWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  storeInitial: { color: '#fff', fontSize: 30, fontFamily: Fonts.extraBold },
+  coinBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
-  verifiedBadgeText: { fontSize: 10, fontFamily: Fonts.bold, color: PRIMARY },
-
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
-  liveMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  liveMetaText: { fontSize: 12, fontFamily: Fonts.semiBold, color: Colors.danger },
+  coinBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  ocPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  ocOpen: { backgroundColor: 'rgba(16,185,129,0.12)' },
+  ocClosed: { backgroundColor: 'rgba(148,163,184,0.16)' },
   ocDot: { width: 6, height: 6, borderRadius: 3 },
-  ocText: { fontSize: 12, fontFamily: Fonts.semiBold },
-  metaSep: { color: Colors.textSecondary, fontSize: 12 },
-  metaText: { fontSize: 12, color: Colors.textSecondary },
-
-  storeDesc: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-
+  ocText: { fontSize: 10.5, fontWeight: '700' },
   hotBadge: {
     position: 'absolute',
     bottom: 6,
     left: 6,
-    backgroundColor: Colors.danger,
+    backgroundColor: '#EF4444',
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  hotBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
+  hotBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
 
-  shareBtn: { alignSelf: 'flex-start', marginTop: 5 },
-  shareCta: { fontSize: 11, fontFamily: Fonts.bold, color: PRIMARY },
-
-  waBtn: {
-    flexShrink: 0,
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: Colors.success,
-    alignItems: 'center', justifyContent: 'center',
+  storeBody: { flex: 1, gap: 4, justifyContent: 'center' },
+  storeNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  storeName: { fontSize: 14, fontWeight: '700', color: Colors.text, flex: 1 },
+  categoryPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
     marginTop: 2,
   },
+  categoryPillText: { fontSize: 10, fontWeight: '700' },
+  metaRow: { flexDirection: 'row', gap: 12, marginTop: 6, flexWrap: 'wrap' },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  metaText: { fontSize: 11, color: Colors.text, fontWeight: '600' },
+  metaMuted: { color: Colors.textSecondary, fontWeight: '400' },
+  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  addressText: { fontSize: 11, color: Colors.textSecondary, flex: 1 },
+  shareBtn: { alignSelf: 'flex-start', marginTop: 6 },
+  shareCta: { fontSize: 11, fontFamily: Fonts.bold, color: PRIMARY },
 
   emptyState: {
     padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Empty stores — matches mockup 7b76149b
-  emptyStores: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 },
-  emptyStoresIconWrap: {
-    width: 96, height: 96, borderRadius: 26, backgroundColor: Colors.background,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-  },
-  emptyStoresTitle: { fontSize: 17, fontFamily: Fonts.extraBold, color: Colors.text, marginBottom: 6 },
-  emptyStoresSub: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, marginBottom: 16 },
-  emptyStoresBtn: { backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 22 },
-  emptyStoresBtnText: { color: '#fff', fontSize: 13, fontFamily: Fonts.bold },
+  emptyText: { color: Colors.textSecondary, fontSize: 13 },
 });
 
 export default OfflineStoresScreen;
