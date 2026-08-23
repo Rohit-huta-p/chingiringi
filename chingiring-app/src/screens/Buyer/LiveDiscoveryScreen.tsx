@@ -125,7 +125,9 @@ export const LiveDiscoveryScreen: React.FC = () => {
   });
 
   // Sort: followed stores first, then by viewer count desc
-  const streams = [...rawStreams].sort((a, b) => {
+  // Guard: React Query cache from a prior run might hold a non-array value
+  const safeStreams: LiveStream[] = Array.isArray(rawStreams) ? rawStreams : [];
+  const streams = [...safeStreams].sort((a, b) => {
     const af = followedIds.has(a.storeId) ? 1 : 0;
     const bf = followedIds.has(b.storeId) ? 1 : 0;
     if (bf !== af) return bf - af;
