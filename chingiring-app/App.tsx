@@ -87,7 +87,7 @@ export default function App() {
   if (!splashDone || !isReady || !fontsLoaded) {
     return (
       <View style={{ flex: 1 }}>
-        <SplashAnimation onComplete={() => setSplashDone(true)} />
+        <SplashAnimation fontsReady={fontsLoaded} onComplete={() => setSplashDone(true)} />
       </View>
     );
   }
