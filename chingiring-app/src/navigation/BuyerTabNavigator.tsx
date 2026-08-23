@@ -34,7 +34,8 @@ import { MobileHomeScreen } from '../screens/Dashboard/MobileHomeScreen';
 import { MobileWalletScreen } from '../screens/Dashboard/MobileWalletScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 
-// Buyer screens (Sprint 2 + Sprint 5)
+// Buyer screens
+import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
 import { LiveDiscoveryScreen } from '../screens/Buyer/LiveDiscoveryScreen';
 import { BuyerOnboardingScreen } from '../screens/Buyer/BuyerOnboardingScreen';
 import { BuyerProfileScreen } from '../screens/Buyer/BuyerProfileScreen';
@@ -141,7 +142,7 @@ function BuyerBottomTabs() {
       tabBar={(props) => <BuyerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tab.Screen name="Videos"  component={LiveDiscoveryScreen} options={{ tabBarLabel: 'Videos' }} />
+      <Tab.Screen name="Videos"  component={MobileVideosScreen}  options={{ tabBarLabel: 'Videos' }} />
       <Tab.Screen name="Stores"  component={OfflineStoresScreen} options={{ tabBarLabel: 'Stores' }} />
       <Tab.Screen name="Home"    component={MobileHomeScreen}    options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Wallet"  component={MobileWalletScreen}  options={{ tabBarLabel: 'Wallet' }} />
