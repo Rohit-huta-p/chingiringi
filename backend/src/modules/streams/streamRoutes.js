@@ -4,6 +4,7 @@ import {
   viewerToken,
   endStream,
   getActiveStreams,
+  getStream,
 } from './streamController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 
@@ -11,6 +12,7 @@ const router = express.Router();
 
 // Public
 router.get('/active', getActiveStreams);
+router.get('/:id',    getStream);
 
 // Authenticated (broadcaster)
 router.post('/',              protect, createStream);

@@ -10,6 +10,9 @@ import apiClient from './client';
 export interface CreateStreamRequest {
   title: string;
   storeId?: string;
+  category?: string;
+  /** Product ids to feature on the stream — surfaced to viewers via getStream(). */
+  productIds?: string[];
 }
 
 export interface CreateStreamResponse {
@@ -59,4 +62,46 @@ export interface ViewerTokenResponse {
 export async function getViewerToken(streamId: string): Promise<ViewerTokenResponse> {
   const res = await apiClient.post<ViewerTokenResponse>(`/api/streams/${streamId}/viewer-token`);
   return res.data;
+}
+
+// ── Stream detail (store + featured products) ──────────────────────────────
+
+export interface StreamProductLite {
+  _id: string;
+  name: string;
+  price: number;
+  mrp?: number;
+  imageUrl?: string;
+  images?: string[];
+}
+
+export interface StreamStoreLite {
+  _id: string;
+  name: string;
+  shortName?: string;
+  logoUrl?: string;
+}
+
+export interface StreamDetail {
+  _id: string;
+  title: string;
+  status: 'idle' | 'live' | 'ended';
+  viewerCount: number;
+  storeId: StreamStoreLite | string;
+  products: StreamProductLite[];
+}
+
+/**
+ * GET /api/streams/:id
+ * Public. Used by ViewerScreen to render the store header (tap → store
+ * profile) and the Featured Products bar. Best-effort — a failure just means
+ * those two pieces stay hidden; the video/chat/hearts still work.
+ */
+export async function getStream(streamId: string): Promise<StreamDetail | null> {
+  try {
+    const res = await apiClient.get(`/api/streams/${streamId}`);
+    return res.data?.data?.stream ?? res.data?.stream ?? null;
+  } catch {
+    return null;
+  }
 }

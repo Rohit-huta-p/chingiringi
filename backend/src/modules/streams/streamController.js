@@ -57,7 +57,7 @@ async function createMeetingToken(roomName, isOwner = false) {
  * Requires: auth, store must be owned by user and verified.
  */
 export const createStream = async (req, res) => {
-  const { storeId, title = '' } = req.body;
+  const { storeId, title = '', productIds } = req.body;
 
   if (!storeId) {
     res.status(400);
@@ -88,6 +88,9 @@ export const createStream = async (req, res) => {
   const broadcasterToken = await createMeetingToken(roomName, true);
 
   // Persist the stream doc
+  // productIds (from GoLiveModal's "Feature Products" picker) — cap matches
+  // the picker's own fetch limit (30) so a malformed payload can't grow this
+  // unbounded.
   const stream = await Stream.create({
     storeId,
     ownerId:       req.user._id,
@@ -96,6 +99,7 @@ export const createStream = async (req, res) => {
     title:         title.slice(0, 120),
     status:        'live',
     startedAt:     new Date(),
+    products:      Array.isArray(productIds) ? productIds.slice(0, 30) : [],
   });
 
   // Mark store as live
@@ -189,4 +193,24 @@ export const getActiveStreams = async (req, res) => {
     .lean();
 
   res.status(200).json({ status: 'success', data: { streams } });
+};
+
+/**
+ * GET /api/streams/:id
+ * Public — single stream with store + featured products populated.
+ * Used by ViewerScreen for the store header (tap → store profile) and the
+ * Featured Products bar.
+ */
+export const getStream = async (req, res) => {
+  const stream = await Stream.findById(req.params.id)
+    .populate('storeId', 'name shortName logoUrl')
+    .populate('products', 'name price mrp imageUrl images')
+    .lean();
+
+  if (!stream) {
+    res.status(404);
+    throw new Error('Stream not found');
+  }
+
+  res.status(200).json({ status: 'success', data: { stream } });
 };
