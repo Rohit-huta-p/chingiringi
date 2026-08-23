@@ -61,7 +61,12 @@ export interface LiveStream {
 export async function fetchActiveStreams(): Promise<LiveStream[]> {
   try {
     const res = await apiClient.get('/api/streams/active');
-    return res.data?.streams ?? res.data?.data ?? [];
+    // Backend wraps every response as { status, data: {...} } — confirmed
+    // live shape is { data: { streams: [...] } }. Falls back to shallower
+    // shapes for safety, then hard-guarantees an array either way so a
+    // shape drift never crashes the [...spread] callers again.
+    const payload = res.data?.data?.streams ?? res.data?.streams ?? res.data?.data ?? res.data;
+    return Array.isArray(payload) ? payload : [];
   } catch {
     return []; // graceful: backend may not be ready yet
   }
@@ -110,8 +115,7 @@ const StreamCard: React.FC<StreamCardProps> = ({ stream, following, followBusy, 
       {/* bottom scrim for badge legibility */}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.35)']}
-        style={styles.cardThumbScrim}
-        pointerEvents="none"
+        style={[styles.cardThumbScrim, { pointerEvents: 'none' }]}
       />
       <View style={styles.liveBadge}>
         <Radio size={9} color="#fff" />
