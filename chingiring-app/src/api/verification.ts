@@ -9,7 +9,7 @@ import apiClient from './client';
 import type { Store } from './stores';
 
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
-export type DocType = 'gst' | 'aadhaar';
+export type DocType = 'gst' | 'fssai' | 'tradeLicence';
 
 export interface VerificationDoc {
   type: string;

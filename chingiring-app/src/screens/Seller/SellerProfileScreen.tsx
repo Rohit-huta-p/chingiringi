@@ -254,7 +254,7 @@ export const SellerProfileScreen: React.FC = () => {
       >
         {/* ── Store hero header ───────────────────────────────────────── */}
         <LinearGradient
-          colors={['#26307F', '#3E5BC8', '#5B84F0']}
+          colors={[Colors.navy, '#3E5BC8', '#5B84F0']}
           locations={[0, 0.46, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}

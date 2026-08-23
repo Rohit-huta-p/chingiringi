@@ -1,18 +1,16 @@
 /**
- * StoreVerificationScreen — seller submits GST / Aadhaar for store verification.
+ * StoreVerificationScreen — seller submits a document for store verification.
  *
  * Reachable from:
  *   • BusinessOnboardingScreen (after store creation)
- *   • GoLiveTabScreen (when seller tries to go live but is unverified)
+ *   • SellerDashboardScreen / MyStoreScreen / GoLiveTabScreen (verify banners)
  *
  * Route params:
  *   store?: SellerStore   — the seller's store object (may be null if creation 403'd)
  *
- * Status banner variants:
- *   unverified → blue info
- *   pending    → yellow "under review"
- *   verified   → green success (shows done state, no upload)
- *   rejected   → red with rejectionReason + resubmit mode
+ * Renders one of 4 full-card states: unverified (upload form) → pending
+ * (under review) → verified (done) or rejected (reason + resubmit, which
+ * resets back to the unverified form).
  */
 import React, { useState } from 'react';
 import {
@@ -27,80 +25,44 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, CommonActions } from '@react-navigation/native';
 import {
-  ChevronLeft, ShieldCheck, ShieldAlert, Clock, XCircle, FileText, CreditCard,
+  ChevronLeft, ShieldCheck, Clock, XCircle, FileText, Truck, Receipt,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { MultiImageUploader } from '../../components/MultiImageUploader';
 import { verificationAPI, type SellerStore, type VerificationStatus, type DocType } from '../../api/verification';
 
-// ── Status banner config ───────────────────────────────────────────────────
-interface BannerConfig {
-  bg: string;
-  border: string;
-  icon: React.ReactNode;
-  text: string;
+// Status colors not in the shared theme — one-off semantic accents specific
+// to this screen's four states (amber/green/red), distinct from the brand
+// palette in constants/theme.
+const STATE_COLOR = {
+  pending: '#F59E0B',
+  verified: '#16A34A',
+  rejected: '#DC2626',
+};
+
+const DOC_TYPES: { value: DocType; label: string; sub: string; icon: React.ComponentType<any> }[] = [
+  { value: 'gst', label: 'GST Certificate', sub: 'Government-issued GST registration document', icon: FileText },
+  { value: 'fssai', label: 'FSSAI Licence', sub: 'Food safety licence (for food & grocery stores)', icon: Receipt },
+  { value: 'tradeLicence', label: 'Trade Licence', sub: 'Municipal trade / shop licence', icon: Truck },
+];
+
+function fmtDate(d?: string | Date): string {
+  if (!d) return '';
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function getBannerConfig(
-  status: VerificationStatus,
-  rejectionReason?: string,
-): BannerConfig {
-  switch (status) {
-    case 'pending':
-      return {
-        bg: '#FFFBEB', border: '#F59E0B',
-        icon: <Clock size={18} color="#D97706" />,
-        text: "Your documents are under review — we'll notify you within 1–2 business days.",
-      };
-    case 'verified':
-      return {
-        bg: '#F0FDF4', border: '#22C55E',
-        icon: <ShieldCheck size={18} color="#16A34A" />,
-        text: 'Your store is verified! You can now go live and show the verified badge.',
-      };
-    case 'rejected':
-      return {
-        bg: '#FEF2F2', border: '#EF4444',
-        icon: <XCircle size={18} color="#DC2626" />,
-        text: rejectionReason
-          ? `Verification rejected: ${rejectionReason}`
-          : 'Your verification was rejected. Please resubmit with a clearer document.',
-      };
-    default: // unverified
-      return {
-        bg: '#EFF6FF', border: '#3B82F6',
-        icon: <ShieldAlert size={18} color="#2563EB" />,
-        text: 'Verify your store to unlock live streaming and earn the verified badge.',
-      };
-  }
-}
-
-// ── Doc type radio card ────────────────────────────────────────────────────
-interface DocCardProps {
-  selected: boolean;
-  onPress: () => void;
-  icon: React.ReactNode;
-  title: string;
-  sub: string;
-}
-
-const DocCard: React.FC<DocCardProps> = ({ selected, onPress, icon, title, sub }) => (
+// ── Doc type chip ──────────────────────────────────────────────────────────
+const DocChip: React.FC<{
+  selected: boolean; onPress: () => void; icon: React.ComponentType<any>; label: string;
+}> = ({ selected, onPress, icon: Icon, label }) => (
   <Pressable
     onPress={onPress}
-    style={({ pressed }) => [
-      styles.docCard,
-      selected && styles.docCardSelected,
-      pressed && { opacity: 0.85 },
-    ]}
+    style={({ pressed }) => [styles.chip, selected && styles.chipActive, pressed && { opacity: 0.85 }]}
   >
-    <View style={[styles.radio, selected && styles.radioSelected]}>
-      {selected && <View style={styles.radioDot} />}
-    </View>
-    <View style={styles.docCardIcon}>{icon}</View>
-    <View style={{ flex: 1 }}>
-      <Text style={[styles.docCardTitle, selected && styles.docCardTitleSelected]}>{title}</Text>
-      <Text style={styles.docCardSub}>{sub}</Text>
-    </View>
+    <Icon size={16} color={selected ? '#fff' : Colors.textSecondary} />
+    <Text style={[styles.chipText, selected && styles.chipTextActive]}>{label}</Text>
   </Pressable>
 );
 
@@ -111,45 +73,30 @@ export const StoreVerificationScreen: React.FC = () => {
   const route = useRoute<any>();
 
   const passedStore: SellerStore | null = route.params?.store ?? null;
-  const initialStatus: VerificationStatus =
-    passedStore?.verificationStatus ?? 'unverified';
-  const rejectionReason: string | undefined =
-    passedStore?.verificationDoc?.rejectionReason;
+  const initialStatus: VerificationStatus = passedStore?.verificationStatus ?? 'unverified';
 
   const [status, setStatus] = useState<VerificationStatus>(initialStatus);
   const [docType, setDocType] = useState<DocType>('gst');
   const [docUrls, setDocUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const banner = getBannerConfig(status, rejectionReason);
-  const canSubmit = status !== 'pending' && status !== 'verified';
-  const isResubmit = status === 'rejected';
+  const rejectionReason = passedStore?.verificationDoc?.rejectionReason;
+  const submittedAt = passedStore?.verificationDoc?.submittedAt as any;
+  const docSub = DOC_TYPES.find((d) => d.value === docType)?.label ?? 'document';
 
-  // ── Navigate out (skip or after success) ──────────────────────────────
   const goToMain = () => {
-    navigation.dispatch(
-      CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }),
-    );
+    navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }));
   };
 
-  // ── Submit verification ────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!passedStore?._id) {
-      // Store creation 403'd earlier — skip verification for now
-      goToMain();
-      return;
-    }
+    if (!passedStore?._id) { goToMain(); return; }
     if (docUrls.length === 0) {
       Alert.alert('No document', 'Please upload a photo or PDF of your document.');
       return;
     }
-
     setSubmitting(true);
     try {
-      await verificationAPI.submitVerification(passedStore._id, {
-        docType,
-        docUrl: docUrls[0],
-      });
+      await verificationAPI.submitVerification(passedStore._id, { docType, docUrl: docUrls[0] });
       setStatus('pending');
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Submission failed.';
@@ -159,107 +106,125 @@ export const StoreVerificationScreen: React.FC = () => {
     }
   };
 
+  const handleResubmit = () => {
+    setDocUrls([]);
+    setStatus('unverified');
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* ── Header ── */}
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.canGoBack() ? navigation.goBack() : goToMain()} hitSlop={10} style={styles.backBtn}>
+        <Pressable onPress={() => (navigation.canGoBack() ? navigation.goBack() : goToMain())} hitSlop={10} style={styles.backBtn}>
           <ChevronLeft size={22} color={Colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Verify Your Store</Text>
+        <Text style={styles.headerTitle}>Store Verification</Text>
       </View>
 
       <ScrollView
-        style={{ flex: 1 }}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Status banner ── */}
-        <View style={[styles.banner, { backgroundColor: banner.bg, borderColor: banner.border }]}>
-          {banner.icon}
-          <Text style={styles.bannerText}>{banner.text}</Text>
-        </View>
+        <View style={styles.card}>
+          {/* ── Unverified: upload form ── */}
+          {status === 'unverified' && (
+            <>
+              <FileText size={48} color={Colors.orange} style={styles.stateIcon} />
+              <Text style={styles.stateTitle}>Verify Your Store</Text>
+              <Text style={styles.stateSub}>Submit a document to unlock live streaming</Text>
 
-        {/* ── Verified / Pending — no upload needed ── */}
-        {(status === 'verified' || status === 'pending') && (
-          <View style={styles.doneBlock}>
-            {status === 'verified' && (
-              <Pressable onPress={goToMain} style={styles.ctaVerified}>
-                <Text style={styles.ctaVerifiedText}>Go to My Store →</Text>
+              <Text style={styles.fieldLabel}>Document Type</Text>
+              <View style={styles.chipRow}>
+                {DOC_TYPES.map((d) => (
+                  <DocChip
+                    key={d.value}
+                    selected={docType === d.value}
+                    onPress={() => setDocType(d.value)}
+                    icon={d.icon}
+                    label={d.label}
+                  />
+                ))}
+              </View>
+
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Upload Document</Text>
+              <Text style={styles.fieldHint}>Clear photo or PDF showing your {docSub.toLowerCase()} number.</Text>
+              <MultiImageUploader
+                value={docUrls}
+                onChange={setDocUrls}
+                max={1}
+                folder="seller-verification"
+                coverLabel="Document"
+              />
+
+              <Pressable
+                onPress={handleSubmit}
+                disabled={submitting || docUrls.length === 0}
+                style={[styles.cta, (submitting || docUrls.length === 0) && styles.ctaDisabled]}
+              >
+                {submitting
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.ctaText}>Submit for Verification</Text>}
               </Pressable>
-            )}
-            {status === 'pending' && (
+
+              <Pressable onPress={goToMain} style={styles.skipBtn}>
+                <Text style={styles.skipText}>
+                  {passedStore ? 'Skip for now — verify later' : 'Continue to Dashboard'}
+                </Text>
+              </Pressable>
+            </>
+          )}
+
+          {/* ── Pending ── */}
+          {status === 'pending' && (
+            <>
+              <Clock size={48} color={STATE_COLOR.pending} style={styles.stateIcon} />
+              <Text style={styles.stateTitle}>Under Review</Text>
+              <Text style={styles.stateSub}>We'll review your document within 2–3 business days</Text>
+              {!!fmtDate(submittedAt) && (
+                <Text style={styles.dateRow}>Submitted on {fmtDate(submittedAt)}</Text>
+              )}
               <Pressable onPress={goToMain} style={styles.skipBtn}>
                 <Text style={styles.skipText}>Continue to Dashboard</Text>
               </Pressable>
-            )}
-          </View>
-        )}
+            </>
+          )}
 
-        {/* ── Upload form (unverified / rejected) ── */}
-        {canSubmit && (
-          <>
-            {/* Doc type picker */}
-            <Text style={styles.sectionTitle}>
-              {isResubmit ? 'Resubmit Document' : 'Choose Document Type'}
-            </Text>
+          {/* ── Verified ── */}
+          {status === 'verified' && (
+            <>
+              <ShieldCheck size={48} color={STATE_COLOR.verified} style={styles.stateIcon} />
+              <Text style={[styles.stateTitle, { color: STATE_COLOR.verified }]}>Store Verified ✓</Text>
+              <Text style={styles.stateSub}>You can now go live and reach buyers</Text>
+              {!!fmtDate((passedStore as any)?.updatedAt) && (
+                <Text style={styles.dateRow}>Verified on {fmtDate((passedStore as any)?.updatedAt)}</Text>
+              )}
+              <Pressable onPress={goToMain} style={styles.cta}>
+                <Text style={styles.ctaText}>Go to My Store →</Text>
+              </Pressable>
+            </>
+          )}
 
-            <View style={styles.docCards}>
-              <DocCard
-                selected={docType === 'gst'}
-                onPress={() => setDocType('gst')}
-                icon={<FileText size={20} color={docType === 'gst' ? Colors.orange : Colors.textSecondary} />}
-                title="GST Certificate"
-                sub="Government-issued GST registration document"
-              />
-              <DocCard
-                selected={docType === 'aadhaar'}
-                onPress={() => setDocType('aadhaar')}
-                icon={<CreditCard size={20} color={docType === 'aadhaar' ? Colors.orange : Colors.textSecondary} />}
-                title="Aadhaar Card"
-                sub="Your Aadhaar (front + back, max 5 MB)"
-              />
-            </View>
+          {/* ── Rejected ── */}
+          {status === 'rejected' && (
+            <>
+              <XCircle size={48} color={STATE_COLOR.rejected} style={styles.stateIcon} />
+              <Text style={[styles.stateTitle, { color: STATE_COLOR.rejected }]}>Verification Rejected</Text>
 
-            {/* Upload zone */}
-            <Text style={styles.sectionTitle}>Upload Document</Text>
-            <Text style={styles.sectionSub}>
-              Clear photo or PDF — must show your name and{' '}
-              {docType === 'gst' ? 'GSTIN number' : 'Aadhaar number'}.
-            </Text>
+              <View style={styles.reasonCard}>
+                <Text style={styles.reasonText}>
+                  Reason: {rejectionReason || 'No reason provided — please contact support.'}
+                </Text>
+              </View>
 
-            <MultiImageUploader
-              value={docUrls}
-              onChange={setDocUrls}
-              max={1}
-              folder="seller-verification"
-              coverLabel="Document"
-            />
+              <Pressable onPress={handleResubmit} style={styles.ctaOutline}>
+                <Text style={styles.ctaOutlineText}>Resubmit Documents</Text>
+              </Pressable>
 
-            {/* Submit */}
-            <Pressable
-              onPress={handleSubmit}
-              disabled={submitting || docUrls.length === 0}
-              style={[
-                styles.cta,
-                (submitting || docUrls.length === 0) && styles.ctaDisabled,
-              ]}
-            >
-              {submitting
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.ctaText}>
-                    {isResubmit ? 'Resubmit for Verification' : 'Submit for Verification'}
-                  </Text>}
-            </Pressable>
-
-            {/* Skip */}
-            <Pressable onPress={goToMain} style={styles.skipBtn}>
-              <Text style={styles.skipText}>
-                {passedStore ? 'Skip for now — verify later' : 'Continue to Dashboard'}
-              </Text>
-            </Pressable>
-          </>
-        )}
+              <Pressable onPress={goToMain} style={styles.skipBtn}>
+                <Text style={styles.skipText}>Continue to Dashboard</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -267,155 +232,84 @@ export const StoreVerificationScreen: React.FC = () => {
 
 // ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.surface },
+  root: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingVertical: 12,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.backgroundGrey,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: Fonts.bold,
-    color: Colors.text,
-  },
+  headerTitle: { fontSize: 17, fontFamily: Fonts.bold, color: Colors.text },
 
-  scroll: {
-    padding: 20,
-    gap: 20,
-  },
+  scroll: { padding: 16 },
 
-  // Status banner
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: 14,
-  },
-  bannerText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: Colors.text,
-    lineHeight: 19,
-  },
-
-  doneBlock: { gap: 12 },
-
-  // Doc type cards
-  sectionTitle: {
-    fontSize: 15,
-    fontFamily: Fonts.bold,
-    color: Colors.text,
-    marginTop: 4,
-  },
-  sectionSub: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-    marginTop: -12,
-  },
-
-  docCards: { gap: 10 },
-  docCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    padding: 14,
+  card: {
     backgroundColor: Colors.surface,
-  },
-  docCardSelected: {
-    borderColor: Colors.orange,
-    backgroundColor: '#FFF7ED',
-  },
-
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: Colors.border,
+    borderRadius: 16,
+    padding: 28,
+    margin: 0,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  radioSelected: { borderColor: Colors.orange },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.orange,
+  stateIcon: { marginBottom: 20 },
+  stateTitle: {
+    fontSize: 22, fontFamily: Fonts.extraBold, color: Colors.navy, textAlign: 'center',
+  },
+  stateSub: {
+    fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary,
+    textAlign: 'center', marginTop: 8, lineHeight: 20,
+  },
+  dateRow: {
+    fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 14,
   },
 
-  docCardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+  fieldLabel: {
+    alignSelf: 'flex-start',
+    fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text,
+    marginTop: 24, marginBottom: 10,
+  },
+  fieldHint: {
+    alignSelf: 'flex-start',
+    fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary,
+    marginBottom: 10, marginTop: -6,
+  },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignSelf: 'stretch' },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12,
     backgroundColor: Colors.backgroundGrey,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  docCardTitle: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: Colors.text,
-  },
-  docCardTitleSelected: { color: Colors.orange },
-  docCardSub: {
-    fontSize: 12,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
+  chipActive: { backgroundColor: Colors.orange },
+  chipText: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  chipTextActive: { color: '#fff' },
 
-  // CTA
   cta: {
-    backgroundColor: Colors.orange,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
+    alignSelf: 'stretch',
+    backgroundColor: Colors.orange, borderRadius: 12,
+    paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
+    marginTop: 24,
   },
   ctaDisabled: { opacity: 0.45 },
-  ctaText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: Fonts.bold,
-  },
-  ctaVerified: {
-    backgroundColor: Colors.success,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  ctaVerifiedText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: Fonts.bold,
-  },
+  ctaText: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold },
 
-  skipBtn: { alignItems: 'center', paddingVertical: 8 },
-  skipText: {
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: Colors.textSecondary,
+  ctaOutline: {
+    alignSelf: 'stretch',
+    backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: Colors.orange,
+    paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
+    marginTop: 20,
   },
+  ctaOutlineText: { color: Colors.orange, fontSize: 15, fontFamily: Fonts.bold },
+
+  reasonCard: {
+    alignSelf: 'stretch',
+    backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA',
+    borderRadius: 10, padding: 14, marginTop: 16,
+  },
+  reasonText: { fontSize: 14, fontFamily: Fonts.regular, color: '#DC2626', lineHeight: 20 },
+
+  skipBtn: { alignItems: 'center', paddingVertical: 8, marginTop: 12 },
+  skipText: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
 });
