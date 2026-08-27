@@ -40,33 +40,16 @@ import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import apiClient from '../../api/client';
 import { getMyStreams, formatStreamMeta } from '../../api/streams';
+import { type SellerStore } from '../../api/verification';
+import { useMyStore } from '../../hooks/useMyStore';
 
 // ── API helpers ───────────────────────────────────────────────────────────
-
-interface SellerStore {
-  _id: string;
-  name: string;
-  category: string;
-  verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
-  verificationDoc?: { rejectionReason?: string };
-  ownerId?: string;
-}
 
 interface StoreStats {
   followerCount: number;
   totalStreams: number;
   viewsLast7Days: number;
   totalProducts: number;
-}
-
-async function fetchMyStore(): Promise<SellerStore | null> {
-  try {
-    const res = await apiClient.get('/api/stores/mine');
-    // { status, data: { store } } — must not return the { store } wrapper.
-    return res.data?.data?.store ?? res.data?.store ?? null;
-  } catch {
-    return null;
-  }
 }
 
 async function fetchStoreStats(storeId: string): Promise<StoreStats> {
@@ -125,11 +108,7 @@ export const SellerDashboardScreen: React.FC = () => {
     isLoading: storeLoading,
     refetch: refetchStore,
     isRefetching,
-  } = useQuery({
-    queryKey: ['seller', 'myStore'],
-    queryFn: fetchMyStore,
-    staleTime: 60_000,
-  });
+  } = useMyStore();
 
   const { data: stats = { followerCount: 0, totalStreams: 0, viewsLast7Days: 0, totalProducts: 0 } } = useQuery({
     queryKey: ['seller', 'stats', store?._id],

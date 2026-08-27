@@ -31,6 +31,7 @@ import {
 import { Colors, Fonts } from '../../constants/theme';
 import { MultiImageUploader } from '../../components/MultiImageUploader';
 import { verificationAPI, type SellerStore, type VerificationStatus, type DocType } from '../../api/verification';
+import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
 
 // Status colors not in the shared theme — one-off semantic accents specific
 // to this screen's four states (amber/green/red), distinct from the brand
@@ -89,7 +90,7 @@ export const StoreVerificationScreen: React.FC = () => {
   const goToMain = () => {
     // Ensure the Dashboard / My Store show the latest store + status (created or
     // just submitted for verification) rather than a stale cache.
-    queryClient.invalidateQueries({ queryKey: ['seller', 'myStore'] });
+    queryClient.invalidateQueries({ queryKey: MY_STORE_QUERY_KEY });
     navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }));
   };
 

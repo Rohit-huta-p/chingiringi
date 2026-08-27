@@ -32,7 +32,8 @@ import {
   Package,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { verificationAPI, type SellerStore } from '../../api/verification';
+import { type SellerStore } from '../../api/verification';
+import { useMyStore } from '../../hooks/useMyStore';
 import { productsAPI, type Product } from '../../api/products';
 import apiClient from '../../api/client';
 import { ProductFormSheet } from './ProductFormSheet';
@@ -105,11 +106,7 @@ export const MyStoreScreen: React.FC = () => {
     isLoading,
     isRefetching,
     refetch,
-  } = useQuery<SellerStore | null>({
-    queryKey: ['seller', 'myStore'],
-    queryFn: verificationAPI.getMyStore,
-    staleTime: 60_000,
-  });
+  } = useMyStore();
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['seller', 'storeProducts', store?._id],

@@ -36,39 +36,24 @@ import { Camera, ChevronRight, Radio, Play } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { createStream, getMyStreams, formatStreamMeta } from '../../api/streams';
 import { productsAPI, type Product } from '../../api/products';
-import apiClient from '../../api/client';
+import { type SellerStore } from '../../api/verification';
+import { useMyStore } from '../../hooks/useMyStore';
 
 // ── Categories — must match backend STORE_CATEGORIES enum (storeModel.js) ─
 const CATEGORIES = ['Fashion', 'Electronics', 'Grocery', 'Food & Cafe', 'Health', 'Jewellery', 'Sports', 'Beauty'];
-
-// ── Fetch seller's own store (id + verification + category) ───────────────
-interface MyStoreLite {
-  _id: string;
-  category?: string;
-  verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
-}
-async function fetchMyStore(): Promise<MyStoreLite | null> {
-  try {
-    const res = await apiClient.get('/api/stores/mine');
-    // { status, data: { store } } — must not return the { store } wrapper.
-    return res.data?.data?.store ?? res.data?.store ?? null;
-  } catch {
-    return null;
-  }
-}
 
 // ── GoLiveModal (bottom sheet) ──────────────────────────────────────────────
 
 interface GoLiveModalProps {
   visible: boolean;
   onClose: () => void;
-  store: MyStoreLite | null;
+  store: SellerStore | null;
 }
 
 const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) => {
   const navigation = useNavigation<any>();
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(store?.category ?? '');
+  const [category, setCategory] = useState<string>(store?.category ?? '');
   const [featuredIds, setFeaturedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -224,11 +209,7 @@ export const GoLiveTabScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const { data: store, isLoading } = useQuery({
-    queryKey: ['seller', 'myStore'],
-    queryFn: fetchMyStore,
-    staleTime: 60_000,
-  });
+  const { data: store, isLoading } = useMyStore();
 
   const { data: recentStreams = [] } = useQuery({
     queryKey: ['seller', 'streams', 'golive'],

@@ -32,6 +32,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { Input } from '../../components/Input';
 import { ImageUploader } from '../../components/ImageUploader';
 import apiClient from '../../api/client';
+import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
 
 // ── Store categories (predefined; CategoryPicker is admin-only) ───────────
 // CategoryPicker uses adminAPI.getCategories() which is gated to admin role.
@@ -185,10 +186,10 @@ export const BusinessOnboardingScreen: React.FC = () => {
         website:   website.trim() || undefined,
       });
       const store = res.data?.data?.store ?? res.data?.store;
-      // The seller tabs mounted before this store existed, so ['seller','myStore']
+      // The seller tabs mounted before this store existed, so MY_STORE_QUERY_KEY
       // is cached as null. Invalidate it so the Dashboard / My Store refetch and
       // show the freshly-created (unverified) store.
-      queryClient.invalidateQueries({ queryKey: ['seller', 'myStore'] });
+      queryClient.invalidateQueries({ queryKey: MY_STORE_QUERY_KEY });
       navigation.replace('StoreVerification', { store });
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
