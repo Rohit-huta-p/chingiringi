@@ -12,6 +12,8 @@ import { WelcomeModal } from '../components/WelcomeModal';
 import { navigationRef } from '../lib/navigationRef';
 import { AuthGateProvider } from '../context/AuthGateContext';
 import { ReferralModal } from '../components/ReferralModal';
+import { ViewingAsBuyerBanner } from '../components/ViewingAsBuyerBanner';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 // Legacy responsive navigator (web + existing buyer-style mobile flow).
 // Still used by any path not yet forked (e.g. web clients).
@@ -25,6 +27,8 @@ function trackScreen(name: string) {
 export default function RootNavigator() {
   const user    = useAuthStore((state) => state.user);
   const isReady = useAuthStore((state) => state.isReady);
+  const viewAsBuyer = useAuthStore((state) => state.viewAsBuyer);
+  const setViewAsBuyer = useAuthStore((state) => state.setViewAsBuyer);
   const routeNameRef = useRef<string | undefined>(undefined);
   const { width } = useWindowDimensions();
   // Desktop web (≥ 768px) gets the full sidebar/drawer; mobile and native get
@@ -61,6 +65,28 @@ export default function RootNavigator() {
     }
 
     if (user.role === 'seller') {
+      // A seller can "shop as a buyer": render the buyer app while role stays
+      // 'seller'. The banner owns the top safe-area inset, so the buyer subtree
+      // is given top inset = 0 to avoid a doubled status-bar gap.
+      if (viewAsBuyer) {
+        return (
+          <AuthGateProvider>
+            <View style={{ flex: 1 }}>
+              <ViewingAsBuyerBanner onSwitchBack={() => setViewAsBuyer(false)} />
+              <SafeAreaInsetsContext.Consumer>
+                {(insets) => (
+                  <SafeAreaInsetsContext.Provider
+                    value={{ top: 0, bottom: insets?.bottom ?? 0, left: insets?.left ?? 0, right: insets?.right ?? 0 }}
+                  >
+                    {isDesktopWeb ? <ResponsiveNavigator /> : <BuyerTabNavigator />}
+                  </SafeAreaInsetsContext.Provider>
+                )}
+              </SafeAreaInsetsContext.Consumer>
+            </View>
+            <ReferralModal />
+          </AuthGateProvider>
+        );
+      }
       return (
         <AuthGateProvider>
           <SellerTabNavigator />

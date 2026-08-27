@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, Info, HelpCircle, MessageCircle,
-  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX, MailCheck,
+  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX, MailCheck, ShoppingBag,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -93,6 +93,7 @@ function QuickAction({
 export const MobileProfileScreen = () => {
   const nav = useNavigation<any>();
   const user = useAuthStore((st) => st.user);
+  const setViewAsBuyer = useAuthStore((st) => st.setViewAsBuyer);
   const { requireAuth } = useAuthGate();
   const [legal, setLegal] = useState<LegalType | null>(null);
   const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
@@ -267,6 +268,21 @@ export const MobileProfileScreen = () => {
                 subtitle={user.email}
                 rightSlot={<Text style={{ color: '#d97706', fontFamily: Fonts.semiBold, fontSize: 12 }}>Verify ›</Text>}
                 onPress={() => setEmailVerifyOpen(true)}
+              />
+            </>
+          ) : null}
+
+          {/* ── Seller: shop as a buyer (role-gated; screen is shared) ─────── */}
+          {user?.role === 'seller' ? (
+            <>
+              <Text style={s.sectionHeader}>SELLING</Text>
+              <QuickAction
+                icon={ShoppingBag}
+                iconColor={Colors.primary}
+                iconBg={Colors.primaryLight10}
+                title="Shop as a buyer"
+                subtitle="Browse & buy on Chingiringi — your store stays live"
+                onPress={() => setViewAsBuyer(true)}
               />
             </>
           ) : null}

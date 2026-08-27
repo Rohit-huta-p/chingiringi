@@ -27,6 +27,10 @@ interface AuthState {
   setShowWelcome: (v: boolean) => void;
   dismissWelcome: () => void;
   setRole: (role: UserType['role']) => void;
+  // Client-only "shop as a buyer" view mode for sellers (see RootNavigator). Not
+  // persisted — a seller relaunching the app lands back in the seller experience.
+  viewAsBuyer: boolean;
+  setViewAsBuyer: (v: boolean) => void;
   hydrate: () => Promise<void>;
   logout: () => Promise<void>;
   // Referral capture for logged-out guests (lib/referralCapture + ReferralBanner)
@@ -52,6 +56,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   setRole: (role) => set((state) => ({
     user: state.user ? { ...state.user, role } : null,
   })),
+
+  // Seller "shop as a buyer" view mode (client-only, no backend). The seller keeps
+  // role==='seller'; RootNavigator renders the buyer navigator while this is true.
+  viewAsBuyer: false,
+  setViewAsBuyer: (v) => set({ viewAsBuyer: v }),
 
   // Referral capture (guest arrives via a referral link). setPending persists via
   // client storage so it survives reload/browse; cleared once applied on signup.
@@ -119,7 +128,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await unregisterForPush();
     // Clear stored tokens + cached user (native) and purge state
     await clearTokens();
-    set({ isAuthenticated: false, user: null, showWelcome: false });
+    set({ isAuthenticated: false, user: null, showWelcome: false, viewAsBuyer: false });
     // Land on Home: reset to the root's first route — "Home" on the desktop
     // drawer, "MainTabs" (initial tab Home) on the mobile stack. Covers every
     // caller (logout buttons + delete-account) in one place. Admin logout

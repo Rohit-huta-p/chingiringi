@@ -32,6 +32,7 @@ import {
   Camera,
   ChevronRight,
   Radio,
+  ShoppingBag,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
@@ -113,6 +114,7 @@ export const SellerDashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
+  const setViewAsBuyer = useAuthStore((s) => s.setViewAsBuyer);
 
   const {
     data: store,
@@ -167,8 +169,21 @@ export const SellerDashboardScreen: React.FC = () => {
     >
       {/* ── Greeting header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
-        <Text style={styles.greeting}>{greeting()}, {firstName}! 👋</Text>
-        <Text style={styles.dateText}>{dateStr}</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerGreeting}>
+            <Text style={styles.greeting}>{greeting()}, {firstName}! 👋</Text>
+            <Text style={styles.dateText}>{dateStr}</Text>
+          </View>
+          <Pressable
+            style={styles.shopBuyerPill}
+            onPress={() => setViewAsBuyer(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Shop as a buyer"
+          >
+            <ShoppingBag size={15} color="#fff" strokeWidth={2} />
+            <Text style={styles.shopBuyerText}>Shop as buyer</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.body}>
@@ -263,6 +278,15 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 22, fontFamily: Fonts.extraBold, color: '#fff' },
   dateText: { fontSize: 13, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  headerGreeting: { flex: 1, minWidth: 0 },
+  shopBuyerPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 12,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+    borderRadius: 20, paddingVertical: 8, paddingHorizontal: 13,
+  },
+  shopBuyerText: { fontSize: 12.5, fontFamily: Fonts.bold, color: '#fff' },
 
   body: { padding: 16, gap: 16 },
 
