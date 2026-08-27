@@ -214,3 +214,20 @@ export const getStream = async (req, res) => {
 
   res.status(200).json({ status: 'success', data: { stream } });
 };
+
+/**
+ * GET /api/streams/mine
+ * Authenticated — the caller's own streams (live + ended), newest first.
+ * Powers the seller Dashboard "Recent Streams" and Go Live "Previous streams".
+ */
+export const getMyStreams = async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+
+  const streams = await Stream.find({ ownerId: req.user._id, status: { $ne: 'idle' } })
+    .populate('storeId', 'name shortName logoUrl')
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  res.status(200).json({ status: 'success', data: { streams } });
+};

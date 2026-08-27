@@ -34,10 +34,12 @@ import {
   Radio,
   ShoppingBag,
   MessageCircle,
+  Play,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import apiClient from '../../api/client';
+import { getMyStreams, formatStreamMeta } from '../../api/streams';
 
 // ── API helpers ───────────────────────────────────────────────────────────
 
@@ -132,6 +134,13 @@ export const SellerDashboardScreen: React.FC = () => {
     queryKey: ['seller', 'stats', store?._id],
     queryFn: () => fetchStoreStats(store!._id),
     enabled: !!store?._id,
+    staleTime: 60_000,
+  });
+
+  const { data: recentStreams = [] } = useQuery({
+    queryKey: ['seller', 'streams', store?._id],
+    queryFn: () => getMyStreams(5),
+    enabled: !!store,
     staleTime: 60_000,
   });
 
@@ -251,12 +260,29 @@ export const SellerDashboardScreen: React.FC = () => {
 
         {/* ── Recent streams ── */}
         <Text style={styles.sectionTitle}>Recent Streams</Text>
-        <View style={styles.streamsEmpty}>
-          <Radio size={28} color={Colors.border} />
-          <Text style={styles.streamsEmptyText}>
-            Your streams will show up here once you go live.
-          </Text>
-        </View>
+        {recentStreams.length > 0 ? (
+          <View style={styles.streamList}>
+            {recentStreams.map((s) => (
+              <View key={s._id} style={styles.streamRow}>
+                <View style={styles.streamThumb}>
+                  <Play size={16} color="#fff" fill="#fff" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.streamRowTitle} numberOfLines={1}>{s.title || 'Untitled stream'}</Text>
+                  <Text style={styles.streamRowMeta}>{formatStreamMeta(s)}</Text>
+                </View>
+                <ChevronRight size={18} color="#cbd5e1" />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.streamsEmpty}>
+            <Radio size={28} color={Colors.border} />
+            <Text style={styles.streamsEmptyText}>
+              Your streams will show up here once you go live.
+            </Text>
+          </View>
+        )}
 
         {/* ── No store state ── */}
         {!store && (
@@ -351,6 +377,18 @@ const styles = StyleSheet.create({
     alignItems: 'center', gap: 8,
   },
   streamsEmptyText: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary, textAlign: 'center' },
+  streamList: { gap: 10 },
+  streamRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surface, borderRadius: 12, padding: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+  },
+  streamThumb: {
+    width: 56, height: 56, borderRadius: 10,
+    backgroundColor: Colors.navy, alignItems: 'center', justifyContent: 'center',
+  },
+  streamRowTitle: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
+  streamRowMeta: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
 
   noStore: { alignItems: 'center', paddingVertical: 24, gap: 8 },
   noStoreTitle: { fontSize: 16, fontFamily: Fonts.bold, color: Colors.text },

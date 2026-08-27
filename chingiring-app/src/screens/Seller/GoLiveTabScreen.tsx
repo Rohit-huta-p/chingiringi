@@ -32,9 +32,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
-import { Camera, ChevronRight, Radio } from 'lucide-react-native';
+import { Camera, ChevronRight, Radio, Play } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { createStream } from '../../api/streams';
+import { createStream, getMyStreams, formatStreamMeta } from '../../api/streams';
 import { productsAPI, type Product } from '../../api/products';
 import apiClient from '../../api/client';
 
@@ -229,6 +229,12 @@ export const GoLiveTabScreen: React.FC = () => {
     staleTime: 60_000,
   });
 
+  const { data: recentStreams = [] } = useQuery({
+    queryKey: ['seller', 'streams', 'golive'],
+    queryFn: () => getMyStreams(10),
+    staleTime: 60_000,
+  });
+
   const isVerified = store?.verificationStatus === 'verified';
 
   if (isLoading) {
@@ -289,12 +295,29 @@ export const GoLiveTabScreen: React.FC = () => {
           ))}
         </View>
 
-        {/* ── Previous streams (no history API yet — honest empty state) ── */}
+        {/* ── Previous streams ── */}
         <Text style={styles.sectionTitle}>Previous Streams</Text>
-        <View style={styles.streamsEmpty}>
-          <Radio size={26} color={Colors.border} />
-          <Text style={styles.streamsEmptyText}>Streams you've gone live with will appear here.</Text>
-        </View>
+        {recentStreams.length > 0 ? (
+          <View style={styles.streamList}>
+            {recentStreams.map((s) => (
+              <View key={s._id} style={styles.streamRow}>
+                <View style={styles.streamThumb}>
+                  <Play size={16} color="#fff" fill="#fff" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.streamRowTitle} numberOfLines={1}>{s.title || 'Untitled stream'}</Text>
+                  <Text style={styles.streamRowMeta}>{formatStreamMeta(s)}</Text>
+                </View>
+                <ChevronRight size={18} color="#cbd5e1" />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.streamsEmpty}>
+            <Radio size={26} color={Colors.border} />
+            <Text style={styles.streamsEmptyText}>Streams you've gone live with will appear here.</Text>
+          </View>
+        )}
       </ScrollView>
 
       <GoLiveModal visible={modalOpen} onClose={() => setModalOpen(false)} store={store ?? null} />
@@ -308,6 +331,18 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   content: { padding: 16, gap: 8 },
+  streamList: { gap: 10 },
+  streamRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surface, borderRadius: 12, padding: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+  },
+  streamThumb: {
+    width: 56, height: 56, borderRadius: 10,
+    backgroundColor: Colors.navy, alignItems: 'center', justifyContent: 'center',
+  },
+  streamRowTitle: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
+  streamRowMeta: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
 
   verifyBanner: {
     backgroundColor: '#FEF9C3', borderRadius: 10, padding: 16, gap: 8,

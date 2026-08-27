@@ -105,3 +105,48 @@ export async function getStream(streamId: string): Promise<StreamDetail | null> 
     return null;
   }
 }
+
+// ── My streams (history) ────────────────────────────────────────────────────
+
+export interface StreamSummary {
+  _id: string;
+  title: string;
+  status: 'idle' | 'live' | 'ended';
+  viewerCount: number;
+  startedAt?: string;
+  endedAt?: string;
+  createdAt: string;
+  storeId?: StreamStoreLite | string;
+}
+
+/**
+ * GET /api/streams/mine
+ * Authenticated — the seller's own streams (live + ended), newest first.
+ * Powers the Dashboard "Recent Streams" and Go Live "Previous streams".
+ * Best-effort — a failure just yields an empty list (the empty state shows).
+ */
+export async function getMyStreams(limit = 20): Promise<StreamSummary[]> {
+  try {
+    const res = await apiClient.get('/api/streams/mine', { params: { limit } });
+    return res.data?.data?.streams ?? res.data?.streams ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Compact "21 Aug · 340 watched · 18:42" line for a past stream. */
+export function formatStreamMeta(s: StreamSummary): string {
+  const parts: string[] = [];
+  const when = s.startedAt || s.createdAt;
+  if (when) parts.push(new Date(when).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
+  if (s.status === 'live') {
+    parts.push('LIVE now');
+  } else {
+    if (typeof s.viewerCount === 'number') parts.push(`${s.viewerCount.toLocaleString('en-IN')} watched`);
+    if (s.startedAt && s.endedAt) {
+      const secs = Math.max(0, Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000));
+      parts.push(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`);
+    }
+  }
+  return parts.join(' · ');
+}
