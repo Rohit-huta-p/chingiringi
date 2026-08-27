@@ -22,6 +22,18 @@ export interface Product {
   updatedAt: string;
 }
 
+/** Fields a seller may set on their own product (POST/PUT /api/products/mine). */
+export interface MyProductInput {
+  name: string;
+  price: number;
+  description?: string;
+  category?: string;
+  mrp?: number;
+  imageUrl?: string;
+  images?: string[];
+  affiliateUrl?: string;
+}
+
 export const productsAPI = {
   getProducts: async (params?: {
     page?: number;
@@ -50,5 +62,22 @@ export const productsAPI = {
   getFeaturedProducts: async () => {
     const response = await apiClient.get('/api/products/featured');
     return response.data;
+  },
+
+  /** Seller: create a product on their own store. */
+  createMine: async (input: MyProductInput) => {
+    const response = await apiClient.post('/api/products/mine', input);
+    return response.data?.data?.product ?? response.data?.product;
+  },
+
+  /** Seller: update one of their own products. */
+  updateMine: async (id: string, input: MyProductInput) => {
+    const response = await apiClient.put(`/api/products/mine/${id}`, input);
+    return response.data?.data?.product ?? response.data?.product;
+  },
+
+  /** Seller: delete one of their own products. */
+  deleteMine: async (id: string) => {
+    await apiClient.delete(`/api/products/mine/${id}`);
   },
 };
