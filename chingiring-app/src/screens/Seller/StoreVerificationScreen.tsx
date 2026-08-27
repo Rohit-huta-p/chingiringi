@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, CommonActions } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ShieldCheck, Clock, XCircle, FileText, Truck, Receipt,
 } from 'lucide-react-native';
@@ -70,6 +71,7 @@ const DocChip: React.FC<{
 export const StoreVerificationScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const queryClient = useQueryClient();
   const route = useRoute<any>();
 
   const passedStore: SellerStore | null = route.params?.store ?? null;
@@ -85,6 +87,9 @@ export const StoreVerificationScreen: React.FC = () => {
   const docSub = DOC_TYPES.find((d) => d.value === docType)?.label ?? 'document';
 
   const goToMain = () => {
+    // Ensure the Dashboard / My Store show the latest store + status (created or
+    // just submitted for verification) rather than a stale cache.
+    queryClient.invalidateQueries({ queryKey: ['seller', 'myStore'] });
     navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }));
   };
 

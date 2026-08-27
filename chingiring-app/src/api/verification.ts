@@ -41,7 +41,9 @@ export const verificationAPI = {
   getMyStore: async (): Promise<SellerStore | null> => {
     try {
       const res = await apiClient.get('/api/stores/mine');
-      return res.data?.store ?? res.data?.data ?? null;
+      // Backend shape is { status, data: { store } }; be robust to a flatter
+      // { store } too. NOTE: res.data.data (the wrapper) must NOT be returned.
+      return res.data?.data?.store ?? res.data?.store ?? null;
     } catch (err: any) {
       // 404 means no store yet — not an error for our callers
       if (err?.status === 404) return null;

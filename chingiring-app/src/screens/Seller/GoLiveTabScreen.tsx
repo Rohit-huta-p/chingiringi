@@ -50,7 +50,8 @@ interface MyStoreLite {
 async function fetchMyStore(): Promise<MyStoreLite | null> {
   try {
     const res = await apiClient.get('/api/stores/mine');
-    return res.data?.store ?? res.data?.data ?? null;
+    // { status, data: { store } } — must not return the { store } wrapper.
+    return res.data?.data?.store ?? res.data?.store ?? null;
   } catch {
     return null;
   }

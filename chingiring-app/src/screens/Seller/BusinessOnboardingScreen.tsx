@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { ChevronLeft, MapPin } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -92,6 +93,7 @@ const SummaryRow: React.FC<{ label: string; value: string }> = ({ label, value }
 export const BusinessOnboardingScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -183,6 +185,10 @@ export const BusinessOnboardingScreen: React.FC = () => {
         website:   website.trim() || undefined,
       });
       const store = res.data?.data?.store ?? res.data?.store;
+      // The seller tabs mounted before this store existed, so ['seller','myStore']
+      // is cached as null. Invalidate it so the Dashboard / My Store refetch and
+      // show the freshly-created (unverified) store.
+      queryClient.invalidateQueries({ queryKey: ['seller', 'myStore'] });
       navigation.replace('StoreVerification', { store });
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';

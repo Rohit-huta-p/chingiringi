@@ -62,7 +62,8 @@ interface StoreStats {
 async function fetchMyStore(): Promise<SellerStore | null> {
   try {
     const res = await apiClient.get('/api/stores/mine');
-    return res.data?.store ?? res.data?.data ?? null;
+    // { status, data: { store } } — must not return the { store } wrapper.
+    return res.data?.data?.store ?? res.data?.store ?? null;
   } catch {
     return null;
   }
