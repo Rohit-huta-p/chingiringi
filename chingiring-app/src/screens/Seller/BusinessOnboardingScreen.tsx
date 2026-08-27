@@ -105,6 +105,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
   const [city,       setCity]       = useState('Bengaluru');
   const [logoUrl,    setLogoUrl]    = useState('');
   const [phone,      setPhone]      = useState('');
+  const [website,    setWebsite]    = useState('');
 
   const [locationBusy, setLocationBusy] = useState(false);
   const [submitting,   setSubmitting]   = useState(false);
@@ -179,6 +180,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
         city:      city.trim() || undefined,
         logoUrl:   logoUrl || undefined,
         phone:     formatted,
+        website:   website.trim() || undefined,
       });
       const store = res.data?.data?.store ?? res.data?.store;
       navigation.replace('StoreVerification', { store });
@@ -343,6 +345,14 @@ export const BusinessOnboardingScreen: React.FC = () => {
               <Text style={styles.hint}>
                 Buyers can tap to message you directly from your store page.
               </Text>
+
+              <Input
+                label="Website (optional)"
+                placeholder="https://…"
+                value={website}
+                onChangeText={setWebsite}
+                keyboardType="url"
+              />
             </View>
           )}
 

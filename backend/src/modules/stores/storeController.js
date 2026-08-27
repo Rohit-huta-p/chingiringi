@@ -106,7 +106,7 @@ export const createSellerStore = async (req, res) => {
     });
   }
 
-  const { name, category, address, area, city, logoUrl, phone } = req.body;
+  const { name, category, address, area, city, logoUrl, phone, website } = req.body;
 
   if (!name || !category || !address) {
     res.status(400);
@@ -126,6 +126,7 @@ export const createSellerStore = async (req, res) => {
     city:               city?.trim()    || 'Bengaluru',
     logoUrl:            logoUrl         || '',
     phone:              phone           || '',
+    website:            website?.trim() || '',
     ownerId:            req.user._id,
     verificationStatus: 'unverified',
   });

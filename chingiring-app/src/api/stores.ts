@@ -11,6 +11,7 @@ export interface Store {
   logoUrl?: string;
   images?: string[];
   phone?: string;
+  website?: string;
   address: string;
   area?: string;
   city?: string;

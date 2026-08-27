@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation, UserPlus, UserCheck,
+  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation, UserPlus, UserCheck, Globe,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
@@ -258,6 +258,24 @@ export const StoreDetailScreen: React.FC = () => {
             <View style={styles.sec}>
               <Text style={styles.eye}>About</Text>
               <Text style={styles.about}>{store.description}</Text>
+            </View>
+          )}
+
+          {!!store.website && (
+            <View style={styles.sec}>
+              <Text style={styles.eye}>Website</Text>
+              <Pressable
+                style={styles.infoline}
+                onPress={() => {
+                  const url = /^https?:\/\//i.test(store.website!) ? store.website! : `https://${store.website}`;
+                  Linking.openURL(url).catch(() => {});
+                }}
+              >
+                <Globe size={16} color={Colors.primary} />
+                <Text style={[styles.infoText, { color: Colors.primary }]} numberOfLines={1}>
+                  {store.website!.replace(/^https?:\/\//i, '').replace(/\/$/, '')}
+                </Text>
+              </Pressable>
             </View>
           )}
 

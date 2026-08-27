@@ -23,6 +23,7 @@ const storeSchema = new mongoose.Schema(
     logoUrl: { type: String, default: '' },
     images: [{ type: String }],
     phone: { type: String, default: '' },
+    website: { type: String, default: '', trim: true },
 
     // ── Location ─────────────────────────────────────────────
     address: { type: String, required: [true, 'Address is required'], trim: true },
