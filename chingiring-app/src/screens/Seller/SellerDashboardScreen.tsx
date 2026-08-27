@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Radio,
   ShoppingBag,
+  MessageCircle,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
@@ -175,6 +176,15 @@ export const SellerDashboardScreen: React.FC = () => {
             <Text style={styles.dateText}>{dateStr}</Text>
           </View>
           <Pressable
+            style={styles.msgIconBtn}
+            onPress={() => navigation.navigate('Messages')}
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
+          >
+            <MessageCircle size={20} color="#fff" strokeWidth={2} />
+            {/* TODO(Phase 4): unanswered badge from messaging API */}
+          </Pressable>
+          <Pressable
             style={styles.shopBuyerPill}
             onPress={() => setViewAsBuyer(true)}
             accessibilityRole="button"
@@ -285,6 +295,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
     borderRadius: 20, paddingVertical: 8, paddingHorizontal: 13,
+  },
+  msgIconBtn: {
+    width: 40, height: 40, borderRadius: 20, marginLeft: 12,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+    alignItems: 'center', justifyContent: 'center',
   },
   shopBuyerText: { fontSize: 12.5, fontFamily: Fonts.bold, color: '#fff' },
 

@@ -54,6 +54,7 @@ import { StoreDetailScreen } from '../screens/Dashboard/StoreDetailScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
+import { MessagesScreen } from '../screens/Messages/MessagesScreen';
 import { BlockedAccountsScreen } from '../screens/Dashboard/BlockedAccountsScreen';
 import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
 import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
@@ -169,6 +170,7 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="CategoryProducts"  component={CategoryProductsScreen} />
         <Stack.Screen name="Settings"          component={MobileSettingsScreen} />
         <Stack.Screen name="Notifications"     component={NotificationsScreen} />
+        <Stack.Screen name="Messages"          component={MessagesScreen} />
         <Stack.Screen name="About"             component={MobileAboutScreen} />
         <Stack.Screen name="BuyerOnboarding"   component={BuyerOnboardingScreen} />
         <Stack.Screen name="ViewerScreen"      component={ViewerScreen} />

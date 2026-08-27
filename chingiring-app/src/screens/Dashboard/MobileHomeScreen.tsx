@@ -14,7 +14,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, ChevronRight, ChevronDown, Bell } from 'lucide-react-native';
+import { Search, ChevronRight, ChevronDown, Bell, MessageCircle } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -312,20 +312,32 @@ export const MobileHomeScreen = () => {
             {/* <ChevronDown size={14} color="#fff" /> */}
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={st.bellBtn}
-          onPress={() => navigation.navigate('Notifications')}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications"
-        >
-          <Bell size={20} color="#fff" strokeWidth={2.2} />
-          {unreadCount > 0 ? (
-            <View style={st.bellBadge}>
-              <Text style={st.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-            </View>
-          ) : null}
-        </TouchableOpacity>
+        <View style={st.headerIcons}>
+          <TouchableOpacity
+            style={st.bellBtn}
+            onPress={() => navigation.navigate('Messages')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
+          >
+            <MessageCircle size={20} color="#fff" strokeWidth={2.2} />
+            {/* TODO(Phase 4): unread badge from messaging API */}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={st.bellBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+          >
+            <Bell size={20} color="#fff" strokeWidth={2.2} />
+            {unreadCount > 0 ? (
+              <View style={st.bellBadge}>
+                <Text style={st.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={st.searchRow}>
@@ -448,6 +460,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 16,
   },
   greetWrap: { alignItems: 'flex-start' },
+  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   bellBtn: {
     width: 40,
     height: 40,
