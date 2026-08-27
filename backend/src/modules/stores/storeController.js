@@ -165,9 +165,10 @@ export const deleteStore = async (req, res) => {
 // @route   GET /api/stores/mine
 // @access  Private
 export const getMyStore = async (req, res) => {
-  const store = await Store.findOne({ ownerId: req.user._id })
-    .populate('products')
-    .lean();
+  // No .populate('products'): Store has no `products` path, and Mongoose 9
+  // strictPopulate throws on an unknown path → 500. Sellers load their products
+  // separately via GET /api/products?storeId=.
+  const store = await Store.findOne({ ownerId: req.user._id }).lean();
   if (!store) {
     res.status(404);
     throw new Error('No store found for this account');
