@@ -12,6 +12,7 @@ export interface Product {
   mobileImageUrl?: string; // optional mobile-specific cover (mirrors mobileImages[0])
   images?: string[];   // full gallery, cover first
   mobileImages?: string[]; // mobile-specific gallery, cover first; mobile surfaces prefer it
+  affiliateUrl?: string; // outbound buy link (optional)
   merchant?: string;    // where it's sold (e.g. "Amazon") — shown as "Available at …"
   rating?: number;      // admin-set headline rating (0–5)
   ratingCount?: number; // admin-set review/rating count

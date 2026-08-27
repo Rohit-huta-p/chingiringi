@@ -4,12 +4,9 @@
  * Fetches the seller's store via GET /api/stores/mine and shows:
  *   - Store header (logo, name, category badge, verification badge, stats)
  *   - Verification status banner → links to StoreVerificationScreen
- *   - Product grid (GET /api/products?storeId=) — real data, read-only.
- *     NOTE: product create/update/delete is admin-only on the backend today
- *     (POST/PUT/DELETE /api/products require the `admin` middleware — there
- *     is no seller-scoped product-management route yet). The FAB and empty
- *     state are shown per spec, but surface that limitation instead of
- *     opening a save flow that would 403 for a real seller.
+ *   - Product grid (GET /api/products?storeId=). Tap a card to edit, or the
+ *     FAB / empty-state button to add — via the seller-scoped write endpoints
+ *     (productsAPI.createMine / updateMine / deleteMine), in ProductFormSheet.
  *   - "Set up store" empty state if GET /stores/mine returns 404
  */
 import React from 'react';
@@ -27,7 +24,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Store,
   BadgeCheck,
@@ -38,6 +35,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { verificationAPI, type SellerStore } from '../../api/verification';
 import { productsAPI, type Product } from '../../api/products';
 import apiClient from '../../api/client';
+import { ProductFormSheet } from './ProductFormSheet';
 
 async function fetchStoreStats(storeId: string): Promise<{ totalStreams: number }> {
   try {
@@ -47,12 +45,6 @@ async function fetchStoreStats(storeId: string): Promise<{ totalStreams: number 
     return { totalStreams: 0 };
   }
 }
-
-const COMING_SOON = () =>
-  Alert.alert(
-    'Coming soon',
-    'Seller-managed products are on the way. For now, contact support to add or update your product listings.',
-  );
 
 // ── Verification banner ─────────────────────────────────────────────────
 
@@ -79,8 +71,8 @@ const VerifBanner: React.FC<{ store: SellerStore; onVerify: () => void }> = ({ s
 
 // ── Product card ───────────────────────────────────────────────────────────
 
-const ProductGridCard: React.FC<{ product: Product }> = ({ product }) => (
-  <View style={styles.pCard}>
+const ProductGridCard: React.FC<{ product: Product; onPress: () => void }> = ({ product, onPress }) => (
+  <Pressable style={styles.pCard} onPress={onPress}>
     <View style={styles.pImageBox}>
       {product.imageUrl ? (
         <Image source={{ uri: product.imageUrl }} style={styles.pImage} resizeMode="cover" />
@@ -99,7 +91,7 @@ const ProductGridCard: React.FC<{ product: Product }> = ({ product }) => (
       <Text style={styles.pName} numberOfLines={2}>{product.name}</Text>
       <Text style={styles.pPrice}>₹{product.price.toLocaleString('en-IN')}</Text>
     </View>
-  </View>
+  </Pressable>
 );
 
 // ── Main screen ───────────────────────────────────────────────────────────
@@ -126,6 +118,14 @@ export const MyStoreScreen: React.FC = () => {
     staleTime: 60_000,
   });
   const products: Product[] = productsData?.data?.products ?? productsData?.products ?? [];
+
+  const qc = useQueryClient();
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [editProduct, setEditProduct] = React.useState<Product | null>(null);
+  const openCreate = () => { setEditProduct(null); setFormOpen(true); };
+  const openEdit = (p: Product) => { setEditProduct(p); setFormOpen(true); };
+  const onProductSaved = () =>
+    qc.invalidateQueries({ queryKey: ['seller', 'storeProducts', store?._id] });
 
   const { data: stats = { totalStreams: 0 } } = useQuery({
     queryKey: ['seller', 'stats', store?._id],
@@ -174,7 +174,7 @@ export const MyStoreScreen: React.FC = () => {
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[Colors.orange]} tintColor={Colors.orange} />
         }
-        renderItem={({ item }) => <ProductGridCard product={item} />}
+        renderItem={({ item }) => <ProductGridCard product={item} onPress={() => openEdit(item)} />}
         ListHeaderComponent={
           <View style={{ marginBottom: 12 }}>
             {/* ── Store header card ── */}
@@ -225,7 +225,7 @@ export const MyStoreScreen: React.FC = () => {
               <Package size={56} color={Colors.textSecondary} />
               <Text style={styles.productsEmptyTitle}>Add your first product</Text>
               <Text style={styles.productsEmptySub}>Showcase what you sell during live streams</Text>
-              <Pressable style={styles.addProductBtn} onPress={COMING_SOON}>
+              <Pressable style={styles.addProductBtn} onPress={openCreate}>
                 <Text style={styles.addProductBtnText}>Add Product</Text>
               </Pressable>
             </View>
@@ -234,9 +234,16 @@ export const MyStoreScreen: React.FC = () => {
       />
 
       {/* ── FAB ── */}
-      <Pressable style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={COMING_SOON} accessibilityLabel="Add product">
+      <Pressable style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={openCreate} accessibilityLabel="Add product">
         <Plus size={26} color="#fff" />
       </Pressable>
+
+      <ProductFormSheet
+        visible={formOpen}
+        onClose={() => setFormOpen(false)}
+        product={editProduct}
+        onSaved={onProductSaved}
+      />
     </View>
   );
 };
