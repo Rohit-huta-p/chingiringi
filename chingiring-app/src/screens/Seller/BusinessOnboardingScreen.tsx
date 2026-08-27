@@ -328,6 +328,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 onChange={setLogoUrl}
                 label="Store logo"
                 folder="seller-logos"
+                hint="Square works best — at least 512 × 512 px (PNG or JPG)."
               />
 
               <Input
