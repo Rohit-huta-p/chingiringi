@@ -55,7 +55,8 @@ interface StoreStats {
 async function fetchStoreStats(storeId: string): Promise<StoreStats> {
   try {
     const res = await apiClient.get(`/api/stores/${storeId}/stats`);
-    return res.data ?? { followerCount: 0, totalStreams: 0, viewsLast7Days: 0, totalProducts: 0 };
+    // Backend shape is { status, data: { …stats } } — unwrap data, not the whole body.
+    return res.data?.data ?? res.data ?? { followerCount: 0, totalStreams: 0, viewsLast7Days: 0, totalProducts: 0 };
   } catch {
     return { followerCount: 0, totalStreams: 0, viewsLast7Days: 0, totalProducts: 0 };
   }
@@ -200,7 +201,7 @@ export const SellerDashboardScreen: React.FC = () => {
           <MetricTile
             icon={<UsersRound size={32} color={Colors.orange} />}
             label="Followers"
-            value={stats.followerCount.toLocaleString('en-IN')}
+            value={(stats.followerCount ?? 0).toLocaleString('en-IN')}
           />
           <MetricTile
             icon={<Video size={32} color={Colors.orange} />}
@@ -210,7 +211,7 @@ export const SellerDashboardScreen: React.FC = () => {
           <MetricTile
             icon={<Eye size={32} color={Colors.orange} />}
             label="Views (7d)"
-            value={stats.viewsLast7Days.toLocaleString('en-IN')}
+            value={(stats.viewsLast7Days ?? 0).toLocaleString('en-IN')}
           />
           <MetricTile
             icon={<Package size={32} color={Colors.orange} />}
