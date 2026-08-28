@@ -12,8 +12,11 @@ import {
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
+import { productsAPI, type Product } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
 import { ShareSheet } from '../../components/ShareSheet';
+import { ProductCard } from '../../components/ProductCard';
+import { fetchActiveStreams } from '../Buyer/LiveDiscoveryScreen';
 import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
 import { useFollow } from '../../hooks/useFollow';
@@ -80,6 +83,24 @@ export const StoreDetailScreen: React.FC = () => {
   // Daily share quota — same query key the share action invalidates.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
 
+  // The store's own catalogue — powers the "Products" section (makes the store
+  // shoppable). Keyed off whichever id we have before the store object resolves.
+  const sid = storeId ?? passed?._id;
+  const { data: prodRes } = useQuery({
+    queryKey: ['store', sid, 'products'],
+    queryFn: () => productsAPI.getProducts({ storeId: sid as string, limit: 24 }),
+    enabled: !!sid,
+  });
+  const storeProducts: Product[] = prodRes?.data?.products ?? [];
+
+  // Is this store live right now? Match the active-streams list by storeId.
+  const { data: activeStreams } = useQuery({
+    queryKey: ['streams', 'active'],
+    queryFn: fetchActiveStreams,
+    staleTime: 30_000,
+  });
+  const liveStream = (activeStreams ?? []).find((s) => String(s.storeId) === String(sid));
+
   if (!store) {
     return (
       <View style={styles.loading}>
@@ -94,6 +115,13 @@ export const StoreDetailScreen: React.FC = () => {
   const hasHours = !!(openStr && closeStr);
   const heroImg = store.images?.[0];              // real photo only (logo isn't a good hero)
   const photos = (store.images ?? []).slice(0, 8);
+
+  // Product grid sizing — mirrors CategoryProductsScreen (3 up on phones, 4 wide).
+  const PGAP = 12;
+  const pcols = isWide ? 4 : 3;
+  const gridPad = isWide ? 24 : 16;
+  const gridW = (isWide ? Math.min(820, width) : width) - gridPad * 2;
+  const cardW = Math.floor((gridW - PGAP * (pcols - 1)) / pcols);
   const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/store/${store._id}?ref=cr_${user?.id ?? ''}`;
 
   const following = store ? isFollowing(store._id) : false;
@@ -215,6 +243,28 @@ export const StoreDetailScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* ── Live now — jump straight into the stream ── */}
+        {liveStream && (
+          <Pressable
+            style={styles.liveBanner}
+            onPress={() => navigation.navigate('ViewerScreen', {
+              streamId:     liveStream._id,
+              storeName:    liveStream.storeName ?? store.name,
+              storeLogoUrl: liveStream.storeLogoUrl ?? store.logoUrl,
+              streamTitle:  liveStream.title,
+              storeId:      store._id,
+            })}
+            accessibilityRole="button"
+            accessibilityLabel="Watch this store's live stream"
+          >
+            <View style={styles.liveDot} />
+            <Text style={styles.liveBannerText} numberOfLines={1}>
+              Live now{liveStream.title ? ` · ${liveStream.title}` : ''}
+            </Text>
+            <Text style={styles.liveWatch}>Watch ›</Text>
+          </Pressable>
+        )}
+
         {/* ── Deal band ── */}
         <LinearGradient
           colors={DEAL_GRADIENT}
@@ -222,15 +272,6 @@ export const StoreDetailScreen: React.FC = () => {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={[styles.band, isWide ? styles.bandRow : styles.bandCol]}
         >
-          {/* Discount container — commented out (discount feature disabled)
-          <View style={isWide ? { flex: 1 } : undefined}>
-            <View style={styles.bandOff}>
-              <Text style={[styles.bandBig, isWide && { fontSize: 40 }]}>{store.userDiscountPercent}%</Text>
-              <Text style={styles.bandOffSm}> OFF</Text>
-            </View>
-            <Text style={styles.bandText}>on every bill — pay through the app, no coupon needed</Text>
-          </View>
-          */}
           <View style={styles.bandActions}>
             {!!store.phone && (
               <Pressable onPress={callStore} style={[styles.btn, styles.btnGhost]}>
@@ -281,6 +322,22 @@ export const StoreDetailScreen: React.FC = () => {
 
         {/* ── Content — flowing, single column ── */}
         <View style={[styles.content, isWide && styles.contentWide]}>
+          {storeProducts.length > 0 && (
+            <View style={styles.sec}>
+              <Text style={styles.eye}>Products</Text>
+              <View style={styles.prodGrid}>
+                {storeProducts.map((p) => (
+                  <ProductCard
+                    key={p._id}
+                    product={p}
+                    width={cardW}
+                    onPress={() => navigation.navigate('ProductDetail', { productId: p._id, product: p })}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
           {!!store.description && (
             <View style={styles.sec}>
               <Text style={styles.eye}>About</Text>
@@ -420,6 +477,15 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingTop: 20, gap: 20 },
   contentWide: { maxWidth: 820, width: '100%', alignSelf: 'center', paddingHorizontal: 24, paddingTop: 26 },
   sec: { gap: 10 },
+  prodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  liveBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    marginHorizontal: 16, marginTop: 12, paddingHorizontal: 14, paddingVertical: 11,
+    backgroundColor: '#DC2626', borderRadius: 12,
+  },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
+  liveBannerText: { flex: 1, color: '#fff', fontSize: 13.5, fontFamily: Fonts.bold },
+  liveWatch: { color: '#fff', fontSize: 13, fontFamily: Fonts.extraBold },
   eye: { fontSize: 11, fontFamily: Fonts.extraBold, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' },
   about: { fontSize: 14, fontFamily: Fonts.regular, color: '#475569', lineHeight: 21 },
   rule: { height: 1, backgroundColor: Colors.border },
