@@ -17,7 +17,7 @@ import {
 import {
   Search,
   MapPin,
-  Map as MapIcon,
+  List,
   Radio,
   Users,
   Tag,
@@ -25,7 +25,6 @@ import {
   Clock,
   SlidersHorizontal,
   Plus,
-  Minus,
   Check,
   X,
 } from 'lucide-react-native';
@@ -34,7 +33,6 @@ import * as Location from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
-import { StoreMap } from '../../components/StoreMap';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
@@ -46,7 +44,7 @@ import {
 } from '../../data/offlineStores';
 
 type SortKey = 'discount' | 'rating';
-type ViewMode = 'live' | 'map';
+type ViewMode = 'live' | 'stores';
 type StoreFilters = { openNow: boolean; minDiscount: number; minRating: number };
 
 const DEFAULT_FILTERS: StoreFilters = { openNow: false, minDiscount: 0, minRating: 0 };
@@ -64,7 +62,7 @@ export const OfflineStoresScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
   const [sort, setSort] = useState<SortKey>('discount');
-  const [viewMode, setViewMode] = useState<ViewMode>('live');
+  const [viewMode, setViewMode] = useState<ViewMode>('stores');
   const [filters, setFilters] = useState<StoreFilters>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -156,8 +154,8 @@ export const OfflineStoresScreen: React.FC = () => {
 
   const openCount = filtered.filter((s) => s.isOpen).length;
   // Toggle is active on both mobile and desktop — only the selected panel renders.
-  const showMap  = viewMode === 'map';
-  const showLive = viewMode === 'live';
+  const showStores = viewMode === 'stores';
+  const showLive   = viewMode === 'live';
 
   return (
     <View
@@ -198,11 +196,11 @@ export const OfflineStoresScreen: React.FC = () => {
                 <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
               </Pressable>
               <Pressable
-                onPress={() => setViewMode('map')}
-                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+                onPress={() => setViewMode('stores')}
+                style={[styles.toggleBtn, viewMode === 'stores' && styles.toggleBtnActive]}
               >
-                <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
+                <List size={14} color={viewMode === 'stores' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'stores' && styles.toggleTextActive]}>Stores</Text>
               </Pressable>
             </View>
 
@@ -239,7 +237,7 @@ export const OfflineStoresScreen: React.FC = () => {
           </View>
 
           <View style={styles.headerRight}>
-            {/* Live | Map toggle — same behaviour as mobile */}
+            {/* Live | Stores toggle — same behaviour as mobile */}
             <View style={styles.viewToggle}>
               <Pressable
                 onPress={() => setViewMode('live')}
@@ -249,11 +247,11 @@ export const OfflineStoresScreen: React.FC = () => {
                 <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
               </Pressable>
               <Pressable
-                onPress={() => setViewMode('map')}
-                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+                onPress={() => setViewMode('stores')}
+                style={[styles.toggleBtn, viewMode === 'stores' && styles.toggleBtnActive]}
               >
-                <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
+                <List size={14} color={viewMode === 'stores' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'stores' && styles.toggleTextActive]}>Stores</Text>
               </Pressable>
             </View>
 
@@ -326,37 +324,29 @@ export const OfflineStoresScreen: React.FC = () => {
         styles.body,
         isNarrow && { flexDirection: 'column', paddingHorizontal: 16 },
       ]}>
-        {showMap && (
-          <View style={[styles.mapCol, isNarrow && { flex: 1, minHeight: 0, marginBottom: 96 }]}>
-            <View style={styles.mapInner}>
-              <StoreMap userLocation={coords} stores={filtered} />
-
-              {/* Top-left Stores Nearby badge */}
-              <View style={styles.nearbyBadge} pointerEvents="none">
-                <View style={styles.nearbyPin}>
-                  <MapPin size={10} color="#fff" />
-                </View>
-                <Text style={styles.nearbyText}>{filtered.length} Stores Nearby</Text>
+        {showStores && (
+          <ScrollView
+            style={isNarrow ? styles.listColMobile : styles.listColDesktop}
+            contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            {filtered.map((s) => (
+              <StoreCard
+                key={s._id}
+                store={s}
+                onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
+              />
+            ))}
+            {filtered.length === 0 && (
+              <View style={styles.emptyState}>
+                {isLoading ? (
+                  <ActivityIndicator color={Colors.primary} />
+                ) : (
+                  <Text style={styles.emptyText}>No stores match your filters.</Text>
+                )}
               </View>
-
-              {/* Legend bottom-left */}
-              <View style={styles.legend} pointerEvents="none">
-                <LegendRow color={PRIMARY} label="You" />
-              </View>
-
-              {/* Custom zoom buttons (visual only on placeholder) */}
-              {Platform.OS !== 'web' && (
-                <View style={styles.zoomGroup}>
-                  <Pressable style={styles.zoomBtn}>
-                    <Plus size={14} color={Colors.textSecondary} />
-                  </Pressable>
-                  <Pressable style={styles.zoomBtn}>
-                    <Minus size={14} color={Colors.textSecondary} />
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          </View>
+            )}
+          </ScrollView>
         )}
 
         {showLive && (

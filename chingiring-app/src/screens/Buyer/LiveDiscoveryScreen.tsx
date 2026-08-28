@@ -39,7 +39,7 @@ export interface LiveStream {
   status: 'live' | 'idle' | 'ended';
 }
 
-async function fetchActiveStreams(): Promise<LiveStream[]> {
+export async function fetchActiveStreams(): Promise<LiveStream[]> {
   try {
     const res = await apiClient.get('/api/streams/active');
     const payload = res.data?.data?.streams ?? res.data?.streams ?? res.data?.data ?? res.data;
