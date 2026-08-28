@@ -16,12 +16,15 @@ interface WriteReviewModalProps {
   onClose: () => void;
   // Resolve → parent handles success (invalidate + close). Reject → error shown.
   onSubmit: (rating: number, text: string) => Promise<void>;
+  /** Prompt under the title. Defaults to the product wording. */
+  subtitle?: string;
 }
 
 export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
   visible,
   onClose,
   onSubmit,
+  subtitle,
 }) => {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
@@ -59,7 +62,7 @@ export const WriteReviewModal: React.FC<WriteReviewModalProps> = ({
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.card} onPress={() => {}}>
           <Text style={styles.title}>Write a review</Text>
-          <Text style={styles.subtitle}>How was the product?</Text>
+          <Text style={styles.subtitle}>{subtitle ?? 'How was the product?'}</Text>
 
           {/* Star rating */}
           <View style={styles.starsRow}>

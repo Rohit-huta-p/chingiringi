@@ -17,6 +17,9 @@ import { sharesAPI } from '../../api/shares';
 import { ShareSheet } from '../../components/ShareSheet';
 import { ProductCard } from '../../components/ProductCard';
 import { fetchActiveStreams } from '../Buyer/LiveDiscoveryScreen';
+import { reviewsAPI, toUiReview } from '../../api/reviews';
+import { RatingBars } from '../../components/RatingBars';
+import { WriteReviewModal } from '../../components/WriteReviewModal';
 import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
 import { useFollow } from '../../hooks/useFollow';
@@ -52,6 +55,17 @@ function fmt12(hhmm?: string): string {
   return `${h}:${String(min).padStart(2, '0')} ${ampm}`;
 }
 
+// Compact 5-star row (rounded) for the reviews summary + cards.
+const StarRow: React.FC<{ value: number; size?: number }> = ({ value, size = 14 }) => {
+  const full = Math.max(0, Math.min(5, Math.round(value)));
+  return (
+    <Text style={{ fontSize: size, color: '#f59e0b', letterSpacing: 1 }}>
+      {'★'.repeat(full)}
+      <Text style={{ color: '#e2e8f0' }}>{'★'.repeat(5 - full)}</Text>
+    </Text>
+  );
+};
+
 export const StoreDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -63,6 +77,7 @@ export const StoreDetailScreen: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const { requireAuth } = useAuthGate();
   const [shareOpen, setShareOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const { follow, unfollow, isFollowing } = useFollow();
 
@@ -101,6 +116,14 @@ export const StoreDetailScreen: React.FC = () => {
   });
   const liveStream = (activeStreams ?? []).find((s) => String(s.storeId) === String(sid));
 
+  // Store reviews — list + count + average.
+  const { data: reviewsRes } = useQuery({
+    queryKey: ['store', sid, 'reviews'],
+    queryFn: () => reviewsAPI.getStoreReviews(sid as string),
+    enabled: !!sid,
+  });
+  const reviews = reviewsRes?.data?.reviews ?? [];
+
   if (!store) {
     return (
       <View style={styles.loading}>
@@ -127,6 +150,18 @@ export const StoreDetailScreen: React.FC = () => {
   const following = store ? isFollowing(store._id) : false;
   // Hide "Message" on a seller's own store (backend rejects self-chat anyway).
   const isOwnStore = !!user?.id && (store as any)?.ownerId === user.id;
+  const canReview = user?.role !== 'admin' && !isOwnStore;
+  const reviewCount = reviewsRes?.data?.count ?? store.reviewsCount ?? 0;
+  const avgRating = reviewsRes?.data?.averageRating ?? store.rating ?? 0;
+
+  const submitStoreReview = async (rating: number, text: string) => {
+    await reviewsAPI.createStoreReview(store._id, { rating, text });
+    qc.invalidateQueries({ queryKey: ['store', sid, 'reviews'] });
+    qc.invalidateQueries({ queryKey: ['store', storeId] }); // refresh the aggregate rating
+    setReviewOpen(false);
+  };
+  const onWriteReview = () =>
+    requireAuth(() => setReviewOpen(true), { title: 'Sign in to review', subtitle: 'Share your experience with this store.', icon: 'star' });
 
   const showToast = (msg: string) => {
     if (Platform.OS === 'android') {
@@ -407,8 +442,69 @@ export const StoreDetailScreen: React.FC = () => {
               <Text style={styles.dirBtnText}>Get directions</Text>
             </Pressable>
           </View>
+
+          {/* ── Reviews ── */}
+          <View style={styles.rule} />
+          <View style={styles.sec}>
+            <View style={styles.reviewHead}>
+              <Text style={styles.eye}>Reviews</Text>
+              {canReview && (
+                <Pressable onPress={onWriteReview} hitSlop={6}>
+                  <Text style={styles.writeLink}>Write a review</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {reviewCount > 0 ? (
+              <>
+                <View style={styles.reviewSummary}>
+                  <Text style={styles.avgBig}>{avgRating.toFixed(1)}</Text>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <StarRow value={avgRating} size={16} />
+                    <Text style={styles.reviewCountText}>{reviewCount} review{reviewCount === 1 ? '' : 's'}</Text>
+                  </View>
+                </View>
+
+                {reviews.length >= 4 && <RatingBars reviews={reviews} />}
+
+                <View style={styles.reviewList}>
+                  {reviews.slice(0, 6).map((r) => {
+                    const u = toUiReview(r);
+                    return (
+                      <View key={u._id} style={styles.reviewCard}>
+                        <View style={[styles.reviewAvatar, { backgroundColor: u.initialBg }]}>
+                          <Text style={styles.reviewInitial}>{u.initial}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.reviewCardTop}>
+                            <Text style={styles.reviewAuthor} numberOfLines={1}>{u.author}</Text>
+                            <StarRow value={u.rating} />
+                          </View>
+                          {!!u.body && <Text style={styles.reviewBody}>{u.body}</Text>}
+                          {typeof u.daysAgo === 'number' && (
+                            <Text style={styles.reviewAge}>{u.daysAgo === 0 ? 'Today' : `${u.daysAgo}d ago`}</Text>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.reviewEmpty}>
+                No reviews yet.{canReview ? ' Be the first to review this store.' : ''}
+              </Text>
+            )}
+          </View>
         </View>
       </ScrollView>
+
+      <WriteReviewModal
+        visible={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        onSubmit={submitStoreReview}
+        subtitle="How was your experience with this store?"
+      />
 
       <ShareSheet
         visible={shareOpen}
@@ -486,6 +582,20 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
   liveBannerText: { flex: 1, color: '#fff', fontSize: 13.5, fontFamily: Fonts.bold },
   liveWatch: { color: '#fff', fontSize: 13, fontFamily: Fonts.extraBold },
+  reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  writeLink: { fontSize: 13, fontFamily: Fonts.bold, color: Colors.primary },
+  reviewSummary: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avgBig: { fontSize: 40, fontFamily: Fonts.extraBold, color: Colors.navy, lineHeight: 44 },
+  reviewCountText: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  reviewList: { gap: 14, marginTop: 4 },
+  reviewCard: { flexDirection: 'row', gap: 10 },
+  reviewAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  reviewInitial: { fontSize: 14, fontFamily: Fonts.bold, color: '#3B4759' },
+  reviewCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  reviewAuthor: { flex: 1, fontSize: 13.5, fontFamily: Fonts.bold, color: Colors.navy },
+  reviewBody: { fontSize: 13.5, fontFamily: Fonts.regular, color: '#475569', lineHeight: 20, marginTop: 2 },
+  reviewAge: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 3 },
+  reviewEmpty: { fontSize: 13.5, fontFamily: Fonts.regular, color: Colors.textSecondary },
   eye: { fontSize: 11, fontFamily: Fonts.extraBold, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' },
   about: { fontSize: 14, fontFamily: Fonts.regular, color: '#475569', lineHeight: 21 },
   rule: { height: 1, backgroundColor: Colors.border },

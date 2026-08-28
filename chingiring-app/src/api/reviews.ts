@@ -8,7 +8,9 @@ export interface ApiReviewUser {
 
 export interface ApiReview {
   _id: string;
-  product: string;
+  /** Present on product reviews; store reviews carry `store` instead. */
+  product?: string;
+  store?: string;
   user: ApiReviewUser | null;
   rating: number;
   text: string;
@@ -29,6 +31,17 @@ export const reviewsAPI = {
 
   createReview: async (productId: string, body: { rating: number; text: string }) => {
     const response = await apiClient.post(`/api/products/${productId}/reviews`, body);
+    return response.data;
+  },
+
+  // ── Store reviews (same response shape as product reviews) ──
+  getStoreReviews: async (storeId: string): Promise<ProductReviewsResponse> => {
+    const response = await apiClient.get(`/api/stores/${storeId}/reviews`);
+    return response.data;
+  },
+
+  createStoreReview: async (storeId: string, body: { rating: number; text: string }) => {
+    const response = await apiClient.post(`/api/stores/${storeId}/reviews`, body);
     return response.data;
   },
 };

@@ -1,7 +1,7 @@
 import express from 'express';
 import {
   getStores, getStore, createStore, createSellerStore, updateStore, updateMyStore, deleteStore,
-  getMyStore, getStoreStats, updateVerification,
+  getMyStore, getStoreStats, updateVerification, getStoreReviews, createStoreReview,
 } from './storeController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
@@ -22,6 +22,10 @@ router.use('/', storeFollowRouter);
 router.get('/', getStores);
 router.get('/:id', getStore);
 router.get('/:id/stats', getStoreStats);
+router.get('/:id/reviews', getStoreReviews);
+
+// A shopper posts a review of a store (one per user).
+router.post('/:id/reviews', protect, createStoreReview);
 
 // ── Verification (seller submits; admin approves) ────────────────────────────
 router.patch('/:id/verification', protect, updateVerification);

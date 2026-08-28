@@ -1,4 +1,5 @@
 import Store from './storeModel.js';
+import StoreReview from './storeReviewModel.js';
 import Stream from '../streams/streamModel.js';
 import { formatTime, isOpenNow } from './storeHours.js';
 import { resolveGoogleMapsCoords } from './googleMapsCoords.js';
@@ -331,4 +332,73 @@ export const getAllStoresAdmin = async (req, res) => {
     status: 'success',
     data: { stores: stores.map(decorate), total, page, pages: Math.ceil(total / limit) },
   });
+};
+
+// ── Store reviews ─────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/stores/:id/reviews  (public)
+ * A store's reviews, newest-first, with count + average rating.
+ */
+export const getStoreReviews = async (req, res) => {
+  const reviews = await StoreReview.find({ store: req.params.id })
+    .populate('user', 'name avatarUrl')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const count = reviews.length;
+  const averageRating = count
+    ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / count) * 10) / 10
+    : 0;
+
+  res.status(200).json({ status: 'success', data: { reviews, count, averageRating } });
+};
+
+/**
+ * POST /api/stores/:id/reviews  (auth)
+ * Create the caller's review (one per store), then recompute + persist the
+ * store's rating/reviewsCount aggregate from the full review set.
+ */
+export const createStoreReview = async (req, res) => {
+  const storeId = req.params.id;
+  const rating = Number(req.body?.rating);
+  const text = (req.body?.text ?? '').toString().trim();
+
+  if (!(rating >= 1 && rating <= 5)) {
+    res.status(400);
+    throw new Error('Rating must be between 1 and 5');
+  }
+
+  const store = await Store.findById(storeId).select('_id');
+  if (!store) {
+    res.status(404);
+    throw new Error('Store not found');
+  }
+
+  let doc;
+  try {
+    doc = await StoreReview.create({
+      store: storeId,
+      user:  req.user._id,
+      rating,
+      text:  text.slice(0, 500),
+    });
+  } catch (err) {
+    if (err?.code === 11000) {
+      res.status(409);
+      throw new Error('You have already reviewed this store');
+    }
+    throw err;
+  }
+
+  // Recompute aggregates from the full set and persist onto the store doc.
+  const all = await StoreReview.find({ store: storeId }).select('rating').lean();
+  const reviewsCount = all.length;
+  const averageRating = reviewsCount
+    ? Math.round((all.reduce((sum, r) => sum + r.rating, 0) / reviewsCount) * 10) / 10
+    : 0;
+  await Store.findByIdAndUpdate(storeId, { rating: averageRating, reviewsCount });
+
+  await doc.populate('user', 'name avatarUrl');
+  res.status(201).json({ status: 'success', data: { review: doc, averageRating, reviewsCount } });
 };
