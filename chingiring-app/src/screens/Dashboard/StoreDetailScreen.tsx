@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation, UserPlus, UserCheck, Globe,
+  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation, UserPlus, UserCheck, Globe, MessageCircle,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
@@ -17,6 +17,7 @@ import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
 import { useFollow } from '../../hooks/useFollow';
+import { getOrCreateConversation } from '../../api/chat';
 import type { StoreCategory } from '../../data/offlineStores';
 
 // Category accent colors — mirrors the map/list on OfflineStoresScreen.
@@ -96,6 +97,8 @@ export const StoreDetailScreen: React.FC = () => {
   const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/store/${store._id}?ref=cr_${user?.id ?? ''}`;
 
   const following = store ? isFollowing(store._id) : false;
+  // Hide "Message" on a seller's own store (backend rejects self-chat anyway).
+  const isOwnStore = !!user?.id && (store as any)?.ownerId === user.id;
 
   const showToast = (msg: string) => {
     if (Platform.OS === 'android') {
@@ -126,6 +129,24 @@ export const StoreDetailScreen: React.FC = () => {
 
   const callStore = () => {
     if (store.phone) Linking.openURL(`tel:${store.phone.replace(/\s+/g, '')}`).catch(() => {});
+  };
+
+  // Open (or reuse) a chat thread with this store. Gated behind auth for guests.
+  const openChat = () => {
+    requireAuth(async () => {
+      try {
+        const conv = await getOrCreateConversation(store._id);
+        if (conv) {
+          navigation.navigate('Chat', {
+            conversationId: conv._id,
+            title: conv.otherParty.name,
+            otherParty: conv.otherParty,
+          });
+        }
+      } catch (e: any) {
+        Alert.alert('Couldn’t open chat', e?.response?.data?.message || 'Please try again in a moment.');
+      }
+    }, { title: 'Sign in to message', subtitle: 'Chat with sellers about their products and live streams.', icon: 'default' });
   };
 
   // Open Google Maps directions to the store — exact coords when we have them
@@ -215,6 +236,12 @@ export const StoreDetailScreen: React.FC = () => {
               <Pressable onPress={callStore} style={[styles.btn, styles.btnGhost]}>
                 <Phone size={16} color="#fff" />
                 <Text style={styles.btnGhostText}>Call</Text>
+              </Pressable>
+            )}
+            {user?.role !== 'admin' && !isOwnStore && (
+              <Pressable onPress={openChat} style={[styles.btn, styles.btnGhost]}>
+                <MessageCircle size={16} color="#fff" />
+                <Text style={styles.btnGhostText}>Message</Text>
               </Pressable>
             )}
             {/* Follow / Following toggle — buyers only (hide for admin / own store) */}

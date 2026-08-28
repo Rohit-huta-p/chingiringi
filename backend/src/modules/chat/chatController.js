@@ -59,6 +59,30 @@ function shapeConversation(conv, userId) {
   };
 }
 
+/**
+ * Mark the caller's side of a thread read: stamp the other side's unread
+ * messages, zero the caller's unread counter, and let the other party's open
+ * thread update its read receipts.
+ */
+async function markConversationRead(conv, isBuyer) {
+  const otherRole = isBuyer ? 'seller' : 'buyer';
+  const now = new Date();
+  await Message.updateMany(
+    { conversationId: conv._id, senderRole: otherRole, readAt: null },
+    { $set: { readAt: now } },
+  );
+  const unreadField = isBuyer ? 'unreadBuyer' : 'unreadSeller';
+  if ((conv[unreadField] ?? 0) > 0) {
+    conv[unreadField] = 0;
+    await conv.save();
+  }
+  emitToChat('messages_read', [`conv:${conv._id}`], {
+    conversationId: String(conv._id),
+    readerRole:     isBuyer ? 'buyer' : 'seller',
+    at:             now.getTime(),
+  });
+}
+
 // ── Controllers ──────────────────────────────────────────────────────────────
 
 /**
@@ -145,25 +169,28 @@ export const getMessages = async (req, res) => {
     .lean();
   rows.reverse(); // render oldest → newest
 
-  // Mark the other side's messages read + clear the caller's unread badge.
-  const otherRole = isBuyer ? 'seller' : 'buyer';
-  const now = new Date();
-  await Message.updateMany(
-    { conversationId: conv._id, senderRole: otherRole, readAt: null },
-    { $set: { readAt: now } },
-  );
-  const unreadField = isBuyer ? 'unreadBuyer' : 'unreadSeller';
-  if ((conv[unreadField] ?? 0) > 0) {
-    conv[unreadField] = 0;
-    await conv.save();
-  }
-  emitToChat('messages_read', [`conv:${conv._id}`], {
-    conversationId: String(conv._id),
-    readerRole:     isBuyer ? 'buyer' : 'seller',
-    at:             now.getTime(),
-  });
+  await markConversationRead(conv, isBuyer);
 
   res.status(200).json({ status: 'success', data: { messages: rows.map(shapeMessage) } });
+};
+
+/**
+ * POST /api/chat/conversations/:id/read
+ * Clears the caller's unread for a thread. Used when a message arrives while
+ * the thread is already open (so the inbox badge doesn't drift).
+ */
+export const markRead = async (req, res) => {
+  const userId = req.user._id;
+
+  const conv = await Conversation.findById(req.params.id);
+  if (!conv) { res.status(404); throw new Error('Conversation not found'); }
+
+  const isBuyer  = String(conv.buyerId) === String(userId);
+  const isSeller = String(conv.sellerId) === String(userId);
+  if (!isBuyer && !isSeller) { res.status(403); throw new Error('Not a participant in this conversation'); }
+
+  await markConversationRead(conv, isBuyer);
+  res.status(200).json({ status: 'success', data: { ok: true } });
 };
 
 /**
@@ -198,7 +225,10 @@ export const sendMessage = async (req, res) => {
 
   const shaped = shapeMessage(msg);
   const recipientId = isBuyer ? conv.sellerId : conv.buyerId;
-  emitToChat('new_message', [`conv:${conv._id}`, `user:${recipientId}`], {
+  // Emit to both participants' personal rooms (all their devices + inboxes).
+  // The sender's own client already has the message from this response, so it
+  // dedupes the echo by _id.
+  emitToChat('new_message', [`user:${userId}`, `user:${recipientId}`], {
     conversationId: String(conv._id),
     message:        shaped,
   });

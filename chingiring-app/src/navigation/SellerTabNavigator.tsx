@@ -30,6 +30,7 @@ import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen'
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 import { MessagesScreen } from '../screens/Messages/MessagesScreen';
+import { ChatScreen } from '../screens/Messages/ChatScreen';
 import { EditStoreDetailsScreen } from '../screens/Seller/EditStoreDetailsScreen';
 
 // Seller onboarding screens (Sprint 3)
@@ -156,6 +157,7 @@ export default function SellerTabNavigator() {
         <Stack.Screen name="Settings"           component={MobileSettingsScreen} />
         <Stack.Screen name="Notifications"      component={NotificationsScreen} />
         <Stack.Screen name="Messages"           component={MessagesScreen} />
+        <Stack.Screen name="Chat"               component={ChatScreen} />
         <Stack.Screen name="About"              component={MobileAboutScreen} />
       </Stack.Navigator>
     </SafeAreaView>
