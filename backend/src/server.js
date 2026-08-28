@@ -5,6 +5,7 @@ import app from './app.js';
 import connectDB from './config/db.js';
 import User from './modules/users/userModel.js';
 import { attachStreamSocket } from './modules/streams/streamSocket.js';
+import { attachChatSocket } from './modules/chat/chatSocket.js';
 
 // Connect to MongoDB
 connectDB();
@@ -43,6 +44,29 @@ streamNs.use(async (socket, next) => {
 
 // Attach all stream event handlers
 attachStreamSocket(streamNs);
+
+// ── Chat namespace (buyer ⇄ seller messaging) ───────────────────────────────
+// Auth is required here — attachChatSocket drops any socket without a user.
+const chatNs = io.of('/chat');
+chatNs.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token
+    || socket.handshake.headers?.authorization?.split(' ')[1];
+
+  if (!token) {
+    socket.data.user = null;
+    return next();
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    const user = await User.findById(decoded.id).select('_id name role').lean();
+    socket.data.user = user || null;
+  } catch {
+    socket.data.user = null;
+  }
+  next();
+});
+
+attachChatSocket(chatNs);
 
 // ── Start server ────────────────────────────────────────────────────────────
 httpServer.listen(PORT, () => {

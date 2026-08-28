@@ -34,6 +34,7 @@ import videoWebhookRoutes from './modules/videos/videoWebhookRoutes.js';
 import legalRoutes from './modules/legal/legalRoutes.js';
 import followRoutes from './modules/follows/followRoutes.js';
 import streamRoutes from './modules/streams/streamRoutes.js';
+import chatRoutes from './modules/chat/chatRoutes.js';
 import { activeProvider } from './services/videoProvider.js';
 
 const app = express();
@@ -136,6 +137,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/users',  followRoutes);
 app.use('/api/streams', streamRoutes);
+app.use('/api/chat', chatRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/s', shareRedirectRoutes);
 
