@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, Info, HelpCircle, MessageCircle,
-  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX, MailCheck, ShoppingBag,
+  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX, MailCheck, ShoppingBag, Store,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -276,6 +276,14 @@ export const MobileProfileScreen = () => {
           {user?.role === 'seller' ? (
             <>
               <Text style={s.sectionHeader}>SELLING</Text>
+              <QuickAction
+                icon={Store}
+                iconColor={Colors.orange}
+                iconBg="rgba(249,115,22,0.12)"
+                title="Edit store details"
+                subtitle="Name, photos, hours, website & more"
+                onPress={() => nav.navigate('EditStoreDetails')}
+              />
               <QuickAction
                 icon={ShoppingBag}
                 iconColor={Colors.primary}

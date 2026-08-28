@@ -30,6 +30,7 @@ import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen'
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 import { MessagesScreen } from '../screens/Messages/MessagesScreen';
+import { EditStoreDetailsScreen } from '../screens/Seller/EditStoreDetailsScreen';
 
 // Seller onboarding screens (Sprint 3)
 import { BusinessOnboardingScreen } from '../screens/Seller/BusinessOnboardingScreen';
@@ -151,6 +152,7 @@ export default function SellerTabNavigator() {
         <Stack.Screen name="BroadcasterScreen"  component={BroadcasterScreen}
           options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="EditProfile"        component={MobileEditProfileScreen} />
+        <Stack.Screen name="EditStoreDetails"   component={EditStoreDetailsScreen} />
         <Stack.Screen name="Settings"           component={MobileSettingsScreen} />
         <Stack.Screen name="Notifications"      component={NotificationsScreen} />
         <Stack.Screen name="Messages"           component={MessagesScreen} />

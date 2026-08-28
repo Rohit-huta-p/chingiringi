@@ -44,6 +44,24 @@ export interface Store {
   createdAt?: string;
 }
 
+/** Fields a seller may edit on their own store (PATCH /api/stores/mine). */
+export interface MyStoreUpdate {
+  name?: string;
+  shortName?: string;
+  category?: string;
+  description?: string;
+  logoUrl?: string;
+  images?: string[];
+  phone?: string;
+  website?: string;
+  address?: string;
+  area?: string;
+  city?: string;
+  openTime?: string;
+  closeTime?: string;
+  openDays?: number[];
+}
+
 export const storesAPI = {
   list: async (params?: {
     page?: number;
@@ -60,5 +78,11 @@ export const storesAPI = {
   get: async (id: string) => {
     const response = await apiClient.get(`/api/stores/${id}`);
     return response.data;
+  },
+
+  /** Seller: update their own store. */
+  updateMine: async (input: MyStoreUpdate) => {
+    const response = await apiClient.patch('/api/stores/mine', input);
+    return response.data?.data?.store ?? response.data?.store;
   },
 };

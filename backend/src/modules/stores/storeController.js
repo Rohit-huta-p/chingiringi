@@ -134,6 +134,30 @@ export const createSellerStore = async (req, res) => {
   res.status(201).json({ status: 'success', data: { store } });
 };
 
+// Fields a seller may edit on their own store — excludes deal terms,
+// verification, ownership, flags and ratings (admin-controlled or computed).
+const SELLER_STORE_FIELDS = [
+  'name', 'shortName', 'category', 'description',
+  'logoUrl', 'images', 'phone', 'website',
+  'address', 'area', 'city', 'mapsUrl',
+  'openTime', 'closeTime', 'openDays',
+];
+
+// @desc    Seller updates their own store
+// @route   PATCH /api/stores/mine
+// @access  Private (seller)
+export const updateMyStore = async (req, res) => {
+  const store = await Store.findOne({ ownerId: req.user._id });
+  if (!store) {
+    res.status(404);
+    throw new Error('No store found for this account.');
+  }
+  for (const k of SELLER_STORE_FIELDS) if (k in req.body) store[k] = req.body[k];
+  if ('mapsUrl' in req.body) await applyMapsCoords(store, req.body.mapsUrl); // re-resolve pin
+  await store.save(); // re-runs pre-save (slug)
+  res.status(200).json({ status: 'success', data: { store: decorate(store.toObject()) } });
+};
+
 // @desc    Update store (admin only)
 // @route   PUT /api/stores/:id
 // @access  Private/Admin
