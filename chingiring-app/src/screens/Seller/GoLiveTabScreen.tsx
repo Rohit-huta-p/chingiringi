@@ -37,6 +37,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { createStream, getMyStreams, formatStreamMeta } from '../../api/streams';
 import { productsAPI, type Product } from '../../api/products';
 import { type SellerStore } from '../../api/verification';
+import { ImageUploader } from '../../components/ImageUploader';
 import { useMyStore } from '../../hooks/useMyStore';
 
 // ── Categories — must match backend STORE_CATEGORIES enum (storeModel.js) ─
@@ -53,6 +54,7 @@ interface GoLiveModalProps {
 const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) => {
   const navigation = useNavigation<any>();
   const [title, setTitle] = useState('');
+  const [thumbnail, setThumbnail] = useState('');
   const [category, setCategory] = useState<string>(store?.category ?? '');
   const [featuredIds, setFeaturedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -80,11 +82,13 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
         title: trimmed,
         ...(store?._id ? { storeId: store._id } : {}),
         ...(category ? { category } : {}),
+        ...(thumbnail ? { thumbnail } : {}),
         ...(featuredIds.length ? { productIds: featuredIds } : {}),
       } as any);
 
       onClose();
       setTitle('');
+      setThumbnail('');
       setFeaturedIds([]);
 
       navigation.navigate('BroadcasterScreen', {
@@ -104,6 +108,7 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
   const handleClose = () => {
     if (loading) return;
     setTitle('');
+    setThumbnail('');
     onClose();
   };
 
@@ -137,6 +142,15 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
               maxLength={80}
               returnKeyType="done"
               autoFocus
+            />
+
+            {/* Thumbnail */}
+            <Text style={[modal.label, { marginTop: 16 }]}>Thumbnail</Text>
+            <ImageUploader
+              value={thumbnail}
+              onChange={setThumbnail}
+              folder="stream-thumbnails"
+              hint="Your stream's cover on the Live & Videos cards buyers browse. Recommended 1080 × 1440 px (3:4, portrait) — keep the subject centered."
             />
 
             {/* Category pills */}

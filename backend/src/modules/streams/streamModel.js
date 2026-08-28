@@ -10,6 +10,9 @@ const streamSchema = new mongoose.Schema(
     dailyRoomUrl:  { type: String, default: '' },
 
     title:        { type: String, default: '' },
+    // Optional category + cover thumbnail — shown on the live / Videos cards buyers browse.
+    category:     { type: String, default: '' },
+    thumbnail:    { type: String, default: '' },
     status:       { type: String, enum: ['idle', 'live', 'ended'], default: 'idle' },
     viewerCount:  { type: Number, default: 0, min: 0 },
 

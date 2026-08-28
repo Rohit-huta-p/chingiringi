@@ -13,6 +13,8 @@ export interface CreateStreamRequest {
   category?: string;
   /** Product ids to feature on the stream — surfaced to viewers via getStream(). */
   productIds?: string[];
+  /** Cover thumbnail URL — shown on the live / Videos cards buyers browse. */
+  thumbnail?: string;
 }
 
 export interface CreateStreamResponse {

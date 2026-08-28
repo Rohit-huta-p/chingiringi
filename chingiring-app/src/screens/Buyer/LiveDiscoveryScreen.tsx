@@ -34,6 +34,8 @@ export interface LiveStream {
   storeId: string;
   storeName: string;
   storeLogoUrl?: string;
+  /** Seller-set cover thumbnail (GoLive). Preferred over the store logo on the card. */
+  thumbnail?: string;
   title: string;
   viewerCount: number;
   status: 'live' | 'idle' | 'ended';
@@ -60,8 +62,8 @@ const StreamCard: React.FC<StreamCardProps> = ({ stream, isFollowed, onPress }) 
   <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
     {/* Thumbnail / avatar */}
     <View style={styles.cardThumb}>
-      {stream.storeLogoUrl ? (
-        <Image source={{ uri: stream.storeLogoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      {(stream.thumbnail || stream.storeLogoUrl) ? (
+        <Image source={{ uri: stream.thumbnail || stream.storeLogoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.cardThumbFallback]}>
           <Text style={styles.cardThumbInitial}>

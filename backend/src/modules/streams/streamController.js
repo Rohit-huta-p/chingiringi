@@ -57,7 +57,7 @@ async function createMeetingToken(roomName, isOwner = false) {
  * Requires: auth, store must be owned by user and verified.
  */
 export const createStream = async (req, res) => {
-  const { storeId, title = '', productIds } = req.body;
+  const { storeId, title = '', productIds, category, thumbnail } = req.body;
 
   if (!storeId) {
     res.status(400);
@@ -97,6 +97,8 @@ export const createStream = async (req, res) => {
     dailyRoomName: room.name,
     dailyRoomUrl:  room.url,
     title:         title.slice(0, 120),
+    category:      (category || '').slice(0, 40),
+    thumbnail:     thumbnail || '',
     status:        'live',
     startedAt:     new Date(),
     products:      Array.isArray(productIds) ? productIds.slice(0, 30) : [],
