@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Modal, View, Text, ScrollView, Pressable, StyleSheet, Alert,
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Trash2 } from 'lucide-react-native';
@@ -34,6 +34,7 @@ export const ProductFormSheet: React.FC<Props> = ({ visible, onClose, product, o
   const [mrp, setMrp] = useState('');
   const [description, setDescription] = useState('');
   const [affiliateUrl, setAffiliateUrl] = useState('');
+  const [buyViaChat, setBuyViaChat] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Seed the fields each time the sheet opens (blank for create, product for edit).
@@ -45,6 +46,8 @@ export const ProductFormSheet: React.FC<Props> = ({ visible, onClose, product, o
     setMrp(product?.mrp ? String(product.mrp) : '');
     setDescription(product?.description ?? '');
     setAffiliateUrl(product?.affiliateUrl ?? '');
+    // Auto-on when the product has no buy link (the seller can still flip it).
+    setBuyViaChat(product?.buyViaChat ?? !((product?.affiliateUrl ?? '').trim()));
   }, [visible, product]);
 
   const priceNum = Number(price);
@@ -66,6 +69,7 @@ export const ProductFormSheet: React.FC<Props> = ({ visible, onClose, product, o
         imageUrl: image || undefined,
         images: image ? [image] : undefined,
         affiliateUrl: affiliateUrl.trim() || undefined,
+        buyViaChat,
       };
       if (editing) await productsAPI.updateMine(product!._id, input);
       else await productsAPI.createMine(input);
@@ -158,10 +162,29 @@ export const ProductFormSheet: React.FC<Props> = ({ visible, onClose, product, o
               label="Buy link (optional)"
               placeholder="https://…"
               value={affiliateUrl}
-              onChangeText={setAffiliateUrl}
+              onChangeText={(t) => {
+                setAffiliateUrl(t);
+                if (!t.trim()) setBuyViaChat(true); // no link → chat becomes the buy path
+              }}
               keyboardType="url"
               autoCapitalize="none"
             />
+
+            {/* Buy via chat — auto-on when there's no buy link */}
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleText}>
+                <Text style={styles.toggleLabel}>Let buyers buy via chat</Text>
+                <Text style={styles.toggleHint}>
+                  When there's no buy link, buyers tap “Chat to buy” to message you in-app and order directly.
+                </Text>
+              </View>
+              <Switch
+                value={buyViaChat}
+                onValueChange={setBuyViaChat}
+                trackColor={{ true: Colors.primary, false: '#cbd5e1' }}
+                thumbColor="#fff"
+              />
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -198,6 +221,10 @@ const styles = StyleSheet.create({
   hTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: Fonts.bold, color: Colors.navy },
   body: { padding: 16, gap: 14 },
   row: { flexDirection: 'row', gap: 12 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+  toggleText: { flex: 1 },
+  toggleLabel: { fontSize: 14.5, fontFamily: Fonts.semiBold, color: Colors.navy },
+  toggleHint: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2, lineHeight: 17 },
   footer: {
     paddingHorizontal: 16,
     paddingTop: 12,

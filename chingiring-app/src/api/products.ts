@@ -19,6 +19,8 @@ export interface Product {
   sold: number;
   isActive: boolean;
   isFeatured: boolean;
+  /** When true, the buyer page shows "Chat to buy" (opens an in-app chat with the store). */
+  buyViaChat?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,7 @@ export interface MyProductInput {
   imageUrl?: string;
   images?: string[];
   affiliateUrl?: string;
+  buyViaChat?: boolean;
 }
 
 export const productsAPI = {

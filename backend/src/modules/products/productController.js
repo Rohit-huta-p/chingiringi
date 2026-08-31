@@ -278,6 +278,7 @@ export const deleteProduct = async (req, res) => {
 const SELLER_PRODUCT_FIELDS = [
   'name', 'description', 'category', 'price', 'mrp',
   'imageUrl', 'mobileImageUrl', 'images', 'mobileImages', 'affiliateUrl',
+  'buyViaChat',
 ];
 
 function pickSellerFields(body = {}) {

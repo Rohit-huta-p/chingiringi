@@ -27,6 +27,7 @@ import { discountPct, savingsAmt, splitDescription } from '../../utils/product';
 import { dealsAPI } from '../../api/deals';
 import { clicksAPI } from '../../api/clicks';
 import { productsAPI } from '../../api/products';
+import { getOrCreateConversation } from '../../api/chat';
 import { sharesAPI } from '../../api/shares';
 import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
@@ -109,6 +110,8 @@ function ProductDetailMobile({
   onShare,
   onBuy,
   canBuy,
+  canChat,
+  onChatToBuy,
   reviews,
   reviewCount,
   averageRating,
@@ -120,6 +123,8 @@ function ProductDetailMobile({
   onShare: () => void;
   onBuy: () => void;
   canBuy: boolean;
+  canChat?: boolean;
+  onChatToBuy?: () => void;
   reviews: any[];
   reviewCount: number;
   averageRating: number;
@@ -424,6 +429,22 @@ function ProductDetailMobile({
                 <Text style={pStyles.buyBtnText}>Share</Text>
               </TouchableOpacity>
             </>
+          ) : canChat ? (
+            <>
+              <TouchableOpacity activeOpacity={0.85} onPress={onChatToBuy} style={[pStyles.ctaWrap, { flex: 1 }]}>
+                <LinearGradient
+                  colors={Gradient.brand}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={pStyles.ctaBtn}
+                >
+                  <Text style={pStyles.ctaText}>Chat to buy →</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={pStyles.buyBtn}>
+                <Text style={pStyles.buyBtnText}>Share</Text>
+              </TouchableOpacity>
+            </>
           ) : (
             <TouchableOpacity activeOpacity={0.85} onPress={onShare} style={[pStyles.ctaWrap, { flex: 1 }]}>
               <LinearGradient
@@ -504,6 +525,26 @@ export const MobileProductDetailScreen = () => {
       catch { Alert.alert('Error', 'Could not open the link.'); }
     };
 
+    // Buy via chat — opens (or reuses) an in-app conversation with the store.
+    // Shown when the seller enabled it and there's no buy link.
+    const storeId: string | undefined = productForView?.storeId ? String(productForView.storeId) : undefined;
+    const canChatToBuy = !!productForView?.buyViaChat && !!storeId;
+    const handleChatToBuy = async () => {
+      if (!storeId) return;
+      try {
+        const conv = await getOrCreateConversation(storeId);
+        if (conv) {
+          (navigation as any).navigate('Chat', {
+            conversationId: conv._id,
+            title: conv.otherParty.name,
+            otherParty: conv.otherParty,
+          });
+        }
+      } catch (e: any) {
+        Alert.alert('Couldn’t open chat', e?.response?.data?.message || 'Please try again in a moment.');
+      }
+    };
+
     return (
       <>
         <ProductDetailMobile
@@ -512,6 +553,8 @@ export const MobileProductDetailScreen = () => {
           onShare={() => requireAuth(() => { canShare && setShareOpen(true); }, { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends buy via your link.', icon: 'share' })}
           onBuy={() => requireAuth(handleBuy, { title: 'Sign in to buy', subtitle: 'Track your cashback and purchase history.', icon: 'cart' })}
           canBuy={!!buyUrl}
+          canChat={canChatToBuy}
+          onChatToBuy={() => requireAuth(handleChatToBuy, { title: 'Sign in to chat', subtitle: 'Message the seller to place your order.', icon: 'cart' })}
           reviews={reviews}
           reviewCount={reviewCount}
           averageRating={averageRating}
