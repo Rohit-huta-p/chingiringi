@@ -308,16 +308,11 @@ export const StoreDetailScreen: React.FC = () => {
           style={[styles.band, isWide ? styles.bandRow : styles.bandCol]}
         >
           <View style={styles.bandActions}>
-            {!!store.phone && (
-              <Pressable onPress={callStore} style={[styles.btn, styles.btnGhost]}>
-                <Phone size={16} color="#fff" />
-                <Text style={styles.btnGhostText}>Call</Text>
-              </Pressable>
-            )}
+            {/* Chat is the lead action in the blue band; Call lives in Contact below. */}
             {user?.role !== 'admin' && !isOwnStore && (
               <Pressable onPress={openChat} style={[styles.btn, styles.btnGhost]}>
                 <MessageCircle size={16} color="#fff" />
-                <Text style={styles.btnGhostText}>Message</Text>
+                <Text style={styles.btnGhostText}>Chat</Text>
               </Pressable>
             )}
             {/* Follow / Following toggle — buyers only (hide for admin / own store) */}
@@ -357,22 +352,6 @@ export const StoreDetailScreen: React.FC = () => {
 
         {/* ── Content — flowing, single column ── */}
         <View style={[styles.content, isWide && styles.contentWide]}>
-          {storeProducts.length > 0 && (
-            <View style={styles.sec}>
-              <Text style={styles.eye}>Products</Text>
-              <View style={styles.prodGrid}>
-                {storeProducts.map((p) => (
-                  <ProductCard
-                    key={p._id}
-                    product={p}
-                    width={cardW}
-                    onPress={() => navigation.navigate('ProductDetail', { productId: p._id, product: p })}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
           {!!store.description && (
             <View style={styles.sec}>
               <Text style={styles.eye}>About</Text>
@@ -380,21 +359,29 @@ export const StoreDetailScreen: React.FC = () => {
             </View>
           )}
 
-          {!!store.website && (
+          {(!!store.phone || !!store.website) && (
             <View style={styles.sec}>
-              <Text style={styles.eye}>Website</Text>
-              <Pressable
-                style={styles.infoline}
-                onPress={() => {
-                  const url = /^https?:\/\//i.test(store.website!) ? store.website! : `https://${store.website}`;
-                  Linking.openURL(url).catch(() => {});
-                }}
-              >
-                <Globe size={16} color={Colors.primary} />
-                <Text style={[styles.infoText, { color: Colors.primary }]} numberOfLines={1}>
-                  {store.website!.replace(/^https?:\/\//i, '').replace(/\/$/, '')}
-                </Text>
-              </Pressable>
+              <Text style={styles.eye}>Contact</Text>
+              {!!store.phone && (
+                <Pressable style={styles.infoline} onPress={callStore} accessibilityRole="button" accessibilityLabel="Call store">
+                  <Phone size={16} color={Colors.primary} />
+                  <Text style={[styles.infoText, { color: Colors.primary }]}>{store.phone}</Text>
+                </Pressable>
+              )}
+              {!!store.website && (
+                <Pressable
+                  style={styles.infoline}
+                  onPress={() => {
+                    const url = /^https?:\/\//i.test(store.website!) ? store.website! : `https://${store.website}`;
+                    Linking.openURL(url).catch(() => {});
+                  }}
+                >
+                  <Globe size={16} color={Colors.primary} />
+                  <Text style={[styles.infoText, { color: Colors.primary }]} numberOfLines={1}>
+                    {store.website!.replace(/^https?:\/\//i, '').replace(/\/$/, '')}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -442,6 +429,26 @@ export const StoreDetailScreen: React.FC = () => {
               <Text style={styles.dirBtnText}>Get directions</Text>
             </Pressable>
           </View>
+
+          {/* ── Products — after location, before reviews ── */}
+          {storeProducts.length > 0 && (
+            <>
+              <View style={styles.rule} />
+              <View style={styles.sec}>
+                <Text style={styles.eye}>Products</Text>
+                <View style={styles.prodGrid}>
+                  {storeProducts.map((p) => (
+                    <ProductCard
+                      key={p._id}
+                      product={p}
+                      width={cardW}
+                      onPress={() => navigation.navigate('ProductDetail', { productId: p._id, product: p })}
+                    />
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
 
           {/* ── Reviews ── */}
           <View style={styles.rule} />
