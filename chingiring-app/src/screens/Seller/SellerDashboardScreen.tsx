@@ -18,6 +18,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  Image,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -42,6 +43,7 @@ import { getUnreadTotal } from '../../api/chat';
 import apiClient from '../../api/client';
 import { getMyStreams, formatStreamMeta } from '../../api/streams';
 import { type SellerStore } from '../../api/verification';
+import { VerificationPill } from '../../components/VerificationPill';
 import { useMyStore } from '../../hooks/useMyStore';
 
 // ── API helpers ───────────────────────────────────────────────────────────
@@ -84,15 +86,15 @@ const VerifBanner: React.FC<{ status: SellerStore['verificationStatus']; rejecti
 
   const text =
     status === 'pending'
-      ? "⚠️ Verification pending — we'll notify you within 1–2 business days"
+      ? 'Your documents are under review'
       : status === 'rejected'
-        ? `⚠️ Verification rejected${rejectionReason ? `: ${rejectionReason}` : ''} — tap to resubmit`
-        : "⚠️ Your store isn't verified yet — go live capability is locked";
+        ? `Verification rejected${rejectionReason ? ` — ${rejectionReason}` : ''}`
+        : "Your store isn't verified yet — going live is locked";
 
   return (
-    <Pressable onPress={onPress} style={styles.banner}>
+    <Pressable onPress={onPress} style={[styles.banner, status === 'rejected' && styles.bannerRejected]}>
       <Text style={styles.bannerText} numberOfLines={2}>{text}</Text>
-      <Text style={styles.bannerLink}>Verify now →</Text>
+      <Text style={styles.bannerLink}>View details →</Text>
     </Pressable>
   );
 };
@@ -140,9 +142,6 @@ export const SellerDashboardScreen: React.FC = () => {
     if (h < 17) return 'Good afternoon';
     return 'Good evening';
   };
-  const dateStr = new Date().toLocaleDateString('en-IN', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
 
   if (storeLoading) {
     return (
@@ -168,18 +167,16 @@ export const SellerDashboardScreen: React.FC = () => {
     >
       {/* ── Greeting header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerGreeting}>
-            <Text style={styles.greeting}>{greeting()}, {firstName}! 👋</Text>
-            <Text style={styles.dateText}>{dateStr}</Text>
-          </View>
+        {/* Top row: greeting (left) + chat & shop-as-buyer (right corner) */}
+        <View style={styles.headerTopRow}>
+          <Text style={styles.greeting} numberOfLines={1}>{greeting()}, {firstName}! 👋</Text>
           <Pressable
             style={styles.msgIconBtn}
             onPress={() => navigation.navigate('Messages')}
             accessibilityRole="button"
             accessibilityLabel="Messages"
           >
-            <MessageCircle size={20} color="#fff" strokeWidth={2} />
+            <MessageCircle size={17} color="#fff" strokeWidth={2} />
             {chatUnread > 0 ? (
               <View style={styles.msgBadge}>
                 <Text style={styles.msgBadgeText}>{chatUnread > 9 ? '9+' : chatUnread}</Text>
@@ -192,9 +189,27 @@ export const SellerDashboardScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Shop as a buyer"
           >
-            <ShoppingBag size={15} color="#fff" strokeWidth={2} />
+            <ShoppingBag size={13} color="#fff" strokeWidth={2} />
             <Text style={styles.shopBuyerText}>Shop as buyer</Text>
           </Pressable>
+        </View>
+
+        {/* Store identity row: logo + name + verification pill */}
+        <View style={styles.headerStore}>
+          {store?.logoUrl ? (
+            <Image source={{ uri: store.logoUrl }} style={styles.headerLogo} />
+          ) : (
+            <View style={[styles.headerLogo, styles.headerLogoFallback]}>
+              <Text style={styles.headerLogoInitial}>{(store?.name ?? 'S').trim()[0]?.toUpperCase() ?? 'S'}</Text>
+            </View>
+          )}
+          <View style={styles.headerStoreText}>
+            <Text style={styles.headerStoreName} numberOfLines={1}>{store?.name ?? 'Your store'}</Text>
+            <VerificationPill
+              status={store?.verificationStatus}
+              onPress={() => { if (store) navigation.navigate('StoreVerification', { store }); }}
+            />
+          </View>
         </View>
       </View>
 
@@ -305,30 +320,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 24,
   },
-  greeting: { fontSize: 22, fontFamily: Fonts.extraBold, color: '#fff' },
-  dateText: { fontSize: 13, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  greeting: { flex: 1, fontSize: 14, fontFamily: Fonts.medium, color: 'rgba(255,255,255,0.82)' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
   headerGreeting: { flex: 1, minWidth: 0 },
+  headerStore: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerLogo: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)' },
+  headerLogoFallback: { alignItems: 'center', justifyContent: 'center' },
+  headerLogoInitial: { fontSize: 18, fontFamily: Fonts.extraBold, color: '#fff' },
+  headerStoreText: { flex: 1, minWidth: 0, gap: 5 },
+  headerStoreName: { fontSize: 19, fontFamily: Fonts.extraBold, color: '#fff' },
   shopBuyerPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 10,
     backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
-    borderRadius: 20, paddingVertical: 8, paddingHorizontal: 13,
+    borderRadius: 16, paddingVertical: 6, paddingHorizontal: 10,
   },
   msgIconBtn: {
-    width: 40, height: 40, borderRadius: 20, marginLeft: 12,
+    width: 32, height: 32, borderRadius: 16, marginLeft: 10,
     backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center', justifyContent: 'center',
   },
   msgBadge: {
-    position: 'absolute', top: -3, right: -3,
-    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
+    position: 'absolute', top: -2, right: -2,
+    minWidth: 15, height: 15, borderRadius: 7.5, paddingHorizontal: 3.5,
     backgroundColor: Colors.danger, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: '#fff',
   },
-  msgBadgeText: { fontSize: 10, fontFamily: Fonts.bold, color: '#fff' },
-  shopBuyerText: { fontSize: 12.5, fontFamily: Fonts.bold, color: '#fff' },
+  msgBadgeText: { fontSize: 9, fontFamily: Fonts.bold, color: '#fff' },
+  shopBuyerText: { fontSize: 11.5, fontFamily: Fonts.bold, color: '#fff' },
 
   body: { padding: 16, gap: 16 },
 
@@ -344,6 +365,7 @@ const styles = StyleSheet.create({
   },
   bannerText: { flex: 1, fontSize: 13, fontFamily: Fonts.regular, color: Colors.text, lineHeight: 18 },
   bannerLink: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.orange },
+  bannerRejected: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
 
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: {

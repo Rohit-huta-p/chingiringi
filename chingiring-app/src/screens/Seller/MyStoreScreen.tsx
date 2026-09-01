@@ -27,7 +27,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Store,
-  BadgeCheck,
   Plus,
   Package,
 } from 'lucide-react-native';
@@ -38,6 +37,7 @@ import { productsAPI, type Product } from '../../api/products';
 import apiClient from '../../api/client';
 import { ProductFormSheet } from './ProductFormSheet';
 import { ProductPreviewSheet } from '../../components/ProductPreviewSheet';
+import { VerificationPill } from '../../components/VerificationPill';
 
 async function fetchStoreStats(storeId: string): Promise<{ totalStreams: number }> {
   try {
@@ -56,17 +56,15 @@ const VerifBanner: React.FC<{ store: SellerStore; onVerify: () => void }> = ({ s
 
   const text =
     status === 'pending'
-      ? 'Documents under review — 1–2 business days.'
+      ? 'Your documents are under review'
       : status === 'rejected'
-        ? (store.verificationDoc?.rejectionReason
-            ? `Rejected: ${store.verificationDoc.rejectionReason}`
-            : 'Verification rejected. Tap to resubmit.')
-        : 'Verify your store to unlock live streaming.';
+        ? `Verification rejected${store.verificationDoc?.rejectionReason ? ` — ${store.verificationDoc.rejectionReason}` : ''}`
+        : "Your store isn't verified yet — going live is locked";
 
   return (
-    <Pressable onPress={onVerify} style={styles.banner}>
-      <Text style={styles.bannerText}>{text}</Text>
-      <Text style={styles.bannerLink}>Verify →</Text>
+    <Pressable onPress={onVerify} style={[styles.banner, status === 'rejected' && styles.bannerRejected]}>
+      <Text style={styles.bannerText} numberOfLines={2}>{text}</Text>
+      <Text style={styles.bannerLink}>View details →</Text>
     </Pressable>
   );
 };
@@ -166,8 +164,6 @@ export const MyStoreScreen: React.FC = () => {
     );
   }
 
-  const isVerified = store.verificationStatus === 'verified';
-
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <FlatList
@@ -195,7 +191,11 @@ export const MyStoreScreen: React.FC = () => {
                 <View style={{ flex: 1 }}>
                   <View style={styles.nameRow}>
                     <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                    {isVerified && <BadgeCheck size={18} color={Colors.primary} />}
+                    <VerificationPill
+                      status={store.verificationStatus}
+                      tone="light"
+                      onPress={() => navigation.navigate('StoreVerification', { store })}
+                    />
                   </View>
                   <View style={styles.catRow}>
                     <View style={styles.catChip}>
@@ -299,6 +299,7 @@ const styles = StyleSheet.create({
   },
   bannerText: { flex: 1, fontSize: 13, fontFamily: Fonts.regular, color: Colors.text },
   bannerLink: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.orange },
+  bannerRejected: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
 
   sectionTitle: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text, marginTop: 16, marginBottom: 4, paddingHorizontal: 4 },
 
