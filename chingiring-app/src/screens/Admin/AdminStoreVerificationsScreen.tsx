@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ShieldCheck, Clock, XCircle, FileText, ExternalLink,
-  Check, X, Inbox, Maximize2, Mail, Phone, MapPin, User,
+  Check, X, Inbox, Maximize2, Mail, Phone, MapPin, User, RotateCcw,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { verificationAPI, type SellerStore, type VerificationStatus } from '../../api/verification';
@@ -43,6 +43,16 @@ const DOC_LABEL: Record<string, string> = {
   fssai:        'FSSAI Licence',
   tradeLicence: 'Trade Licence',
 };
+
+// Quick-pick rejection reasons — tapping one appends it to the reason box.
+const CANNED_REASONS = [
+  'Document is blurry or unreadable',
+  'Name on the ID does not match the owner',
+  'Selfie does not match the ID photo',
+  'Document has expired',
+  'Wrong document type submitted',
+  'Store details are incomplete',
+];
 
 function fmtDate(d?: string | null): string {
   if (!d) return '—';
@@ -163,13 +173,27 @@ interface CardProps {
   store: SellerStore;
   onVerify: (storeId: string) => void;
   onReject: (storeId: string, reason: string) => void;
+  onReopen: (storeId: string) => void;
   onOpenMedia: (item: MediaItem) => void;
   verifying: boolean;
 }
 
-function VerificationCard({ store, onVerify, onReject, onOpenMedia, verifying }: CardProps) {
+function VerificationCard({ store, onVerify, onReject, onReopen, onOpenMedia, verifying }: CardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
+
+  const addReason = (r: string) =>
+    setReason((prev) => (prev.trim() ? `${prev.trim()}; ${r}` : r));
+
+  const confirmRevoke = () =>
+    Alert.alert(
+      'Revoke verification?',
+      "This removes the store's verified badge and moves it back to Pending for re-review.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Revoke', style: 'destructive', onPress: () => onReopen(store._id) },
+      ],
+    );
 
   const cfg = STATUS_CONFIG[store.verificationStatus ?? 'pending'];
   const StatusIcon = cfg.Icon;
@@ -279,6 +303,14 @@ function VerificationCard({ store, onVerify, onReject, onOpenMedia, verifying }:
       {/* ── Reject input (expanded) ── */}
       {rejectOpen && (
         <View style={st.rejectBox}>
+          <Text style={st.chipsLabel}>Quick reasons — tap to add</Text>
+          <View style={st.chipsWrap}>
+            {CANNED_REASONS.map((r) => (
+              <Pressable key={r} style={st.chip} onPress={() => addReason(r)}>
+                <Text style={st.chipText}>{r}</Text>
+              </Pressable>
+            ))}
+          </View>
           <TextInput
             value={reason}
             onChangeText={setReason}
@@ -305,28 +337,40 @@ function VerificationCard({ store, onVerify, onReject, onOpenMedia, verifying }:
         </View>
       )}
 
-      {/* ── Action buttons (hidden once verified) ── */}
-      {!rejectOpen && store.verificationStatus !== 'verified' && (
-        <View style={st.actions}>
+      {/* ── Actions ── */}
+      {!rejectOpen && (
+        <View style={st.actionsWrap}>
           {verifying ? (
-            <ActivityIndicator color={Colors.primary} style={{ flex: 1 }} />
+            <ActivityIndicator color={Colors.primary} style={{ paddingVertical: 8 }} />
+          ) : store.verificationStatus === 'verified' ? (
+            // Verified → allow revoke (back to Pending for re-review)
+            <Pressable style={st.revokeBtn} onPress={confirmRevoke}>
+              <RotateCcw size={15} color="#B45309" strokeWidth={2.5} />
+              <Text style={st.revokeText}>Revoke verification</Text>
+            </Pressable>
           ) : (
             <>
-              <Pressable
-                style={[st.verifyBtn, !canVerify && { opacity: 0.4 }]}
-                onPress={() => onVerify(store._id)}
-                disabled={!canVerify}
-              >
-                <Check size={15} color="#fff" strokeWidth={2.5} />
-                <Text style={st.verifyText}>Verify</Text>
-              </Pressable>
-              <Pressable
-                style={st.rejectBtn}
-                onPress={() => setRejectOpen(true)}
-              >
-                <X size={15} color="#DC2626" strokeWidth={2.5} />
-                <Text style={st.rejectText}>Reject</Text>
-              </Pressable>
+              <View style={st.actions}>
+                <Pressable
+                  style={[st.verifyBtn, !canVerify && { opacity: 0.4 }]}
+                  onPress={() => onVerify(store._id)}
+                  disabled={!canVerify}
+                >
+                  <Check size={15} color="#fff" strokeWidth={2.5} />
+                  <Text style={st.verifyText}>Verify</Text>
+                </Pressable>
+                <Pressable style={st.rejectBtn} onPress={() => setRejectOpen(true)}>
+                  <X size={15} color="#DC2626" strokeWidth={2.5} />
+                  <Text style={st.rejectText}>Reject</Text>
+                </Pressable>
+              </View>
+              {/* Rejected → offer a neutral re-open without approving */}
+              {store.verificationStatus === 'rejected' && (
+                <Pressable style={st.reopenLink} onPress={() => onReopen(store._id)}>
+                  <RotateCcw size={13} color={Colors.textSecondary} />
+                  <Text style={st.reopenText}>Re-open — move back to Pending</Text>
+                </Pressable>
+              )}
             </>
           )}
         </View>
@@ -366,7 +410,7 @@ export function AdminStoreVerificationsScreen() {
     : allStores;
 
   const { mutate: setStatus } = useMutation({
-    mutationFn: ({ id, status, reason }: { id: string; status: 'verified' | 'rejected'; reason?: string }) =>
+    mutationFn: ({ id, status, reason }: { id: string; status: 'verified' | 'rejected' | 'pending'; reason?: string }) =>
       verificationAPI.adminSetStatus(id, status, reason),
     onMutate: ({ id }) => setActionStoreId(id),
     onError: (err: any) => {
@@ -384,6 +428,10 @@ export function AdminStoreVerificationsScreen() {
 
   const handleReject = useCallback((id: string, reason: string) => {
     setStatus({ id, status: 'rejected', reason });
+  }, [setStatus]);
+
+  const handleReopen = useCallback((id: string) => {
+    setStatus({ id, status: 'pending' });
   }, [setStatus]);
 
   // ── Filter tab pills ────────────────────────────────────────────────────
@@ -434,6 +482,7 @@ export function AdminStoreVerificationsScreen() {
           store={item}
           onVerify={handleVerify}
           onReject={handleReject}
+          onReopen={handleReopen}
           onOpenMedia={setViewer}
           verifying={actionStoreId === item._id}
         />
@@ -648,6 +697,30 @@ const st = StyleSheet.create({
     borderStyle: 'dashed', borderColor: '#FECACA', backgroundColor: '#FEF2F2',
   },
   tileMissingText: { color: '#DC2626', fontSize: 12, fontFamily: Fonts.semiBold },
+
+  // Actions (revoke / re-open)
+  actionsWrap: { gap: 8 },
+  revokeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A',
+    borderRadius: 10, paddingVertical: 10,
+  },
+  revokeText: { color: '#B45309', fontSize: 14, fontFamily: Fonts.bold },
+  reopenLink: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 6,
+  },
+  reopenText: { color: Colors.textSecondary, fontSize: 12.5, fontFamily: Fonts.semiBold },
+
+  // Canned reject-reason chips
+  chipsLabel: { fontSize: 11.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: {
+    backgroundColor: Colors.backgroundGrey, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  chipText: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.text },
 });
 
 // ── Media viewer styles ──────────────────────────────────────────────────────

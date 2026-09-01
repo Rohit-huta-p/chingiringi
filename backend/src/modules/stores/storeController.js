@@ -318,11 +318,15 @@ export const updateVerification = async (req, res) => {
       }
     }
     store.verificationStatus = status;
-    if (status === 'rejected' && rejectionReason) {
-      store.verificationDoc.rejectionReason = rejectionReason;
+    // Keep the public `isVerified` badge in lockstep with the status so a revoke
+    // (verified → pending) actually drops the badge, not just the queue state.
+    store.isVerified = status === 'verified';
+    if (status === 'rejected') {
+      if (rejectionReason && store.verificationDoc) store.verificationDoc.rejectionReason = rejectionReason;
+    } else if (store.verificationDoc) {
+      // Clear any stale rejection note when re-opening or approving.
+      store.verificationDoc.rejectionReason = '';
     }
-    if (status === 'verified') store.isVerified = true;
-    if (status === 'rejected' || status === 'unverified') store.isVerified = false;
   } else {
     // Seller submits the store document and/or personal identity. Either part
     // can arrive alone (onboarding sends identity; the verification screen sends

@@ -107,11 +107,11 @@ export const verificationAPI = {
 
   /**
    * PATCH /api/stores/:id/verification
-   * Admin approves or rejects a store verification.
+   * Admin approves, rejects, or re-opens (→ 'pending') a store verification.
    */
   adminSetStatus: async (
     storeId: string,
-    status: 'verified' | 'rejected',
+    status: 'verified' | 'rejected' | 'pending',
     rejectionReason?: string,
   ): Promise<void> => {
     const body: Record<string, string> = { status };
