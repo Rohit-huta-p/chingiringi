@@ -21,7 +21,8 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || process.env.EXPO_PUBLIC_
 const API_KEY = process.env.CLOUDINARY_API_KEY || '';
 const API_SECRET = process.env.CLOUDINARY_API_SECRET || '';
 
-const KYC_FOLDER = 'seller-verification-private';
+const KYC_ROOT = 'chingiringi/kyc';
+const KYC_KINDS = ['doc', 'id', 'selfie'];
 
 let _configured = false;
 function ensureConfig() {
@@ -40,20 +41,29 @@ export const kycConfigured = () => ensureConfig();
  * Returns the identifiers needed to rebuild a signed delivery URL later —
  * never a public URL.
  */
-export function uploadKycImage(buffer) {
+export function uploadKycImage(buffer, { storeId, kind } = {}) {
   if (!ensureConfig()) {
     const err = new Error('KYC media storage is not configured on the server.');
     err.statusCode = 503;
     return Promise.reject(err);
   }
+  // Fold by store when we know it (chingiringi/kyc/<storeId>); onboarding uploads
+  // (store not created yet) land in a staging folder and are still linked via the
+  // publicId stored on the store at submit time.
+  const folder = storeId ? `${KYC_ROOT}/${storeId}` : `${KYC_ROOT}/staging`;
+  const opts = { folder, type: 'authenticated', resource_type: 'image', overwrite: false };
+  // Deterministic id per slot once we have the store → a re-submit overwrites the
+  // previous file instead of orphaning it (chingiringi/kyc/<storeId>/{doc,id,selfie}).
+  if (storeId && KYC_KINDS.includes(kind)) {
+    opts.public_id = kind;
+    opts.overwrite = true;
+    opts.invalidate = true;
+  }
   return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: KYC_FOLDER, type: 'authenticated', resource_type: 'image', overwrite: false },
-      (error, result) => {
-        if (error || !result) return reject(error || new Error('Cloudinary upload failed'));
-        resolve({ publicId: result.public_id, format: result.format, version: result.version });
-      },
-    );
+    const stream = cloudinary.uploader.upload_stream(opts, (error, result) => {
+      if (error || !result) return reject(error || new Error('Cloudinary upload failed'));
+      resolve({ publicId: result.public_id, format: result.format, version: result.version });
+    });
     stream.end(buffer);
   });
 }

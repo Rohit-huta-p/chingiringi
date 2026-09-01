@@ -295,7 +295,14 @@ export const uploadKyc = async (req, res) => {
     res.status(400);
     throw new Error('No image file received.');
   }
-  const out = await uploadKycImage(req.file.buffer);
+  // Fold under the CALLER'S OWN store (derived server-side, never a client-
+  // supplied id — so a seller can't write into another store's KYC folder).
+  // No store yet (onboarding) → the service uses a staging folder.
+  const own = await Store.findOne({ ownerId: req.user._id }).select('_id').lean();
+  const out = await uploadKycImage(req.file.buffer, {
+    storeId: own?._id ? own._id.toString() : undefined,
+    kind: req.body?.kind,
+  });
   res.status(201).json({ status: 'success', data: out }); // { publicId, format, version }
 };
 

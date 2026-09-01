@@ -64,6 +64,7 @@ import {
   withDerivedSlot,
 } from '../../api/banners';
 import { Fonts, Gradient } from '../../constants/theme';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 import { useAuthStore } from '../../store';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 import { ImageUploader } from '../../components/ImageUploader';
@@ -499,7 +500,7 @@ function BannerModal({
                 <ImageUploader
                   value={form.imageUrl}
                   onChange={(url) => update('imageUrl', url)}
-                  folder="chingiringi/banners"
+                  folder={cloudFolder.banners}
                 />
                 <Text style={m.hint}>Recommended 2400 × 600 px or larger. Auto-cropped to fit — keep the key subject centered.</Text>
 
@@ -507,7 +508,7 @@ function BannerModal({
                 <ImageUploader
                   value={form.mobileImageUrl}
                   onChange={(url) => update('mobileImageUrl', url)}
-                  folder="chingiringi/banners"
+                  folder={cloudFolder.banners}
                 />
                 <Text style={m.hint}>Recommended 1080 × 640 px or larger. Auto-cropped to fit.</Text>
               </>
@@ -681,14 +682,14 @@ function BannerModal({
                 <ImageUploader
                   value={form.right.imageUrl ?? ''}
                   onChange={(url) => update('right', { ...form.right, imageUrl: url })}
-                  folder="chingiringi/banners"
+                  folder={cloudFolder.banners}
                 />
 
                 <Text style={m.label}>Right Mobile Image</Text>
                 <ImageUploader
                   value={form.right.mobileImageUrl ?? ''}
                   onChange={(url) => update('right', { ...form.right, mobileImageUrl: url })}
-                  folder="chingiringi/banners"
+                  folder={cloudFolder.banners}
                 />
 
                 <Text style={m.label}>Right CTA Button Label</Text>

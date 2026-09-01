@@ -12,6 +12,8 @@ import type { CloudFile } from './useImageUpload';
 export type KycValue = { publicId: string; format?: string };
 
 interface Props {
+  /** Which KYC slot this is — sets the private folder + deterministic id server-side. */
+  kind: 'doc' | 'id' | 'selfie';
   /** Shown on the add tile, e.g. "Government ID", "Selfie", "Store document". */
   label: string;
   value: KycValue | null;
@@ -33,7 +35,7 @@ interface Props {
  * parent may pass a signed `previewUrl`, otherwise an "Uploaded" state is shown.
  */
 export const KycUploader: React.FC<Props> = ({
-  label, value, onChange, previewUrl, disabled, aspect = 1.4, width = 150,
+  kind, label, value, onChange, previewUrl, disabled, aspect = 1.4, width = 150,
 }) => {
   const w = width;
   const h = Math.round(w / aspect);
@@ -45,7 +47,7 @@ export const KycUploader: React.FC<Props> = ({
     setError(null);
     setUploading(true);
     try {
-      const res = await verificationAPI.kycUpload(file);
+      const res = await verificationAPI.kycUpload(file, kind);
       onChange({ publicId: res.publicId, format: res.format });
       setLocalUri(preview);
     } catch (e: any) {

@@ -23,6 +23,7 @@ import type { Product } from '../api/products';
 import { adminAPI } from '../api/admin';
 import { importRemoteImage, cloudinaryConfigured } from './useImageUpload';
 import { Colors, Fonts, Gradient } from '../constants/theme';
+import { cloudFolder } from '../constants/cloudinaryFolders';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -274,7 +275,7 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                   <MultiImageUploader
                     value={form.images}
                     onChange={(urls) => update('images', urls)}
-                    folder="chingiringi/products"
+                    folder={cloudFolder.adminProducts}
                     disabled={submitting}
                   />
                   <Text style={st.fieldHint}>
@@ -285,7 +286,7 @@ export const ProductFormModal: React.FC<Props> = ({ visible, onClose, product, o
                   <MultiImageUploader
                     value={form.mobileImages}
                     onChange={(urls) => update('mobileImages', urls)}
-                    folder="chingiringi/products"
+                    folder={cloudFolder.adminProducts}
                     disabled={submitting}
                   />
                   <Text style={st.fieldHint}>

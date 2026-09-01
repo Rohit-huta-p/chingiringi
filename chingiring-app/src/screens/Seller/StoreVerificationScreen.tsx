@@ -193,7 +193,7 @@ export const StoreVerificationScreen: React.FC = () => {
                 ))}
               </View>
               <Text style={[styles.fieldHint, { marginTop: 10 }]}>Clear photo showing your {docSub.toLowerCase()} number.</Text>
-              <KycUploader label="store document" value={doc} onChange={setDoc} previewUrl={previews.doc} disabled={submitting} />
+              <KycUploader kind="doc" label="store document" value={doc} onChange={setDoc} previewUrl={previews.doc} disabled={submitting} />
 
               {/* ── Personal identity (ID + selfie) ── */}
               <Text style={[styles.fieldLabel, { marginTop: 26 }]}>Personal identity</Text>
@@ -203,9 +203,9 @@ export const StoreVerificationScreen: React.FC = () => {
                 ))}
               </View>
               <Text style={[styles.fieldHint, { marginTop: 10 }]}>A clear photo of your {idSub}.</Text>
-              <KycUploader label="ID photo" value={idDoc} onChange={setIdDoc} previewUrl={previews.id} disabled={submitting} />
+              <KycUploader kind="id" label="ID photo" value={idDoc} onChange={setIdDoc} previewUrl={previews.id} disabled={submitting} />
               <Text style={[styles.fieldHint, { marginTop: 14 }]}>A selfie so we can match it to your ID.</Text>
-              <KycUploader label="selfie" value={selfie} onChange={setSelfie} previewUrl={previews.selfie} disabled={submitting} />
+              <KycUploader kind="selfie" label="selfie" value={selfie} onChange={setSelfie} previewUrl={previews.selfie} disabled={submitting} />
 
               <Pressable
                 onPress={handleSubmit}

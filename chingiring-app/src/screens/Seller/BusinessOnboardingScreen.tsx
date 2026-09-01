@@ -35,6 +35,7 @@ import { KycUploader, type KycValue } from '../../components/KycUploader';
 import apiClient from '../../api/client';
 import { verificationAPI, type IdentityType } from '../../api/verification';
 import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 
 // ── Store categories (predefined; CategoryPicker is admin-only) ───────────
 // CategoryPicker uses adminAPI.getCategories() which is gated to admin role.
@@ -368,7 +369,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 value={logoUrl}
                 onChange={setLogoUrl}
                 label="Store logo"
-                folder="seller-logos"
+                folder={cloudFolder.storeLogo()}
                 hint="Square works best — at least 512 × 512 px (PNG or JPG)."
               />
 
@@ -417,10 +418,10 @@ export const BusinessOnboardingScreen: React.FC = () => {
               </View>
 
               <Text style={styles.fieldLabel}>ID document</Text>
-              <KycUploader label="ID photo" value={idDoc} onChange={setIdDoc} disabled={submitting} />
+              <KycUploader kind="id" label="ID photo" value={idDoc} onChange={setIdDoc} disabled={submitting} />
 
               <Text style={styles.fieldLabel}>Selfie</Text>
-              <KycUploader label="selfie" value={selfie} onChange={setSelfie} disabled={submitting} />
+              <KycUploader kind="selfie" label="selfie" value={selfie} onChange={setSelfie} disabled={submitting} />
             </View>
           )}
 

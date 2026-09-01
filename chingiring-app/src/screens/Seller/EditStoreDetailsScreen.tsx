@@ -13,6 +13,7 @@ import { ImageUploader } from '../../components/ImageUploader';
 import { MultiImageUploader } from '../../components/MultiImageUploader';
 import { storesAPI, type MyStoreUpdate } from '../../api/stores';
 import { useMyStore } from '../../hooks/useMyStore';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 
 // Must match the backend STORE_CATEGORIES enum (storeModel.js).
 const CATEGORIES = ['Fashion', 'Electronics', 'Grocery', 'Food & Cafe', 'Health', 'Jewellery', 'Sports', 'Beauty'];
@@ -118,12 +119,12 @@ export const EditStoreDetailsScreen: React.FC = () => {
             value={logoUrl}
             onChange={setLogoUrl}
             label="Store logo"
-            folder="seller-logos"
+            folder={cloudFolder.storeLogo(store?._id)}
             hint="Square works best — at least 512 × 512 px (PNG or JPG)."
           />
 
           <Text style={styles.groupLabel}>Store photos</Text>
-          <MultiImageUploader value={images} onChange={setImages} folder="seller-store-photos" max={6} />
+          <MultiImageUploader value={images} onChange={setImages} folder={cloudFolder.storePhotos(store?._id)} max={6} />
           <Text style={styles.hint}>
             Shown on your store page. Recommended 1600 × 1200 px (4:3, landscape) — bright, in-focus shots.
           </Text>

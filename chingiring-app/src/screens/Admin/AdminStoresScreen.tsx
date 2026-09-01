@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, X, Edit2, Trash2, Eye, EyeOff, Search, SlidersHorizontal } from 'lucide-react-native';
 import { Colors, Spacing, Gradient } from '../../constants/theme';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 import { adminAPI } from '../../api/admin';
 import { ImageUploader } from '../../components/ImageUploader';
 import { MultiImageUploader } from '../../components/MultiImageUploader';
@@ -188,14 +189,14 @@ export function StoreFormModal({ visible, onClose, store }: {
             <ImageUploader
               value={form.logoUrl}
               onChange={(url) => setForm({ ...form, logoUrl: url })}
-              folder="chingiringi/stores"
+              folder={cloudFolder.storeLogo(store?._id)}
             />
 
             <Text style={styles.fieldLabel}>Photos (hero &amp; gallery)</Text>
             <MultiImageUploader
               value={form.images}
               onChange={(urls) => setForm({ ...form, images: urls })}
-              folder="chingiringi/stores"
+              folder={cloudFolder.storePhotos(store?._id)}
               aspect={16 / 9}
               thumbWidth={150}
               coverLabel="Hero"

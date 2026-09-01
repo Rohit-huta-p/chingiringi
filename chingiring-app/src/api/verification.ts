@@ -123,9 +123,10 @@ export const verificationAPI = {
    * Returns identifiers (publicId + format) to submit with the verification; the
    * raw image is never publicly reachable via a plain URL.
    */
-  kycUpload: async (file: CloudFile): Promise<KycUploadResult> => {
+  kycUpload: async (file: CloudFile, kind: 'doc' | 'id' | 'selfie'): Promise<KycUploadResult> => {
     const fd = new FormData();
     fd.append('file', file as any);
+    fd.append('kind', kind);
     const res = await apiClient.post('/api/stores/kyc/upload', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

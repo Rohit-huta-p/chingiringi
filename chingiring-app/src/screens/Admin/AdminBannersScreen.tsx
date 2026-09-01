@@ -10,6 +10,7 @@ import {
   Coins, Gift, Rows3, ToggleLeft, Type as TypeIcon, Link2, Calendar, Layers, MapPin,
 } from 'lucide-react-native';
 import { Colors, Spacing, Gradient } from '../../constants/theme';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 import { adminAPI } from '../../api/admin';
 import {
   Banner, BannerDraft, BannerLinkType, BannerSlot, BannerType,
@@ -345,14 +346,14 @@ function BannerFormModal({
                 <ImageUploader
                   value={draft.imageUrl}
                   onChange={(url) => setDraft({ ...draft, imageUrl: url })}
-                  folder="chingiringi/banners"
+                  folder={cloudFolder.banners}
                 />
                 <Text style={styles.fieldHint}>Recommended 2400 × 600 px or larger. Auto-cropped to fit — keep the key subject centered.</Text>
                 <Text style={styles.fieldLabel}>Mobile image</Text>
                 <ImageUploader
                   value={draft.mobileImageUrl || ''}
                   onChange={(url) => setDraft({ ...draft, mobileImageUrl: url })}
-                  folder="chingiringi/banners"
+                  folder={cloudFolder.banners}
                 />
                 <Text style={styles.fieldHint}>Recommended 1080 × 640 px or larger. Auto-cropped to fit.</Text>
               </FormSection>
@@ -418,14 +419,14 @@ function BannerFormModal({
                     <ImageUploader
                       value={draft.right?.imageUrl || ''}
                       onChange={(url) => setDraft({ ...draft, right: { ...(draft.right ?? {}), imageUrl: url } })}
-                      folder="chingiringi/banners"
+                      folder={cloudFolder.banners}
                     />
                     <Text style={styles.fieldHint}>Recommended 1200 × 700 px (half-width) or larger.</Text>
                     <Text style={styles.fieldLabel}>Right mobile image</Text>
                     <ImageUploader
                       value={draft.right?.mobileImageUrl || ''}
                       onChange={(url) => setDraft({ ...draft, right: { ...(draft.right ?? {}), mobileImageUrl: url } })}
-                      folder="chingiringi/banners"
+                      folder={cloudFolder.banners}
                     />
                     <Text style={styles.fieldLabel}>Right CTA label</Text>
                     <TextInput

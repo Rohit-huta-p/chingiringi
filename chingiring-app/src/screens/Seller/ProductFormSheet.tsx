@@ -9,6 +9,8 @@ import { Colors, Fonts } from '../../constants/theme';
 import { Input } from '../../components/Input';
 import { ImageUploader } from '../../components/ImageUploader';
 import { productsAPI, type Product, type MyProductInput } from '../../api/products';
+import { useMyStore } from '../../hooks/useMyStore';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 
 interface Props {
   visible: boolean;
@@ -27,6 +29,7 @@ interface Props {
 export const ProductFormSheet: React.FC<Props> = ({ visible, onClose, product, onSaved }) => {
   const insets = useSafeAreaInsets();
   const editing = !!product;
+  const { data: myStore } = useMyStore();
 
   const [image, setImage] = useState('');
   const [name, setName] = useState('');
@@ -128,7 +131,7 @@ export const ProductFormSheet: React.FC<Props> = ({ visible, onClose, product, o
               value={image}
               onChange={setImage}
               label="Product photo"
-              folder="seller-products"
+              folder={cloudFolder.storeProducts(product?.storeId ?? myStore?._id)}
               hint="Recommended 1600 × 1200 px (4:3). A clean, well-lit photo sells best."
             />
             <Input label="Name" placeholder="e.g. Red Silk Saree" value={name} onChangeText={setName} />

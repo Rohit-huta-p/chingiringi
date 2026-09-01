@@ -39,6 +39,7 @@ import { productsAPI, type Product } from '../../api/products';
 import { type SellerStore } from '../../api/verification';
 import { ImageUploader } from '../../components/ImageUploader';
 import { useMyStore } from '../../hooks/useMyStore';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 
 // ── Categories — must match backend STORE_CATEGORIES enum (storeModel.js) ─
 const CATEGORIES = ['Fashion', 'Electronics', 'Grocery', 'Food & Cafe', 'Health', 'Jewellery', 'Sports', 'Beauty'];
@@ -150,7 +151,7 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
             <ImageUploader
               value={thumbnail}
               onChange={setThumbnail}
-              folder="stream-thumbnails"
+              folder={cloudFolder.storeStreams(store?._id)}
               hint="Your stream's cover on the Live & Videos cards buyers browse. Recommended 1080 × 1440 px (3:4, portrait) — keep the subject centered."
             />
 
