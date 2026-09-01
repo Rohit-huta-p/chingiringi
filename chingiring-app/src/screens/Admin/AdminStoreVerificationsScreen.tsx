@@ -80,6 +80,9 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
   const docUrl = store.verificationDoc?.url ?? '';
   const submittedAt = store.verificationDoc?.submittedAt as any;
   const rejectionReason = store.verificationDoc?.rejectionReason;
+  const idDocUrl = store.identityDoc?.docUrl ?? '';
+  const selfieUrl = store.identityDoc?.selfieUrl ?? '';
+  const idLabel = ({ aadhaar: 'Aadhaar', pan: 'PAN', dl: 'Driving Licence', passport: 'Passport' } as Record<string, string>)[store.identityDoc?.type ?? ''] ?? 'Government ID';
 
   const handleConfirmReject = () => {
     if (!reason.trim()) return;
@@ -118,14 +121,28 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
         </View>
       )}
 
-      {/* ── Document link ── */}
+      {/* ── Document + identity links ── */}
       {!!docUrl && (
         <Pressable
           style={st.docLink}
           onPress={() => Linking.openURL(docUrl).catch(() => {})}
         >
           <FileText size={14} color={Colors.primary} />
-          <Text style={st.docLinkText}>View Submitted Document</Text>
+          <Text style={st.docLinkText}>View Store Document</Text>
+          <ExternalLink size={12} color={Colors.primary} />
+        </Pressable>
+      )}
+      {!!idDocUrl && (
+        <Pressable style={st.docLink} onPress={() => Linking.openURL(idDocUrl).catch(() => {})}>
+          <FileText size={14} color={Colors.primary} />
+          <Text style={st.docLinkText}>View {idLabel}</Text>
+          <ExternalLink size={12} color={Colors.primary} />
+        </Pressable>
+      )}
+      {!!selfieUrl && (
+        <Pressable style={st.docLink} onPress={() => Linking.openURL(selfieUrl).catch(() => {})}>
+          <FileText size={14} color={Colors.primary} />
+          <Text style={st.docLinkText}>View Selfie</Text>
           <ExternalLink size={12} color={Colors.primary} />
         </Pressable>
       )}

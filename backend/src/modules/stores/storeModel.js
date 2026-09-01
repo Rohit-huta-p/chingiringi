@@ -76,6 +76,14 @@ const storeSchema = new mongoose.Schema(
       submittedAt:     { type: Date },
       rejectionReason: { type: String, default: '' },
     },
+    // Personal identity of the store owner (govt ID + selfie), reviewed together
+    // with the store document — the store is only 'verified' when both pass.
+    identityDoc: {
+      type:        { type: String, default: '' },  // aadhaar | pan | dl | passport
+      docUrl:      { type: String, default: '' },   // ID document image
+      selfieUrl:   { type: String, default: '' },   // selfie for face match
+      submittedAt: { type: Date },
+    },
 
     // ── Flags ────────────────────────────────────────────────
     isActive: { type: Boolean, default: true },

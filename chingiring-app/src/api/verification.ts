@@ -10,12 +10,21 @@ import type { Store } from './stores';
 
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 export type DocType = 'gst' | 'fssai' | 'tradeLicence';
+export type IdentityType = 'aadhaar' | 'pan' | 'dl' | 'passport';
 
 export interface VerificationDoc {
   type: string;
   url: string;
   submittedAt?: string;
   rejectionReason?: string;
+}
+
+/** Store owner's personal identity — govt ID + selfie, reviewed with the store doc. */
+export interface IdentityDoc {
+  type?: string;
+  docUrl?: string;
+  selfieUrl?: string;
+  submittedAt?: string;
 }
 
 /** Extended Store with seller-only fields from the v2 storeModel. */
@@ -25,11 +34,16 @@ export interface SellerStore extends Store {
   isLive?: boolean;
   verificationStatus?: VerificationStatus;
   verificationDoc?: VerificationDoc;
+  identityDoc?: IdentityDoc;
 }
 
+/** Either part may be sent alone; the store flips to 'pending' once both exist. */
 export interface SubmitVerificationPayload {
-  docType: DocType;
-  docUrl: string;
+  docType?: DocType;
+  docUrl?: string;
+  identityType?: IdentityType;
+  identityDocUrl?: string;
+  selfieUrl?: string;
 }
 
 export const verificationAPI = {
@@ -73,9 +87,11 @@ export const verificationAPI = {
   adminListVerifications: async (
     statuses: VerificationStatus[] = ['pending', 'rejected'],
   ): Promise<SellerStore[]> => {
-    const params: Record<string, string> = { limit: '100', sort: '-updatedAt' };
-    if (statuses.length > 0) params.verificationStatus = statuses.join(',');
-    const res = await apiClient.get('/api/stores', { params });
+    const params: Record<string, string> = {};
+    if (statuses.length > 0) params.status = statuses.join(',');
+    // Protected admin endpoint — returns the private verification + identity docs
+    // (the public /api/stores strips them).
+    const res = await apiClient.get('/api/stores/admin/verifications', { params });
     return (res.data?.data?.stores ?? res.data?.stores ?? []) as SellerStore[];
   },
 

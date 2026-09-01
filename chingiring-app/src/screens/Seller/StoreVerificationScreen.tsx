@@ -27,10 +27,11 @@ import { useNavigation, useRoute, CommonActions } from '@react-navigation/native
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ShieldCheck, Clock, XCircle, FileText, Truck, Receipt,
+  CreditCard, Fingerprint, Car, Plane,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { MultiImageUploader } from '../../components/MultiImageUploader';
-import { verificationAPI, type SellerStore, type VerificationStatus, type DocType } from '../../api/verification';
+import { verificationAPI, type SellerStore, type VerificationStatus, type DocType, type IdentityType } from '../../api/verification';
 import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
 
 // Status colors not in the shared theme — one-off semantic accents specific
@@ -46,6 +47,13 @@ const DOC_TYPES: { value: DocType; label: string; sub: string; icon: React.Compo
   { value: 'gst', label: 'GST Certificate', sub: 'Government-issued GST registration document', icon: FileText },
   { value: 'fssai', label: 'FSSAI Licence', sub: 'Food safety licence (for food & grocery stores)', icon: Receipt },
   { value: 'tradeLicence', label: 'Trade Licence', sub: 'Municipal trade / shop licence', icon: Truck },
+];
+
+const ID_TYPES: { value: IdentityType; label: string; icon: React.ComponentType<any> }[] = [
+  { value: 'aadhaar',  label: 'Aadhaar',         icon: Fingerprint },
+  { value: 'pan',      label: 'PAN',             icon: CreditCard },
+  { value: 'dl',       label: 'Driving Licence', icon: Car },
+  { value: 'passport', label: 'Passport',        icon: Plane },
 ];
 
 function fmtDate(d?: string | Date): string {
@@ -81,11 +89,17 @@ export const StoreVerificationScreen: React.FC = () => {
   const [status, setStatus] = useState<VerificationStatus>(initialStatus);
   const [docType, setDocType] = useState<DocType>('gst');
   const [docUrls, setDocUrls] = useState<string[]>([]);
+  // Personal identity — pre-filled if onboarding already captured it.
+  const [idType, setIdType] = useState<IdentityType>((passedStore?.identityDoc?.type as IdentityType) || 'aadhaar');
+  const [idUrls, setIdUrls] = useState<string[]>(passedStore?.identityDoc?.docUrl ? [passedStore.identityDoc.docUrl] : []);
+  const [selfieUrls, setSelfieUrls] = useState<string[]>(passedStore?.identityDoc?.selfieUrl ? [passedStore.identityDoc.selfieUrl] : []);
   const [submitting, setSubmitting] = useState(false);
 
   const rejectionReason = passedStore?.verificationDoc?.rejectionReason;
   const submittedAt = passedStore?.verificationDoc?.submittedAt as any;
   const docSub = DOC_TYPES.find((d) => d.value === docType)?.label ?? 'document';
+  const idSub = ID_TYPES.find((d) => d.value === idType)?.label ?? 'ID';
+  const canSubmit = docUrls.length > 0 && idUrls.length > 0 && selfieUrls.length > 0;
 
   const goToMain = () => {
     // Ensure the Dashboard / My Store show the latest store + status (created or
@@ -96,13 +110,19 @@ export const StoreVerificationScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!passedStore?._id) { goToMain(); return; }
-    if (docUrls.length === 0) {
-      Alert.alert('No document', 'Please upload a photo or PDF of your document.');
+    if (!canSubmit) {
+      Alert.alert('Almost there', 'Upload your store document, a government ID, and a selfie to submit.');
       return;
     }
     setSubmitting(true);
     try {
-      await verificationAPI.submitVerification(passedStore._id, { docType, docUrl: docUrls[0] });
+      await verificationAPI.submitVerification(passedStore._id, {
+        docType,
+        docUrl: docUrls[0],
+        identityType: idType,
+        identityDocUrl: idUrls[0],
+        selfieUrl: selfieUrls[0],
+      });
       setStatus('pending');
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Submission failed.';
@@ -136,35 +156,34 @@ export const StoreVerificationScreen: React.FC = () => {
             <>
               <FileText size={48} color={Colors.orange} style={styles.stateIcon} />
               <Text style={styles.stateTitle}>Verify Your Store</Text>
-              <Text style={styles.stateSub}>Submit a document to unlock live streaming</Text>
+              <Text style={styles.stateSub}>Submit your store document and a personal ID to unlock live streaming</Text>
 
-              <Text style={styles.fieldLabel}>Document Type</Text>
+              {/* ── Store document ── */}
+              <Text style={styles.fieldLabel}>Store document</Text>
               <View style={styles.chipRow}>
                 {DOC_TYPES.map((d) => (
-                  <DocChip
-                    key={d.value}
-                    selected={docType === d.value}
-                    onPress={() => setDocType(d.value)}
-                    icon={d.icon}
-                    label={d.label}
-                  />
+                  <DocChip key={d.value} selected={docType === d.value} onPress={() => setDocType(d.value)} icon={d.icon} label={d.label} />
                 ))}
               </View>
+              <Text style={[styles.fieldHint, { marginTop: 10 }]}>Clear photo or PDF showing your {docSub.toLowerCase()} number.</Text>
+              <MultiImageUploader value={docUrls} onChange={setDocUrls} max={1} folder="seller-verification" coverLabel="Document" />
 
-              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Upload Document</Text>
-              <Text style={styles.fieldHint}>Clear photo or PDF showing your {docSub.toLowerCase()} number.</Text>
-              <MultiImageUploader
-                value={docUrls}
-                onChange={setDocUrls}
-                max={1}
-                folder="seller-verification"
-                coverLabel="Document"
-              />
+              {/* ── Personal identity (ID + selfie) ── */}
+              <Text style={[styles.fieldLabel, { marginTop: 26 }]}>Personal identity</Text>
+              <View style={styles.chipRow}>
+                {ID_TYPES.map((d) => (
+                  <DocChip key={d.value} selected={idType === d.value} onPress={() => setIdType(d.value)} icon={d.icon} label={d.label} />
+                ))}
+              </View>
+              <Text style={[styles.fieldHint, { marginTop: 10 }]}>A clear photo of your {idSub}.</Text>
+              <MultiImageUploader value={idUrls} onChange={setIdUrls} max={1} folder="seller-verification" coverLabel="ID document" />
+              <Text style={[styles.fieldHint, { marginTop: 14 }]}>A selfie so we can match it to your ID.</Text>
+              <MultiImageUploader value={selfieUrls} onChange={setSelfieUrls} max={1} folder="seller-verification" coverLabel="Selfie" />
 
               <Pressable
                 onPress={handleSubmit}
-                disabled={submitting || docUrls.length === 0}
-                style={[styles.cta, (submitting || docUrls.length === 0) && styles.ctaDisabled]}
+                disabled={submitting || !canSubmit}
+                style={[styles.cta, (submitting || !canSubmit) && styles.ctaDisabled]}
               >
                 {submitting
                   ? <ActivityIndicator color="#fff" />

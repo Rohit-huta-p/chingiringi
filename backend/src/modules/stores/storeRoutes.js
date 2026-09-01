@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getStores, getStore, createStore, createSellerStore, updateStore, updateMyStore, deleteStore,
   getMyStore, getStoreStats, updateVerification, getStoreReviews, createStoreReview,
+  getVerificationQueue,
 } from './storeController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
@@ -14,6 +15,9 @@ router.get('/mine',   protect, getMyStore);
 // Sellers self-create their own store (no admin middleware — any authenticated user).
 router.post('/seller', protect, createSellerStore);
 router.patch('/mine',  protect, updateMyStore);
+
+// Admin verification review queue (includes private docs — admin only).
+router.get('/admin/verifications', protect, admin, getVerificationQueue);
 
 // ── Follow / unfollow (merged from followRoutes) ─────────────────────────────
 router.use('/', storeFollowRouter);

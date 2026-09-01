@@ -27,11 +27,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import { ChevronLeft, MapPin } from 'lucide-react-native';
+import { ChevronLeft, MapPin, Fingerprint, CreditCard, Car, Plane } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { Input } from '../../components/Input';
 import { ImageUploader } from '../../components/ImageUploader';
+import { MultiImageUploader } from '../../components/MultiImageUploader';
 import apiClient from '../../api/client';
+import { verificationAPI, type IdentityType } from '../../api/verification';
 import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
 
 // ── Store categories (predefined; CategoryPicker is admin-only) ───────────
@@ -52,8 +54,15 @@ const STORE_CATEGORIES = [
 
 type StoreCategory = (typeof STORE_CATEGORIES)[number]['label'];
 
-const TOTAL_STEPS = 4;
-const STEP_LABELS = ['Details', 'Location', 'Media', 'Review'] as const;
+const ID_TYPES: { value: IdentityType; label: string; icon: React.ComponentType<any> }[] = [
+  { value: 'aadhaar',  label: 'Aadhaar',         icon: Fingerprint },
+  { value: 'pan',      label: 'PAN',             icon: CreditCard },
+  { value: 'dl',       label: 'Driving Licence', icon: Car },
+  { value: 'passport', label: 'Passport',        icon: Plane },
+];
+
+const TOTAL_STEPS = 5;
+const STEP_LABELS = ['Details', 'Location', 'Media', 'Identity', 'Review'] as const;
 
 // ── Sticky progress header ─────────────────────────────────────────────────
 const ProgressHeader: React.FC<{ step: number; top: number }> = ({ step, top }) => (
@@ -96,7 +105,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Form state
   const [storeName,  setStoreName]  = useState('');
@@ -109,6 +118,10 @@ export const BusinessOnboardingScreen: React.FC = () => {
   const [logoUrl,    setLogoUrl]    = useState('');
   const [phone,      setPhone]      = useState('');
   const [website,    setWebsite]    = useState('');
+  // Personal identity (optional here; required before go-live on the verification screen).
+  const [idType,     setIdType]     = useState<IdentityType>('aadhaar');
+  const [idUrls,     setIdUrls]     = useState<string[]>([]);
+  const [selfieUrls, setSelfieUrls] = useState<string[]>([]);
 
   const [locationBusy, setLocationBusy] = useState(false);
   const [submitting,   setSubmitting]   = useState(false);
@@ -186,6 +199,19 @@ export const BusinessOnboardingScreen: React.FC = () => {
         website:   website.trim() || undefined,
       });
       const store = res.data?.data?.store ?? res.data?.store;
+      // If the seller added identity in the Identity step, submit it now so the
+      // verification screen shows it pre-filled (store stays unverified until the
+      // store document is added too).
+      if (store?._id && idUrls.length > 0 && selfieUrls.length > 0) {
+        try {
+          await verificationAPI.submitVerification(store._id, {
+            identityType: idType,
+            identityDocUrl: idUrls[0],
+            selfieUrl: selfieUrls[0],
+          });
+          store.identityDoc = { type: idType, docUrl: idUrls[0], selfieUrl: selfieUrls[0] };
+        } catch { /* non-fatal — they can add it on the verification screen */ }
+      }
       // The seller tabs mounted before this store existed, so MY_STORE_QUERY_KEY
       // is cached as null. Invalidate it so the Dashboard / My Store refetch and
       // show the freshly-created (unverified) store.
@@ -201,7 +227,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
   const goNext = () => {
     if (!canAdvance) return;
-    if (step === 4) { handleSubmit(); return; }
+    if (step === 5) { handleSubmit(); return; }
     setStep((s) => (s + 1) as any);
   };
   const goBack = () => setStep((s) => (s > 1 ? ((s - 1) as any) : s));
@@ -363,8 +389,37 @@ export const BusinessOnboardingScreen: React.FC = () => {
             </View>
           )}
 
-          {/* ── Step 4: Review & Submit ── */}
+          {/* ── Step 4: Identity (govt ID + selfie) ── */}
           {step === 4 && (
+            <View style={styles.card}>
+              <StepHeader
+                title="Verify your identity"
+                sub="Add a government ID and a selfie. You can do this later too — it's required before you go live."
+              />
+
+              <Text style={styles.fieldLabel}>ID type</Text>
+              <View style={styles.idChipRow}>
+                {ID_TYPES.map(({ value, label, icon: Icon }) => {
+                  const active = idType === value;
+                  return (
+                    <Pressable key={value} onPress={() => setIdType(value)} style={[styles.idChip, active && styles.idChipActive]}>
+                      <Icon size={15} color={active ? Colors.orange : Colors.textSecondary} />
+                      <Text style={[styles.idChipText, active && styles.idChipTextActive]}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.fieldLabel}>ID document</Text>
+              <MultiImageUploader value={idUrls} onChange={setIdUrls} max={1} folder="seller-verification" coverLabel="ID document" />
+
+              <Text style={styles.fieldLabel}>Selfie</Text>
+              <MultiImageUploader value={selfieUrls} onChange={setSelfieUrls} max={1} folder="seller-verification" coverLabel="Selfie" />
+            </View>
+          )}
+
+          {/* ── Step 5: Review & Submit ── */}
+          {step === 5 && (
             <View style={styles.card}>
               <StepHeader
                 title="Review your details"
@@ -382,6 +437,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 <SummaryRow label="Area" value={area} />
                 <SummaryRow label="City" value={city} />
                 <SummaryRow label="WhatsApp" value={phone ? `+91 ${phoneDigits}` : ''} />
+                <SummaryRow label="Identity" value={idUrls.length > 0 && selfieUrls.length > 0 ? `${ID_TYPES.find((d) => d.value === idType)?.label ?? 'ID'} + selfie` : 'Add later'} />
               </View>
             </View>
           )}
@@ -403,7 +459,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
           >
             {submitting
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.nextBtnText}>{step === 4 ? 'Create My Store' : 'Next →'}</Text>}
+              : <Text style={styles.nextBtnText}>{step === 5 ? 'Create My Store' : 'Next →'}</Text>}
           </Pressable>
         </View>
       </View>
@@ -530,6 +586,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   catLabelActive: { color: Colors.orange },
+
+  // Identity type chips
+  idChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  idChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.backgroundGrey, borderRadius: 10,
+    paddingVertical: 9, paddingHorizontal: 12,
+    borderWidth: 2, borderColor: 'transparent',
+  },
+  idChipActive: { borderColor: Colors.orange, backgroundColor: '#FFF7ED' },
+  idChipText: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  idChipTextActive: { color: Colors.orange },
 
   // Location button
   locationBtn: {

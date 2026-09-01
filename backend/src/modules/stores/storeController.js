@@ -5,7 +5,9 @@ import { formatTime, isOpenNow } from './storeHours.js';
 import { resolveGoogleMapsCoords } from './googleMapsCoords.js';
 
 // Fields that must never reach a public (non-admin) client.
-const PUBLIC_EXCLUDE = '-platformCommissionPercent -payoutAccount';
+// Public responses must never leak the seller's private review docs — the store
+// verification document and (especially) the personal identity ID + selfie.
+const PUBLIC_EXCLUDE = '-platformCommissionPercent -payoutAccount -verificationDoc -identityDoc';
 
 // Parse coords from a pasted Google Maps link and write lat/lng onto `target`
 // (a plain body object or a Mongoose doc). An empty link clears the pin; an
@@ -253,6 +255,18 @@ export const getStoreStats = async (req, res) => {
   });
 };
 
+// @desc    Admin review queue — stores awaiting verification, WITH the private
+//          store + identity docs so the admin can actually review them.
+// @route   GET /api/stores/admin/verifications?status=pending,rejected
+// @access  Private/Admin
+export const getVerificationQueue = async (req, res) => {
+  const statuses = String(req.query.status || 'pending,rejected')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  const filter = statuses.length ? { verificationStatus: { $in: statuses } } : {};
+  const stores = await Store.find(filter).sort('-updatedAt').limit(200).lean();
+  res.status(200).json({ status: 'success', data: { stores: stores.map(decorate) } });
+};
+
 // @desc    Submit / update verification doc; admin can approve/reject
 // @route   PATCH /api/stores/:id/verification
 // @access  Private (seller = submit; admin = approve/reject)
@@ -286,19 +300,37 @@ export const updateVerification = async (req, res) => {
     if (status === 'verified') store.isVerified = true;
     if (status === 'rejected' || status === 'unverified') store.isVerified = false;
   } else {
-    // Seller submits a doc
-    const { docType, docUrl } = req.body;
-    if (!docType || !docUrl) {
-      res.status(400);
-      throw new Error('docType and docUrl are required');
+    // Seller submits the store document and/or personal identity. Either part
+    // can arrive alone (onboarding sends identity; the verification screen sends
+    // both) — the store flips to 'pending' only once BOTH are on file.
+    const { docType, docUrl, identityType, identityDocUrl, selfieUrl } = req.body;
+
+    if (docUrl) {
+      store.verificationDoc = {
+        type:            docType || store.verificationDoc?.type || '',
+        url:             docUrl,
+        submittedAt:     new Date(),
+        rejectionReason: '',
+      };
     }
-    store.verificationStatus = 'pending';
-    store.verificationDoc = {
-      type: docType,
-      url: docUrl,
-      submittedAt: new Date(),
-      rejectionReason: '',
-    };
+    if (identityDocUrl || selfieUrl) {
+      store.identityDoc = {
+        type:        identityType || store.identityDoc?.type || '',
+        docUrl:      identityDocUrl || store.identityDoc?.docUrl || '',
+        selfieUrl:   selfieUrl || store.identityDoc?.selfieUrl || '',
+        submittedAt: new Date(),
+      };
+    }
+
+    if (!store.verificationDoc?.url && !store.identityDoc?.docUrl && !store.identityDoc?.selfieUrl) {
+      res.status(400);
+      throw new Error('Provide a store document and/or identity (ID + selfie).');
+    }
+
+    // Full submission = store document + identity (ID + selfie), both present.
+    const hasStoreDoc = !!store.verificationDoc?.url;
+    const hasIdentity = !!store.identityDoc?.docUrl && !!store.identityDoc?.selfieUrl;
+    store.verificationStatus = hasStoreDoc && hasIdentity ? 'pending' : 'unverified';
   }
 
   await store.save();
