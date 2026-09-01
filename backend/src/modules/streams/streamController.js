@@ -1,53 +1,9 @@
-import { randomUUID } from 'crypto';
 import Stream from './streamModel.js';
 import Store from '../stores/storeModel.js';
+import * as mux from '../../services/muxVideo.js';
 
-// ── Daily.co helpers ─────────────────────────────────────────────────────────
-
-const DAILY_BASE = 'https://api.daily.co/v1';
-
-async function dailyFetch(path, options = {}) {
-  const apiKey = process.env.DAILY_API_KEY;
-  if (!apiKey) throw new Error('DAILY_API_KEY is not configured');
-
-  const res = await fetch(`${DAILY_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      ...(options.headers || {}),
-    },
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Daily.co API error ${res.status}: ${body}`);
-  }
-  return res.json();
-}
-
-async function createDailyRoom(roomName) {
-  const exp = Math.floor(Date.now() / 1000) + 7200; // 2 h
-  return dailyFetch('/rooms', {
-    method: 'POST',
-    body: JSON.stringify({
-      name: roomName,
-      privacy: 'public',
-      properties: { exp },
-    }),
-  });
-}
-
-async function createMeetingToken(roomName, isOwner = false) {
-  const exp = Math.floor(Date.now() / 1000) + 7200;
-  const data = await dailyFetch('/meeting-tokens', {
-    method: 'POST',
-    body: JSON.stringify({
-      properties: { room_name: roomName, is_owner: isOwner, exp },
-    }),
-  });
-  return data.token;
-}
+// Live video is Mux (RTMP ingest → HLS playback). The Mux helpers live in
+// services/muxVideo.js and reuse the same Basic-auth token as the VOD provider.
 
 // ── Controllers ──────────────────────────────────────────────────────────────
 
@@ -82,10 +38,8 @@ export const createStream = async (req, res) => {
     );
   }
 
-  // Create a Daily.co room
-  const roomName = `chingiringi-${randomUUID()}`;
-  const room = await createDailyRoom(roomName);
-  const broadcasterToken = await createMeetingToken(roomName, true);
+  // Create a Mux live stream (RTMP ingest + HLS playback).
+  const live = await mux.createLiveStream({ passthrough: String(store._id) });
 
   // Persist the stream doc
   // productIds (from GoLiveModal's "Feature Products" picker) — cap matches
@@ -94,8 +48,9 @@ export const createStream = async (req, res) => {
   const stream = await Stream.create({
     storeId,
     ownerId:       req.user._id,
-    dailyRoomName: room.name,
-    dailyRoomUrl:  room.url,
+    muxStreamId:   live.id,
+    muxPlaybackId: live.playbackId,
+    muxStreamKey:  live.streamKey,
     title:         title.slice(0, 120),
     category:      (category || '').slice(0, 40),
     thumbnail:     thumbnail || '',
@@ -110,17 +65,21 @@ export const createStream = async (req, res) => {
   res.status(201).json({
     status: 'success',
     data: {
-      streamId:         stream._id,
-      broadcasterToken,
-      roomUrl:          room.url,
-      dailyRoomName:    room.name,
+      streamId:    stream._id,
+      // Broadcaster RTMP credentials — consumed by the native publisher (M3).
+      rtmpUrl:     live.rtmpsUrl,
+      streamKey:   live.streamKey,
+      // Viewer playback.
+      playbackId:  live.playbackId,
+      playbackUrl: mux.livePlaybackUrl(live.playbackId),
     },
   });
 };
 
 /**
  * POST /api/streams/:id/viewer-token
- * Viewer requests a token to join an active stream.
+ * Returns HLS playback info for an active stream. Mux public playback needs no
+ * per-viewer token — kept at this path for the existing client call.
  */
 export const viewerToken = async (req, res) => {
   const stream = await Stream.findById(req.params.id).lean();
@@ -133,13 +92,11 @@ export const viewerToken = async (req, res) => {
     throw new Error('Stream is not live');
   }
 
-  const token = await createMeetingToken(stream.dailyRoomName, false);
-
   res.status(200).json({
     status: 'success',
     data: {
-      viewerToken: token,
-      roomUrl:     stream.dailyRoomUrl,
+      playbackId:  stream.muxPlaybackId,
+      playbackUrl: mux.livePlaybackUrl(stream.muxPlaybackId),
     },
   });
 };
@@ -166,6 +123,9 @@ export const endStream = async (req, res) => {
 
   // Mark store offline
   await Store.findByIdAndUpdate(stream.storeId, { isLive: false });
+
+  // Tell Mux the broadcast finished (finalizes the VOD recording). Best-effort.
+  mux.completeLiveStream(stream.muxStreamId).catch(() => {});
 
   // Notify all viewers via Socket.io
   // Import `io` lazily to avoid circular dep at module load time

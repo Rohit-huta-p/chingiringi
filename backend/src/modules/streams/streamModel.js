@@ -6,8 +6,15 @@ const streamSchema = new mongoose.Schema(
     ownerId:       { type: mongoose.Schema.Types.ObjectId, ref: 'User',  required: true },
 
     // Daily.co room details (set when broadcaster starts the stream)
+    // Legacy Daily.co fields (superseded by Mux; kept for old rows).
     dailyRoomName: { type: String, default: '' },
     dailyRoomUrl:  { type: String, default: '' },
+
+    // Mux Live. muxStreamId = live stream id, muxPlaybackId = public HLS playback
+    // id (viewers), muxStreamKey = RTMP ingest key (broadcaster only).
+    muxStreamId:   { type: String, default: '' },
+    muxPlaybackId: { type: String, default: '' },
+    muxStreamKey:  { type: String, default: '' },
 
     title:        { type: String, default: '' },
     // Optional category + cover thumbnail — shown on the live / Videos cards buyers browse.

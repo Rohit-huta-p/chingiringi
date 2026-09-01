@@ -20,10 +20,13 @@ export interface CreateStreamRequest {
 export interface CreateStreamResponse {
   /** MongoDB _id of the new Stream document */
   streamId: string;
-  /** Daily.co broadcaster token */
-  broadcasterToken: string;
-  /** Daily.co room URL — pass to DailyCall.join() */
-  roomUrl: string;
+  /** Mux RTMP(S) ingest URL — broadcaster pushes to `${rtmpUrl}/${streamKey}` (M3). */
+  rtmpUrl: string;
+  /** Mux stream key (RTMP ingest secret — broadcaster only). */
+  streamKey: string;
+  /** Mux public playback id + HLS URL for viewers. */
+  playbackId: string;
+  playbackUrl: string;
 }
 
 /**
@@ -52,8 +55,9 @@ export async function endStream(streamId: string): Promise<void> {
 // ── Viewer token ───────────────────────────────────────────────────────────
 
 export interface ViewerTokenResponse {
-  viewerToken: string;
-  roomUrl: string;
+  /** Mux public playback id + HLS URL (no per-viewer token needed). */
+  playbackId: string;
+  playbackUrl: string;
 }
 
 /**
@@ -91,6 +95,8 @@ export interface StreamDetail {
   viewerCount: number;
   storeId: StreamStoreLite | string;
   products: StreamProductLite[];
+  /** Mux public playback id — build the HLS URL `https://stream.mux.com/{id}.m3u8`. */
+  muxPlaybackId?: string;
 }
 
 /**

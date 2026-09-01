@@ -78,7 +78,7 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
     }
     setLoading(true);
     try {
-      const { streamId, broadcasterToken, roomUrl } = await createStream({
+      const { streamId, rtmpUrl, streamKey, playbackId } = await createStream({
         title: trimmed,
         ...(store?._id ? { storeId: store._id } : {}),
         ...(category ? { category } : {}),
@@ -93,8 +93,9 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
 
       navigation.navigate('BroadcasterScreen', {
         streamId,
-        broadcasterToken,
-        roomUrl,
+        rtmpUrl,     // Mux RTMP ingest — consumed by the native publisher in M3
+        streamKey,
+        playbackId,
         title: trimmed,
       });
     } catch (err: any) {

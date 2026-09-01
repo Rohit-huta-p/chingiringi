@@ -64,7 +64,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { X, Send, Heart, WifiOff } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
-import { getViewerToken, getStream, type StreamDetail, type StreamProductLite } from '../../api/streams';
+import { getStream, type StreamDetail, type StreamProductLite } from '../../api/streams';
+import VideoLayer from '../../components/VideoLayer';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -233,23 +234,21 @@ export const ViewerScreen: React.FC = () => {
   const [streamEnded, setStreamEnded] = useState(false);
   const [tokenLoading, setTokenLoading] = useState(true);
   const [streamDetail, setStreamDetail] = useState<StreamDetail | null>(null);
-  // viewerToken and roomUrl will drive Daily.co once the package is installed
-  const viewerTokenRef = useRef<{ viewerToken: string; roomUrl: string } | null>(null);
 
-  // ── Fetch viewer token (Daily.co, not wired yet) ────────────────────────
+  // ── Fetch stream detail (store, products, Mux playback id) ──────────────
   useEffect(() => {
     if (!streamId) return;
-    getViewerToken(streamId)
-      .then((data) => { viewerTokenRef.current = data; })
-      .catch(() => { /* backend may not be ready — video placeholder shown */ })
+    getStream(streamId)
+      .then(setStreamDetail) // best-effort — getStream() never throws
       .finally(() => setTokenLoading(false));
   }, [streamId]);
 
-  // ── Fetch stream detail (store + featured products) ────────────────────
-  useEffect(() => {
-    if (!streamId) return;
-    getStream(streamId).then(setStreamDetail); // best-effort — getStream() never throws
-  }, [streamId]);
+  // Live HLS URL from the Mux playback id — viewers play it via VideoLayer.
+  const hlsUrl = useMemo(
+    () => (streamDetail?.muxPlaybackId ? `https://stream.mux.com/${streamDetail.muxPlaybackId}.m3u8` : null),
+    [streamDetail?.muxPlaybackId],
+  );
+  const canPlay = !!hlsUrl && streamDetail?.status === 'live' && !streamEnded;
 
   // Resolve a clean string store id regardless of whether the route param
   // arrived as a plain id or (from some callers) a populated store object.
@@ -322,8 +321,14 @@ export const ViewerScreen: React.FC = () => {
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
-      {/* ── Video layer (Daily.co slot) ──────────────────────────── */}
-      <VideoPendingPlaceholder storeName={storeName} storeLogoUrl={storeLogoUrl} loading={tokenLoading} />
+      {/* ── Video layer (Mux HLS) ──────────────────────────────────── */}
+      {canPlay ? (
+        <View style={StyleSheet.absoluteFill}>
+          <VideoLayer source={hlsUrl} isActive muted={false} />
+        </View>
+      ) : (
+        <VideoPendingPlaceholder storeName={storeName} storeLogoUrl={storeLogoUrl} loading={tokenLoading} />
+      )}
 
       {!streamEnded && (
         <>
