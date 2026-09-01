@@ -27,9 +27,19 @@ export interface IdentityDoc {
   submittedAt?: string;
 }
 
+/** Owner account, surfaced only on the admin verification queue for KYC matching. */
+export interface StoreOwner {
+  _id?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  avatarUrl?: string;
+}
+
 /** Extended Store with seller-only fields from the v2 storeModel. */
 export interface SellerStore extends Store {
   ownerId?: string;
+  owner?: StoreOwner | null;
   followerCount?: number;
   isLive?: boolean;
   verificationStatus?: VerificationStatus;

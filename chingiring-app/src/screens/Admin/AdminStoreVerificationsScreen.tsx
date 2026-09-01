@@ -6,7 +6,7 @@
  *
  * Works on both mobile (via AdminNavigator tab) and desktop (via DesktopAdminDrawer).
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import {
   ActivityIndicator,
   Linking,
   Image,
+  Modal,
+  ScrollView,
   RefreshControl,
   useWindowDimensions,
   Platform,
@@ -26,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ShieldCheck, Clock, XCircle, FileText, ExternalLink,
-  Check, X, Inbox,
+  Check, X, Inbox, Maximize2, Mail, Phone, MapPin, User,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { verificationAPI, type SellerStore, type VerificationStatus } from '../../api/verification';
@@ -63,15 +65,109 @@ const STATUS_CONFIG: Record<string, { color: string; label: string; Icon: React.
   rejected: { color: '#DC2626', label: 'Rejected', Icon: XCircle      },
 };
 
+const isPdfUrl = (url: string) => /\.pdf($|\?)/i.test(url);
+
+type MediaItem = { url: string; label: string };
+
+// ── Full-screen media viewer (tap-to-zoom; external fallback for PDFs) ───────
+function MediaViewer({ item, onClose }: { item: MediaItem | null; onClose: () => void }) {
+  const win = useWindowDimensions();
+  const [zoomed, setZoomed] = useState(false);
+  useEffect(() => { setZoomed(false); }, [item?.url]);
+  if (!item) return null;
+
+  const pdf = isPdfUrl(item.url);
+  const imgW = win.width;
+  const imgH = win.height - 140;
+
+  return (
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View style={vw.backdrop}>
+        <View style={vw.bar}>
+          <Text style={vw.barLabel} numberOfLines={1}>{item.label}</Text>
+          <View style={vw.barBtns}>
+            <Pressable style={vw.barBtn} onPress={() => Linking.openURL(item.url).catch(() => {})} hitSlop={8}>
+              <ExternalLink size={18} color="#fff" />
+            </Pressable>
+            <Pressable style={vw.barBtn} onPress={onClose} hitSlop={8}>
+              <X size={22} color="#fff" />
+            </Pressable>
+          </View>
+        </View>
+
+        {pdf ? (
+          <View style={vw.pdfBox}>
+            <FileText size={60} color="rgba(255,255,255,0.55)" />
+            <Text style={vw.pdfText}>This document is a PDF and can't preview here.</Text>
+            <Pressable style={vw.pdfBtn} onPress={() => Linking.openURL(item.url).catch(() => {})}>
+              <ExternalLink size={15} color="#fff" />
+              <Text style={vw.pdfBtnText}>Open document</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={vw.imgScroll}
+            maximumZoomScale={4}
+            minimumZoomScale={1}
+            centerContent
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+          >
+            <Pressable onPress={() => setZoomed((z) => !z)}>
+              <Image
+                source={{ uri: item.url }}
+                style={{ width: imgW, height: imgH, transform: [{ scale: zoomed ? 2 : 1 }] }}
+                resizeMode="contain"
+              />
+            </Pressable>
+          </ScrollView>
+        )}
+
+        <Text style={vw.hint}>{pdf ? 'Opens in your browser' : 'Tap image to zoom · pinch to zoom in'}</Text>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Media thumbnail tile ─────────────────────────────────────────────────────
+function MediaTile({ url, label, onOpen, style }: {
+  url: string; label: string; onOpen: (item: MediaItem) => void; style?: any;
+}) {
+  const pdf = isPdfUrl(url);
+  return (
+    <Pressable style={[st.tile, style]} onPress={() => onOpen({ url, label })}>
+      {pdf
+        ? <View style={st.tilePdf}><FileText size={26} color={Colors.primary} /></View>
+        : <Image source={{ uri: url }} style={st.tileImg} resizeMode="cover" />}
+      <View style={st.tileLabelWrap}>
+        <Text style={st.tileLabel} numberOfLines={1}>{label}</Text>
+        {pdf ? <ExternalLink size={11} color="#fff" /> : <Maximize2 size={11} color="#fff" />}
+      </View>
+    </Pressable>
+  );
+}
+
+// A slot showing a missing required piece (mirrors the approve-guard). */
+function MissingTile({ label, style }: { label: string; style?: any }) {
+  return (
+    <View style={[st.tile, st.tileMissing, style]}>
+      <XCircle size={20} color="#DC2626" />
+      <Text style={st.tileMissingText}>{label}</Text>
+    </View>
+  );
+}
+
 // ── Store verification card ────────────────────────────────────────────────
 interface CardProps {
   store: SellerStore;
   onVerify: (storeId: string) => void;
   onReject: (storeId: string, reason: string) => void;
+  onOpenMedia: (item: MediaItem) => void;
   verifying: boolean;
 }
 
-function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
+function VerificationCard({ store, onVerify, onReject, onOpenMedia, verifying }: CardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -85,6 +181,10 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
   const selfieUrl = store.identityDoc?.selfieUrl ?? '';
   const idLabel = ({ aadhaar: 'Aadhaar', pan: 'PAN', dl: 'Driving Licence', passport: 'Passport' } as Record<string, string>)[store.identityDoc?.type ?? ''] ?? 'Government ID';
   const canVerify = !!docUrl && !!idDocUrl && !!selfieUrl;
+
+  const owner = store.owner;
+  const locationText = [store.area, store.city].filter(Boolean).join(', ');
+  const hasOwnerInfo = !!(owner?.name || owner?.email || owner?.phone || locationText);
 
   const handleConfirmReject = () => {
     if (!reason.trim()) return;
@@ -105,7 +205,7 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
 
         <View style={st.cardInfo}>
           <Text style={st.storeName} numberOfLines={1}>{store.name}</Text>
-          <Text style={st.docType}>{docLabel}</Text>
+          {!!store.category && <Text style={st.docType}>{store.category}</Text>}
           <Text style={st.submittedDate}>Submitted {fmtDate(submittedAt as string)}</Text>
         </View>
 
@@ -115,6 +215,36 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
         </View>
       </View>
 
+      {/* ── Owner / account details (for matching against the govt ID) ── */}
+      {hasOwnerInfo && (
+        <View style={st.ownerBox}>
+          {!!owner?.name && (
+            <View style={st.ownerRow}>
+              <User size={13} color={Colors.textSecondary} />
+              <Text style={st.ownerVal} numberOfLines={1}>{owner.name}</Text>
+            </View>
+          )}
+          {!!owner?.email && (
+            <Pressable style={st.ownerRow} onPress={() => Linking.openURL(`mailto:${owner.email}`).catch(() => {})}>
+              <Mail size={13} color={Colors.textSecondary} />
+              <Text style={[st.ownerVal, st.ownerLink]} numberOfLines={1}>{owner.email}</Text>
+            </Pressable>
+          )}
+          {!!owner?.phone && (
+            <Pressable style={st.ownerRow} onPress={() => Linking.openURL(`tel:${owner.phone}`).catch(() => {})}>
+              <Phone size={13} color={Colors.textSecondary} />
+              <Text style={[st.ownerVal, st.ownerLink]} numberOfLines={1}>{owner.phone}</Text>
+            </Pressable>
+          )}
+          {!!locationText && (
+            <View style={st.ownerRow}>
+              <MapPin size={13} color={Colors.textSecondary} />
+              <Text style={st.ownerVal} numberOfLines={1}>{locationText}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* ── Rejection reason (if rejected) ── */}
       {store.verificationStatus === 'rejected' && !!rejectionReason && (
         <View style={st.reasonBox}>
@@ -123,30 +253,27 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
         </View>
       )}
 
-      {/* ── Document + identity links ── */}
+      {/* ── Store document ── */}
       {!!docUrl && (
-        <Pressable
-          style={st.docLink}
-          onPress={() => Linking.openURL(docUrl).catch(() => {})}
-        >
-          <FileText size={14} color={Colors.primary} />
-          <Text style={st.docLinkText}>View Store Document</Text>
-          <ExternalLink size={12} color={Colors.primary} />
-        </Pressable>
+        <View style={st.mediaSection}>
+          <Text style={st.mediaHead}>Store document · {docLabel}</Text>
+          <MediaTile url={docUrl} label={docLabel} onOpen={onOpenMedia} style={st.tileWide} />
+        </View>
       )}
-      {!!idDocUrl && (
-        <Pressable style={st.docLink} onPress={() => Linking.openURL(idDocUrl).catch(() => {})}>
-          <FileText size={14} color={Colors.primary} />
-          <Text style={st.docLinkText}>View {idLabel}</Text>
-          <ExternalLink size={12} color={Colors.primary} />
-        </Pressable>
-      )}
-      {!!selfieUrl && (
-        <Pressable style={st.docLink} onPress={() => Linking.openURL(selfieUrl).catch(() => {})}>
-          <FileText size={14} color={Colors.primary} />
-          <Text style={st.docLinkText}>View Selfie</Text>
-          <ExternalLink size={12} color={Colors.primary} />
-        </Pressable>
+
+      {/* ── Identity check: government ID + selfie, side by side ── */}
+      {(!!idDocUrl || !!selfieUrl) && (
+        <View style={st.mediaSection}>
+          <Text style={st.mediaHead}>Identity check</Text>
+          <View style={st.tileRow}>
+            {idDocUrl
+              ? <MediaTile url={idDocUrl} label={idLabel} onOpen={onOpenMedia} style={st.tileHalf} />
+              : <MissingTile label="No ID" style={st.tileHalf} />}
+            {selfieUrl
+              ? <MediaTile url={selfieUrl} label="Selfie" onOpen={onOpenMedia} style={st.tileHalf} />
+              : <MissingTile label="No selfie" style={st.tileHalf} />}
+          </View>
+        </View>
       )}
 
       {/* ── Reject input (expanded) ── */}
@@ -216,6 +343,7 @@ export function AdminStoreVerificationsScreen() {
 
   const [filter, setFilter] = useState<FilterTab>('pending');
   const [actionStoreId, setActionStoreId] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<MediaItem | null>(null);
 
   const qc = useQueryClient();
 
@@ -306,6 +434,7 @@ export function AdminStoreVerificationsScreen() {
           store={item}
           onVerify={handleVerify}
           onReject={handleReject}
+          onOpenMedia={setViewer}
           verifying={actionStoreId === item._id}
         />
       )}
@@ -344,6 +473,8 @@ export function AdminStoreVerificationsScreen() {
           {listContent}
         </View>
       )}
+
+      <MediaViewer item={viewer} onClose={() => setViewer(null)} />
     </View>
   );
 }
@@ -476,4 +607,70 @@ const st = StyleSheet.create({
     borderRadius: 8, paddingVertical: 10, alignItems: 'center',
   },
   confirmRejectText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+
+  // Owner / account details
+  ownerBox: {
+    backgroundColor: Colors.backgroundGrey,
+    borderRadius: 10, padding: 12, gap: 8,
+  },
+  ownerRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  ownerVal: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.text, flexShrink: 1 },
+  ownerLink: { color: Colors.primary, fontFamily: Fonts.semiBold },
+
+  // Media (documents / identity)
+  mediaSection: { gap: 8 },
+  mediaHead: {
+    fontSize: 11.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary,
+    letterSpacing: 0.3, textTransform: 'uppercase',
+  },
+  tileRow: { flexDirection: 'row', gap: 10 },
+  tile: {
+    borderRadius: 10, overflow: 'hidden',
+    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.backgroundGrey,
+  },
+  tileWide: { alignSelf: 'stretch', height: 150 },
+  tileHalf: { flex: 1, height: 132 },
+  tileImg: { width: '100%', height: '100%' },
+  tilePdf: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primaryLight10,
+  },
+  tileLabelWrap: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+    paddingHorizontal: 8, paddingVertical: 5,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  tileLabel: { color: '#fff', fontSize: 11.5, fontFamily: Fonts.semiBold, flexShrink: 1 },
+  tileMissing: {
+    alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderStyle: 'dashed', borderColor: '#FECACA', backgroundColor: '#FEF2F2',
+  },
+  tileMissingText: { color: '#DC2626', fontSize: 12, fontFamily: Fonts.semiBold },
+});
+
+// ── Media viewer styles ──────────────────────────────────────────────────────
+const vw = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' },
+  bar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    paddingHorizontal: 16, paddingTop: 44, paddingBottom: 12,
+  },
+  barLabel: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold, flex: 1 },
+  barBtns: { flexDirection: 'row', gap: 8 },
+  barBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  imgScroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
+  pdfBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 32 },
+  pdfText: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontFamily: Fonts.regular, textAlign: 'center' },
+  pdfBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.primary, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 10,
+  },
+  pdfBtnText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+  hint: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontFamily: Fonts.regular, textAlign: 'center', paddingVertical: 14 },
 });

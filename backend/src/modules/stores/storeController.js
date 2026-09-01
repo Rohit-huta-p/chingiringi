@@ -263,8 +263,22 @@ export const getVerificationQueue = async (req, res) => {
   const statuses = String(req.query.status || 'pending,rejected')
     .split(',').map((s) => s.trim()).filter(Boolean);
   const filter = statuses.length ? { verificationStatus: { $in: statuses } } : {};
-  const stores = await Store.find(filter).sort('-updatedAt').limit(200).lean();
-  res.status(200).json({ status: 'success', data: { stores: stores.map(decorate) } });
+  // Populate the owner account so the admin can match the person to the govt ID
+  // (admin-only endpoint). ownerId stays a plain id in the response; the owner
+  // identity is surfaced under a separate `owner` field.
+  const stores = await Store.find(filter)
+    .populate('ownerId', 'name email phone avatarUrl')
+    .sort('-updatedAt')
+    .limit(200)
+    .lean();
+  const shaped = stores.map((s) => {
+    const o = s.ownerId && typeof s.ownerId === 'object' ? s.ownerId : null;
+    const owner = o
+      ? { _id: o._id, name: o.name, email: o.email, phone: o.phone, avatarUrl: o.avatarUrl }
+      : null;
+    return { ...decorate(s), ownerId: o?._id ?? s.ownerId, owner };
+  });
+  res.status(200).json({ status: 'success', data: { stores: shaped } });
 };
 
 // @desc    Submit / update verification doc; admin can approve/reject
