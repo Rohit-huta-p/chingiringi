@@ -31,7 +31,7 @@ import { ChevronLeft, MapPin, Fingerprint, CreditCard, Car, Plane } from 'lucide
 import { Colors, Fonts } from '../../constants/theme';
 import { Input } from '../../components/Input';
 import { ImageUploader } from '../../components/ImageUploader';
-import { MultiImageUploader } from '../../components/MultiImageUploader';
+import { KycUploader, type KycValue } from '../../components/KycUploader';
 import apiClient from '../../api/client';
 import { verificationAPI, type IdentityType } from '../../api/verification';
 import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
@@ -120,8 +120,8 @@ export const BusinessOnboardingScreen: React.FC = () => {
   const [website,    setWebsite]    = useState('');
   // Personal identity (optional here; required before go-live on the verification screen).
   const [idType,     setIdType]     = useState<IdentityType>('aadhaar');
-  const [idUrls,     setIdUrls]     = useState<string[]>([]);
-  const [selfieUrls, setSelfieUrls] = useState<string[]>([]);
+  const [idDoc,      setIdDoc]      = useState<KycValue | null>(null);
+  const [selfie,     setSelfie]     = useState<KycValue | null>(null);
 
   const [locationBusy, setLocationBusy] = useState(false);
   const [submitting,   setSubmitting]   = useState(false);
@@ -202,14 +202,20 @@ export const BusinessOnboardingScreen: React.FC = () => {
       // If the seller added identity in the Identity step, submit it now so the
       // verification screen shows it pre-filled (store stays unverified until the
       // store document is added too).
-      if (store?._id && idUrls.length > 0 && selfieUrls.length > 0) {
+      if (store?._id && idDoc && selfie) {
         try {
           await verificationAPI.submitVerification(store._id, {
             identityType: idType,
-            identityDocUrl: idUrls[0],
-            selfieUrl: selfieUrls[0],
+            identityDocPublicId: idDoc.publicId,
+            identityDocFormat: idDoc.format,
+            selfiePublicId: selfie.publicId,
+            selfieFormat: selfie.format,
           });
-          store.identityDoc = { type: idType, docUrl: idUrls[0], selfieUrl: selfieUrls[0] };
+          store.identityDoc = {
+            type: idType,
+            docPublicId: idDoc.publicId, docFormat: idDoc.format,
+            selfiePublicId: selfie.publicId, selfieFormat: selfie.format,
+          };
         } catch { /* non-fatal — they can add it on the verification screen */ }
       }
       // The seller tabs mounted before this store existed, so MY_STORE_QUERY_KEY
@@ -411,10 +417,10 @@ export const BusinessOnboardingScreen: React.FC = () => {
               </View>
 
               <Text style={styles.fieldLabel}>ID document</Text>
-              <MultiImageUploader value={idUrls} onChange={setIdUrls} max={1} folder="seller-verification" coverLabel="ID document" />
+              <KycUploader label="ID photo" value={idDoc} onChange={setIdDoc} disabled={submitting} />
 
               <Text style={styles.fieldLabel}>Selfie</Text>
-              <MultiImageUploader value={selfieUrls} onChange={setSelfieUrls} max={1} folder="seller-verification" coverLabel="Selfie" />
+              <KycUploader label="selfie" value={selfie} onChange={setSelfie} disabled={submitting} />
             </View>
           )}
 
@@ -437,7 +443,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 <SummaryRow label="Area" value={area} />
                 <SummaryRow label="City" value={city} />
                 <SummaryRow label="WhatsApp" value={phone ? `+91 ${phoneDigits}` : ''} />
-                <SummaryRow label="Identity" value={idUrls.length > 0 && selfieUrls.length > 0 ? `${ID_TYPES.find((d) => d.value === idType)?.label ?? 'ID'} + selfie` : 'Add later'} />
+                <SummaryRow label="Identity" value={idDoc && selfie ? `${ID_TYPES.find((d) => d.value === idType)?.label ?? 'ID'} + selfie` : 'Add later'} />
               </View>
             </View>
           )}

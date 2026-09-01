@@ -72,17 +72,26 @@ const storeSchema = new mongoose.Schema(
     },
     verificationDoc: {
       type:            { type: String, default: '' },
-      url:             { type: String, default: '' },
+      url:             { type: String, default: '' },   // legacy public URL (pre-private-KYC)
+      publicId:        { type: String, default: '' },   // private (authenticated) Cloudinary asset
+      format:          { type: String, default: '' },
       submittedAt:     { type: Date },
       rejectionReason: { type: String, default: '' },
     },
     // Personal identity of the store owner (govt ID + selfie), reviewed together
     // with the store document — the store is only 'verified' when both pass.
+    // New submissions store a private Cloudinary publicId (+ format) instead of a
+    // public URL; the *Url fields remain for legacy rows and are never populated
+    // for new secure uploads.
     identityDoc: {
-      type:        { type: String, default: '' },  // aadhaar | pan | dl | passport
-      docUrl:      { type: String, default: '' },   // ID document image
-      selfieUrl:   { type: String, default: '' },   // selfie for face match
-      submittedAt: { type: Date },
+      type:           { type: String, default: '' },  // aadhaar | pan | dl | passport
+      docUrl:         { type: String, default: '' },   // legacy public URL
+      docPublicId:    { type: String, default: '' },   // private ID document asset
+      docFormat:      { type: String, default: '' },
+      selfieUrl:      { type: String, default: '' },   // legacy public URL
+      selfiePublicId: { type: String, default: '' },   // private selfie asset
+      selfieFormat:   { type: String, default: '' },
+      submittedAt:    { type: Date },
     },
 
     // ── Flags ────────────────────────────────────────────────

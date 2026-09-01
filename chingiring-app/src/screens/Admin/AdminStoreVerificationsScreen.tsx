@@ -28,10 +28,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ShieldCheck, Clock, XCircle, FileText, ExternalLink,
-  Check, X, Inbox, Maximize2, Mail, Phone, MapPin, User, RotateCcw,
+  Check, X, Inbox, Maximize2, Mail, Phone, MapPin, User, RotateCcw, Eye,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { verificationAPI, type SellerStore, type VerificationStatus } from '../../api/verification';
+import { verificationAPI, type SellerStore, type VerificationStatus, type KycUrls } from '../../api/verification';
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -198,13 +198,27 @@ function VerificationCard({ store, onVerify, onReject, onReopen, onOpenMedia, ve
   const cfg = STATUS_CONFIG[store.verificationStatus ?? 'pending'];
   const StatusIcon = cfg.Icon;
   const docLabel = DOC_LABEL[store.verificationDoc?.type ?? ''] ?? 'Document';
-  const docUrl = store.verificationDoc?.url ?? '';
   const submittedAt = store.verificationDoc?.submittedAt as any;
   const rejectionReason = store.verificationDoc?.rejectionReason;
-  const idDocUrl = store.identityDoc?.docUrl ?? '';
-  const selfieUrl = store.identityDoc?.selfieUrl ?? '';
   const idLabel = ({ aadhaar: 'Aadhaar', pan: 'PAN', dl: 'Driving Licence', passport: 'Passport' } as Record<string, string>)[store.identityDoc?.type ?? ''] ?? 'Government ID';
-  const canVerify = !!docUrl && !!idDocUrl && !!selfieUrl;
+
+  // Presence from stored ids (private) OR legacy urls. The actual viewable URLs
+  // are fetched on demand (signed) only when the admin reveals them — they are
+  // never part of the list payload.
+  const vd = store.verificationDoc;
+  const idd = store.identityDoc;
+  const hasDoc    = !!(vd?.publicId || vd?.url);
+  const hasId     = !!(idd?.docPublicId || idd?.docUrl);
+  const hasSelfie = !!(idd?.selfiePublicId || idd?.selfieUrl);
+  const canVerify = hasDoc && hasId && hasSelfie;
+
+  const [revealed, setRevealed] = useState(false);
+  const { data: kyc, isFetching: kycLoading } = useQuery<KycUrls>({
+    queryKey: ['kyc', store._id],
+    queryFn: () => verificationAPI.getStoreKycUrls(store._id),
+    enabled: revealed,
+    staleTime: 60_000,
+  });
 
   const owner = store.owner;
   const locationText = [store.area, store.city].filter(Boolean).join(', ');
@@ -277,26 +291,52 @@ function VerificationCard({ store, onVerify, onReject, onReopen, onOpenMedia, ve
         </View>
       )}
 
-      {/* ── Store document ── */}
-      {!!docUrl && (
+      {/* ── KYC documents — private assets, revealed (signed) on demand ── */}
+      {(hasDoc || hasId || hasSelfie) && (
         <View style={st.mediaSection}>
-          <Text style={st.mediaHead}>Store document · {docLabel}</Text>
-          <MediaTile url={docUrl} label={docLabel} onOpen={onOpenMedia} style={st.tileWide} />
-        </View>
-      )}
-
-      {/* ── Identity check: government ID + selfie, side by side ── */}
-      {(!!idDocUrl || !!selfieUrl) && (
-        <View style={st.mediaSection}>
-          <Text style={st.mediaHead}>Identity check</Text>
-          <View style={st.tileRow}>
-            {idDocUrl
-              ? <MediaTile url={idDocUrl} label={idLabel} onOpen={onOpenMedia} style={st.tileHalf} />
-              : <MissingTile label="No ID" style={st.tileHalf} />}
-            {selfieUrl
-              ? <MediaTile url={selfieUrl} label="Selfie" onOpen={onOpenMedia} style={st.tileHalf} />
-              : <MissingTile label="No selfie" style={st.tileHalf} />}
+          <View style={st.mediaHeadRow}>
+            <Text style={st.mediaHead}>Documents</Text>
+            {revealed && (
+              <View style={st.privateTag}>
+                <ShieldCheck size={11} color={Colors.textSecondary} strokeWidth={2.5} />
+                <Text style={st.privateTagText}>Private · signed link</Text>
+              </View>
+            )}
           </View>
+
+          {!revealed ? (
+            <>
+              <Pressable style={st.revealBtn} onPress={() => setRevealed(true)}>
+                <Eye size={15} color={Colors.primary} strokeWidth={2.5} />
+                <Text style={st.revealText}>Reveal documents</Text>
+              </Pressable>
+              <Text style={st.revealHint}>
+                Store doc {hasDoc ? '✓' : '—'}   ·   ID {hasId ? '✓' : '—'}   ·   Selfie {hasSelfie ? '✓' : '—'}
+              </Text>
+            </>
+          ) : kycLoading && !kyc ? (
+            <ActivityIndicator color={Colors.primary} style={{ paddingVertical: 16 }} />
+          ) : (
+            <>
+              {hasDoc && (
+                <>
+                  <Text style={st.mediaSubHead}>Store document · {docLabel}</Text>
+                  {kyc?.doc
+                    ? <MediaTile url={kyc.doc} label={docLabel} onOpen={onOpenMedia} style={st.tileWide} />
+                    : <MissingTile label="Unavailable" style={st.tileWide} />}
+                </>
+              )}
+              <Text style={st.mediaSubHead}>Identity check</Text>
+              <View style={st.tileRow}>
+                {hasId && kyc?.id
+                  ? <MediaTile url={kyc.id} label={idLabel} onOpen={onOpenMedia} style={st.tileHalf} />
+                  : <MissingTile label={hasId ? 'Unavailable' : 'No ID'} style={st.tileHalf} />}
+                {hasSelfie && kyc?.selfie
+                  ? <MediaTile url={kyc.selfie} label="Selfie" onOpen={onOpenMedia} style={st.tileHalf} />
+                  : <MissingTile label={hasSelfie ? 'Unavailable' : 'No selfie'} style={st.tileHalf} />}
+              </View>
+            </>
+          )}
         </View>
       )}
 
@@ -668,10 +708,20 @@ const st = StyleSheet.create({
 
   // Media (documents / identity)
   mediaSection: { gap: 8 },
+  mediaHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mediaHead: {
     fontSize: 11.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary,
     letterSpacing: 0.3, textTransform: 'uppercase',
   },
+  mediaSubHead: { fontSize: 12, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  privateTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  privateTagText: { fontSize: 10.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  revealBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    backgroundColor: Colors.primaryLight10, borderRadius: 10, paddingVertical: 11,
+  },
+  revealText: { fontSize: 13.5, fontFamily: Fonts.bold, color: Colors.primary },
+  revealHint: { fontSize: 12, fontFamily: Fonts.semiBold, color: Colors.textSecondary, textAlign: 'center' },
   tileRow: { flexDirection: 'row', gap: 10 },
   tile: {
     borderRadius: 10, overflow: 'hidden',

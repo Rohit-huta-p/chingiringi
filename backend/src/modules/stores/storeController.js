@@ -3,6 +3,7 @@ import StoreReview from './storeReviewModel.js';
 import Stream from '../streams/streamModel.js';
 import { formatTime, isOpenNow } from './storeHours.js';
 import { resolveGoogleMapsCoords } from './googleMapsCoords.js';
+import { uploadKycImage, signedKycUrl, kycConfigured } from '../../services/cloudinaryKyc.js';
 
 // Fields that must never reach a public (non-admin) client.
 // Public responses must never leak the seller's private review docs — the store
@@ -281,6 +282,56 @@ export const getVerificationQueue = async (req, res) => {
   res.status(200).json({ status: 'success', data: { stores: shaped } });
 };
 
+// @desc    Upload one KYC image (store doc / ID / selfie) as a PRIVATE asset.
+//          Returns identifiers to rebuild a signed URL later — never a public URL.
+// @route   POST /api/stores/kyc/upload   (multipart, field "file")
+// @access  Private (any authenticated user submitting their own verification)
+export const uploadKyc = async (req, res) => {
+  if (!kycConfigured()) {
+    res.status(503);
+    throw new Error('Secure document upload is not configured on the server yet.');
+  }
+  if (!req.file?.buffer) {
+    res.status(400);
+    throw new Error('No image file received.');
+  }
+  const out = await uploadKycImage(req.file.buffer);
+  res.status(201).json({ status: 'success', data: out }); // { publicId, format, version }
+};
+
+// @desc    Freshly-signed, inline-renderable URLs for a store's KYC media.
+//          Minted on demand; never stored. Owner (own store) or admin only.
+// @route   GET /api/stores/:id/kyc
+// @access  Private (owner or admin)
+export const getStoreKyc = async (req, res) => {
+  const store = await Store.findById(req.params.id).lean();
+  if (!store) {
+    res.status(404);
+    throw new Error('Store not found');
+  }
+  const isAdmin = req.user.role === 'admin';
+  const isOwner = store.ownerId?.toString() === req.user._id.toString();
+  if (!isAdmin && !isOwner) {
+    res.status(403);
+    throw new Error('Not authorised to view this store’s documents');
+  }
+
+  const vd = store.verificationDoc || {};
+  const idd = store.identityDoc || {};
+  // Prefer a signed private URL; fall back to a legacy public URL for old rows.
+  const resolve = (publicId, format, legacyUrl) =>
+    (publicId && signedKycUrl(publicId, { format })) || legacyUrl || null;
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      doc:    resolve(vd.publicId, vd.format, vd.url),
+      id:     resolve(idd.docPublicId, idd.docFormat, idd.docUrl),
+      selfie: resolve(idd.selfiePublicId, idd.selfieFormat, idd.selfieUrl),
+    },
+  });
+};
+
 // @desc    Submit / update verification doc; admin can approve/reject
 // @route   PATCH /api/stores/:id/verification
 // @access  Private (seller = submit; admin = approve/reject)
@@ -310,8 +361,9 @@ export const updateVerification = async (req, res) => {
     // Approve-guard: can't verify a store that hasn't submitted BOTH the store
     // document and personal identity (ID + selfie).
     if (status === 'verified') {
-      const hasStoreDoc = !!store.verificationDoc?.url;
-      const hasIdentity = !!store.identityDoc?.docUrl && !!store.identityDoc?.selfieUrl;
+      const hasStoreDoc = !!(store.verificationDoc?.url || store.verificationDoc?.publicId);
+      const hasIdentity = !!(store.identityDoc?.docUrl || store.identityDoc?.docPublicId)
+        && !!(store.identityDoc?.selfieUrl || store.identityDoc?.selfiePublicId);
       if (!hasStoreDoc || !hasIdentity) {
         res.status(400);
         throw new Error('Cannot verify: the store document and identity (ID + selfie) must both be submitted.');
@@ -331,34 +383,48 @@ export const updateVerification = async (req, res) => {
     // Seller submits the store document and/or personal identity. Either part
     // can arrive alone (onboarding sends identity; the verification screen sends
     // both) — the store flips to 'pending' only once BOTH are on file.
-    const { docType, docUrl, identityType, identityDocUrl, selfieUrl } = req.body;
+    // New clients send private Cloudinary publicIds (+ format); older ones may
+    // still send public *Url values, which we keep accepting for back-compat.
+    const {
+      docType, docUrl, docPublicId, docFormat,
+      identityType, identityDocUrl, identityDocPublicId, identityDocFormat,
+      selfieUrl, selfiePublicId, selfieFormat,
+    } = req.body;
 
-    if (docUrl) {
+    if (docUrl || docPublicId) {
       store.verificationDoc = {
         type:            docType || store.verificationDoc?.type || '',
-        url:             docUrl,
+        url:             docUrl || '',
+        publicId:        docPublicId || '',
+        format:          docFormat || '',
         submittedAt:     new Date(),
         rejectionReason: '',
       };
     }
-    if (identityDocUrl || selfieUrl) {
+    if (identityDocUrl || identityDocPublicId || selfieUrl || selfiePublicId) {
       store.identityDoc = {
-        type:        identityType || store.identityDoc?.type || '',
-        docUrl:      identityDocUrl || store.identityDoc?.docUrl || '',
-        selfieUrl:   selfieUrl || store.identityDoc?.selfieUrl || '',
-        submittedAt: new Date(),
+        type:           identityType || store.identityDoc?.type || '',
+        docUrl:         identityDocUrl || store.identityDoc?.docUrl || '',
+        docPublicId:    identityDocPublicId || store.identityDoc?.docPublicId || '',
+        docFormat:      identityDocFormat || store.identityDoc?.docFormat || '',
+        selfieUrl:      selfieUrl || store.identityDoc?.selfieUrl || '',
+        selfiePublicId: selfiePublicId || store.identityDoc?.selfiePublicId || '',
+        selfieFormat:   selfieFormat || store.identityDoc?.selfieFormat || '',
+        submittedAt:    new Date(),
       };
     }
 
-    if (!store.verificationDoc?.url && !store.identityDoc?.docUrl && !store.identityDoc?.selfieUrl) {
+    const hasDoc    = !!(store.verificationDoc?.url || store.verificationDoc?.publicId);
+    const hasIdDoc  = !!(store.identityDoc?.docUrl || store.identityDoc?.docPublicId);
+    const hasSelfie = !!(store.identityDoc?.selfieUrl || store.identityDoc?.selfiePublicId);
+
+    if (!hasDoc && !hasIdDoc && !hasSelfie) {
       res.status(400);
       throw new Error('Provide a store document and/or identity (ID + selfie).');
     }
 
-    // Full submission = store document + identity (ID + selfie), both present.
-    const hasStoreDoc = !!store.verificationDoc?.url;
-    const hasIdentity = !!store.identityDoc?.docUrl && !!store.identityDoc?.selfieUrl;
-    store.verificationStatus = hasStoreDoc && hasIdentity ? 'pending' : 'unverified';
+    // Full submission = store document + identity (ID + selfie), all present.
+    store.verificationStatus = hasDoc && hasIdDoc && hasSelfie ? 'pending' : 'unverified';
   }
 
   await store.save();

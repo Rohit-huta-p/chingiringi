@@ -12,7 +12,7 @@
  * (under review) → verified (done) or rejected (reason + resubmit, which
  * resets back to the unverified form).
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,8 +30,8 @@ import {
   CreditCard, Fingerprint, Car, Plane,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { MultiImageUploader } from '../../components/MultiImageUploader';
-import { verificationAPI, type SellerStore, type VerificationStatus, type DocType, type IdentityType } from '../../api/verification';
+import { KycUploader, type KycValue } from '../../components/KycUploader';
+import { verificationAPI, type SellerStore, type VerificationStatus, type DocType, type IdentityType, type KycUrls } from '../../api/verification';
 import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
 
 // Status colors not in the shared theme — one-off semantic accents specific
@@ -86,20 +86,44 @@ export const StoreVerificationScreen: React.FC = () => {
   const passedStore: SellerStore | null = route.params?.store ?? null;
   const initialStatus: VerificationStatus = passedStore?.verificationStatus ?? 'unverified';
 
+  const idd0 = passedStore?.identityDoc;
   const [status, setStatus] = useState<VerificationStatus>(initialStatus);
   const [docType, setDocType] = useState<DocType>('gst');
-  const [docUrls, setDocUrls] = useState<string[]>([]);
+  const [doc, setDoc] = useState<KycValue | null>(
+    passedStore?.verificationDoc?.publicId
+      ? { publicId: passedStore.verificationDoc.publicId, format: passedStore.verificationDoc.format }
+      : null,
+  );
   // Personal identity — pre-filled if onboarding already captured it.
-  const [idType, setIdType] = useState<IdentityType>((passedStore?.identityDoc?.type as IdentityType) || 'aadhaar');
-  const [idUrls, setIdUrls] = useState<string[]>(passedStore?.identityDoc?.docUrl ? [passedStore.identityDoc.docUrl] : []);
-  const [selfieUrls, setSelfieUrls] = useState<string[]>(passedStore?.identityDoc?.selfieUrl ? [passedStore.identityDoc.selfieUrl] : []);
+  const [idType, setIdType] = useState<IdentityType>((idd0?.type as IdentityType) || 'aadhaar');
+  const [idDoc, setIdDoc] = useState<KycValue | null>(
+    idd0?.docPublicId ? { publicId: idd0.docPublicId, format: idd0.docFormat } : null,
+  );
+  const [selfie, setSelfie] = useState<KycValue | null>(
+    idd0?.selfiePublicId ? { publicId: idd0.selfiePublicId, format: idd0.selfieFormat } : null,
+  );
+  const [previews, setPreviews] = useState<KycUrls>({ doc: null, id: null, selfie: null });
   const [submitting, setSubmitting] = useState(false);
+
+  // Fetch signed preview URLs so a returning seller sees what they already
+  // submitted (private assets aren't reachable via a plain URL).
+  useEffect(() => {
+    const sid = passedStore?._id;
+    const hasAny = !!(passedStore?.verificationDoc?.publicId || idd0?.docPublicId || idd0?.selfiePublicId);
+    if (!sid || !hasAny) return;
+    let alive = true;
+    verificationAPI.getStoreKycUrls(sid)
+      .then((u) => { if (alive) setPreviews(u); })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passedStore?._id]);
 
   const rejectionReason = passedStore?.verificationDoc?.rejectionReason;
   const submittedAt = passedStore?.verificationDoc?.submittedAt as any;
   const docSub = DOC_TYPES.find((d) => d.value === docType)?.label ?? 'document';
   const idSub = ID_TYPES.find((d) => d.value === idType)?.label ?? 'ID';
-  const canSubmit = docUrls.length > 0 && idUrls.length > 0 && selfieUrls.length > 0;
+  const canSubmit = !!doc && !!idDoc && !!selfie;
 
   const goToMain = () => {
     // Ensure the Dashboard / My Store show the latest store + status (created or
@@ -118,10 +142,13 @@ export const StoreVerificationScreen: React.FC = () => {
     try {
       await verificationAPI.submitVerification(passedStore._id, {
         docType,
-        docUrl: docUrls[0],
+        docPublicId: doc!.publicId,
+        docFormat: doc!.format,
         identityType: idType,
-        identityDocUrl: idUrls[0],
-        selfieUrl: selfieUrls[0],
+        identityDocPublicId: idDoc!.publicId,
+        identityDocFormat: idDoc!.format,
+        selfiePublicId: selfie!.publicId,
+        selfieFormat: selfie!.format,
       });
       setStatus('pending');
     } catch (err: any) {
@@ -133,7 +160,7 @@ export const StoreVerificationScreen: React.FC = () => {
   };
 
   const handleResubmit = () => {
-    setDocUrls([]);
+    setDoc(null);
     setStatus('unverified');
   };
 
@@ -165,8 +192,8 @@ export const StoreVerificationScreen: React.FC = () => {
                   <DocChip key={d.value} selected={docType === d.value} onPress={() => setDocType(d.value)} icon={d.icon} label={d.label} />
                 ))}
               </View>
-              <Text style={[styles.fieldHint, { marginTop: 10 }]}>Clear photo or PDF showing your {docSub.toLowerCase()} number.</Text>
-              <MultiImageUploader value={docUrls} onChange={setDocUrls} max={1} folder="seller-verification" coverLabel="Document" />
+              <Text style={[styles.fieldHint, { marginTop: 10 }]}>Clear photo showing your {docSub.toLowerCase()} number.</Text>
+              <KycUploader label="store document" value={doc} onChange={setDoc} previewUrl={previews.doc} disabled={submitting} />
 
               {/* ── Personal identity (ID + selfie) ── */}
               <Text style={[styles.fieldLabel, { marginTop: 26 }]}>Personal identity</Text>
@@ -176,9 +203,9 @@ export const StoreVerificationScreen: React.FC = () => {
                 ))}
               </View>
               <Text style={[styles.fieldHint, { marginTop: 10 }]}>A clear photo of your {idSub}.</Text>
-              <MultiImageUploader value={idUrls} onChange={setIdUrls} max={1} folder="seller-verification" coverLabel="ID document" />
+              <KycUploader label="ID photo" value={idDoc} onChange={setIdDoc} previewUrl={previews.id} disabled={submitting} />
               <Text style={[styles.fieldHint, { marginTop: 14 }]}>A selfie so we can match it to your ID.</Text>
-              <MultiImageUploader value={selfieUrls} onChange={setSelfieUrls} max={1} folder="seller-verification" coverLabel="Selfie" />
+              <KycUploader label="selfie" value={selfie} onChange={setSelfie} previewUrl={previews.selfie} disabled={submitting} />
 
               <Pressable
                 onPress={handleSubmit}

@@ -7,6 +7,7 @@
  */
 import apiClient from './client';
 import type { Store } from './stores';
+import type { CloudFile } from '../components/useImageUpload';
 
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 export type DocType = 'gst' | 'fssai' | 'tradeLicence';
@@ -14,7 +15,9 @@ export type IdentityType = 'aadhaar' | 'pan' | 'dl' | 'passport';
 
 export interface VerificationDoc {
   type: string;
-  url: string;
+  url: string;              // legacy public URL (empty for new private uploads)
+  publicId?: string;        // private (authenticated) Cloudinary asset
+  format?: string;
   submittedAt?: string;
   rejectionReason?: string;
 }
@@ -22,9 +25,27 @@ export interface VerificationDoc {
 /** Store owner's personal identity — govt ID + selfie, reviewed with the store doc. */
 export interface IdentityDoc {
   type?: string;
-  docUrl?: string;
+  docUrl?: string;          // legacy public URLs (empty for new private uploads)
+  docPublicId?: string;
+  docFormat?: string;
   selfieUrl?: string;
+  selfiePublicId?: string;
+  selfieFormat?: string;
   submittedAt?: string;
+}
+
+/** Result of a private KYC upload — identifiers only, never a public URL. */
+export interface KycUploadResult {
+  publicId: string;
+  format?: string;
+  version?: number;
+}
+
+/** On-demand signed URLs for a store's KYC media (null where absent). */
+export interface KycUrls {
+  doc: string | null;
+  id: string | null;
+  selfie: string | null;
 }
 
 /** Owner account, surfaced only on the admin verification queue for KYC matching. */
@@ -47,13 +68,23 @@ export interface SellerStore extends Store {
   identityDoc?: IdentityDoc;
 }
 
-/** Either part may be sent alone; the store flips to 'pending' once both exist. */
+/**
+ * Either part may be sent alone; the store flips to 'pending' once both exist.
+ * New clients send private Cloudinary publicIds (+ format); the *Url fields are
+ * legacy and left unset for secure uploads.
+ */
 export interface SubmitVerificationPayload {
   docType?: DocType;
   docUrl?: string;
+  docPublicId?: string;
+  docFormat?: string;
   identityType?: IdentityType;
   identityDocUrl?: string;
+  identityDocPublicId?: string;
+  identityDocFormat?: string;
   selfieUrl?: string;
+  selfiePublicId?: string;
+  selfieFormat?: string;
 }
 
 export const verificationAPI = {
@@ -85,6 +116,33 @@ export const verificationAPI = {
   ): Promise<SellerStore> => {
     const res = await apiClient.patch(`/api/stores/${storeId}/verification`, payload);
     return res.data?.store ?? res.data?.data;
+  },
+
+  /**
+   * POST /api/stores/kyc/upload — upload one KYC image as a PRIVATE asset.
+   * Returns identifiers (publicId + format) to submit with the verification; the
+   * raw image is never publicly reachable via a plain URL.
+   */
+  kycUpload: async (file: CloudFile): Promise<KycUploadResult> => {
+    const fd = new FormData();
+    fd.append('file', file as any);
+    const res = await apiClient.post('/api/stores/kyc/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    const data = res.data?.data;
+    if (!data?.publicId) throw new Error('Upload did not return a document id.');
+    return data as KycUploadResult;
+  },
+
+  /**
+   * GET /api/stores/:id/kyc — freshly-signed, inline-renderable URLs for a
+   * store's KYC media. Owner (own store) or admin only; minted on demand, never
+   * stored. Returns null for a slot with no document.
+   */
+  getStoreKycUrls: async (storeId: string): Promise<KycUrls> => {
+    const res = await apiClient.get(`/api/stores/${storeId}/kyc`);
+    const data = res.data?.data ?? {};
+    return { doc: data.doc ?? null, id: data.id ?? null, selfie: data.selfie ?? null };
   },
 
   // ── Admin-only ────────────────────────────────────────────────────────────
