@@ -293,6 +293,16 @@ export const updateVerification = async (req, res) => {
       res.status(400);
       throw new Error(`status must be one of: ${allowed.join(', ')}`);
     }
+    // Approve-guard: can't verify a store that hasn't submitted BOTH the store
+    // document and personal identity (ID + selfie).
+    if (status === 'verified') {
+      const hasStoreDoc = !!store.verificationDoc?.url;
+      const hasIdentity = !!store.identityDoc?.docUrl && !!store.identityDoc?.selfieUrl;
+      if (!hasStoreDoc || !hasIdentity) {
+        res.status(400);
+        throw new Error('Cannot verify: the store document and identity (ID + selfie) must both be submitted.');
+      }
+    }
     store.verificationStatus = status;
     if (status === 'rejected' && rejectionReason) {
       store.verificationDoc.rejectionReason = rejectionReason;

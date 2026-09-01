@@ -20,6 +20,7 @@ import {
   RefreshControl,
   useWindowDimensions,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -32,7 +33,7 @@ import { verificationAPI, type SellerStore, type VerificationStatus } from '../.
 import { MobileAdminNav } from '../../components/MobileAdminNav';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type FilterTab = 'pending' | 'rejected' | 'all';
+type FilterTab = 'pending' | 'rejected' | 'verified' | 'all';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const DOC_LABEL: Record<string, string> = {
@@ -83,6 +84,7 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
   const idDocUrl = store.identityDoc?.docUrl ?? '';
   const selfieUrl = store.identityDoc?.selfieUrl ?? '';
   const idLabel = ({ aadhaar: 'Aadhaar', pan: 'PAN', dl: 'Driving Licence', passport: 'Passport' } as Record<string, string>)[store.identityDoc?.type ?? ''] ?? 'Government ID';
+  const canVerify = !!docUrl && !!idDocUrl && !!selfieUrl;
 
   const handleConfirmReject = () => {
     if (!reason.trim()) return;
@@ -176,16 +178,17 @@ function VerificationCard({ store, onVerify, onReject, verifying }: CardProps) {
         </View>
       )}
 
-      {/* ── Action buttons ── */}
-      {!rejectOpen && (
+      {/* ── Action buttons (hidden once verified) ── */}
+      {!rejectOpen && store.verificationStatus !== 'verified' && (
         <View style={st.actions}>
           {verifying ? (
             <ActivityIndicator color={Colors.primary} style={{ flex: 1 }} />
           ) : (
             <>
               <Pressable
-                style={st.verifyBtn}
+                style={[st.verifyBtn, !canVerify && { opacity: 0.4 }]}
                 onPress={() => onVerify(store._id)}
+                disabled={!canVerify}
               >
                 <Check size={15} color="#fff" strokeWidth={2.5} />
                 <Text style={st.verifyText}>Verify</Text>
@@ -216,21 +219,31 @@ export function AdminStoreVerificationsScreen() {
 
   const qc = useQueryClient();
 
-  // Fetch pending + rejected stores (both always; we filter locally so counts are live)
+  // Fetch pending + rejected + verified (the verification-relevant stores); we
+  // filter locally per tab so counts stay live and a decided store moves tabs
+  // instead of vanishing.
   const { data: allStores = [], isLoading, isRefetching, refetch } = useQuery<SellerStore[]>({
     queryKey: ['admin', 'verifications'],
-    queryFn: () => verificationAPI.adminListVerifications(['pending', 'rejected']),
+    queryFn: () => verificationAPI.adminListVerifications(['pending', 'rejected', 'verified']),
     staleTime: 30_000,
   });
 
   const pending  = allStores.filter((s) => s.verificationStatus === 'pending');
   const rejected = allStores.filter((s) => s.verificationStatus === 'rejected');
-  const displayed = filter === 'pending' ? pending : filter === 'rejected' ? rejected : allStores;
+  const verified = allStores.filter((s) => s.verificationStatus === 'verified');
+  const displayed =
+    filter === 'pending' ? pending
+    : filter === 'rejected' ? rejected
+    : filter === 'verified' ? verified
+    : allStores;
 
   const { mutate: setStatus } = useMutation({
     mutationFn: ({ id, status, reason }: { id: string; status: 'verified' | 'rejected'; reason?: string }) =>
       verificationAPI.adminSetStatus(id, status, reason),
     onMutate: ({ id }) => setActionStoreId(id),
+    onError: (err: any) => {
+      Alert.alert('Could not update', err?.response?.data?.message ?? err?.message ?? 'Please try again.');
+    },
     onSettled: () => {
       setActionStoreId(null);
       qc.invalidateQueries({ queryKey: ['admin', 'verifications'] });
@@ -249,6 +262,7 @@ export function AdminStoreVerificationsScreen() {
   const TABS: { key: FilterTab; label: string; count: number }[] = [
     { key: 'pending',  label: 'Pending',  count: pending.length  },
     { key: 'rejected', label: 'Rejected', count: rejected.length },
+    { key: 'verified', label: 'Verified', count: verified.length },
     { key: 'all',      label: 'All',      count: allStores.length },
   ];
 
@@ -277,7 +291,10 @@ export function AdminStoreVerificationsScreen() {
               <>
                 <Inbox size={52} color={Colors.border} />
                 <Text style={st.emptyTitle}>
-                  {filter === 'pending' ? 'No pending verifications' : filter === 'rejected' ? 'No rejected stores' : 'No verifications to review'}
+                  {filter === 'pending' ? 'No pending verifications'
+                    : filter === 'rejected' ? 'No rejected stores'
+                    : filter === 'verified' ? 'No verified stores yet'
+                    : 'No verifications to review'}
                 </Text>
                 <Text style={st.emptySub}>Stores that submit documents appear here.</Text>
               </>
