@@ -79,7 +79,7 @@ const AddressCard = ({
 export const MyAddressScreen = () => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
 
   const { data: addressData } = useQuery({

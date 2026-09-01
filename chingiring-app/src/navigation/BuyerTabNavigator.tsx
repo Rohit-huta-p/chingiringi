@@ -47,6 +47,7 @@ import { SellerProfileScreen } from '../screens/Seller/SellerProfileScreen';
 // Stack screens (detail views reachable from any tab)
 import { MobileEditProfileScreen } from '../screens/Dashboard/MobileEditProfileScreen';
 import { MyAddressScreen } from '../screens/Dashboard/MyAddressScreen';
+import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
 import { AddEditAddressScreen } from '../screens/Dashboard/AddEditAddressScreen';
 import { MobileTransactionHistoryScreen } from '../screens/Dashboard/MobileTransactionHistoryScreen';
 import { MobileProductDetailScreen } from '../screens/Dashboard/MobileProductDetailScreen';
@@ -163,6 +164,7 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="MainTabs"          component={BuyerBottomTabs} />
         <Stack.Screen name="EditProfile"       component={MobileEditProfileScreen} />
         <Stack.Screen name="MyAddress"         component={MyAddressScreen} />
+        <Stack.Screen name="MyVideos"          component={MyVideosScreen} />
         <Stack.Screen name="AddEditAddress"    component={AddEditAddressScreen} />
         <Stack.Screen name="TransactionHistory" component={MobileTransactionHistoryScreen} />
         <Stack.Screen name="ProductDetail"     component={MobileProductDetailScreen} />

@@ -38,6 +38,7 @@ import {
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
+import { getUnreadTotal } from '../../api/chat';
 import apiClient from '../../api/client';
 import { getMyStreams, formatStreamMeta } from '../../api/streams';
 import { type SellerStore } from '../../api/verification';
@@ -103,6 +104,13 @@ export const SellerDashboardScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
   const setViewAsBuyer = useAuthStore((s) => s.setViewAsBuyer);
+  const { data: chatUnread = 0 } = useQuery({
+    queryKey: ['chat', 'unread'],
+    queryFn: getUnreadTotal,
+    enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   const {
     data: store,
@@ -172,7 +180,11 @@ export const SellerDashboardScreen: React.FC = () => {
             accessibilityLabel="Messages"
           >
             <MessageCircle size={20} color="#fff" strokeWidth={2} />
-            {/* TODO(Phase 4): unanswered badge from messaging API */}
+            {chatUnread > 0 ? (
+              <View style={styles.msgBadge}>
+                <Text style={styles.msgBadgeText}>{chatUnread > 9 ? '9+' : chatUnread}</Text>
+              </View>
+            ) : null}
           </Pressable>
           <Pressable
             style={styles.shopBuyerPill}
@@ -309,6 +321,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center', justifyContent: 'center',
   },
+  msgBadge: {
+    position: 'absolute', top: -3, right: -3,
+    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
+    backgroundColor: Colors.danger, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#fff',
+  },
+  msgBadgeText: { fontSize: 10, fontFamily: Fonts.bold, color: '#fff' },
   shopBuyerText: { fontSize: 12.5, fontFamily: Fonts.bold, color: '#fff' },
 
   body: { padding: 16, gap: 16 },

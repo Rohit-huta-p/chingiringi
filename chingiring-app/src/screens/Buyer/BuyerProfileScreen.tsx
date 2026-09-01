@@ -7,7 +7,7 @@
  *   - Referral code card with copy/share
  *   - Quick settings links
  */
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   Platform,
   Alert,
   Share,
+  Linking,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -38,13 +39,18 @@ import {
   HelpCircle,
   Info,
   MessageCircle,
+  MapPin,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { useFollowStore } from '../../hooks/useFollow';
 import { followsAPI } from '../../api/follows';
 import { MobileProfileHeader } from '../../components/MobileProfileHeader';
+import { LegalModal, LegalType } from '../../components/LegalModal';
 import { referralsAPI } from '../../api/referrals';
+
+// TODO(support): replace with the real support address when confirmed.
+const SUPPORT_EMAIL = 'support@chingiringi.com';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -116,6 +122,8 @@ export const BuyerProfileScreen: React.FC = () => {
   const user = useAuthStore((st) => st.user);
   const { followedIds, hydrateFollowedIds } = useFollowStore();
   const qc = useQueryClient();
+  const [legal, setLegal] = useState<LegalType | null>(null);
+  const openSupport = () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => {});
 
   // Hydrate followed IDs from backend on first mount
   useEffect(() => {
@@ -284,6 +292,17 @@ export const BuyerProfileScreen: React.FC = () => {
             </View>
           </LinearGradient>
 
+          {/* ── Account ───────────────────────────────────────────────── */}
+          <SectionHeader label="ACCOUNT" />
+          <ActionRow
+            icon={MapPin}
+            iconColor="#0ea5e9"
+            iconBg="#e0f2fe"
+            title="My Addresses"
+            subtitle="Delivery & saved locations"
+            onPress={() => nav.navigate('MyAddress')}
+          />
+
           {/* ── Support & legal ───────────────────────────────────────── */}
           <SectionHeader label="SUPPORT & LEGAL" />
           <ActionRow
@@ -292,6 +311,7 @@ export const BuyerProfileScreen: React.FC = () => {
             iconBg="#f5f3ff"
             title="Help & Support"
             subtitle="FAQs and contact"
+            onPress={openSupport}
           />
           <ActionRow
             icon={Info}
@@ -299,24 +319,28 @@ export const BuyerProfileScreen: React.FC = () => {
             iconBg="#eff6ff"
             title="About Chingiringi"
             subtitle="Our story and mission"
+            onPress={() => setLegal('about')}
           />
           <ActionRow
             icon={Shield}
             iconColor="#ef4444"
             iconBg="#fee2e2"
             title="Privacy Policy"
+            onPress={() => setLegal('privacy')}
           />
           <ActionRow
             icon={FileText}
             iconColor="#f59e0b"
             iconBg="#fef3c7"
             title="Terms & Conditions"
+            onPress={() => setLegal('terms')}
           />
           <ActionRow
             icon={MessageCircle}
             iconColor="#16a34a"
             iconBg="#dcfce7"
             title="Contact Us"
+            onPress={openSupport}
           />
           <ActionRow
             icon={Settings}
@@ -327,6 +351,7 @@ export const BuyerProfileScreen: React.FC = () => {
           />
         </View>
       </ScrollView>
+      <LegalModal type={legal} onClose={() => setLegal(null)} />
     </View>
   );
 };

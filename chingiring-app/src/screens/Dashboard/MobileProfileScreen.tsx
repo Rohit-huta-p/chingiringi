@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  Share, Platform, RefreshControl,
+  Share, Platform, RefreshControl, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -339,6 +339,7 @@ export const MobileProfileScreen = () => {
             iconBg="#f5f3ff"
             title="Help & Support"
             subtitle="FAQs, raise a ticket & more"
+            onPress={() => Linking.openURL('mailto:support@chingiringi.com').catch(() => {})}
           />
           <QuickAction
             icon={MessageCircle}
@@ -346,6 +347,7 @@ export const MobileProfileScreen = () => {
             iconBg="#dcfce7"
             title="Contact Us"
             subtitle="Get in touch with our team"
+            onPress={() => Linking.openURL('mailto:support@chingiringi.com').catch(() => {})}
           />
           <QuickAction
             icon={Shield}

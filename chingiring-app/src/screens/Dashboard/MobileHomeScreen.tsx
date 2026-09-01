@@ -21,6 +21,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
+import { getUnreadTotal } from '../../api/chat';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
@@ -87,6 +88,13 @@ export const MobileHomeScreen = () => {
   const user = useAuthStore((s) => s.user);
   const refresh = usePullToRefresh();
   const unreadCount = useUnreadCount();
+  const { data: chatUnread = 0 } = useQuery({
+    queryKey: ['chat', 'unread'],
+    queryFn: getUnreadTotal,
+    enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -307,10 +315,10 @@ export const MobileHomeScreen = () => {
       <View style={st.hrow}>
         <View style={st.greetWrap}>
           <Text style={st.greet}>{greeting()},</Text>
-          <TouchableOpacity style={st.locRow} activeOpacity={0.7}>
+          {/* Non-interactive greeting line (was a fake location selector). */}
+          <View style={st.locRow}>
             <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
-            {/* <ChevronDown size={14} color="#fff" /> */}
-          </TouchableOpacity>
+          </View>
         </View>
         <View style={st.headerIcons}>
           <TouchableOpacity
@@ -321,7 +329,11 @@ export const MobileHomeScreen = () => {
             accessibilityLabel="Messages"
           >
             <MessageCircle size={20} color="#fff" strokeWidth={2.2} />
-            {/* TODO(Phase 4): unread badge from messaging API */}
+            {chatUnread > 0 ? (
+              <View style={st.bellBadge}>
+                <Text style={st.bellBadgeText}>{chatUnread > 9 ? '9+' : chatUnread}</Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
           <TouchableOpacity
             style={st.bellBtn}

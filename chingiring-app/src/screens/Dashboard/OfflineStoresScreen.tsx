@@ -369,7 +369,7 @@ export const OfflineStoresScreen: React.FC = () => {
             renderItem={({ item }) => (
               <Pressable
                 style={({ pressed }) => [styles.liveCard, pressed && { opacity: 0.85 }]}
-                onPress={() => navigation.navigate('ViewerScreen', { streamId: item._id, storeId: item.storeId })}
+                onPress={() => navigation.navigate('ViewerScreen', { streamId: item._id, storeId: item.storeId, storeName: item.storeName, storeLogoUrl: item.storeLogoUrl, streamTitle: item.title })}
               >
                 <View style={styles.liveCardAvatar}>
                   {item.storeLogoUrl
