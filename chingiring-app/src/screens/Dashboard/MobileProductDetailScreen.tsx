@@ -117,6 +117,7 @@ function ProductDetailMobile({
   averageRating,
   onWriteReview,
   onOpenProduct,
+  onOpenStore,
 }: {
   product: any;
   onBack: () => void;
@@ -130,6 +131,7 @@ function ProductDetailMobile({
   averageRating: number;
   onWriteReview: () => void;
   onOpenProduct: (p: any) => void;
+  onOpenStore?: (store: any) => void;
 }) {
   const { width: winW } = useWindowDimensions();
   const [imgIndex, setImgIndex] = React.useState(0);
@@ -270,8 +272,30 @@ function ProductDetailMobile({
           </View>
           {saved ? <Text style={pStyles.save}>You save {fmtPrice(saved)}</Text> : null}
 
-          {/* Merchant trust card */}
-          {merchant ? (
+          {/* Who posted — seller store (attribution + buy method); falls back to the affiliate merchant card */}
+          {product?.store ? (
+            <TouchableOpacity activeOpacity={0.7} style={pStyles.mcard} onPress={() => onOpenStore?.(product.store)}>
+              {product.store.logoUrl ? (
+                <Image source={{ uri: product.store.logoUrl }} style={pStyles.storeLogo} />
+              ) : (
+                <View style={pStyles.storeLogoFallback}><Text style={pStyles.storeInitial}>{(product.store.name || 'S').slice(0, 1).toUpperCase()}</Text></View>
+              )}
+              <View style={{ flex: 1 }}>
+                <View style={pStyles.storeNameRow}>
+                  <Text style={pStyles.m1} numberOfLines={1}>Sold by {product.store.name || 'this store'}</Text>
+                  {product.store.isVerified ? <CheckCircle size={14} color={Colors.primary} /> : null}
+                </View>
+                <Text style={pStyles.m2}>
+                  {canBuy
+                    ? 'Buy via the seller’s link — you complete the purchase there.'
+                    : canChat
+                    ? 'Chat to buy — message the seller in-app to place your order.'
+                    : 'Contact the seller for ordering details.'}
+                </Text>
+                <Text style={pStyles.storeLink}>View store ›</Text>
+              </View>
+            </TouchableOpacity>
+          ) : merchant ? (
             <View style={pStyles.mcard}>
               <View style={pStyles.mlogo}><Text style={pStyles.mlogoT}>{merchant.slice(0, 1).toUpperCase()}</Text></View>
               <View style={{ flex: 1 }}>
@@ -538,6 +562,14 @@ export const MobileProductDetailScreen = () => {
             conversationId: conv._id,
             title: conv.otherParty.name,
             otherParty: conv.otherParty,
+            // Pin the product in the composer + prefill the first message.
+            product: {
+              productId: productForView?._id,
+              name: productForView?.name ?? 'Product',
+              imageUrl: productForView?.imageUrl || productForView?.images?.[0] || '',
+              price: Number(productForView?.price ?? 0) || undefined,
+            },
+            prefill: 'Can I get more details on this product, please? Thank you.',
           });
         }
       } catch (e: any) {
@@ -560,6 +592,7 @@ export const MobileProductDetailScreen = () => {
           averageRating={averageRating}
           onWriteReview={() => requireAuth(() => setReviewOpen(true), { title: 'Sign in to review', subtitle: 'Share your experience with this product.', icon: 'star' })}
           onOpenProduct={(p) => (navigation as any).navigate('ProductDetail', { productId: p._id, product: p })}
+          onOpenStore={(s) => s?._id && (navigation as any).navigate('StoreDetail', { storeId: s._id })}
         />
         <WriteReviewModal
           visible={reviewOpen}
@@ -1217,6 +1250,11 @@ const pStyles = StyleSheet.create({
   mlogoT: { color: '#ff9900', fontWeight: '800', fontSize: 16 },
   m1: { fontSize: 13, fontWeight: '800', color: Colors.text },
   m2: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  storeLogo: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#eef2f7' },
+  storeLogoFallback: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  storeInitial: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  storeLink: { fontSize: 11.5, fontWeight: '700', color: Colors.primary, marginTop: 4 },
 
   // Highlights
   hl: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8edf5', borderRadius: 14, padding: 14, marginBottom: 14 },

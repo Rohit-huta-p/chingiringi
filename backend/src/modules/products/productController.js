@@ -167,6 +167,15 @@ export const getProduct = async (req, res) => {
     throw new Error('Product not found');
   }
 
+  // Attach the seller store that posted this product — powers the "Sold by"
+  // attribution card + buy-method line on the buyer product page.
+  if (product.storeId) {
+    const store = await Store.findById(product.storeId)
+      .select('name shortName logoUrl isVerified slug')
+      .lean();
+    if (store) product.store = store;
+  }
+
   res.status(200).json({ status: 'success', data: { product } });
 };
 

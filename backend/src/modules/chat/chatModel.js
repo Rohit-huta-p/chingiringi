@@ -42,6 +42,16 @@ const messageSchema = new mongoose.Schema(
     senderRole:     { type: String, enum: ['buyer', 'seller'], required: true },
     text:           { type: String, required: true, trim: true, maxlength: 2000 },
     readAt:         { type: Date },
+    // Optional product context — set when the message is sent about a product
+    // (e.g. from a product page's "Chat to buy"). Embedded snapshot so the card
+    // survives the product changing later.
+    product: {
+      productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+      name:      { type: String, default: '' },
+      imageUrl:  { type: String, default: '' },
+      price:     { type: Number },
+      _id:       false,
+    },
   },
   { timestamps: true }
 );

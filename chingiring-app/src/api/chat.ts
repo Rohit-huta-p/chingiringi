@@ -31,6 +31,13 @@ export interface Conversation {
   unread: number;
 }
 
+export interface ChatProduct {
+  productId?: string;
+  name: string;
+  imageUrl?: string;
+  price?: number;
+}
+
 export interface ChatMessage {
   _id: string;
   conversationId: string;
@@ -39,6 +46,8 @@ export interface ChatMessage {
   text: string;
   createdAt: string;
   readAt: string | null;
+  /** Optional product context (e.g. sent from a product page's "Chat to buy"). */
+  product?: ChatProduct;
 }
 
 // ── Endpoints ────────────────────────────────────────────────────────────────
@@ -78,8 +87,15 @@ export async function getMessages(conversationId: string, limit = 50): Promise<C
  * POST /api/chat/conversations/:id/messages — send. Throws on failure so the
  * composer can keep the text and show an error.
  */
-export async function sendMessage(conversationId: string, text: string): Promise<ChatMessage | null> {
-  const res = await apiClient.post(`/api/chat/conversations/${conversationId}/messages`, { text });
+export async function sendMessage(
+  conversationId: string,
+  text: string,
+  product?: ChatProduct,
+): Promise<ChatMessage | null> {
+  const res = await apiClient.post(`/api/chat/conversations/${conversationId}/messages`, {
+    text,
+    ...(product ? { product } : {}),
+  });
   return res.data?.data?.message ?? null;
 }
 

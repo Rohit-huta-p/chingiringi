@@ -1,20 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Send } from 'lucide-react-native';
+import { ChevronLeft, Send, X } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import {
   getMessages, sendMessage, markConversationRead,
-  type ChatMessage, type ChatOtherParty,
+  type ChatMessage, type ChatOtherParty, type ChatProduct,
 } from '../../api/chat';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import { useAuthStore } from '../../store';
 import { Avatar, clockTime } from './parts';
+import { ProductPreviewSheet } from '../../components/ProductPreviewSheet';
 
 /**
  * ChatScreen — a single conversation thread. Loads history, streams new
@@ -38,7 +39,10 @@ export function ChatScreen() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [text, setText] = useState('');
+  // Prefill text + a pinned product card arrive from a product page's "Chat to buy".
+  const [text, setText] = useState<string>(route.params?.prefill ?? '');
+  const [attached, setAttached] = useState<ChatProduct | null>(route.params?.product ?? null);
+  const [previewProduct, setPreviewProduct] = useState<ChatProduct | null>(null);
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
@@ -92,6 +96,7 @@ export function ChatScreen() {
   const onSend = useCallback(async () => {
     const body = text.trim();
     if (!body || sending) return;
+    const productToSend = attached ?? undefined; // attaches to this send only
     setText('');
     setSending(true);
 
@@ -104,17 +109,19 @@ export function ChatScreen() {
       text: body,
       createdAt: new Date().toISOString(),
       readAt: null,
+      product: productToSend,
     };
     setMessages((prev) => [...prev, temp]);
 
     try {
-      const real = await sendMessage(conversationId, body);
+      const real = await sendMessage(conversationId, body, productToSend);
       if (real) {
         // Swap the temp for the server message; drop any dup the socket echoed.
         setMessages((prev) => {
           const swapped = prev.map((m) => (m._id === tempId ? real : m));
           return swapped.filter((m, i, arr) => arr.findIndex((x) => x._id === m._id) === i);
         });
+        setAttached(null); // product delivered — unpin it
         queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
       }
     } catch {
@@ -124,7 +131,7 @@ export function ChatScreen() {
     } finally {
       setSending(false);
     }
-  }, [text, sending, conversationId, myId, myRole, queryClient]);
+  }, [text, sending, attached, conversationId, myId, myRole, queryClient]);
 
   const onHeaderPress = useCallback(() => {
     if (otherParty?.kind === 'store' && otherParty.storeId) {
@@ -146,13 +153,37 @@ export function ChatScreen() {
     return (
       <View style={[styles.bubbleRow, mine ? styles.rowMine : styles.rowTheirs]}>
         <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+          {item.product ? (
+            <TouchableOpacity
+              style={styles.msgProduct}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!item.product) return;
+                // Seller previews it in a sheet; buyer opens the full product page.
+                if (myRole === 'seller') setPreviewProduct(item.product);
+                else if (item.product.productId) navigation.navigate('ProductDetail', { productId: item.product.productId });
+              }}
+            >
+              {item.product.imageUrl ? (
+                <Image source={{ uri: item.product.imageUrl }} style={styles.msgProductImg} />
+              ) : (
+                <View style={[styles.msgProductImg, styles.imgFallback]} />
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.msgProductName} numberOfLines={2}>{item.product.name}</Text>
+                {typeof item.product.price === 'number' ? (
+                  <Text style={styles.msgProductPrice}>₹{item.product.price.toLocaleString('en-IN')}</Text>
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          ) : null}
           <Text style={[styles.msgText, mine ? styles.msgTextMine : styles.msgTextTheirs]}>{item.text}</Text>
           <Text style={[styles.msgTime, mine ? styles.msgTimeMine : styles.msgTimeTheirs]}>{clockTime(item.createdAt)}</Text>
         </View>
         {showSeen ? <Text style={styles.seen}>Seen</Text> : null}
       </View>
     );
-  }, [myId, lastMineIndex]);
+  }, [myId, lastMineIndex, navigation, myRole]);
 
   return (
     <KeyboardAvoidingView
@@ -201,26 +232,53 @@ export function ChatScreen() {
         />
       )}
 
-      <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          placeholder="Message…"
-          placeholderTextColor={Colors.textSecondary}
-          multiline
-          maxLength={2000}
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
-          onPress={onSend}
-          disabled={!text.trim() || sending}
-          accessibilityRole="button"
-          accessibilityLabel="Send message"
-        >
-          <Send size={18} color="#fff" strokeWidth={2.2} />
-        </TouchableOpacity>
+      <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        {attached ? (
+          <View style={styles.attachCard}>
+            {attached.imageUrl ? (
+              <Image source={{ uri: attached.imageUrl }} style={styles.attachImg} />
+            ) : (
+              <View style={[styles.attachImg, styles.imgFallback]} />
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.attachName} numberOfLines={1}>{attached.name}</Text>
+              {typeof attached.price === 'number' ? (
+                <Text style={styles.attachPrice}>₹{attached.price.toLocaleString('en-IN')}</Text>
+              ) : null}
+            </View>
+            <TouchableOpacity onPress={() => setAttached(null)} hitSlop={8} style={styles.attachClose} accessibilityLabel="Remove product">
+              <X size={16} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        <View style={styles.composerRow}>
+          <TextInput
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+            placeholder="Message…"
+            placeholderTextColor={Colors.textSecondary}
+            multiline
+            maxLength={2000}
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+            onPress={onSend}
+            disabled={!text.trim() || sending}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+          >
+            <Send size={18} color="#fff" strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      <ProductPreviewSheet
+        visible={!!previewProduct}
+        onClose={() => setPreviewProduct(null)}
+        productId={previewProduct?.productId}
+        initial={previewProduct as any}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -257,12 +315,30 @@ const styles = StyleSheet.create({
   threadEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
   threadEmptyText: { fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary, textAlign: 'center', lineHeight: 21 },
 
-  composer: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 8,
+  composerWrap: {
     paddingHorizontal: 12, paddingTop: 8,
     backgroundColor: Colors.surface,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
+  composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  attachCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Colors.background, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border, padding: 8, marginBottom: 8,
+  },
+  attachImg: { width: 40, height: 40, borderRadius: 8, backgroundColor: Colors.border },
+  imgFallback: { backgroundColor: Colors.border },
+  attachName: { fontSize: 13.5, fontFamily: Fonts.semiBold, color: Colors.navy },
+  attachPrice: { fontSize: 12.5, fontFamily: Fonts.bold, color: Colors.primary, marginTop: 1 },
+  attachClose: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  msgProduct: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
+    padding: 8, marginBottom: 8, maxWidth: 240,
+  },
+  msgProductImg: { width: 44, height: 44, borderRadius: 8, backgroundColor: Colors.border },
+  msgProductName: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.navy },
+  msgProductPrice: { fontSize: 12.5, fontFamily: Fonts.bold, color: Colors.primary, marginTop: 1 },
   input: {
     flex: 1, maxHeight: 120, minHeight: 42,
     backgroundColor: Colors.background, borderRadius: 21,

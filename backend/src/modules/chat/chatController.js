@@ -19,6 +19,8 @@ async function emitToChat(event, rooms, payload) {
 // ── Shapers ──────────────────────────────────────────────────────────────────
 
 function shapeMessage(m) {
+  const p = m.product;
+  const hasProduct = p && (p.productId || p.name);
   return {
     _id:            String(m._id),
     conversationId: String(m.conversationId),
@@ -27,6 +29,24 @@ function shapeMessage(m) {
     text:           m.text,
     createdAt:      m.createdAt,
     readAt:         m.readAt ?? null,
+    product: hasProduct ? {
+      productId: p.productId ? String(p.productId) : undefined,
+      name:      p.name ?? '',
+      imageUrl:  p.imageUrl ?? '',
+      price:     typeof p.price === 'number' ? p.price : undefined,
+    } : undefined,
+  };
+}
+
+/** Normalize a client-sent product attachment into the stored snapshot shape. */
+function pickProduct(raw) {
+  if (!raw || (!raw.productId && !raw.name)) return undefined;
+  const price = typeof raw.price === 'number' ? raw.price : Number(raw.price);
+  return {
+    productId: raw.productId || undefined,
+    name:      String(raw.name ?? '').slice(0, 200),
+    imageUrl:  String(raw.imageUrl ?? '').slice(0, 600),
+    price:     Number.isFinite(price) ? price : undefined,
   };
 }
 
@@ -210,11 +230,13 @@ export const sendMessage = async (req, res) => {
   const isSeller = String(conv.sellerId) === String(userId);
   if (!isBuyer && !isSeller) { res.status(403); throw new Error('Not a participant in this conversation'); }
 
+  const product = pickProduct(req.body?.product);
   const msg = await Message.create({
     conversationId: conv._id,
     senderId:       userId,
     senderRole:     isBuyer ? 'buyer' : 'seller',
     text:           text.slice(0, 2000),
+    ...(product ? { product } : {}),
   });
 
   conv.lastMessage   = msg.text;

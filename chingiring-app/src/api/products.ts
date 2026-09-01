@@ -21,6 +21,17 @@ export interface Product {
   isFeatured: boolean;
   /** When true, the buyer page shows "Chat to buy" (opens an in-app chat with the store). */
   buyViaChat?: boolean;
+  /** Set on seller-posted products (the owning store). */
+  storeId?: string | null;
+  /** The seller store that posted this product — attached by GET /api/products/:id. */
+  store?: {
+    _id: string;
+    name?: string;
+    shortName?: string;
+    logoUrl?: string;
+    isVerified?: boolean;
+    slug?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

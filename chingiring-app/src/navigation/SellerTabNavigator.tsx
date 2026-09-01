@@ -28,6 +28,7 @@ import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 import { MobileEditProfileScreen } from '../screens/Dashboard/MobileEditProfileScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
+import { MobileProductDetailScreen } from '../screens/Dashboard/MobileProductDetailScreen';
 import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
 import { MessagesScreen } from '../screens/Messages/MessagesScreen';
 import { ChatScreen } from '../screens/Messages/ChatScreen';
@@ -158,6 +159,7 @@ export default function SellerTabNavigator() {
         <Stack.Screen name="Notifications"      component={NotificationsScreen} />
         <Stack.Screen name="Messages"           component={MessagesScreen} />
         <Stack.Screen name="Chat"               component={ChatScreen} />
+        <Stack.Screen name="ProductDetail"      component={MobileProductDetailScreen} />
         <Stack.Screen name="About"              component={MobileAboutScreen} />
       </Stack.Navigator>
     </SafeAreaView>

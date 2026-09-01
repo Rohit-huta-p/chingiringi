@@ -37,6 +37,7 @@ import { useMyStore } from '../../hooks/useMyStore';
 import { productsAPI, type Product } from '../../api/products';
 import apiClient from '../../api/client';
 import { ProductFormSheet } from './ProductFormSheet';
+import { ProductPreviewSheet } from '../../components/ProductPreviewSheet';
 
 async function fetchStoreStats(storeId: string): Promise<{ totalStreams: number }> {
   try {
@@ -119,8 +120,15 @@ export const MyStoreScreen: React.FC = () => {
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = React.useState(false);
   const [editProduct, setEditProduct] = React.useState<Product | null>(null);
+  const [previewProduct, setPreviewProduct] = React.useState<Product | null>(null);
   const openCreate = () => { setEditProduct(null); setFormOpen(true); };
   const openEdit = (p: Product) => { setEditProduct(p); setFormOpen(true); };
+  // Tapping a product previews it; the preview's Edit hands off to the form.
+  const openPreview = (p: Product) => setPreviewProduct(p);
+  const editFromPreview = (p: Product) => {
+    setPreviewProduct(null);
+    setTimeout(() => openEdit(p), 320); // let the preview sheet dismiss first
+  };
   const onProductSaved = () =>
     qc.invalidateQueries({ queryKey: ['seller', 'storeProducts', store?._id] });
 
@@ -171,7 +179,7 @@ export const MyStoreScreen: React.FC = () => {
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[Colors.orange]} tintColor={Colors.orange} />
         }
-        renderItem={({ item }) => <ProductGridCard product={item} onPress={() => openEdit(item)} />}
+        renderItem={({ item }) => <ProductGridCard product={item} onPress={() => openPreview(item)} />}
         ListHeaderComponent={
           <View style={{ marginBottom: 12 }}>
             {/* ── Store header card ── */}
@@ -240,6 +248,14 @@ export const MyStoreScreen: React.FC = () => {
         onClose={() => setFormOpen(false)}
         product={editProduct}
         onSaved={onProductSaved}
+      />
+
+      <ProductPreviewSheet
+        visible={!!previewProduct}
+        onClose={() => setPreviewProduct(null)}
+        productId={previewProduct?._id}
+        initial={previewProduct}
+        onEdit={editFromPreview}
       />
     </View>
   );
