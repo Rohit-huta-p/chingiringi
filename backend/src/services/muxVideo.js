@@ -174,9 +174,11 @@ export function parseLiveWebhook(payload) {
   const id = payload?.data?.id;
   if (!id || typeof type !== 'string' || !type.startsWith('video.live_stream.')) return null;
   if (type === 'video.live_stream.active') return { muxStreamId: id, state: 'live' };
-  if (type === 'video.live_stream.idle' || type === 'video.live_stream.disconnected') {
-    return { muxStreamId: id, state: 'ended' };
-  }
+  // Only 'idle' (fires after the reconnect window elapses with no ingest) is a
+  // real end. 'disconnected' can fire on a transient mid-stream blip, so it's
+  // surfaced separately and NOT auto-ended on.
+  if (type === 'video.live_stream.idle') return { muxStreamId: id, state: 'ended' };
+  if (type === 'video.live_stream.disconnected') return { muxStreamId: id, state: 'disconnected' };
   if (type === 'video.live_stream.connected') return { muxStreamId: id, state: 'connected' };
   return null;
 }

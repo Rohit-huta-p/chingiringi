@@ -144,6 +144,50 @@ export const endStream = async (req, res) => {
   res.status(200).json({ status: 'success', data: { ok: true } });
 };
 
+// @desc    Mux live-stream webhook — confirms/cleans up stream status from the
+//          real ingest lifecycle (active → live; idle → auto-end if the
+//          broadcaster crashed / closed without pressing End). Optional: the
+//          app already marks a stream live at createStream, so streaming works
+//          without this wired; it just keeps DB state honest.
+// @route   POST /api/webhooks/mux-live   (raw body — mounted before express.json)
+// @access  Public (Mux; HMAC-verified)
+export const muxLiveWebhook = async (req, res) => {
+  if (!mux.verifyWebhook(req.body, req.headers)) {
+    res.status(400);
+    throw new Error('Invalid Mux webhook signature');
+  }
+  let payload = null;
+  try { payload = JSON.parse(Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body)); } catch { /* ignore */ }
+  const evt = mux.parseLiveWebhook(payload);
+  if (!evt) { res.status(200).json({ received: true }); return; }
+
+  const stream = await Stream.findOne({ muxStreamId: evt.muxStreamId });
+  if (!stream) { res.status(200).json({ received: true }); return; }
+
+  if (evt.state === 'live' && stream.status === 'idle') {
+    // Ingest actually started — promote to live.
+    stream.status = 'live';
+    await stream.save();
+    await Store.findByIdAndUpdate(stream.storeId, { isLive: true });
+  } else if (evt.state === 'ended' && stream.status === 'live') {
+    // Reconnect window elapsed with no ingest — the broadcaster is gone.
+    stream.status = 'ended';
+    stream.endedAt = new Date();
+    await stream.save();
+    await Store.findByIdAndUpdate(stream.storeId, { isLive: false });
+    mux.completeLiveStream(stream.muxStreamId).catch(() => {});
+    try {
+      const { io } = await import('../../server.js');
+      io.of('/stream').to(`stream:${stream._id}`).emit('stream_ended', {
+        streamId: stream._id.toString(),
+        storeId:  stream.storeId.toString(),
+      });
+    } catch { /* socket layer optional */ }
+  }
+
+  res.status(200).json({ received: true });
+};
+
 /**
  * GET /api/streams/active
  * Public — returns live streams sorted by viewer count desc.

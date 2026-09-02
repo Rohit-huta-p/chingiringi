@@ -1,32 +1,26 @@
 /**
- * BroadcasterScreen — Live stream broadcaster (Sprint 6 integration stub).
+ * BroadcasterScreen — Live stream broadcaster (Mux Live over RTMPS).
  *
  * Navigation params (from GoLiveModal):
- *   streamId:         string  — MongoDB Stream._id
- *   broadcasterToken: string  — Daily.co broadcaster token
- *   roomUrl:          string  — Daily.co room URL
- *   title:            string  — stream title
+ *   streamId:  string  — MongoDB Stream._id
+ *   rtmpUrl:   string  — Mux RTMPS ingest URL (rtmps://global-live.mux.com:443/app)
+ *   streamKey: string  — Mux stream key
+ *   title:     string  — stream title
  *
- * Current state (Daily.co not yet installed):
- *   - Shows expo-camera preview as placeholder for DailyMediaView.
- *   - Duration timer runs from stream start.
- *   - Live viewer count / hearts / chat ride the same Socket.io `/stream`
- *     namespace ViewerScreen uses (hooks/useSocket) — the broadcaster joins
- *     its own room like any other participant.
- *   - "End Stream" calls POST /api/streams/:id/end, then shows the
- *     post-stream summary (stats collected client-side during the session)
- *     instead of navigating away immediately.
+ * Publishing: the camera+mic are pushed to Mux via `@api.video/react-native-
+ * livestream` (<ApiVideoLiveStreamView>.startStreaming(streamKey, rtmpUrl)).
+ * That is a NATIVE module — it only exists in a prebuilt dev/prod build, so in
+ * Expo Go and the web preview `ApiVideoLiveStreamView` is null and we render a
+ * "needs the dev build" fallback instead of crashing. Viewers watch the HLS via
+ * playbackId (ViewerScreen / expo-video).
  *
- * Daily.co integration TODO (after `npx expo prebuild --clean`):
- *   1. Import Daily from '@daily-co/react-native-daily-js'
- *   2. On mount: await Daily.createCallObject(); await Daily.join({ url: roomUrl, token: broadcasterToken })
- *   3. Replace <CameraView> block with <DailyMediaView sessionId={localSessionId} style={StyleSheet.absoluteFill} />
- *   4. On "End Stream": call Daily.leave() + Daily.destroy() before endStream()
+ * Live viewer count / hearts / chat ride the same Socket.io `/stream` namespace
+ * ViewerScreen uses (hooks/useSocket). "End Stream" stops the publisher, calls
+ * POST /api/streams/:id/end, then shows the post-stream summary.
  *
- * Known gap: `join_stream` (backend streamSocket.js) increments viewerCount
- * for every socket that joins, including the broadcaster's own connection —
- * so "watching" / "Peak Viewers" run ~1 high while live. Not fixed here
- * (orthogonal to this UI pass); flagged separately.
+ * Known gap: `join_stream` (backend streamSocket.js) increments viewerCount for
+ * every socket including the broadcaster's own — so "watching" / "Peak Viewers"
+ * run ~1 high while live. Flagged separately.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -51,7 +45,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, CommonActions } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import {
   X,
   FlipHorizontal,
@@ -67,6 +61,31 @@ import {
 import { Colors, Fonts } from '../../constants/theme';
 import { endStream } from '../../api/streams';
 import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
+// Platform-resolved: the native RTMP publisher on iOS/Android, `null` on web
+// (LiveStreamView.web.tsx) so the native-only module never enters the web bundle.
+import { LiveStreamView } from './LiveStreamView';
+
+// Guards Expo Go, where the native view isn't linked and would throw on render
+// (on web LiveStreamView is null, so we never mount it there).
+class LiveStreamBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { /* swallow — the fallback is shown instead */ }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
+
+const NativeUnavailable: React.FC = () => (
+  <View style={[StyleSheet.absoluteFill, styles.nativeFallback]}>
+    <Text style={styles.fallbackTitle}>Live broadcasting needs the dev build</Text>
+    <Text style={styles.fallbackSub}>
+      The RTMP publisher is a native module — it isn't available in Expo Go or the web
+      preview. Build a dev client and open this screen there to actually go live.
+    </Text>
+  </View>
+);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -244,12 +263,16 @@ export const BroadcasterScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
-  const { streamId, title } = route.params ?? {};
+  const { streamId, title, rtmpUrl, streamKey } = route.params ?? {};
 
+  const liveRef = useRef<any>(null);
+  const startedRef = useRef(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<'front' | 'back'>('front');
   const [muted, setMuted] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  // RTMP publish connection state → drives the connecting / failed overlay.
+  const [connState, setConnState] = useState<'connecting' | 'live' | 'failed'>('connecting');
 
   // End-stream flow
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -280,6 +303,35 @@ export const BroadcasterScreen: React.FC = () => {
       requestPermission();
     }
   }, [permission, requestPermission]);
+
+  // ── Start pushing camera+mic to Mux over RTMPS ─────────────────────────────
+  const beginBroadcast = useCallback(() => {
+    if (startedRef.current) return;
+    if (!liveRef.current || !rtmpUrl || !streamKey) return;
+    startedRef.current = true;
+    try {
+      // api.video: startStreaming(streamKey, rtmpServerUrl). Mux ingest =
+      // rtmps://global-live.mux.com:443/app (passed as rtmpUrl from createStream).
+      liveRef.current.startStreaming(streamKey, rtmpUrl);
+    } catch {
+      startedRef.current = false;
+      setConnState('failed');
+    }
+  }, [rtmpUrl, streamKey]);
+
+  // Auto-start once the native view is mounted and camera is granted (give the
+  // native surface a beat to lay out before we kick the RTMP session).
+  useEffect(() => {
+    if (!LiveStreamView || !permission?.granted) return;
+    const t = setTimeout(beginBroadcast, 400);
+    return () => clearTimeout(t);
+  }, [permission?.granted, beginBroadcast]);
+
+  const retryBroadcast = useCallback(() => {
+    startedRef.current = false;
+    setConnState('connecting');
+    beginBroadcast();
+  }, [beginBroadcast]);
 
   // Track peak viewers as the live count moves
   useEffect(() => {
@@ -327,6 +379,7 @@ export const BroadcasterScreen: React.FC = () => {
   const handleConfirmEnd = useCallback(async () => {
     setEnding(true);
     try {
+      try { liveRef.current?.stopStreaming?.(); } catch { /* publisher may already be down */ }
       if (timerRef.current) clearInterval(timerRef.current);
       if (streamId) await endStream(streamId);
     } catch {
@@ -376,12 +429,23 @@ export const BroadcasterScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      {/* ── Camera preview (placeholder for DailyMediaView) ── */}
-      <CameraView
-        style={[StyleSheet.absoluteFill, { backgroundColor: '#111' }]}
-        facing={facing}
-        // When Daily.co is integrated: replace this CameraView with DailyMediaView
-      />
+      {/* ── Live camera → RTMP publisher (native dev build only) ── */}
+      {LiveStreamView ? (
+        <LiveStreamBoundary fallback={<NativeUnavailable />}>
+          <LiveStreamView
+            ref={liveRef}
+            style={StyleSheet.absoluteFill}
+            camera={facing}
+            isMuted={muted}
+            enablePinchedZoom
+            onConnectionSuccess={() => setConnState('live')}
+            onConnectionFailed={() => setConnState('failed')}
+            onDisconnect={() => setConnState('connecting')}
+          />
+        </LiveStreamBoundary>
+      ) : (
+        <NativeUnavailable />
+      )}
 
       {!streamEnded && (
         <>
@@ -504,6 +568,30 @@ export const BroadcasterScreen: React.FC = () => {
           onDone={handleDone}
         />
       )}
+
+      {/* ── RTMP connection overlay (connecting / failed) ── */}
+      {LiveStreamView && !streamEnded && connState !== 'live' && (
+        <View style={styles.connOverlay} pointerEvents={connState === 'failed' ? 'auto' : 'none'}>
+          {connState === 'connecting' ? (
+            <>
+              <ActivityIndicator color="#fff" size="large" />
+              <Text style={styles.connText}>Connecting to the live server…</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.connText}>Couldn't reach the live server.</Text>
+              <View style={styles.connBtnRow}>
+                <Pressable style={styles.retryBtn} onPress={retryBroadcast}>
+                  <Text style={styles.retryText}>Retry</Text>
+                </Pressable>
+                <Pressable style={styles.endInlineBtn} onPress={() => setConfirmVisible(true)}>
+                  <Text style={styles.endInlineText}>End</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
+      )}
     </View>
   );
 };
@@ -597,6 +685,33 @@ const styles = StyleSheet.create({
     paddingVertical: 12, paddingHorizontal: 28,
   },
   permBtnText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+
+  // Native-module fallback (Expo Go / web)
+  nativeFallback: {
+    backgroundColor: '#111', alignItems: 'center', justifyContent: 'center',
+    gap: 12, paddingHorizontal: 36,
+  },
+  fallbackTitle: { color: '#fff', fontSize: 17, fontFamily: Fonts.bold, textAlign: 'center' },
+  fallbackSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: Fonts.regular, textAlign: 'center', lineHeight: 19 },
+
+  // RTMP connection overlay
+  connOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center', justifyContent: 'center', gap: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  connText: { color: '#fff', fontSize: 15, fontFamily: Fonts.semiBold, textAlign: 'center', paddingHorizontal: 32 },
+  connBtnRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  retryBtn: {
+    backgroundColor: Colors.orange, borderRadius: 12,
+    paddingVertical: 11, paddingHorizontal: 26,
+  },
+  retryText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+  endInlineBtn: {
+    backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12,
+    paddingVertical: 11, paddingHorizontal: 26,
+  },
+  endInlineText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
 });
 
 // ── End Stream confirmation styles ──────────────────────────────────────────

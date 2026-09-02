@@ -34,6 +34,7 @@ import videoWebhookRoutes from './modules/videos/videoWebhookRoutes.js';
 import legalRoutes from './modules/legal/legalRoutes.js';
 import followRoutes from './modules/follows/followRoutes.js';
 import streamRoutes from './modules/streams/streamRoutes.js';
+import streamWebhookRoutes from './modules/streams/streamWebhookRoutes.js';
 import chatRoutes from './modules/chat/chatRoutes.js';
 import { activeProvider } from './services/videoProvider.js';
 
@@ -96,6 +97,9 @@ app.use('/api/webhooks/cashfree', express.raw({ type: '*/*' }), cashfreeRouter);
 // body for HMAC signature verification, so they mount before express.json().
 app.use('/api/webhooks/video', express.raw({ type: '*/*' }), videoWebhookRoutes);
 app.use('/api/webhooks/cloudflare-stream', express.raw({ type: '*/*' }), videoWebhookRoutes);
+// Mux LIVE-stream lifecycle webhook (video.live_stream.active/idle) — RAW body
+// for HMAC. Optional: streaming works without it; it keeps status honest.
+app.use('/api/webhooks/mux-live', express.raw({ type: '*/*' }), streamWebhookRoutes);
 
 // Body parser
 app.use(express.json({ limit: '10kb' }));
