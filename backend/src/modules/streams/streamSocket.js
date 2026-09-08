@@ -3,6 +3,39 @@ import Stream from './streamModel.js';
 // Per-room heart burst accumulator (resets every 2 s)
 const heartCounters = new Map(); // roomKey → { count, timer }
 
+// One Riemann segment of the concurrency curve: add
+// (current viewerCount × seconds since the last join/leave) to viewerSeconds,
+// so the time-weighted average concurrency can be derived when the stream ends.
+// Runs as the FIRST stage of the join/leave pipeline update — it reads the OLD
+// viewerCount (the concurrency that held over the segment) before the next stage
+// changes it. `$$NOW` + date subtraction keeps the whole update atomic and
+// avoids a read-modify-write race under concurrent joins.
+const accrueViewerSecondsStage = {
+  $set: {
+    viewerSeconds: {
+      $add: [
+        { $ifNull: ['$viewerSeconds', 0] },
+        {
+          $multiply: [
+            { $ifNull: ['$viewerCount', 0] },
+            {
+              $divide: [
+                {
+                  $subtract: [
+                    '$$NOW',
+                    { $ifNull: ['$lastViewerChangeAt', { $ifNull: ['$startedAt', '$$NOW'] }] },
+                  ],
+                },
+                1000,
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
 /**
  * Attach all /stream namespace socket handlers.
  * @param {import('socket.io').Namespace} ns
@@ -20,9 +53,23 @@ export function attachStreamSocket(ns) {
       socket.data.currentStreamId = streamId;
 
       try {
+        // Atomic pipeline: close the prior concurrency segment, then bump the
+        // live gauge + the monotonic totalViews counter, then refresh peak.
+        // Stages run in order and each sees the previous stage's output, so
+        // peakViewers compares against the ALREADY-incremented viewerCount.
         const stream = await Stream.findByIdAndUpdate(
           streamId,
-          { $inc: { viewerCount: 1 } },
+          [
+            accrueViewerSecondsStage,
+            {
+              $set: {
+                viewerCount: { $add: [{ $ifNull: ['$viewerCount', 0] }, 1] },
+                totalViews: { $add: [{ $ifNull: ['$totalViews', 0] }, 1] },
+                lastViewerChangeAt: '$$NOW',
+              },
+            },
+            { $set: { peakViewers: { $max: [{ $ifNull: ['$peakViewers', 0] }, '$viewerCount'] } } },
+          ],
           { new: true }
         );
         if (stream) {
@@ -97,9 +144,20 @@ async function _leaveStream(socket, ns, streamId) {
   socket.data.currentStreamId = null;
 
   try {
+    // Close the prior concurrency segment, then drop the live gauge by one
+    // (clamped ≥ 0). totalViews/peakViewers are untouched — a leave never
+    // reduces cumulative tune-ins or the peak.
     const stream = await Stream.findByIdAndUpdate(
       streamId,
-      [{ $set: { viewerCount: { $max: [0, { $subtract: ['$viewerCount', 1] }] } } }],
+      [
+        accrueViewerSecondsStage,
+        {
+          $set: {
+            viewerCount: { $max: [0, { $subtract: [{ $ifNull: ['$viewerCount', 0] }, 1] }] },
+            lastViewerChangeAt: '$$NOW',
+          },
+        },
+      ],
       { new: true }
     );
     if (stream) {

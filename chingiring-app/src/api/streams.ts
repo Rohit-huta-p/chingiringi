@@ -120,11 +120,22 @@ export interface StreamSummary {
   _id: string;
   title: string;
   status: 'idle' | 'live' | 'ended';
+  /** Live gauge (drifts to ~0 as the audience leaves) — not a "how many watched" figure. */
   viewerCount: number;
   startedAt?: string;
   endedAt?: string;
   createdAt: string;
   storeId?: StreamStoreLite | string;
+  // ── Past-stream analytics (backend streamModel). Present on ended streams;
+  //    older pre-instrumentation streams report 0. ──
+  /** Time-weighted average concurrent viewers. */
+  avgViewers?: number;
+  /** Cumulative tune-ins (re-joins count) — the real "total views". */
+  totalViews?: number;
+  /** Highest concurrency reached. */
+  peakViewers?: number;
+  /** Leads generated: distinct buyers who messaged the store during the stream (+grace). */
+  usersContacted?: number;
 }
 
 /**

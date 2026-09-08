@@ -14,7 +14,7 @@
  * Navigation params: none (standalone tab)
  * Stack screens reachable: BroadcasterScreen, StoreVerification
  */
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -28,13 +28,17 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
-import { Camera, ChevronRight, Radio, Play } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ChevronRight, Radio, Play, Check, Package, BadgeCheck, Lock } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { createStream, getMyStreams, formatStreamMeta } from '../../api/streams';
+import apiClient from '../../api/client';
+import { createStream, getMyStreams, formatStreamMeta, type StreamSummary } from '../../api/streams';
 import { productsAPI, type Product } from '../../api/products';
 import { type SellerStore } from '../../api/verification';
 import { ImageUploader } from '../../components/ImageUploader';
@@ -218,6 +222,136 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
   );
 };
 
+// ── Screen helpers ────────────────────────────────────────────────────────
+
+// The seller tab bar (SellerTabNavigator) is position:absolute and overlays
+// content — pad the scroll past it so the last card clears the bar.
+const TAB_BAR_CLEARANCE = 90;
+
+const inr = (n?: number) => (n ?? 0).toLocaleString('en-IN');
+
+// Compact "1.2k" style for the per-stream stat strip.
+const compact = (n?: number): string => {
+  const v = n ?? 0;
+  if (v >= 1000) {
+    const k = v / 1000;
+    return `${k >= 10 || Number.isInteger(k) ? Math.round(k) : k.toFixed(1)}k`;
+  }
+  return String(v);
+};
+
+// "21 Aug · 18:42" (date + duration) — the subline for a stream that has real
+// analytics, since the audience numbers move to the strip below it.
+const whenLine = (s: StreamSummary): string => {
+  const parts: string[] = [];
+  const when = s.startedAt || s.createdAt;
+  if (when) parts.push(new Date(when).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
+  if (s.startedAt && s.endedAt) {
+    const secs = Math.max(0, Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000));
+    parts.push(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`);
+  }
+  return parts.join(' · ');
+};
+
+// Only ended streams recorded after the analytics landed carry real numbers;
+// older rows read 0 across the board, so fall back to the legacy meta line and
+// hide the strip rather than show a dead "0 · 0 · 0".
+const hasAnalytics = (s: StreamSummary): boolean =>
+  s.status === 'ended' &&
+  ((s.avgViewers ?? 0) > 0 || (s.totalViews ?? 0) > 0 || (s.usersContacted ?? 0) > 0);
+
+interface StoreStats { followerCount: number; totalProducts: number; }
+async function fetchStoreStats(storeId: string): Promise<StoreStats> {
+  try {
+    const res = await apiClient.get(`/api/stores/${storeId}/stats`);
+    const d = res.data?.data ?? res.data ?? {};
+    return { followerCount: d.followerCount ?? 0, totalProducts: d.totalProducts ?? 0 };
+  } catch {
+    return { followerCount: 0, totalProducts: 0 };
+  }
+}
+
+const lockTitle = (status?: SellerStore['verificationStatus']): string =>
+  status === 'pending' ? 'Verification under review'
+    : status === 'rejected' ? 'Verification needs attention'
+      : 'Verify your store to go live';
+
+const lockSub = (status: SellerStore['verificationStatus'] | undefined, reason?: string): string =>
+  status === 'pending' ? "We're reviewing your documents — you can go live the moment they're approved."
+    : status === 'rejected' ? (reason ? `Rejected: ${reason}` : 'Your submission needs changes — resubmit to continue.')
+      : 'Going live unlocks as soon as your store is verified.';
+
+// ── Pulsing "ping" ring behind the GO LIVE button ─────────────────────────
+const PulseRing: React.FC = () => {
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 2400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [progress]);
+
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1.3] });
+  const opacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] });
+  return <Animated.View pointerEvents="none" style={[styles.pulseRing, { opacity, transform: [{ scale }] }]} />;
+};
+
+// ── Locked / no-store hero (verification gate) ────────────────────────────
+const LockedHero: React.FC<{
+  icon: React.ReactNode; title: string; sub: string; cta: string; onPress: () => void;
+}> = ({ icon, title, sub, cta, onPress }) => (
+  <View style={styles.lockedHero}>
+    <View style={styles.lockedIcon}>{icon}</View>
+    <Text style={styles.lockedTitle}>{title}</Text>
+    <Text style={styles.lockedSub}>{sub}</Text>
+    <Pressable style={styles.lockedBtn} onPress={onPress} accessibilityRole="button" accessibilityLabel={cta}>
+      <Text style={styles.lockedBtnText}>{cta}</Text>
+    </Pressable>
+  </View>
+);
+
+// ── Per-stream stat strip (avg viewers · total views · contacted) ─────────
+const Stat: React.FC<{ value: string; label: string }> = ({ value, label }) => (
+  <View style={styles.stat}>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </View>
+);
+
+const StreamCard: React.FC<{ s: StreamSummary }> = ({ s }) => {
+  const analytics = hasAnalytics(s);
+  return (
+    <View style={styles.streamCard}>
+      <View style={styles.streamCardTop}>
+        <View style={styles.streamThumb}>
+          <Play size={14} color="#fff" fill="#fff" />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.streamRowTitle} numberOfLines={1}>{s.title || 'Untitled stream'}</Text>
+          <Text style={styles.streamRowMeta}>{analytics ? whenLine(s) : formatStreamMeta(s)}</Text>
+        </View>
+        <ChevronRight size={17} color="#cbd5e1" />
+      </View>
+
+      {analytics ? (
+        <View style={styles.statStrip}>
+          <Stat value={compact(s.avgViewers)} label="Avg viewers" />
+          <View style={styles.statDivider} />
+          <Stat value={compact(s.totalViews)} label="Total views" />
+          <View style={styles.statDivider} />
+          <Stat value={compact(s.usersContacted)} label="Contacted" />
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
 // ── GoLiveTabScreen ───────────────────────────────────────────────────────
 
 export const GoLiveTabScreen: React.FC = () => {
@@ -227,13 +361,23 @@ export const GoLiveTabScreen: React.FC = () => {
 
   const { data: store, isLoading } = useMyStore();
 
+  const { data: stats } = useQuery({
+    queryKey: ['seller', 'stats', store?._id],
+    queryFn: () => fetchStoreStats(store!._id),
+    enabled: !!store?._id,
+    staleTime: 60_000,
+  });
+
   const { data: recentStreams = [] } = useQuery({
     queryKey: ['seller', 'streams', 'golive'],
     queryFn: () => getMyStreams(10),
+    enabled: !!store,
     staleTime: 60_000,
   });
 
   const isVerified = store?.verificationStatus === 'verified';
+  const followers = stats?.followerCount ?? 0;
+  const productCount = stats?.totalProducts ?? 0;
 
   if (isLoading) {
     return (
@@ -244,82 +388,110 @@ export const GoLiveTabScreen: React.FC = () => {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {!isVerified ? (
-          /* ── State A: unverified ── */
-          <Pressable
-            style={styles.verifyBanner}
-            onPress={() => navigation.navigate('StoreVerification', { store })}
-          >
-            <Text style={styles.verifyBannerText}>⚠️ Verify your store to unlock live streaming</Text>
-            <Text style={styles.verifyBannerLink}>Submit your documents →</Text>
-          </Pressable>
-        ) : (
-          /* ── State B: verified — hero ── */
-          <View style={styles.hero}>
-            <View style={styles.heroIconWrap}>
-              <Camera size={48} color={Colors.orange} />
-            </View>
-            <Text style={styles.heroTitle}>You're ready to go live!</Text>
-            <Text style={styles.heroSub}>Connect with your buyers in real time</Text>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 8, paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Go Live</Text>
+        {isVerified ? (
+          <View style={styles.verifiedPill}>
+            <BadgeCheck size={13} color="#059669" strokeWidth={2.4} />
+            <Text style={styles.verifiedPillText}>Verified</Text>
+          </View>
+        ) : null}
+      </View>
 
+      {/* ── Primary state: no-store / locked / the Big Button ── */}
+      {!store ? (
+        <LockedHero
+          icon={<Package size={28} color={Colors.orange} strokeWidth={2} />}
+          title="Set up your store to go live"
+          sub="Create your store first, then you can start streaming to your buyers."
+          cta="Set up my store"
+          onPress={() => navigation.navigate('BusinessOnboarding')}
+        />
+      ) : !isVerified ? (
+        <LockedHero
+          icon={<Lock size={26} color={Colors.orange} strokeWidth={2} />}
+          title={lockTitle(store.verificationStatus)}
+          sub={lockSub(store.verificationStatus, store.verificationDoc?.rejectionReason)}
+          cta={store.verificationStatus === 'pending' ? 'View status' : 'Verify my store'}
+          onPress={() => navigation.navigate('StoreVerification', { store })}
+        />
+      ) : (
+        <View style={styles.heroBlock}>
+          {/* Big pulsing GO LIVE button → opens the setup sheet */}
+          <View style={styles.bigWrap}>
             <Pressable
-              style={styles.liveBtn}
+              style={styles.bigButtonHit}
               onPress={() => setModalOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel="Start Live Stream"
+              accessibilityLabel="Start a live stream"
             >
-              <Text style={styles.liveBtnText}>▶ Start Live Stream</Text>
+              <PulseRing />
+              <View style={styles.ringStatic} pointerEvents="none" />
+              <LinearGradient
+                colors={['#ff9a52', '#F97316']}
+                start={{ x: 0.2, y: 0 }}
+                end={{ x: 0.8, y: 1 }}
+                style={styles.bigButton}
+              >
+                <Video size={34} color="#fff" strokeWidth={2} />
+                <Text style={styles.bigButtonText}>GO LIVE</Text>
+              </LinearGradient>
+            </Pressable>
+
+            <Text style={styles.bigTitle}>Start a live stream</Text>
+            <Text style={styles.bigSub}>
+              {followers > 0 ? (
+                <>Tap to set up, then go on air. <Text style={styles.bigSubStrong}>{inr(followers)} followers</Text> get notified.</>
+              ) : (
+                'Tap to set up, then go on air.'
+              )}
+            </Text>
+          </View>
+
+          {/* Readiness chips — real signals only */}
+          <View style={styles.chipsRow}>
+            <View style={styles.readyChip}>
+              <Check size={13} color="#10b981" strokeWidth={2.6} />
+              <Text style={styles.readyChipText}>Store verified</Text>
+            </View>
+            <Pressable style={styles.readyChip} onPress={() => navigation.navigate('MyStore')}>
+              <Package size={13} color={productCount > 0 ? '#10b981' : Colors.textSecondary} strokeWidth={2.4} />
+              <Text style={styles.readyChipText}>
+                {productCount > 0 ? `${productCount} product${productCount === 1 ? '' : 's'}` : 'Add products'}
+              </Text>
             </Pressable>
           </View>
-        )}
-
-        {/* ── Tips ── */}
-        <Text style={styles.sectionTitle}>Tips for a great stream</Text>
-        <View style={styles.tips}>
-          {[
-            { icon: '💡', text: 'Good lighting makes a big difference' },
-            { icon: '📦', text: 'Feature your bestsellers first' },
-            { icon: '💬', text: 'Engage with comments regularly' },
-          ].map((tip) => (
-            <View key={tip.text} style={styles.tipCard}>
-              <Text style={styles.tipIcon}>{tip.icon}</Text>
-              <Text style={styles.tipText}>{tip.text}</Text>
-            </View>
-          ))}
         </View>
+      )}
 
-        {/* ── Previous streams ── */}
-        <Text style={styles.sectionTitle}>Previous Streams</Text>
-        {recentStreams.length > 0 ? (
-          <View style={styles.streamList}>
-            {recentStreams.map((s) => (
-              <View key={s._id} style={styles.streamRow}>
-                <View style={styles.streamThumb}>
-                  <Play size={16} color="#fff" fill="#fff" />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.streamRowTitle} numberOfLines={1}>{s.title || 'Untitled stream'}</Text>
-                  <Text style={styles.streamRowMeta}>{formatStreamMeta(s)}</Text>
-                </View>
-                <ChevronRight size={18} color="#cbd5e1" />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.streamsEmpty}>
-            <Radio size={26} color={Colors.border} />
-            <Text style={styles.streamsEmptyText}>Streams you've gone live with will appear here.</Text>
-          </View>
-        )}
-      </ScrollView>
+      {/* ── Your last streams ── */}
+      {store ? (
+        <View>
+          <Text style={styles.sectionLabel}>Your last streams</Text>
+          {recentStreams.length > 0 ? (
+            <View style={{ gap: 10 }}>
+              {recentStreams.map((s) => <StreamCard key={s._id} s={s} />)}
+            </View>
+          ) : (
+            <View style={styles.streamsEmpty}>
+              <Radio size={26} color={Colors.border} />
+              <Text style={styles.streamsEmptyText}>Streams you've gone live with will appear here.</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
 
       <GoLiveModal visible={modalOpen} onClose={() => setModalOpen(false)} store={store ?? null} />
-    </View>
+    </ScrollView>
   );
 };
 
@@ -328,59 +500,102 @@ export const GoLiveTabScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  content: { padding: 16, gap: 8 },
-  streamList: { gap: 10 },
-  streamRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, borderRadius: 12, padding: 10,
+  content: { paddingHorizontal: 16, gap: 18 },
+
+  // Header
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4 },
+  headerTitle: { flex: 1, fontSize: 22, fontFamily: Fonts.extraBold, color: Colors.navy },
+  verifiedPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(16,185,129,0.14)', borderRadius: 20, paddingVertical: 5, paddingHorizontal: 11,
+  },
+  verifiedPillText: { fontSize: 11.5, fontFamily: Fonts.bold, color: '#059669' },
+
+  // Big Button hero
+  heroBlock: { alignItems: 'center', gap: 18 },
+  bigWrap: { alignItems: 'center' },
+  bigButtonHit: { width: 190, height: 190, alignItems: 'center', justifyContent: 'center' },
+  pulseRing: {
+    position: 'absolute', width: 190, height: 190, borderRadius: 95,
+    backgroundColor: 'rgba(249,115,22,0.18)',
+  },
+  ringStatic: {
+    position: 'absolute', width: 158, height: 158, borderRadius: 79,
+    backgroundColor: 'rgba(249,115,22,0.12)',
+  },
+  bigButton: {
+    width: 136, height: 136, borderRadius: 68,
+    alignItems: 'center', justifyContent: 'center', gap: 5,
+    shadowColor: Colors.orange, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.5, shadowRadius: 22, elevation: 10,
+  },
+  bigButtonText: { fontSize: 14, fontFamily: Fonts.extraBold, color: '#fff', letterSpacing: 1 },
+  bigTitle: { fontSize: 18, fontFamily: Fonts.extraBold, color: Colors.navy, marginTop: 22 },
+  bigSub: {
+    fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary,
+    marginTop: 5, textAlign: 'center', maxWidth: 260, lineHeight: 19,
+  },
+  bigSubStrong: { fontFamily: Fonts.bold, color: Colors.text },
+
+  // Readiness chips
+  chipsRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 8 },
+  readyChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 20, paddingVertical: 7, paddingHorizontal: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  readyChipText: { fontSize: 12, fontFamily: Fonts.semiBold, color: Colors.text },
+
+  // Section label
+  sectionLabel: {
+    fontSize: 11.5, fontFamily: Fonts.bold, letterSpacing: 0.5, textTransform: 'uppercase',
+    color: Colors.textSecondary, marginBottom: 11,
+  },
+
+  // Past-stream cards
+  streamCard: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 11,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
   },
+  streamCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   streamThumb: {
-    width: 56, height: 56, borderRadius: 10,
+    width: 46, height: 46, borderRadius: 10,
     backgroundColor: Colors.navy, alignItems: 'center', justifyContent: 'center',
   },
   streamRowTitle: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
-  streamRowMeta: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+  streamRowMeta: { fontSize: 11.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
 
-  verifyBanner: {
-    backgroundColor: '#FEF9C3', borderRadius: 10, padding: 16, gap: 8,
+  // Stat strip
+  statStrip: {
+    flexDirection: 'row', marginTop: 10, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  verifyBannerText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
-  verifyBannerLink: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.orange },
-
-  hero: {
-    backgroundColor: Colors.surface, borderRadius: 16, padding: 32, alignItems: 'center', gap: 8,
-  },
-  heroIconWrap: {
-    width: 88, height: 88, borderRadius: 44,
-    backgroundColor: 'rgba(249,115,22,0.1)', alignItems: 'center', justifyContent: 'center',
-    marginBottom: 4,
-  },
-  heroTitle: { fontSize: 22, fontFamily: Fonts.extraBold, color: Colors.navy, textAlign: 'center' },
-  heroSub: {
-    fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary,
-    textAlign: 'center', marginBottom: 24,
-  },
-  liveBtn: {
-    width: '100%', height: 52, borderRadius: 12,
-    backgroundColor: Colors.orange, alignItems: 'center', justifyContent: 'center',
-  },
-  liveBtnText: { fontSize: 16, fontFamily: Fonts.semiBold, color: '#fff' },
-
-  sectionTitle: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text, marginTop: 16, marginBottom: 4 },
-
-  tips: { gap: 8 },
-  tipCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surface, borderRadius: 10, padding: 14,
-  },
-  tipIcon: { fontSize: 20 },
-  tipText: { flex: 1, fontSize: 13, fontFamily: Fonts.regular, color: Colors.text },
+  stat: { flex: 1, alignItems: 'center', gap: 1 },
+  statValue: { fontSize: 14, fontFamily: Fonts.extraBold, color: Colors.navy },
+  statLabel: { fontSize: 10, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  statDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 2 },
 
   streamsEmpty: {
-    backgroundColor: Colors.surface, borderRadius: 10, padding: 20, alignItems: 'center', gap: 8,
+    backgroundColor: Colors.surface, borderRadius: 12, padding: 20, alignItems: 'center', gap: 8,
   },
   streamsEmptyText: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary, textAlign: 'center' },
+
+  // Locked / no-store hero
+  lockedHero: {
+    backgroundColor: Colors.surface, borderRadius: 18, padding: 28, alignItems: 'center', gap: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
+  },
+  lockedIcon: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: 'rgba(249,115,22,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  lockedTitle: { fontSize: 17, fontFamily: Fonts.extraBold, color: Colors.navy, textAlign: 'center' },
+  lockedSub: {
+    fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary,
+    textAlign: 'center', lineHeight: 19, marginBottom: 8,
+  },
+  lockedBtn: { backgroundColor: Colors.orange, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 26 },
+  lockedBtnText: { fontSize: 14, fontFamily: Fonts.bold, color: '#fff' },
 });
 
 const modal = StyleSheet.create({

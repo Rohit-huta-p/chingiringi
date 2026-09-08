@@ -23,13 +23,14 @@ import { LayoutDashboard, Store, Video, User } from 'lucide-react-native';
 // Note: LayoutDashboard + Video kept — still used in SELLER_TAB_ICON_MAP below.
 import { Colors, Fonts } from '../constants/theme';
 
-// Profile tab reuses the existing mobile profile screen
-import { MobileProfileScreen } from '../screens/Dashboard/MobileProfileScreen';
 import { MobileEditProfileScreen } from '../screens/Dashboard/MobileEditProfileScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
 import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileProductDetailScreen } from '../screens/Dashboard/MobileProductDetailScreen';
 import { MobileAboutScreen } from '../screens/Dashboard/MobileAboutScreen';
+// Seller Profile "My content" targets (registered below so those rows resolve).
+import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
+import { BlockedAccountsScreen } from '../screens/Dashboard/BlockedAccountsScreen';
 import { MessagesScreen } from '../screens/Messages/MessagesScreen';
 import { ChatScreen } from '../screens/Messages/ChatScreen';
 import { EditStoreDetailsScreen } from '../screens/Seller/EditStoreDetailsScreen';
@@ -42,6 +43,7 @@ import { StoreVerificationScreen } from '../screens/Seller/StoreVerificationScre
 import { SellerDashboardScreen } from '../screens/Seller/SellerDashboardScreen';
 import { GoLiveTabScreen } from '../screens/Seller/GoLiveTabScreen';
 import { MyStoreScreen } from '../screens/Seller/MyStoreScreen';
+import { SellerProfileTabScreen } from '../screens/Seller/SellerProfileTabScreen';
 import { BroadcasterScreen } from '../screens/Live/BroadcasterScreen';
 
 // ─── Tab icon map ──────────────────────────────────────────────────────────
@@ -136,7 +138,7 @@ function SellerBottomTabs() {
       <Tab.Screen name="Dashboard" component={SellerDashboardScreen} options={{ tabBarLabel: 'Dashboard' }} />
       <Tab.Screen name="MyStore"   component={MyStoreScreen}         options={{ tabBarLabel: 'My Store' }} />
       <Tab.Screen name="GoLive"    component={GoLiveTabScreen}       options={{ tabBarLabel: 'Go Live' }} />
-      <Tab.Screen name="Profile"   component={MobileProfileScreen}   options={{ tabBarLabel: 'Profile' }} />
+      <Tab.Screen name="Profile"   component={SellerProfileTabScreen} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
   );
 }
@@ -161,6 +163,8 @@ export default function SellerTabNavigator() {
         <Stack.Screen name="Chat"               component={ChatScreen} />
         <Stack.Screen name="ProductDetail"      component={MobileProductDetailScreen} />
         <Stack.Screen name="About"              component={MobileAboutScreen} />
+        <Stack.Screen name="MyVideos"           component={MyVideosScreen} />
+        <Stack.Screen name="BlockedAccounts"    component={BlockedAccountsScreen} />
       </Stack.Navigator>
     </SafeAreaView>
   );

@@ -1,9 +1,83 @@
 import Stream from './streamModel.js';
 import Store from '../stores/storeModel.js';
+import { Message } from '../chat/chatModel.js';
 import * as mux from '../../services/muxVideo.js';
 
 // Live video is Mux (RTMP ingest → HLS playback). The Mux helpers live in
 // services/muxVideo.js and reuse the same Basic-auth token as the VOD provider.
+
+// ── Past-stream analytics helpers ─────────────────────────────────────────────
+
+// A buyer messaging the store within this window of a stream's end counts as a
+// lead that stream generated (buyers often message right after it wraps).
+const LEAD_GRACE_MS = 15 * 60 * 1000;
+
+// Freeze the audience analytics when a stream ends: flush the final concurrency
+// segment into viewerSeconds, then derive the time-weighted average + peak.
+// Mutates the (non-lean) stream doc in place; caller saves.
+const finalizeStreamMetrics = (stream) => {
+  const endedAt = stream.endedAt || new Date();
+  const startedAt = stream.startedAt || stream.createdAt || endedAt;
+  const lastChange = stream.lastViewerChangeAt || startedAt;
+
+  const segmentSecs = Math.max(0, (endedAt.getTime() - new Date(lastChange).getTime()) / 1000);
+  stream.viewerSeconds = (stream.viewerSeconds || 0) + (stream.viewerCount || 0) * segmentSecs;
+
+  const durationSecs = Math.max(1, (endedAt.getTime() - new Date(startedAt).getTime()) / 1000);
+  stream.avgViewers = Math.round(stream.viewerSeconds / durationSecs);
+  stream.peakViewers = Math.max(stream.peakViewers || 0, stream.viewerCount || 0);
+  // NB: viewerCount (the live gauge) is left as-is, not zeroed — the shared
+  // formatStreamMeta still reads it for older rows, and totalViews/avgViewers
+  // are the authoritative post-stream figures now.
+  stream.lastViewerChangeAt = endedAt;
+};
+
+// Enrich each (lean) stream with usersContacted = "leads generated": the count
+// of DISTINCT buyers who messaged the store during that stream's live window
+// [startedAt, endedAt + grace]. Messages carry no streamId, so we bucket buyer
+// messages by window in JS after ONE aggregation for the whole page (a seller's
+// streams rarely overlap in time, so each message lands in at most one window).
+const attachLeadsGenerated = async (streams) => {
+  for (const s of streams) s.usersContacted = 0; // default so the field is always present
+  if (!streams.length) return;
+
+  const storeIds = [
+    ...new Map(
+      streams.map((s) => {
+        const id = s.storeId?._id || s.storeId;
+        return [String(id), id];
+      })
+    ).values(),
+  ];
+  const minStart = new Date(Math.min(...streams.map((s) => new Date(s.startedAt || s.createdAt).getTime())));
+
+  let rows = [];
+  try {
+    rows = await Message.aggregate([
+      { $match: { senderRole: 'buyer', createdAt: { $gte: minStart } } },
+      { $lookup: { from: 'conversations', localField: 'conversationId', foreignField: '_id', as: 'c' } },
+      { $unwind: '$c' },
+      { $match: { 'c.storeId': { $in: storeIds } } },
+      { $project: { _id: 0, buyerId: '$c.buyerId', storeId: '$c.storeId', createdAt: 1 } },
+    ]);
+  } catch (err) {
+    console.warn('[getMyStreams] leads aggregation failed:', err.message);
+    return; // leave usersContacted at 0 rather than failing the whole list
+  }
+
+  for (const s of streams) {
+    const storeId = String(s.storeId?._id || s.storeId);
+    const start = new Date(s.startedAt || s.createdAt).getTime();
+    const end = (s.endedAt ? new Date(s.endedAt).getTime() : Date.now()) + LEAD_GRACE_MS;
+    const buyers = new Set();
+    for (const r of rows) {
+      if (String(r.storeId) !== storeId) continue;
+      const t = new Date(r.createdAt).getTime();
+      if (t >= start && t <= end) buyers.add(String(r.buyerId));
+    }
+    s.usersContacted = buyers.size;
+  }
+};
 
 // ── Controllers ──────────────────────────────────────────────────────────────
 
@@ -119,6 +193,7 @@ export const endStream = async (req, res) => {
 
   stream.status  = 'ended';
   stream.endedAt = new Date();
+  finalizeStreamMetrics(stream); // freeze avg/peak from the concurrency curve
   await stream.save();
 
   // Mark store offline
@@ -173,6 +248,7 @@ export const muxLiveWebhook = async (req, res) => {
     // Reconnect window elapsed with no ingest — the broadcaster is gone.
     stream.status = 'ended';
     stream.endedAt = new Date();
+    finalizeStreamMetrics(stream); // freeze avg/peak even on an abrupt end
     await stream.save();
     await Store.findByIdAndUpdate(stream.storeId, { isLive: false });
     mux.completeLiveStream(stream.muxStreamId).catch(() => {});
@@ -234,6 +310,9 @@ export const getMyStreams = async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(limit)
     .lean();
+
+  // Derive "leads generated" per stream (buyers who messaged during its window).
+  await attachLeadsGenerated(streams);
 
   res.status(200).json({ status: 'success', data: { streams } });
 };
