@@ -45,7 +45,7 @@ export const unfollowStore = async (req, res) => {
     // Decrement followerCount, floor at 0
     await Store.findByIdAndUpdate(storeId, [
       { $set: { followerCount: { $max: [0, { $subtract: ['$followerCount', 1] }] } } },
-    ]);
+    ], { updatePipeline: true }); // Mongoose 9 requires this for array (aggregation) updates
   }
 
   res.status(200).json({ message: 'Unfollowed store', storeId, following: false });

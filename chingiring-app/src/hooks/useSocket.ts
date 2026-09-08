@@ -47,6 +47,8 @@ export interface UseSocketOptions {
   onHeartBurst?: (count: number) => void;
   onNewChat?: (msg: LiveChatMsg) => void;
   onStreamEnded?: () => void;
+  /** False for the broadcaster's own connection so it isn't counted as a viewer. Default true. */
+  countAsViewer?: boolean;
 }
 
 // ── Token helper (cross-platform) ──────────────────────────────────────────
@@ -73,6 +75,7 @@ export function useSocket({
   onHeartBurst,
   onNewChat,
   onStreamEnded,
+  countAsViewer = true,
 }: UseSocketOptions): {
   sendHeart: () => void;
   sendChat: (text: string) => void;
@@ -102,7 +105,10 @@ export function useSocket({
       if (!mounted) return; // component unmounted while we were reading the token
 
       socket = io(`${baseURL}/stream`, {
-        transports: ['websocket'],
+        // Allow polling fallback — websocket-only silently fails to connect
+        // through some tunnels/proxies (e.g. Cloudflare), which killed the
+        // viewer count.
+        transports: ['websocket', 'polling'],
         auth: token ? { token } : {},
         reconnection: true,
         reconnectionAttempts: 5,
@@ -112,7 +118,7 @@ export function useSocket({
 
       // Join stream room as soon as the socket is connected (or reconnected).
       socket.on('connect', () => {
-        socket!.emit('join_stream', { streamId });
+        socket!.emit('join_stream', { streamId, countAsViewer });
       });
 
       // ── Server → client events ──────────────────────────────────────────
@@ -133,9 +139,9 @@ export function useSocket({
 
       socket.on(
         'new_chat',
-        (msg: { streamId: string; user: { name?: string; username?: string; avatarUrl?: string } | null; text: string; timestamp: string }) => {
+        (msg: { streamId: string; user: { name?: string; avatarUrl?: string } | null; text: string; timestamp: string }) => {
           const displayName =
-            msg.user?.name ?? msg.user?.username ?? 'Guest';
+            msg.user?.name ?? 'Guest';
           cbRef.current.onNewChat?.({
             // Use a composite key: timestamp + random suffix ensures uniqueness
             // even when the same message arrives in back-to-back frames.

@@ -45,18 +45,26 @@ export function attachStreamSocket(ns) {
     const user = socket.data.user;
 
     // ── join_stream ────────────────────────────────────────────────────────
-    socket.on('join_stream', async ({ streamId } = {}) => {
+    socket.on('join_stream', async ({ streamId, countAsViewer = true } = {}) => {
       if (!streamId) return;
       const room = `stream:${streamId}`;
       socket.join(room);
       socket.data.currentRoom = room;
       socket.data.currentStreamId = streamId;
+      // The broadcaster joins to receive hearts/chat/count but must NOT be
+      // counted as a viewer of its own stream.
+      socket.data.counted = countAsViewer !== false;
 
       try {
+        if (!socket.data.counted) {
+          // Non-viewer (broadcaster): don't increment — just send it the current
+          // real count so its "watching" number is accurate (0 with no viewers).
+          const s = await Stream.findById(streamId).select('viewerCount').lean();
+          socket.emit('viewer_count_update', { streamId, count: s?.viewerCount ?? 0 });
+          return;
+        }
         // Atomic pipeline: close the prior concurrency segment, then bump the
         // live gauge + the monotonic totalViews counter, then refresh peak.
-        // Stages run in order and each sees the previous stage's output, so
-        // peakViewers compares against the ALREADY-incremented viewerCount.
         const stream = await Stream.findByIdAndUpdate(
           streamId,
           [
@@ -70,7 +78,7 @@ export function attachStreamSocket(ns) {
             },
             { $set: { peakViewers: { $max: [{ $ifNull: ['$peakViewers', 0] }, '$viewerCount'] } } },
           ],
-          { new: true }
+          { new: true, updatePipeline: true } // Mongoose 9 requires this for array (aggregation) updates
         );
         if (stream) {
           ns.to(room).emit('viewer_count_update', {
@@ -143,6 +151,10 @@ async function _leaveStream(socket, ns, streamId) {
   socket.data.currentRoom = null;
   socket.data.currentStreamId = null;
 
+  // A non-viewer (broadcaster) never incremented the count, so it must not
+  // decrement on leave — otherwise the gauge drifts negative-clamped to 0.
+  if (socket.data.counted === false) return;
+
   try {
     // Close the prior concurrency segment, then drop the live gauge by one
     // (clamped ≥ 0). totalViews/peakViewers are untouched — a leave never
@@ -158,7 +170,7 @@ async function _leaveStream(socket, ns, streamId) {
           },
         },
       ],
-      { new: true }
+      { new: true, updatePipeline: true } // Mongoose 9 requires this for array (aggregation) updates
     );
     if (stream) {
       ns.to(room).emit('viewer_count_update', {
