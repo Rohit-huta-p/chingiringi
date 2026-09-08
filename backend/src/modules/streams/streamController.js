@@ -128,13 +128,13 @@ export const createStream = async (req, res) => {
     title:         title.slice(0, 120),
     category:      (category || '').slice(0, 40),
     thumbnail:     thumbnail || '',
-    status:        'live',
-    startedAt:     new Date(),
+    status:        'idle', // flips to 'live' only when RTMP actually connects (markStreamLive)
     products:      Array.isArray(productIds) ? productIds.slice(0, 30) : [],
   });
 
-  // Mark store as live
-  await Store.findByIdAndUpdate(storeId, { isLive: true });
+  // NOTE: stream.status + store.isLive flip to live in markStreamLive, once the
+  // broadcaster's RTMP session connects — so a failed/aborted attempt never
+  // appears in the live feed or the seller's past streams.
 
   res.status(201).json({
     status: 'success',
@@ -219,11 +219,47 @@ export const endStream = async (req, res) => {
   res.status(200).json({ status: 'success', data: { ok: true } });
 };
 
+// @desc    Broadcaster confirms the RTMP session connected → flip idle → live.
+//          Called from the app on onConnectionSuccess. Idempotent.
+// @route   POST /api/streams/:id/live
+// @access  Private (owner)
+export const markStreamLive = async (req, res) => {
+  const stream = await Stream.findById(req.params.id);
+  if (!stream) { res.status(404); throw new Error('Stream not found'); }
+  if (stream.ownerId.toString() !== req.user._id.toString()) {
+    res.status(403); throw new Error('You do not own this stream');
+  }
+  if (stream.status === 'idle') {
+    stream.status = 'live';
+    stream.startedAt = new Date();
+    await stream.save();
+    await Store.findByIdAndUpdate(stream.storeId, { isLive: true });
+  }
+  res.status(200).json({ status: 'success', data: { ok: true } });
+};
+
+// @desc    Abort a stream that never went live (RTMP failed / seller backed out)
+//          → delete it so it never lingers as a phantom or a past stream.
+// @route   POST /api/streams/:id/abort
+// @access  Private (owner)
+export const abortStream = async (req, res) => {
+  const stream = await Stream.findById(req.params.id);
+  if (!stream) { res.status(200).json({ status: 'success', data: { ok: true } }); return; }
+  if (stream.ownerId.toString() !== req.user._id.toString()) {
+    res.status(403); throw new Error('You do not own this stream');
+  }
+  // Only a never-live stream is safe to delete; a live/ended one uses endStream.
+  if (stream.status === 'idle') {
+    mux.completeLiveStream(stream.muxStreamId).catch(() => {});
+    await Stream.deleteOne({ _id: stream._id });
+  }
+  res.status(200).json({ status: 'success', data: { ok: true } });
+};
+
 // @desc    Mux live-stream webhook — confirms/cleans up stream status from the
 //          real ingest lifecycle (active → live; idle → auto-end if the
-//          broadcaster crashed / closed without pressing End). Optional: the
-//          app already marks a stream live at createStream, so streaming works
-//          without this wired; it just keeps DB state honest.
+//          broadcaster crashed / closed without pressing End). Complements the
+//          app's markStreamLive; keeps DB state honest even if the app dies.
 // @route   POST /api/webhooks/mux-live   (raw body — mounted before express.json)
 // @access  Public (Mux; HMAC-verified)
 export const muxLiveWebhook = async (req, res) => {
@@ -269,10 +305,35 @@ export const muxLiveWebhook = async (req, res) => {
  * Public — returns live streams sorted by viewer count desc.
  */
 export const getActiveStreams = async (req, res) => {
-  const streams = await Stream.find({ status: 'live' })
+  let streams = await Stream.find({ status: 'live' })
     .populate('storeId', 'name shortName logoUrl category city')
     .sort({ viewerCount: -1 })
     .lean();
+
+  // Reconcile against Mux — a stream is only truly live while Mux is receiving
+  // ingest. End any whose ingest has stopped (broadcaster dropped or closed the
+  // app without tapping End) so buyers don't see phantom lives. A short grace
+  // window avoids ending a stream in the seconds before Mux registers ingest.
+  const GRACE_MS = 45_000;
+  const now = Date.now();
+  const staleIds = [];
+  await Promise.all(streams.map(async (s) => {
+    if (!s.muxStreamId) return;
+    const startedMs = new Date(s.startedAt || s.createdAt).getTime();
+    if (now - startedMs < GRACE_MS) return; // too fresh — trust the DB
+    const st = await mux.muxLiveStatus(s.muxStreamId);
+    if (st && st !== 'active' && st !== 'connected') staleIds.push(s._id);
+  }));
+  if (staleIds.length) {
+    const staleSet = new Set(staleIds.map(String));
+    await Stream.updateMany({ _id: { $in: staleIds } }, { $set: { status: 'ended', endedAt: new Date() } });
+    const staleStoreIds = streams
+      .filter((s) => staleSet.has(String(s._id)))
+      .map((s) => s.storeId?._id || s.storeId)
+      .filter(Boolean);
+    if (staleStoreIds.length) await Store.updateMany({ _id: { $in: staleStoreIds } }, { $set: { isLive: false } });
+    streams = streams.filter((s) => !staleSet.has(String(s._id)));
+  }
 
   res.status(200).json({ status: 'success', data: { streams } });
 };
@@ -286,7 +347,7 @@ export const getActiveStreams = async (req, res) => {
 export const getStream = async (req, res) => {
   const stream = await Stream.findById(req.params.id)
     .populate('storeId', 'name shortName logoUrl')
-    .populate('products', 'name price mrp imageUrl images')
+    .populate('products', 'name price mrp imageUrl images category')
     .lean();
 
   if (!stream) {

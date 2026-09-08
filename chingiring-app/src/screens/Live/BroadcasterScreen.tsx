@@ -31,6 +31,7 @@ import {
   Modal,
   TextInput,
   FlatList,
+  ScrollView,
   Image,
   ActivityIndicator,
   Share,
@@ -57,9 +58,10 @@ import {
   Clock,
   Eye,
   MessageCircle,
+  ShoppingBag,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { endStream } from '../../api/streams';
+import { endStream, markStreamLive, abortStream, getStream, type StreamProductLite } from '../../api/streams';
 import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
 // Platform-resolved: the native RTMP publisher on iOS/Android, `null` on web
 // (LiveStreamView.web.tsx) so the native-only module never enters the web bundle.
@@ -273,6 +275,13 @@ export const BroadcasterScreen: React.FC = () => {
   const [seconds, setSeconds] = useState(0);
   // RTMP publish connection state → drives the connecting / failed overlay.
   const [connState, setConnState] = useState<'connecting' | 'live' | 'failed'>('connecting');
+  // True once RTMP actually connected — decides whether ending saves a past
+  // stream (endStream) or discards a never-live attempt (abortStream).
+  const wasLiveRef = useRef(false);
+  // Exact reason a connection attempt failed (shown on the failure overlay so we
+  // can see the real cause without native logs).
+  const [connErr, setConnErr] = useState<string>('');
+  const endedRef = useRef(false); // true once we've ended/aborted (avoid double-end on unmount)
 
   // End-stream flow
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -288,14 +297,31 @@ export const BroadcasterScreen: React.FC = () => {
   const [hearts, setHearts] = useState<HeartItem[]>([]);
   const [chatText, setChatText] = useState('');
 
-  // Duration timer
+  // Featured products the seller can spotlight on the live shelf (the stream's
+  // featured set). `spotlightId` is the one currently marked "Showing" — local
+  // UI state for now; broadcasting the spotlight to viewers needs a backend
+  // `currentProductId` field + a socket event (not yet wired).
+  const [products, setProducts] = useState<StreamProductLite[]>([]);
+  const [spotlightId, setSpotlightId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!streamId) return;
+    let alive = true;
+    getStream(streamId)
+      .then((d) => { if (alive && d?.products?.length) setProducts(d.products); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [streamId]);
+
+  // Duration timer — only runs once the stream is actually LIVE (not while
+  // "Connecting…" or after a failure).
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
+    if (connState !== 'live') return;
     timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, [connState]);
 
   // Request camera permission on mount
   useEffect(() => {
@@ -305,19 +331,38 @@ export const BroadcasterScreen: React.FC = () => {
   }, [permission, requestPermission]);
 
   // ── Start pushing camera+mic to Mux over RTMPS ─────────────────────────────
-  const beginBroadcast = useCallback(() => {
+  const beginBroadcast = useCallback(async () => {
     if (startedRef.current) return;
-    if (!liveRef.current || !rtmpUrl || !streamKey) return;
+    if (!liveRef.current || !rtmpUrl || !streamKey) {
+      setConnErr(`missing: ${!liveRef.current ? 'view ' : ''}${!rtmpUrl ? 'url ' : ''}${!streamKey ? 'key' : ''}`);
+      setConnState('failed');
+      return;
+    }
     startedRef.current = true;
+    // rtmpdroid doesn't support RTMPS; both Mux ports are reachable, so use PLAIN
+    // RTMP on :5222.
+    const ingestUrl = rtmpUrl
+      .replace(/^rtmps:\/\//i, 'rtmp://')
+      .replace('global-live.mux.com:443', 'global-live.mux.com:5222');
     try {
-      // api.video: startStreaming(streamKey, rtmpServerUrl). Mux ingest =
-      // rtmps://global-live.mux.com:443/app (passed as rtmpUrl from createStream).
-      liveRef.current.startStreaming(streamKey, rtmpUrl);
-    } catch {
+      // startStreaming returns a Promise that REJECTS if the native publisher
+      // can't start (bad key, camera/codec/permission, or a broken native
+      // binding). Awaiting surfaces that instead of it being a silent timeout.
+      await liveRef.current.startStreaming(streamKey, ingestUrl);
+    } catch (e: any) {
       startedRef.current = false;
+      setConnErr('start rejected: ' + (e?.message ?? String(e)).slice(0, 120));
       setConnState('failed');
     }
   }, [rtmpUrl, streamKey]);
+
+  // RTMP actually connected → mark the stream live server-side (idle → live),
+  // which is what puts it in the live feed and starts the duration timer.
+  const handleConnected = useCallback(() => {
+    wasLiveRef.current = true;
+    setConnState('live');
+    if (streamId) markStreamLive(streamId).catch(() => {});
+  }, [streamId]);
 
   // Auto-start once the native view is mounted and camera is granted (give the
   // native surface a beat to lay out before we kick the RTMP session).
@@ -327,11 +372,38 @@ export const BroadcasterScreen: React.FC = () => {
     return () => clearTimeout(t);
   }, [permission?.granted, beginBroadcast]);
 
+  // Don't hang on "Connecting…" forever — if neither success nor failure fires
+  // within 20s, surface it as failed so the seller can retry / see the issue.
+  useEffect(() => {
+    if (connState !== 'connecting') return;
+    const t = setTimeout(() => setConnState((s) => {
+      if (s === 'connecting') { setConnErr('timed out — no response in 20s (ingest never reached Mux)'); return 'failed'; }
+      return s;
+    }), 20000);
+    return () => clearTimeout(t);
+  }, [connState]);
+
   const retryBroadcast = useCallback(() => {
+    // Stop the old publisher first — otherwise startStreaming rejects with
+    // "Stream is already running".
+    try { liveRef.current?.stopStreaming?.(); } catch { /* already down */ }
     startedRef.current = false;
+    setConnErr('');
     setConnState('connecting');
-    beginBroadcast();
+    setTimeout(() => beginBroadcast(), 400);
   }, [beginBroadcast]);
+
+  // If the seller leaves the broadcaster (back button / app close) while a live
+  // stream is still running and hasn't been ended, end it so it doesn't linger
+  // as a phantom live in the buyer feed.
+  useEffect(() => {
+    return () => {
+      try { liveRef.current?.stopStreaming?.(); } catch { /* already down */ }
+      if (streamId && wasLiveRef.current && !endedRef.current) {
+        endStream(streamId).catch(() => {});
+      }
+    };
+  }, [streamId]);
 
   // Track peak viewers as the live count moves
   useEffect(() => {
@@ -352,6 +424,7 @@ export const BroadcasterScreen: React.FC = () => {
   // ── Socket.io — same /stream namespace ViewerScreen uses ───────────────
   const { sendHeart, sendChat } = useSocket({
     streamId: streamId ?? null,
+    countAsViewer: false, // the broadcaster shouldn't count itself as a watcher
     onViewerCount: setViewerCount,
     onHeartBurst: (count) => {
       addHearts(count);
@@ -377,19 +450,30 @@ export const BroadcasterScreen: React.FC = () => {
 
   // ── End stream ──────────────────────────────────────────────────────────
   const handleConfirmEnd = useCallback(async () => {
+    endedRef.current = true;
     setEnding(true);
     try {
       try { liveRef.current?.stopStreaming?.(); } catch { /* publisher may already be down */ }
       if (timerRef.current) clearInterval(timerRef.current);
-      if (streamId) await endStream(streamId);
+      if (streamId) {
+        // Went live → save it as a past stream. Never connected → discard it so
+        // it doesn't linger as a phantom / failed "past stream".
+        if (wasLiveRef.current) await endStream(streamId);
+        else await abortStream(streamId);
+      }
     } catch {
       // Ignore — stream may have already ended or lost connection
     } finally {
       setEnding(false);
       setConfirmVisible(false);
-      setStreamEnded(true);
+      if (wasLiveRef.current) {
+        setStreamEnded(true); // show the post-stream summary for a real stream
+      } else {
+        // Failed / never-live attempt — no summary, just leave.
+        navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }));
+      }
     }
-  }, [streamId]);
+  }, [streamId, navigation]);
 
   const handleDone = useCallback(() => {
     navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }));
@@ -438,9 +522,14 @@ export const BroadcasterScreen: React.FC = () => {
             camera={facing}
             isMuted={muted}
             enablePinchedZoom
-            onConnectionSuccess={() => setConnState('live')}
-            onConnectionFailed={() => setConnState('failed')}
+            // Conservative encode so the RTMP push sustains on a weak/unstable
+            // uplink (the default ~720p high-bitrate drops after a few seconds).
+            video={{ bitrate: 1_000_000, fps: 30, resolution: { width: 854, height: 480 } }}
+            audio={{ bitrate: 64_000, sampleRate: 44_100, isStereo: false }}
+            onConnectionSuccess={handleConnected}
+            onConnectionFailed={(code: any) => { setConnErr('code: ' + String(code ?? 'unknown')); setConnState('failed'); }}
             onDisconnect={() => setConnState('connecting')}
+            onPermissionsDenied={() => { setConnErr('camera/mic permission denied'); setConnState('failed'); }}
           />
         </LiveStreamBoundary>
       ) : (
@@ -451,7 +540,8 @@ export const BroadcasterScreen: React.FC = () => {
         <>
           {/* ── Bottom gradient for legibility ── */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.82)']}
+            locations={[0, 0.35, 1]}
             style={styles.bottomGradient}
             pointerEvents="none"
           />
@@ -507,8 +597,53 @@ export const BroadcasterScreen: React.FC = () => {
             </Pressable>
           </View>
 
-          {/* ── Bottom overlay: chat feed + input row ── */}
+          {/* ── Bottom overlay: featured products + chat feed + input row ── */}
           <View style={[styles.bottomOverlay, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            {/* Featured products — the live shelf; tap Show to spotlight one */}
+            {products.length > 0 && (
+              <View style={styles.shelf}>
+                <View style={styles.shelfHead}>
+                  <ShoppingBag size={14} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+                  <Text style={styles.shelfTitle}>Featured products</Text>
+                  <Text style={styles.shelfCount}> · {products.length}</Text>
+                  <View style={{ flex: 1 }} />
+                  <Text style={styles.shelfSeeAll}>See all ›</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelfRow}>
+                  {products.map((p) => {
+                    const showing = spotlightId === p._id;
+                    return (
+                      <View key={p._id} style={[styles.prodCard, showing && styles.prodCardActive]}>
+                        {p.imageUrl ? (
+                          <Image source={{ uri: p.imageUrl }} style={styles.prodImg} />
+                        ) : (
+                          <View style={[styles.prodImg, styles.prodImgFallback]} />
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.prodName} numberOfLines={1}>{p.name}</Text>
+                          <Text style={styles.prodPrice}>₹{p.price.toLocaleString('en-IN')}</Text>
+                        </View>
+                        <Pressable
+                          onPress={() => setSpotlightId(showing ? null : p._id)}
+                          style={showing ? styles.showBtnActive : styles.showBtn}
+                          accessibilityLabel={showing ? `Stop showing ${p.name}` : `Show ${p.name}`}
+                        >
+                          {showing ? (
+                            <>
+                              <Eye size={12} color="#3d2600" strokeWidth={2.4} />
+                              <Text style={styles.showBtnActiveText}>Showing</Text>
+                            </>
+                          ) : (
+                            <Text style={styles.showBtnText}>Show</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
             <FlatList
               data={messages.slice(-5).reverse()}
               keyExtractor={(m) => m.id}
@@ -580,6 +715,7 @@ export const BroadcasterScreen: React.FC = () => {
           ) : (
             <>
               <Text style={styles.connText}>Couldn't reach the live server.</Text>
+              {!!connErr && <Text style={styles.connErrText}>{connErr}</Text>}
               <View style={styles.connBtnRow}>
                 <Pressable style={styles.retryBtn} onPress={retryBroadcast}>
                   <Text style={styles.retryText}>Retry</Text>
@@ -605,7 +741,7 @@ const styles = StyleSheet.create({
   },
 
   bottomGradient: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, height: 200,
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: 380,
   },
 
   // ── Top bar ──
@@ -623,7 +759,7 @@ const styles = StyleSheet.create({
   watchingText: { color: '#fff', fontSize: 13, fontFamily: Fonts.regular, marginLeft: 8 },
   duration: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold, marginLeft: 8 },
   iconBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center',
   },
 
@@ -661,18 +797,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8,
   },
   chatInput: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20,
-    height: 40, color: '#fff', paddingHorizontal: 14, paddingVertical: 8,
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 22,
+    height: 44, color: '#fff', paddingHorizontal: 16, paddingVertical: 8,
     fontSize: 14, fontFamily: Fonts.regular,
   },
   sendBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
   },
   heartBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center',
   },
+
+  // ── Featured products shelf ──
+  shelf: { marginBottom: 4 },
+  shelfHead: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 7 },
+  shelfTitle: { fontSize: 12, fontFamily: Fonts.bold, color: '#fff', marginLeft: 2 },
+  shelfCount: { fontSize: 11, fontFamily: Fonts.medium, color: 'rgba(255,255,255,0.55)' },
+  shelfSeeAll: { fontSize: 12, fontFamily: Fonts.bold, color: Colors.orange },
+  shelfRow: { gap: 8, paddingBottom: 2, paddingRight: 4 },
+  prodCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, width: 214,
+    backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 12, padding: 7,
+  },
+  prodCardActive: {
+    backgroundColor: 'rgba(251,191,36,0.20)', borderWidth: 1.5, borderColor: '#FBBF24',
+    shadowColor: '#FBBF24', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6,
+  },
+  prodImg: { width: 46, height: 46, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.1)' },
+  prodImgFallback: {},
+  prodName: { fontSize: 12, fontFamily: Fonts.semiBold, color: '#fff' },
+  prodPrice: { fontSize: 13, fontFamily: Fonts.extraBold, color: '#fff', marginTop: 1 },
+  showBtn: {
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)', borderRadius: 8,
+    paddingVertical: 6, paddingHorizontal: 12,
+  },
+  showBtnText: { fontSize: 11, fontFamily: Fonts.bold, color: '#fff' },
+  showBtnActive: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#FBBF24', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 9,
+  },
+  showBtnActiveText: { fontSize: 10.5, fontFamily: Fonts.extraBold, color: '#3d2600' },
 
   // ── Floating hearts ──
   heartsLayer: { ...StyleSheet.absoluteFillObject },
@@ -701,6 +868,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
   connText: { color: '#fff', fontSize: 15, fontFamily: Fonts.semiBold, textAlign: 'center', paddingHorizontal: 32 },
+  connErrText: { color: '#FCA5A5', fontSize: 12.5, fontFamily: Fonts.regular, textAlign: 'center', paddingHorizontal: 32, marginTop: 6 },
   connBtnRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   retryBtn: {
     backgroundColor: Colors.orange, borderRadius: 12,

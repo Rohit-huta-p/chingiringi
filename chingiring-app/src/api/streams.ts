@@ -37,8 +37,12 @@ export interface CreateStreamResponse {
 export async function createStream(
   payload: CreateStreamRequest,
 ): Promise<CreateStreamResponse> {
-  const res = await apiClient.post<CreateStreamResponse>('/api/streams', payload);
-  return res.data;
+  const res = await apiClient.post('/api/streams', payload);
+  // Backend shape is { status, data: {...} } and the axios interceptor returns
+  // the FULL response, so the credentials live at res.data.data — NOT res.data
+  // (that's the wrapper; returning it left rtmpUrl/streamKey/streamId undefined
+  // and the broadcaster could never start). See api-response-shape-wrapper.
+  return (res.data?.data ?? res.data) as CreateStreamResponse;
 }
 
 // ── End stream ─────────────────────────────────────────────────────────────
@@ -50,6 +54,16 @@ export async function createStream(
  */
 export async function endStream(streamId: string): Promise<void> {
   await apiClient.post(`/api/streams/${streamId}/end`);
+}
+
+/** Broadcaster's RTMP session connected → flip the stream idle → live. */
+export async function markStreamLive(streamId: string): Promise<void> {
+  await apiClient.post(`/api/streams/${streamId}/live`);
+}
+
+/** Never went live (RTMP failed / backed out) → delete it so it isn't saved. */
+export async function abortStream(streamId: string): Promise<void> {
+  await apiClient.post(`/api/streams/${streamId}/abort`);
 }
 
 // ── Viewer token ───────────────────────────────────────────────────────────
@@ -79,6 +93,8 @@ export interface StreamProductLite {
   mrp?: number;
   imageUrl?: string;
   images?: string[];
+  /** Category label — powers the "See all" sheet's filter chips. */
+  category?: string;
 }
 
 export interface StreamStoreLite {

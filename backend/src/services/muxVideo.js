@@ -169,6 +169,24 @@ export async function disableLiveStream(liveStreamId) {
  * state: 'live' (active) · 'ended' (idle/disconnected) · 'connected'.
  * Wired in M3 to auto-flip stream status; helper ready now.
  */
+/**
+ * Current Mux live-stream status — the source of truth for whether ingest is
+ * actually happening. Returns 'idle' | 'active' | 'connected' | 'disconnected' |
+ * 'disabled', or null on error.
+ */
+export async function muxLiveStatus(liveStreamId) {
+  try {
+    const res = await fetch(`${API}/video/v1/live-streams/${liveStreamId}`, {
+      headers: { Authorization: authHeader() },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseLiveWebhook(payload) {
   const type = payload?.type;
   const id = payload?.data?.id;

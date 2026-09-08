@@ -3,6 +3,8 @@ import {
   createStream,
   viewerToken,
   endStream,
+  markStreamLive,
+  abortStream,
   getActiveStreams,
   getStream,
   getMyStreams,
@@ -24,6 +26,8 @@ router.get('/:id',    getStream);
 // Authenticated (broadcaster)
 router.post('/',              protect, createStream);
 router.post('/:id/viewer-token', protect, viewerToken);
+router.post('/:id/live',     protect, markStreamLive);
+router.post('/:id/abort',    protect, abortStream);
 router.post('/:id/end',      protect, endStream);
 
 export default router;
