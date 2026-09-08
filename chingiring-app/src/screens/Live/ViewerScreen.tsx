@@ -50,6 +50,8 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -61,10 +63,13 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Send, Heart, WifiOff } from 'lucide-react-native';
+import { X, Send, Heart, WifiOff, Search, MessageCircle, ChevronRight, UserPlus, Check } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
 import { getStream, type StreamDetail, type StreamProductLite } from '../../api/streams';
+import { useFollow } from '../../hooks/useFollow';
+import { useAuthGate } from '../../context/AuthGateContext';
+import { getOrCreateConversation } from '../../api/chat';
 import VideoLayer from '../../components/VideoLayer';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -170,6 +175,114 @@ const ProductChip: React.FC<{ item: StreamProductLite; onPress: () => void }> = 
   </Pressable>
 );
 
+// ─── Featured products "See all" sheet ─────────────────────────────────────
+// A light bottom sheet over the dark viewer: search + (real) category chips +
+// a chat-about-this-product action per row. No stock — the product model has
+// none. Tap a row → ProductDetail; tap the chat icon → 1:1 seller chat.
+
+const FeaturedSheet: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  storeName: string;
+  products: StreamProductLite[];
+  onChat: (p: StreamProductLite) => void;
+  onDetail: (p: StreamProductLite) => void;
+  bottomInset: number;
+}> = ({ visible, onClose, storeName, products, onChat, onDetail, bottomInset }) => {
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('All');
+
+  const cats = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => { if (p.category) set.add(p.category); });
+    return ['All', ...Array.from(set)];
+  }, [products]);
+
+  const visibleProducts = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return products.filter(
+      (p) =>
+        (cat === 'All' || p.category === cat) &&
+        (!needle || p.name.toLowerCase().includes(needle)),
+    );
+  }, [products, q, cat]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={sheet.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[sheet.card, { paddingBottom: bottomInset + 8 }]}>
+          <View style={sheet.handle} />
+          <View style={sheet.head}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={sheet.title}>Featured in this stream</Text>
+              <Text style={sheet.sub} numberOfLines={1}>{storeName} · tap chat to ask about a product</Text>
+            </View>
+            <Pressable onPress={onClose} style={sheet.closeBtn} accessibilityLabel="Close">
+              <X size={18} color={Colors.text} />
+            </Pressable>
+          </View>
+
+          <View style={sheet.searchPill}>
+            <Search size={17} color="#94a3b8" strokeWidth={2} />
+            <TextInput
+              style={sheet.searchInput}
+              placeholder="Search products…"
+              placeholderTextColor="#94a3b8"
+              value={q}
+              onChangeText={setQ}
+              returnKeyType="search"
+            />
+          </View>
+
+          {cats.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheet.chipRow}>
+              {cats.map((c) => (
+                <Pressable key={c} onPress={() => setCat(c)} style={[sheet.catChip, cat === c && sheet.catChipActive]}>
+                  <Text style={[sheet.catChipText, cat === c && sheet.catChipTextActive]}>{c}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+
+          <FlatList
+            data={visibleProducts}
+            keyExtractor={(p) => p._id}
+            style={sheet.list}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => {
+              const hasMrp = !!item.mrp && item.mrp > item.price;
+              return (
+                <View style={sheet.row}>
+                  <Pressable style={sheet.rowMain} onPress={() => onDetail(item)}>
+                    {item.imageUrl ? (
+                      <Image source={{ uri: item.imageUrl }} style={sheet.rowImg} />
+                    ) : (
+                      <View style={[sheet.rowImg, sheet.rowImgFallback]} />
+                    )}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={sheet.rowName} numberOfLines={2}>{item.name}</Text>
+                      <View style={sheet.priceRow}>
+                        <Text style={sheet.price}>₹{item.price.toLocaleString('en-IN')}</Text>
+                        {hasMrp ? <Text style={sheet.mrp}>₹{item.mrp!.toLocaleString('en-IN')}</Text> : null}
+                      </View>
+                    </View>
+                  </Pressable>
+                  <Pressable style={sheet.chatBtn} onPress={() => onChat(item)} accessibilityLabel={`Chat about ${item.name}`}>
+                    <MessageCircle size={18} color={Colors.primary} strokeWidth={2} />
+                  </Pressable>
+                </View>
+              );
+            }}
+            ListEmptyComponent={<Text style={sheet.empty}>No products match your search.</Text>}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 // ─── StreamEndedOverlay ────────────────────────────────────────────────────
 
 const StreamEndedOverlay: React.FC<{ storeName: string; onBack: () => void }> = ({ storeName, onBack }) => (
@@ -234,6 +347,10 @@ export const ViewerScreen: React.FC = () => {
   const [streamEnded, setStreamEnded] = useState(false);
   const [tokenLoading, setTokenLoading] = useState(true);
   const [streamDetail, setStreamDetail] = useState<StreamDetail | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const { follow, unfollow, isFollowing } = useFollow();
+  const { requireAuth } = useAuthGate();
 
   // ── Fetch stream detail (store, products, Mux playback id) ──────────────
   useEffect(() => {
@@ -261,6 +378,8 @@ export const ViewerScreen: React.FC = () => {
   }, [streamDetail, routeStoreId]);
 
   const products = streamDetail?.products ?? [];
+  const following = resolvedStoreId ? isFollowing(resolvedStoreId) : false;
+  const isLive = streamDetail?.status === 'live' && !streamEnded;
 
   // ── Heart helpers ───────────────────────────────────────────────────────
   const addHearts = useCallback((count: number) => {
@@ -309,6 +428,57 @@ export const ViewerScreen: React.FC = () => {
     [navigation],
   );
 
+  // Follow / unfollow the store (auth-gated for guests).
+  const handleFollow = useCallback(() => {
+    if (!resolvedStoreId) return;
+    requireAuth(
+      async () => {
+        try {
+          if (following) await unfollow(resolvedStoreId);
+          else await follow(resolvedStoreId);
+        } catch {
+          /* optimistic store already updated — ignore network hiccup */
+        }
+      },
+      { title: 'Sign in to follow stores', subtitle: 'See live streams and deals first when you follow a store.', icon: 'star' },
+    );
+  }, [resolvedStoreId, following, follow, unfollow, requireAuth]);
+
+  // Open (or reuse) a 1:1 chat with the seller, pinned to a specific product.
+  const openProductChat = useCallback(
+    (product: StreamProductLite) => {
+      if (!resolvedStoreId) return;
+      setSheetOpen(false);
+      requireAuth(
+        async () => {
+          try {
+            const conv = await getOrCreateConversation(resolvedStoreId);
+            if (conv) {
+              navigation.navigate('Chat', {
+                conversationId: conv._id,
+                title: conv.otherParty.name,
+                otherParty: conv.otherParty,
+                product: { productId: product._id, name: product.name, imageUrl: product.imageUrl, price: product.price },
+              });
+            }
+          } catch (e: any) {
+            Alert.alert('Couldn’t open chat', e?.response?.data?.message || 'Please try again in a moment.');
+          }
+        },
+        { title: 'Sign in to message', subtitle: 'Chat with sellers about their products and live streams.', icon: 'default' },
+      );
+    },
+    [resolvedStoreId, requireAuth, navigation],
+  );
+
+  const openProductDetail = useCallback(
+    (product: StreamProductLite) => {
+      setSheetOpen(false);
+      navigation.navigate('ProductDetail', { productId: product._id });
+    },
+    [navigation],
+  );
+
   // ── Guard — missing streamId ────────────────────────────────────────────
   if (!streamId) {
     return (
@@ -349,9 +519,30 @@ export const ViewerScreen: React.FC = () => {
                   <Text style={styles.storeAvatarInitial}>{storeName[0]?.toUpperCase()}</Text>
                 </View>
               )}
-              <Text style={styles.storeName} numberOfLines={1}>{storeName}</Text>
-              <Text style={styles.viewerText} numberOfLines={1}> · 👁 {viewerCount.toLocaleString('en-IN')}</Text>
+              <View style={styles.storeTextWrap}>
+                <View style={styles.storeNameRow}>
+                  <Text style={styles.storeName} numberOfLines={1}>{storeName}</Text>
+                  {isLive && (
+                    <View style={styles.liveBadge}>
+                      <View style={styles.liveDot} />
+                      <Text style={styles.liveText}>LIVE</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.viewerText} numberOfLines={1}>{viewerCount.toLocaleString('en-IN')} watching</Text>
+              </View>
             </Pressable>
+
+            {resolvedStoreId ? (
+              <Pressable
+                onPress={handleFollow}
+                style={[styles.followBtn, following && styles.followBtnActive]}
+                accessibilityLabel={following ? 'Following' : 'Follow'}
+              >
+                {following ? <Check size={13} color="#fff" strokeWidth={2.6} /> : <UserPlus size={13} color="#fff" strokeWidth={2.4} />}
+                <Text style={styles.followText}>{following ? 'Following' : 'Follow'}</Text>
+              </Pressable>
+            ) : null}
 
             <Pressable onPress={handleBack} style={styles.iconBtn} accessibilityLabel="Close">
               <X size={20} color="#fff" />
@@ -361,16 +552,25 @@ export const ViewerScreen: React.FC = () => {
           {/* ── Bottom: featured products + chat feed + input row ── */}
           <View style={[styles.bottomOverlay, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             {products.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.productsBarWrap}
-                contentContainerStyle={styles.productsBar}
-              >
-                {products.map((p) => (
-                  <ProductChip key={p._id} item={p} onPress={() => handleProductPress(p)} />
-                ))}
-              </ScrollView>
+              <>
+                <Pressable style={styles.featuredHead} onPress={() => setSheetOpen(true)} accessibilityLabel="See all featured products">
+                  <Text style={styles.featuredHeadText}>Featured in this stream</Text>
+                  <View style={styles.seeAll}>
+                    <Text style={styles.seeAllText}>See all</Text>
+                    <ChevronRight size={14} color="rgba(255,255,255,0.9)" />
+                  </View>
+                </Pressable>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.productsBarWrap}
+                  contentContainerStyle={styles.productsBar}
+                >
+                  {products.map((p) => (
+                    <ProductChip key={p._id} item={p} onPress={() => handleProductPress(p)} />
+                  ))}
+                </ScrollView>
+              </>
             )}
 
             {streamTitle ? (
@@ -419,6 +619,17 @@ export const ViewerScreen: React.FC = () => {
 
       {/* ── Stream ended overlay ─────────────────────────────────── */}
       {streamEnded && <StreamEndedOverlay storeName={storeName} onBack={handleBack} />}
+
+      {/* ── Featured products "See all" sheet ── */}
+      <FeaturedSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        storeName={storeName}
+        products={products}
+        onChat={openProductChat}
+        onDetail={openProductDetail}
+        bottomInset={insets.bottom}
+      />
     </View>
   );
 };
@@ -462,8 +673,22 @@ const styles = StyleSheet.create({
   storeAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary, flexShrink: 0 },
   storeAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
   storeAvatarInitial: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
-  storeName: { color: '#fff', fontSize: 14, fontFamily: Fonts.semiBold, marginLeft: 8, flexShrink: 1 },
-  viewerText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: Fonts.regular, flexShrink: 0 },
+  storeTextWrap: { marginLeft: 8, flexShrink: 1, minWidth: 0 },
+  storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  storeName: { color: '#fff', fontSize: 14, fontFamily: Fonts.semiBold, flexShrink: 1 },
+  viewerText: { color: 'rgba(255,255,255,0.7)', fontSize: 11.5, fontFamily: Fonts.regular, marginTop: 1 },
+  liveBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0,
+    backgroundColor: '#EF4444', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  liveDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#fff' },
+  liveText: { color: '#fff', fontSize: 10, fontFamily: Fonts.extraBold, letterSpacing: 0.5 },
+  followBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0,
+    backgroundColor: Colors.primary, borderRadius: 18, paddingVertical: 7, paddingHorizontal: 13,
+  },
+  followBtnActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  followText: { color: '#fff', fontSize: 12.5, fontFamily: Fonts.bold },
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -480,6 +705,16 @@ const styles = StyleSheet.create({
   },
 
   // ── Featured products bar ──
+  featuredHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 2, marginBottom: 2,
+  },
+  featuredHeadText: {
+    color: '#fff', fontSize: 12.5, fontFamily: Fonts.bold,
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4,
+  },
+  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  seeAllText: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontFamily: Fonts.semiBold },
   productsBarWrap: { height: 72, flexGrow: 0 },
   productsBar: { gap: 10, alignItems: 'center', paddingVertical: 12 },
   productChip: {
@@ -563,6 +798,45 @@ const endedStyles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Fonts.bold,
   },
+});
+
+// ─── Featured "See all" sheet styles ────────────────────────────────────────
+
+const sheet = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  card: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingHorizontal: 16, paddingTop: 8, maxHeight: '82%',
+  },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', marginBottom: 10 },
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  title: { fontSize: 17, fontFamily: Fonts.extraBold, color: Colors.navy },
+  sub: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.backgroundGrey, alignItems: 'center', justifyContent: 'center' },
+  searchPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 9, height: 44, borderRadius: 12, paddingHorizontal: 12,
+    backgroundColor: Colors.backgroundGrey, marginBottom: 10,
+  },
+  searchInput: { flex: 1, fontSize: 14.5, fontFamily: Fonts.regular, color: Colors.text, padding: 0 },
+  chipRow: { gap: 8, paddingBottom: 12, paddingRight: 8 },
+  catChip: { borderRadius: 18, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: Colors.backgroundGrey },
+  catChipActive: { backgroundColor: Colors.navy },
+  catChipText: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  catChipTextActive: { color: '#fff' },
+  list: { flexGrow: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 },
+  rowImg: { width: 58, height: 58, borderRadius: 12, backgroundColor: Colors.backgroundGrey },
+  rowImgFallback: {},
+  rowName: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 3 },
+  price: { fontSize: 15, fontFamily: Fonts.extraBold, color: Colors.navy },
+  mrp: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', textDecorationLine: 'line-through' },
+  chatBtn: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.primaryLight10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  empty: { textAlign: 'center', color: Colors.textSecondary, fontSize: 13, fontFamily: Fonts.regular, paddingVertical: 30 },
 });
 
 export default ViewerScreen;
