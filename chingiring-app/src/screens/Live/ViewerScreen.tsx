@@ -550,7 +550,7 @@ export const ViewerScreen: React.FC = () => {
           </View>
 
           {/* ── Bottom: featured products + chat feed + input row ── */}
-          <View style={[styles.bottomOverlay, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={[styles.bottomOverlay, { paddingBottom: insets.bottom + 16 }]}>
             {products.length > 0 && (
               <>
                 <Pressable style={styles.featuredHead} onPress={() => setSheetOpen(true)} accessibilityLabel="See all featured products">

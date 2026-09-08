@@ -598,7 +598,7 @@ export const BroadcasterScreen: React.FC = () => {
           </View>
 
           {/* ── Bottom overlay: featured products + chat feed + input row ── */}
-          <View style={[styles.bottomOverlay, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={[styles.bottomOverlay, { paddingBottom: insets.bottom + 16 }]}>
             {/* Featured products — the live shelf; tap Show to spotlight one */}
             {products.length > 0 && (
               <View style={styles.shelf}>
