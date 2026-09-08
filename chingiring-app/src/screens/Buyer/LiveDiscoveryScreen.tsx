@@ -45,7 +45,24 @@ export async function fetchActiveStreams(): Promise<LiveStream[]> {
   try {
     const res = await apiClient.get('/api/streams/active');
     const payload = res.data?.data?.streams ?? res.data?.streams ?? res.data?.data ?? res.data;
-    return Array.isArray(payload) ? payload : [];
+    const rows = Array.isArray(payload) ? payload : [];
+    // The backend populates `storeId` as an object ({ _id, name, logoUrl, ... }),
+    // not the flat storeName/storeLogoUrl the UI expects. Flatten here so every
+    // consumer (LiveDiscovery card, OfflineStores live rail) gets a stable shape
+    // and `storeId` stays a plain id for navigation.
+    return rows.map((s: any): LiveStream => {
+      const store = s.storeId && typeof s.storeId === 'object' ? s.storeId : null;
+      return {
+        _id: s._id,
+        storeId: store?._id ?? s.storeId ?? '',
+        storeName: s.storeName ?? store?.name ?? store?.shortName ?? 'Store',
+        storeLogoUrl: s.storeLogoUrl ?? store?.logoUrl ?? undefined,
+        thumbnail: s.thumbnail || undefined,
+        title: s.title ?? '',
+        viewerCount: s.viewerCount ?? 0,
+        status: s.status ?? 'live',
+      };
+    });
   } catch {
     return []; // graceful: backend may not be ready yet
   }
