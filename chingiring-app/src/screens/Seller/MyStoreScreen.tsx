@@ -36,6 +36,7 @@ import {
   MoreVertical,
   BadgeCheck,
   Pencil,
+  CloudOff,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { type SellerStore } from '../../api/verification';
@@ -51,6 +52,7 @@ import {
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductFormSheet } from './ProductFormSheet';
 import { ProductPreviewSheet } from '../../components/ProductPreviewSheet';
+import { MyStoreSkeleton, SellerMessageState } from './SellerStates';
 
 // The seller tab bar is position:absolute and overlays content — pad the list
 // (and float the FAB) past it. ~64px bar + chrome + gap; insets added on top.
@@ -124,6 +126,7 @@ export const MyStoreScreen: React.FC = () => {
   const {
     data: store,
     isLoading,
+    isError,
     isRefetching,
     refetch,
   } = useMyStore();
@@ -163,29 +166,36 @@ export const MyStoreScreen: React.FC = () => {
   const isVerified = store?.verificationStatus === 'verified';
 
   if (isLoading) {
+    return <MyStoreSkeleton topInset={insets.top} />;
+  }
+
+  // ── Couldn't load the store (network / server error) ──────────────────
+  if (isError) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={Colors.orange} size="large" />
-      </View>
+      <SellerMessageState
+        icon={CloudOff}
+        iconColor="#dc2626"
+        iconBg="#fef2f2"
+        title="Couldn't load your store"
+        sub="Check your connection and try again."
+        ctaLabel="Retry"
+        onCta={refetch}
+        topInset={insets.top}
+      />
     );
   }
 
   // ── No store yet ──────────────────────────────────────────────────────
   if (!store) {
     return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <Store size={52} color={Colors.border} />
-        <Text style={styles.emptyTitle}>No store yet</Text>
-        <Text style={styles.emptySub}>
-          Complete your store setup to start selling and going live.
-        </Text>
-        <Pressable
-          style={styles.setupBtn}
-          onPress={() => navigation.navigate('BusinessOnboarding')}
-        >
-          <Text style={styles.setupBtnText}>Set up my store</Text>
-        </Pressable>
-      </View>
+      <SellerMessageState
+        icon={Store}
+        title="No store yet"
+        sub="Complete your store setup to start selling and going live."
+        ctaLabel="Set up my store"
+        onCta={() => navigation.navigate('BusinessOnboarding')}
+        topInset={insets.top}
+      />
     );
   }
 
@@ -310,10 +320,6 @@ export const MyStoreScreen: React.FC = () => {
 // ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  center: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    padding: 32, gap: 12, backgroundColor: Colors.background,
-  },
 
   // Header
   header: {
@@ -392,10 +398,4 @@ const styles = StyleSheet.create({
     shadowColor: Colors.orange, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 8,
   },
   fabText: { color: '#fff', fontSize: 15, fontFamily: Fonts.extraBold },
-
-  // No store
-  emptyTitle: { fontSize: 18, fontFamily: Fonts.bold, color: Colors.text, textAlign: 'center' },
-  emptySub: { fontSize: 14, fontFamily: Fonts.regular, color: Colors.textSecondary, textAlign: 'center', lineHeight: 21 },
-  setupBtn: { marginTop: 8, backgroundColor: Colors.orange, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 32 },
-  setupBtnText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
 });

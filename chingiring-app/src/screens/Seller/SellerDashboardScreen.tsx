@@ -23,7 +23,6 @@ import {
   ScrollView,
   Pressable,
   Image,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +40,8 @@ import {
   ShoppingBag,
   Plus,
   BadgeCheck,
+  Store,
+  CloudOff,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
@@ -49,6 +50,7 @@ import apiClient from '../../api/client';
 import { getMyStreams, formatStreamMeta } from '../../api/streams';
 import { type SellerStore } from '../../api/verification';
 import { useMyStore } from '../../hooks/useMyStore';
+import { DashboardSkeleton, SellerMessageState } from './SellerStates';
 
 // ── API helpers ───────────────────────────────────────────────────────────
 
@@ -149,6 +151,7 @@ export const SellerDashboardScreen: React.FC = () => {
   const {
     data: store,
     isLoading: storeLoading,
+    isError: storeError,
     refetch: refetchStore,
     isRefetching,
   } = useMyStore();
@@ -179,10 +182,34 @@ export const SellerDashboardScreen: React.FC = () => {
   const followers = stats.followerCount ?? 0;
 
   if (storeLoading) {
+    return <DashboardSkeleton topInset={insets.top} />;
+  }
+
+  if (storeError) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={Colors.orange} size="large" />
-      </View>
+      <SellerMessageState
+        icon={CloudOff}
+        iconColor="#dc2626"
+        iconBg="#fef2f2"
+        title="Couldn't load your dashboard"
+        sub="Check your connection and try again."
+        ctaLabel="Retry"
+        onCta={refetchStore}
+        topInset={insets.top}
+      />
+    );
+  }
+
+  if (!store) {
+    return (
+      <SellerMessageState
+        icon={Store}
+        title="No store yet"
+        sub="Complete your store setup to start selling and going live."
+        ctaLabel="Set up my store"
+        onCta={() => navigation.navigate('BusinessOnboarding')}
+        topInset={insets.top}
+      />
     );
   }
 
@@ -334,19 +361,6 @@ export const SellerDashboardScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* ── No store state ── */}
-        {!store && (
-          <View style={styles.noStore}>
-            <Text style={styles.noStoreTitle}>No store yet</Text>
-            <Text style={styles.noStoreSub}>Complete store setup to start selling.</Text>
-            <Pressable
-              style={styles.setupBtn}
-              onPress={() => navigation.navigate('BusinessOnboarding')}
-            >
-              <Text style={styles.setupBtnText}>Set up my store</Text>
-            </Pressable>
-          </View>
-        )}
       </View>
     </ScrollView>
   );
@@ -355,7 +369,6 @@ export const SellerDashboardScreen: React.FC = () => {
 // ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // Header
   header: {
@@ -463,13 +476,4 @@ const styles = StyleSheet.create({
   },
   actionBadgeText: { fontSize: 11, fontFamily: Fonts.extraBold, color: '#fff' },
 
-  // No store
-  noStore: { alignItems: 'center', paddingVertical: 24, gap: 8 },
-  noStoreTitle: { fontSize: 16, fontFamily: Fonts.bold, color: Colors.text },
-  noStoreSub: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary },
-  setupBtn: {
-    marginTop: 8, backgroundColor: Colors.orange, borderRadius: 12,
-    paddingVertical: 12, paddingHorizontal: 28,
-  },
-  setupBtnText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
 });
