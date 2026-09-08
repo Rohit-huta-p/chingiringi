@@ -22,14 +22,12 @@ export const EditProfileScreen = () => {
   const user = profileData?.data?.user;
 
   const [fullName, setFullName] = useState('Dev Chavan');
-  const [username, setUsername] = useState('Dev Chavan');
   const [email, setEmail] = useState('dev.chavan@email.com');
   const [phone, setPhone] = useState('9876543210');
 
   useEffect(() => {
     if (user) {
       setFullName(user.name || '');
-      setUsername(user.username || user.name || '');
       setEmail(user.email || '');
       setPhone(user.phone || '');
     }
@@ -88,13 +86,6 @@ export const EditProfileScreen = () => {
           onChangeText={setFullName}
           placeholder="Enter your full name"
         />
-
-        <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Username <Text style={styles.fieldHint}>(Can't be changed)</Text></Text>
-          <View style={[styles.disabledInput]}>
-            <Text style={styles.disabledInputText}>{username}</Text>
-          </View>
-        </View>
 
         <Input
           label="Email Address"

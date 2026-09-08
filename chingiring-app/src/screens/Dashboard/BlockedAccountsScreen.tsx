@@ -44,7 +44,7 @@ export const BlockedAccountsScreen = () => {
         ) : (
           blocks.map((b) => {
             const u = b.blockedUser;
-            const name = u?.name || u?.username || 'User';
+            const name = u?.name || 'User';
             const initial = name.trim()[0]?.toUpperCase() ?? '?';
             return (
               <View key={b._id} style={s.row}>

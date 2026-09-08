@@ -185,7 +185,7 @@ export const trackShare = async (req, res) => {
 };
 
 // ── Comments (flat) ────────────────────────────────────────────────────────
-const USER_FIELDS = 'name username avatarUrl';
+const USER_FIELDS = 'name avatarUrl';
 
 // @desc  Add a comment  @route POST /:id/comments  @access protect
 export const addComment = async (req, res) => {
@@ -285,7 +285,7 @@ export const unblockCreator = async (req, res) => {
 // @desc  My blocked creators  @route GET /blocks  @access protect
 export const listBlocks = async (req, res) => {
   const blocks = await VideoBlock.find({ user: req.user._id })
-    .populate('blockedUser', 'name username avatarUrl')
+    .populate('blockedUser', 'name avatarUrl')
     .sort({ _id: -1 }).lean();
   res.status(200).json({ status: 'success', data: { blocks } });
 };
@@ -293,7 +293,7 @@ export const listBlocks = async (req, res) => {
 // @desc  A clip's individual reports (audit view)  @route GET /admin/reports/:videoId  @access admin
 export const adminReportDetail = async (req, res) => {
   const reports = await VideoReport.find({ video: req.params.videoId })
-    .populate('reporter', 'name username avatarUrl')
+    .populate('reporter', 'name avatarUrl')
     .sort({ _id: -1 }).lean();
   res.status(200).json({ status: 'success', data: { reports } });
 };

@@ -251,7 +251,6 @@ export const getCouponUsage = async (req, res) => {
               _id: 0,
               userId: '$_id',
               name: { $arrayElemAt: ['$userInfo.name', 0] },
-              username: { $arrayElemAt: ['$userInfo.username', 0] },
               count: 1,
               totalDiscount: 1,
             },

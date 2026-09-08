@@ -19,7 +19,7 @@ import AdminSettings from '../modules/admin/adminSettingsModel.js';
  *   add product  →  user clicks Shop Now  →  paste report  →  coins credited
  *
  * Usage:
- *   npm run seed:test-flow -- <phone | email | username | userId>
+ *   npm run seed:test-flow -- <phone | email | userId>
  *   npm run seed:test-flow -- 9876543210 --with-click
  *
  *   --with-click  also inserts a ClickEvent (simulates the Shop Now tap) so the
@@ -42,7 +42,7 @@ async function findUser(ident) {
     if (byId) return byId;
   }
   return User.findOne({
-    $or: [{ phone: ident }, { email: String(ident).toLowerCase() }, { username: ident }],
+    $or: [{ phone: ident }, { email: String(ident).toLowerCase() }],
   });
 }
 
@@ -53,13 +53,13 @@ async function run() {
   const user = await findUser(arg);
   if (!user) {
     console.log(`\n⚠️  No user matched "${arg || '(none passed)'}".`);
-    console.log('\nPass a phone / email / username / userId. Pick one below:\n');
-    const users = await User.find().select('name phone email username role').limit(10).lean();
+    console.log('\nPass a phone / email / userId. Pick one below:\n');
+    const users = await User.find().select('name phone email role').limit(10).lean();
     if (users.length === 0) {
       console.log('   (no users in DB — sign up in the app first)');
     } else {
       users.forEach((u) => {
-        console.log(`   • ${u.name.padEnd(18)} ${(u.phone || u.email || u.username || u._id).toString().padEnd(24)} [${u.role}]  id=${u._id}`);
+        console.log(`   • ${u.name.padEnd(18)} ${(u.phone || u.email || u._id).toString().padEnd(24)} [${u.role}]  id=${u._id}`);
       });
     }
     console.log('\n   e.g.  npm run seed:test-flow -- 9876543210\n');
@@ -153,7 +153,7 @@ async function run() {
   console.log('  AFFILIATE FLOW — END-TO-END TEST');
   console.log(`${line('═')}\n`);
 
-  console.log(`👤 User:     ${user.name}  (${user.phone || user.email || user.username})`);
+  console.log(`👤 User:     ${user.name}  (${user.phone || user.email})`);
   console.log(`   userId:   ${user._id}`);
   console.log(`   role:     ${user.role}`);
   console.log(`   wallet:   coins=${wallet?.coins ?? 0}  pendingCoins=${wallet?.pendingCoins ?? 0}\n`);

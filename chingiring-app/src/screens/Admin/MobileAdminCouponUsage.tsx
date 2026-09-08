@@ -38,7 +38,6 @@ interface TimelineEntry {
 interface TopUser {
   userId: string;
   name?: string;
-  username?: string;
   count: number;
   totalDiscount: number;
 }
@@ -214,11 +213,11 @@ export const MobileAdminCouponUsage = () => {
                     <View style={s.topUserLeft}>
                       <View style={s.topUserAvatar}>
                         <Text style={s.topUserAvatarTxt}>
-                          {(u.name || u.username || '?').charAt(0).toUpperCase()}
+                          {(u.name || '?').charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <View>
-                        <Text style={s.topUserName}>{u.name || u.username || 'Unknown'}</Text>
+                        <Text style={s.topUserName}>{u.name || 'Unknown'}</Text>
                         <Text style={s.topUserMeta}>
                           {u.count} redemption{u.count === 1 ? '' : 's'}
                         </Text>

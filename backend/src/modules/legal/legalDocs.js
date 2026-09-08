@@ -40,7 +40,6 @@ Depending on how you use Chingiringi, we may collect the following categories of
 We may collect:
 
 - Name
-- Username
 - Email address
 - Mobile number
 - Profile photo or avatar, if you choose to add one

@@ -217,16 +217,6 @@ export const MobileEditProfileScreen = () => {
             autoCapitalize="words"
           />
 
-          <View style={s.labelRow}>
-            <Text style={s.fieldLabel}>Username</Text>
-            <Text style={s.fieldLabelHint}>(Can't be changed)</Text>
-          </View>
-          <TextInput
-            style={[s.input, s.inputDisabled]}
-            value={user?.username ?? ''}
-            editable={false}
-          />
-
           <Text style={s.fieldLabel}>Email Address</Text>
           <TextInput
             style={s.input}

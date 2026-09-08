@@ -50,12 +50,12 @@ export interface VideoReport {
   note?: string;
   status: 'open' | 'reviewed' | 'dismissed';
   createdAt: string;
-  reporter?: { _id: string; name?: string; username?: string; avatarUrl?: string };
+  reporter?: { _id: string; name?: string; avatarUrl?: string };
 }
 
 export interface BlockedCreator {
   _id: string;
-  blockedUser?: { _id: string; name?: string; username?: string; avatarUrl?: string };
+  blockedUser?: { _id: string; name?: string; avatarUrl?: string };
   createdAt: string;
 }
 
@@ -68,7 +68,7 @@ export interface VideoComment {
   _id: string;
   text: string;
   createdAt: string;
-  user?: { _id: string; name?: string; username?: string; avatarUrl?: string };
+  user?: { _id: string; name?: string; avatarUrl?: string };
   /** True when the comment belongs to the signed-in user (server-computed). */
   mine?: boolean;
 }

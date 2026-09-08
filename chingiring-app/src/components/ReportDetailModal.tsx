@@ -50,7 +50,7 @@ export const ReportDetailModal: React.FC<Props> = ({ video, onClose }) => {
                 <View key={r._id} style={s.row}>
                   <View style={s.rowTop}>
                     <Text style={s.reporter} numberOfLines={1}>
-                      {r.reporter?.name || r.reporter?.username || 'User'}
+                      {r.reporter?.name || 'User'}
                     </Text>
                     <Text style={[s.status, r.status === 'open' ? s.statusOpen : s.statusDone]}>{r.status}</Text>
                   </View>

@@ -129,7 +129,6 @@ export const getUsers = async (req, res) => {
         $or: [
           { name: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } },
-          { username: { $regex: search, $options: 'i' } },
         ],
       }
     : {};

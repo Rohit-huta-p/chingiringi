@@ -20,7 +20,6 @@ interface AdminUser {
   name: string;
   email?: string;
   phone?: string;
-  username?: string;
   role?: string;
   status?: 'active' | 'blocked';
   isBlocked?: boolean;

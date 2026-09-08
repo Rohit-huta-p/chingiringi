@@ -9,7 +9,6 @@ import type { NotificationPrefs } from '../api/notifications';
 export interface UserType {
   id: string;
   name: string;
-  username: string;
   email?: string;
   phone?: string;
   role?: 'buyer' | 'seller' | 'admin' | null;

@@ -53,7 +53,7 @@ export const CommentsSheet: React.FC<Props> = ({ visible, video, onClose, inline
   };
 
   const renderItem = ({ item }: { item: VideoComment }) => {
-    const name = item.user?.name || item.user?.username || 'User';
+    const name = item.user?.name || 'User';
     const initial = name.trim()[0]?.toUpperCase() ?? '?';
     return (
       <View style={s.row}>
