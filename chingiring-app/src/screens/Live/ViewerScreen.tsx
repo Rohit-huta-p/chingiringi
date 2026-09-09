@@ -65,7 +65,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Send, Heart, WifiOff, Search, MessageCircle, ChevronRight, UserPlus, Check } from 'lucide-react-native';
+import { X, Send, Heart, WifiOff, Search, MessageCircle, ChevronRight, UserPlus, Check, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
 import { getStream, type StreamDetail, type StreamProductLite } from '../../api/streams';
@@ -183,9 +183,18 @@ const ProductChip: React.FC<{ item: StreamProductLite; onPress: () => void; onCh
 );
 
 // ─── Featured products "See all" sheet ─────────────────────────────────────
-// A light bottom sheet over the dark viewer: search + (real) category chips +
+// A light bottom sheet over the dark viewer: search + sort options +
 // a chat-about-this-product action per row. No stock — the product model has
 // none. Tap a row → ProductDetail; tap the chat icon → 1:1 seller chat.
+
+type SortKey = 'featured' | 'price-asc' | 'price-desc' | 'newest';
+// Two "Price" entries, disambiguated by an up/down arrow (low→high / high→low).
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'featured', label: 'Featured' },
+  { key: 'price-asc', label: 'Price' },
+  { key: 'price-desc', label: 'Price' },
+  { key: 'newest', label: 'Newest' },
+];
 
 const FeaturedSheet: React.FC<{
   visible: boolean;
@@ -197,22 +206,20 @@ const FeaturedSheet: React.FC<{
   bottomInset: number;
 }> = ({ visible, onClose, storeName, products, onChat, onDetail, bottomInset }) => {
   const [q, setQ] = useState('');
-  const [cat, setCat] = useState('All');
+  const [sort, setSort] = useState<SortKey>('featured');
 
-  const cats = useMemo(() => {
-    const set = new Set<string>();
-    products.forEach((p) => { if (p.category) set.add(p.category); });
-    return ['All', ...Array.from(set)];
-  }, [products]);
-
+  // Search-filter, then sort by the chosen order. 'featured' keeps the stream's
+  // own featured order; 'newest' uses the (time-ordered) ObjectId as a proxy
+  // since the lite product carries no timestamp.
   const visibleProducts = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return products.filter(
-      (p) =>
-        (cat === 'All' || p.category === cat) &&
-        (!needle || p.name.toLowerCase().includes(needle)),
-    );
-  }, [products, q, cat]);
+    const matched = products.filter((p) => !needle || p.name.toLowerCase().includes(needle));
+    const sorted = [...matched];
+    if (sort === 'price-asc') sorted.sort((a, b) => a.price - b.price);
+    else if (sort === 'price-desc') sorted.sort((a, b) => b.price - a.price);
+    else if (sort === 'newest') sorted.sort((a, b) => b._id.localeCompare(a._id));
+    return sorted;
+  }, [products, q, sort]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -242,15 +249,20 @@ const FeaturedSheet: React.FC<{
             />
           </View>
 
-          {cats.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheet.chipRow}>
-              {cats.map((c) => (
-                <Pressable key={c} onPress={() => setCat(c)} style={[sheet.catChip, cat === c && sheet.catChipActive]}>
-                  <Text style={[sheet.catChipText, cat === c && sheet.catChipTextActive]}>{c}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheet.chipRow}>
+            {SORTS.map((s) => {
+              const active = sort === s.key;
+              const tint = active ? Colors.primary : Colors.textSecondary;
+              return (
+                <Pressable key={s.key} onPress={() => setSort(s.key)} style={[sheet.sortChip, active && sheet.sortChipActive]}>
+                  {s.key === 'featured' && <ArrowUpDown size={13} color={tint} strokeWidth={2.2} />}
+                  <Text style={[sheet.sortChipText, active && sheet.sortChipTextActive]}>{s.label}</Text>
+                  {s.key === 'price-asc' && <ArrowUp size={13} color={tint} strokeWidth={2.4} />}
+                  {s.key === 'price-desc' && <ArrowDown size={13} color={tint} strokeWidth={2.4} />}
                 </Pressable>
-              ))}
-            </ScrollView>
-          )}
+              );
+            })}
+          </ScrollView>
 
           <FlatList
             data={visibleProducts}
@@ -848,10 +860,14 @@ const sheet = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14.5, fontFamily: Fonts.regular, color: Colors.text, padding: 0 },
   chipRow: { gap: 8, paddingBottom: 12, paddingRight: 8 },
-  catChip: { borderRadius: 18, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: Colors.backgroundGrey },
-  catChipActive: { backgroundColor: Colors.navy },
-  catChipText: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
-  catChipTextActive: { color: '#fff' },
+  sortChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 18, paddingVertical: 7, paddingHorizontal: 14,
+    borderWidth: 1.5, borderColor: 'transparent', backgroundColor: Colors.backgroundGrey,
+  },
+  sortChipActive: { backgroundColor: Colors.primaryLight10, borderColor: Colors.primary },
+  sortChipText: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  sortChipTextActive: { color: Colors.primary },
   list: { flexGrow: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 },
