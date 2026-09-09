@@ -496,6 +496,7 @@ export const ViewerScreen: React.FC = () => {
                 title: conv.otherParty.name,
                 otherParty: conv.otherParty,
                 product: { productId: product._id, name: product.name, imageUrl: product.imageUrl, price: product.price },
+                asSheet: true, // present as a bottom sheet over the live stream
               });
             }
           } catch (e: any) {
