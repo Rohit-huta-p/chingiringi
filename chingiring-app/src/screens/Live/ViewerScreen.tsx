@@ -161,7 +161,7 @@ const ChatRow: React.FC<{ item: LiveChatMsg }> = ({ item }) => {
 
 // ─── Featured products bar ─────────────────────────────────────────────────
 
-const ProductChip: React.FC<{ item: StreamProductLite; onPress: () => void }> = ({ item, onPress }) => (
+const ProductChip: React.FC<{ item: StreamProductLite; onPress: () => void; onChat: () => void }> = ({ item, onPress, onChat }) => (
   <Pressable style={styles.productChip} onPress={onPress}>
     {item.imageUrl ? (
       <Image source={{ uri: item.imageUrl }} style={styles.productImg} />
@@ -172,6 +172,11 @@ const ProductChip: React.FC<{ item: StreamProductLite; onPress: () => void }> = 
       <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
       <Text style={styles.productPrice}>₹{item.price}</Text>
     </View>
+    {/* Small chat button — ask the seller about this product (nested Pressable
+        captures its own tap, so it doesn't trigger the chip's ProductDetail). */}
+    <Pressable onPress={onChat} hitSlop={6} style={styles.chipChatBtn} accessibilityLabel={`Chat about ${item.name}`}>
+      <MessageCircle size={15} color="#fff" strokeWidth={2} />
+    </Pressable>
   </Pressable>
 );
 
@@ -567,7 +572,7 @@ export const ViewerScreen: React.FC = () => {
                   contentContainerStyle={styles.productsBar}
                 >
                   {products.map((p) => (
-                    <ProductChip key={p._id} item={p} onPress={() => handleProductPress(p)} />
+                    <ProductChip key={p._id} item={p} onPress={() => handleProductPress(p)} onChat={() => openProductChat(p)} />
                   ))}
                 </ScrollView>
               </>
@@ -720,13 +725,17 @@ const styles = StyleSheet.create({
   productChip: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10,
-    paddingVertical: 8, paddingHorizontal: 12, maxWidth: 176,
+    paddingVertical: 8, paddingHorizontal: 12, maxWidth: 190,
   },
   productImg: { width: 40, height: 40, borderRadius: 20, flexShrink: 0 },
   productImgFallback: { backgroundColor: 'rgba(255,255,255,0.25)' },
   productInfo: { flexShrink: 1, gap: 2 },
   productName: { color: '#fff', fontSize: 12, fontFamily: Fonts.regular, lineHeight: 15 },
   productPrice: { color: Colors.primary, fontSize: 12, fontFamily: Fonts.bold },
+  chipChatBtn: {
+    width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
 
   // ── Chat feed ──
   chatList: { maxHeight: 160 },
