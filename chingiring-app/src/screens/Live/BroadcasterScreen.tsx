@@ -35,6 +35,8 @@ import {
   Image,
   ActivityIndicator,
   Share,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -296,6 +298,7 @@ export const BroadcasterScreen: React.FC = () => {
   const [messagesCount, setMessagesCount] = useState(0);
   const [hearts, setHearts] = useState<HeartItem[]>([]);
   const [chatText, setChatText] = useState('');
+  const [kbHeight, setKbHeight] = useState(0);
 
   // Featured products the seller can spotlight on the live shelf (the stream's
   // featured set). `spotlightId` is the one currently marked "Showing" — local
@@ -311,6 +314,23 @@ export const BroadcasterScreen: React.FC = () => {
       .catch(() => {});
     return () => { alive = false; };
   }, [streamId]);
+
+  // ── Keyboard avoidance (iOS) ─────────────────────────────────────────────
+  // The chat overlay is position:absolute (bottom:0); on iOS the keyboard
+  // slides over it and hides the input. Lift the overlay to sit just above the
+  // keyboard. Android's windowSoftInputMode=adjustResize resizes the window, so
+  // we listen on iOS only (listening on both would double-shift).
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const show = Keyboard.addListener('keyboardWillShow', (e) =>
+      setKbHeight(e.endCoordinates?.height ?? 0),
+    );
+    const hide = Keyboard.addListener('keyboardWillHide', () => setKbHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // Duration timer — only runs once the stream is actually LIVE (not while
   // "Connecting…" or after a failure).
@@ -598,7 +618,7 @@ export const BroadcasterScreen: React.FC = () => {
           </View>
 
           {/* ── Bottom overlay: featured products + chat feed + input row ── */}
-          <View style={[styles.bottomOverlay, { paddingBottom: insets.bottom + 28 }]}>
+          <View style={[styles.bottomOverlay, { paddingBottom: kbHeight > 0 ? kbHeight + 16 : insets.bottom + 68 }]}>
             {/* Featured products — the live shelf; tap Show to spotlight one */}
             {products.length > 0 && (
               <View style={styles.shelf}>

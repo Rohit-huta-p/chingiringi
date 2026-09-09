@@ -52,6 +52,8 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -353,9 +355,27 @@ export const ViewerScreen: React.FC = () => {
   const [tokenLoading, setTokenLoading] = useState(true);
   const [streamDetail, setStreamDetail] = useState<StreamDetail | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [kbHeight, setKbHeight] = useState(0);
 
   const { follow, unfollow, isFollowing } = useFollow();
   const { requireAuth } = useAuthGate();
+
+  // ── Keyboard avoidance ──────────────────────────────────────────────────
+  // The chat overlay is position:absolute (bottom:0), so on iOS the keyboard
+  // slides over it and hides the input. Lift the overlay to sit just above the
+  // keyboard. Android's windowSoftInputMode=adjustResize already resizes the
+  // window, so we listen on iOS only (listening on both would double-shift).
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const show = Keyboard.addListener('keyboardWillShow', (e) =>
+      setKbHeight(e.endCoordinates?.height ?? 0),
+    );
+    const hide = Keyboard.addListener('keyboardWillHide', () => setKbHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // ── Fetch stream detail (store, products, Mux playback id) ──────────────
   useEffect(() => {
@@ -555,7 +575,7 @@ export const ViewerScreen: React.FC = () => {
           </View>
 
           {/* ── Bottom: featured products + chat feed + input row ── */}
-          <View style={[styles.bottomOverlay, { paddingBottom: insets.bottom + 28 }]}>
+          <View style={[styles.bottomOverlay, { paddingBottom: kbHeight > 0 ? kbHeight + 16 : insets.bottom + 28 }]}>
             {products.length > 0 && (
               <>
                 <Pressable style={styles.featuredHead} onPress={() => setSheetOpen(true)} accessibilityLabel="See all featured products">
