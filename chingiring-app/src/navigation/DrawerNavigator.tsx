@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { useWindowDimensions, Platform, View, ActivityIndicator, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useWindowDimensions, Platform, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +49,17 @@ const computeIsMobile = (width: number) => Platform.OS !== 'web' || width < MOBI
 // Lazy-load the desktop drawer navigator so react-native-reanimated
 // is never imported on mobile (Expo Go doesn't bundle the right native version)
 const DesktopDrawerNavigator = lazy(() => import('./DesktopDrawerNavigator'));
+
+// Prefetch the desktop chunk at module load (web only — this file's module
+// scope runs at app boot, well before the splash animation even starts
+// painting). By the time ResponsiveNavigator actually renders <Suspense>,
+// this import has almost always already resolved, so the fallback below
+// never gets a chance to show. Native never touches this at all —
+// computeIsMobile() is unconditionally true there — so no risk of pulling
+// in gesture-handler/reanimated on native.
+if (Platform.OS === 'web') {
+  import('./DesktopDrawerNavigator').catch(() => {});
+}
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -379,12 +390,11 @@ function MobileNavigator() {
 
 // ─── Responsive Navigator ───────────────────────────────────────────────────
 
+// Belt-and-braces fallback for the (now rare, thanks to the prefetch above)
+// case where the chunk is still in flight when Suspense needs it — a plain
+// themed panel instead of a spinner, so nothing reads as "stuck loading".
 function DesktopFallback() {
-  return (
-    <View style={{ flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" color={Colors.primary} />
-    </View>
-  );
+  return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
 }
 
 export default function ResponsiveNavigator() {

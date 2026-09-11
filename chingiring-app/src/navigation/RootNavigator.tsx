@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Platform, View, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../store';
 import AuthNavigator from './AuthNavigator';
@@ -26,7 +26,6 @@ function trackScreen(name: string) {
 
 export default function RootNavigator() {
   const user    = useAuthStore((state) => state.user);
-  const isReady = useAuthStore((state) => state.isReady);
   const viewAsBuyer = useAuthStore((state) => state.viewAsBuyer);
   const setViewAsBuyer = useAuthStore((state) => state.setViewAsBuyer);
   const routeNameRef = useRef<string | undefined>(undefined);
@@ -36,16 +35,15 @@ export default function RootNavigator() {
   const isDesktopWeb = Platform.OS === 'web' && width >= 768;
 
   // Resolve which top-level navigator to render.
-  // Priority: loading → unauthed → admin → buyer → seller → role picker → legacy
+  // Priority: unauthed → admin → buyer → seller → role picker → legacy
+  //
+  // No isReady spinner gate here: the splash (App.tsx) dismisses on its own
+  // animation timeline rather than blocking on auth hydration (GET /auth/me),
+  // so we render immediately. Guest browsing is a valid state (user:null →
+  // AuthNavigator); the tree re-resolves to the right navigator once auth
+  // hydrates. Dropping this gate is part of the "stop the app freezing on
+  // splash" fix carried over from main.
   function resolveNavigator() {
-    if (!isReady) {
-      return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" />
-        </View>
-      );
-    }
-
     if (!user) {
       return <AuthNavigator />;
     }
