@@ -4,13 +4,17 @@ import OTP from '../otp/otpModel.js';
 import bcrypt from 'bcrypt';
 
 export const createUser = async (userData) => {
-  // Check if user exists
-  const existingUser = await User.findOne({
-    $or: [{ email: userData.email }, { phone: userData.phone }, { username: userData.username }],
-  });
+  // Check if user exists — only match on identifiers that were actually
+  // provided. A clause like { phone: undefined } would otherwise match any
+  // user missing that field and wrongly report a duplicate on email-only signup.
+  const orClauses = [];
+  if (userData.email) orClauses.push({ email: userData.email });
+  if (userData.phone) orClauses.push({ phone: userData.phone });
+
+  const existingUser = orClauses.length ? await User.findOne({ $or: orClauses }) : null;
 
   if (existingUser) {
-    const err = new Error('User already exists with that email, phone, or username');
+    const err = new Error('User already exists with that email or phone');
     err.statusCode = 409;
     throw err;
   }
@@ -18,7 +22,6 @@ export const createUser = async (userData) => {
   // Create user
   const user = await User.create({
     name: userData.name,
-    username: userData.username,
     email: userData.email,
     phone: userData.phone,
     passwordHash: userData.password,
@@ -49,17 +52,10 @@ export const findOrCreateGoogleUser = async ({ sub, email, name, picture }) => {
     return { user, isNew: false };
   }
 
-  // New Google user — no password. Derive a unique username from the email local part.
-  const base = (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20) || 'user';
-  let username = base;
-  while (await User.exists({ username })) {
-    username = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
-  }
-
+  // New Google user — no password.
   user = await User.create({
     name: name || 'User',
     email,
-    username,
     googleId: sub,
     isEmailVerified: true,
     avatarUrl: picture || '',
@@ -73,9 +69,9 @@ export const findOrCreateGoogleUser = async ({ sub, email, name, picture }) => {
 };
 
 export const verifyPassword = async (identifier, password) => {
-  const user = await User.findOne({
-    $or: [{ email: identifier }, { username: identifier }],
-  }).select('+passwordHash');
+  // `identifier` is the email address (username login was removed). Phone
+  // numbers authenticate via OTP, not password.
+  const user = await User.findOne({ email: identifier }).select('+passwordHash');
 
   if (!user || !(await user.matchPassword(password))) {
     const err = new Error('Invalid credentials');

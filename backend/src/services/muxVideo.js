@@ -102,3 +102,101 @@ export async function deleteAsset(video) {
   const res = await fetch(`${API}/video/v1/assets/${assetId}`, { method: 'DELETE', headers: { Authorization: authHeader() } });
   return res.ok;
 }
+
+// ── Live streaming ───────────────────────────────────────────────────────────
+// Broadcaster pushes RTMP(S) to `${MUX_RTMPS_URL}/${streamKey}`; viewers play the
+// HLS URL built from the playback id. Same Basic auth as the VOD calls above.
+
+export const MUX_RTMPS_URL = 'rtmps://global-live.mux.com:443/app';
+export const MUX_RTMP_URL = 'rtmp://global-live.mux.com:5222/app';
+
+/** HLS playback URL for a live stream's public playback id. */
+export function livePlaybackUrl(playbackId) {
+  return playbackId ? hls(playbackId) : '';
+}
+
+/**
+ * Create a Mux live stream. Returns { id, streamKey, playbackId, rtmpsUrl }.
+ * latencyMode 'low' ≈ 5s glass-to-glass — good for live shopping.
+ */
+export async function createLiveStream({ latencyMode = 'low', reconnectWindow = 60, passthrough } = {}) {
+  const res = await fetch(`${API}/video/v1/live-streams`, {
+    method: 'POST',
+    headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      playback_policy: ['public'],
+      new_asset_settings: { playback_policy: ['public'] },
+      latency_mode: latencyMode,
+      reconnect_window: reconnectWindow,
+      ...(passthrough ? { passthrough: String(passthrough).slice(0, 255) } : {}),
+    }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.data) {
+    throw new Error(`Mux create live stream failed: ${JSON.stringify(json.error || json)}`);
+  }
+  const d = json.data;
+  return {
+    id:         d.id,
+    streamKey:  d.stream_key,
+    playbackId: d.playback_ids?.[0]?.id || '',
+    rtmpsUrl:   MUX_RTMPS_URL,
+  };
+}
+
+/** Signal a broadcast finished (finalizes the recording). Best-effort. */
+export async function completeLiveStream(liveStreamId) {
+  if (!liveStreamId) return false;
+  const res = await fetch(`${API}/video/v1/live-streams/${liveStreamId}/complete`, {
+    method: 'PUT',
+    headers: { Authorization: authHeader() },
+  });
+  return res.ok;
+}
+
+/** Disable a live stream — stops accepting new RTMP connections. Best-effort. */
+export async function disableLiveStream(liveStreamId) {
+  if (!liveStreamId) return false;
+  const res = await fetch(`${API}/video/v1/live-streams/${liveStreamId}/disable`, {
+    method: 'POST',
+    headers: { Authorization: authHeader() },
+  });
+  return res.ok;
+}
+
+/**
+ * Normalize a Mux LIVE webhook → { muxStreamId, state } | null.
+ * state: 'live' (active) · 'ended' (idle/disconnected) · 'connected'.
+ * Wired in M3 to auto-flip stream status; helper ready now.
+ */
+/**
+ * Current Mux live-stream status — the source of truth for whether ingest is
+ * actually happening. Returns 'idle' | 'active' | 'connected' | 'disconnected' |
+ * 'disabled', or null on error.
+ */
+export async function muxLiveStatus(liveStreamId) {
+  try {
+    const res = await fetch(`${API}/video/v1/live-streams/${liveStreamId}`, {
+      headers: { Authorization: authHeader() },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data?.status ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseLiveWebhook(payload) {
+  const type = payload?.type;
+  const id = payload?.data?.id;
+  if (!id || typeof type !== 'string' || !type.startsWith('video.live_stream.')) return null;
+  if (type === 'video.live_stream.active') return { muxStreamId: id, state: 'live' };
+  // Only 'idle' (fires after the reconnect window elapses with no ingest) is a
+  // real end. 'disconnected' can fire on a transient mid-stream blip, so it's
+  // surfaced separately and NOT auto-ended on.
+  if (type === 'video.live_stream.idle') return { muxStreamId: id, state: 'ended' };
+  if (type === 'video.live_stream.disconnected') return { muxStreamId: id, state: 'disconnected' };
+  if (type === 'video.live_stream.connected') return { muxStreamId: id, state: 'connected' };
+  return null;
+}

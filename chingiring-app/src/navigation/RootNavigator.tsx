@@ -1,14 +1,23 @@
 import { useRef } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../store';
-import ResponsiveNavigator from './DrawerNavigator';
+import AuthNavigator from './AuthNavigator';
 import AdminNavigator from './AdminNavigator';
+import BuyerTabNavigator from './BuyerTabNavigator';
+import SellerTabNavigator from './SellerTabNavigator';
+import RoleSelectionScreen from '../screens/Auth/RoleSelectionScreen';
 import { linking, documentTitle } from './linking';
 import { WelcomeModal } from '../components/WelcomeModal';
 import { navigationRef } from '../lib/navigationRef';
 import { AuthGateProvider } from '../context/AuthGateContext';
 import { ReferralModal } from '../components/ReferralModal';
+import { ViewingAsBuyerBanner } from '../components/ViewingAsBuyerBanner';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
+
+// Legacy responsive navigator (web + existing buyer-style mobile flow).
+// Still used by any path not yet forked (e.g. web clients).
+import ResponsiveNavigator from './DrawerNavigator';
 
 function trackScreen(name: string) {
   if (Platform.OS !== 'web') return;
@@ -16,8 +25,90 @@ function trackScreen(name: string) {
 }
 
 export default function RootNavigator() {
-  const user = useAuthStore((state) => state.user);
-  const routeNameRef = useRef<string | undefined>();
+  const user    = useAuthStore((state) => state.user);
+  const viewAsBuyer = useAuthStore((state) => state.viewAsBuyer);
+  const setViewAsBuyer = useAuthStore((state) => state.setViewAsBuyer);
+  const routeNameRef = useRef<string | undefined>(undefined);
+  const { width } = useWindowDimensions();
+  // Desktop web (≥ 768px) gets the full sidebar/drawer; mobile and native get
+  // the pill-tab navigator regardless of role.
+  const isDesktopWeb = Platform.OS === 'web' && width >= 768;
+
+  // Resolve which top-level navigator to render.
+  // Priority: unauthed → admin → buyer → seller → role picker → legacy
+  //
+  // No isReady spinner gate here: the splash (App.tsx) dismisses on its own
+  // animation timeline rather than blocking on auth hydration (GET /auth/me),
+  // so we render immediately. Guest browsing is a valid state (user:null →
+  // AuthNavigator); the tree re-resolves to the right navigator once auth
+  // hydrates. Dropping this gate is part of the "stop the app freezing on
+  // splash" fix carried over from main.
+  function resolveNavigator() {
+    if (!user) {
+      return <AuthNavigator />;
+    }
+
+    if (user.role === 'admin') {
+      return <AdminNavigator />;
+    }
+
+    if (user.role === 'buyer') {
+      return (
+        <AuthGateProvider>
+          {/* Desktop web: full sidebar drawer (matches main). Mobile / native: pill tab bar. */}
+          {isDesktopWeb ? <ResponsiveNavigator /> : <BuyerTabNavigator />}
+          <ReferralModal />
+        </AuthGateProvider>
+      );
+    }
+
+    if (user.role === 'seller') {
+      // A seller can "shop as a buyer": render the buyer app while role stays
+      // 'seller'. The banner owns the top safe-area inset, so the buyer subtree
+      // is given top inset = 0 to avoid a doubled status-bar gap.
+      if (viewAsBuyer) {
+        return (
+          <AuthGateProvider>
+            <View style={{ flex: 1 }}>
+              <ViewingAsBuyerBanner onSwitchBack={() => setViewAsBuyer(false)} />
+              <SafeAreaInsetsContext.Consumer>
+                {(insets) => (
+                  <SafeAreaInsetsContext.Provider
+                    value={{ top: 0, bottom: insets?.bottom ?? 0, left: insets?.left ?? 0, right: insets?.right ?? 0 }}
+                  >
+                    {isDesktopWeb ? <ResponsiveNavigator /> : <BuyerTabNavigator />}
+                  </SafeAreaInsetsContext.Provider>
+                )}
+              </SafeAreaInsetsContext.Consumer>
+            </View>
+            <ReferralModal />
+          </AuthGateProvider>
+        );
+      }
+      return (
+        <AuthGateProvider>
+          <SellerTabNavigator />
+        </AuthGateProvider>
+      );
+    }
+
+    // Any unrecognised / legacy role → role picker. This catches:
+    //   null, undefined, 'user' (old backend default), or any future unknown value.
+    //   The explicit string list is safer than == null alone on web where the
+    //   value might arrive as the string "null" from some serialisation paths.
+    const ROLED = ['buyer', 'seller', 'admin'];
+    if (!user.role || !ROLED.includes(user.role)) {
+      return <RoleSelectionScreen />;
+    }
+
+    // Fallback: existing desktop/web responsive navigator (should not reach here)
+    return (
+      <AuthGateProvider>
+        <ResponsiveNavigator />
+        <ReferralModal />
+      </AuthGateProvider>
+    );
+  }
 
   return (
     <>
@@ -25,7 +116,9 @@ export default function RootNavigator() {
         ref={navigationRef}
         linking={linking}
         documentTitle={documentTitle}
-        onReady={() => { routeNameRef.current = navigationRef.getCurrentRoute()?.name; }}
+        onReady={() => {
+          routeNameRef.current = navigationRef.getCurrentRoute()?.name;
+        }}
         onStateChange={() => {
           const current = navigationRef.getCurrentRoute()?.name;
           if (current !== routeNameRef.current) {
@@ -34,16 +127,10 @@ export default function RootNavigator() {
           }
         }}
       >
-        {user?.role === 'admin' ? (
-          <AdminNavigator />
-        ) : (
-          <AuthGateProvider>
-            <ResponsiveNavigator />
-            <ReferralModal />
-          </AuthGateProvider>
-        )}
+        {resolveNavigator()}
       </NavigationContainer>
-      {user && user?.role !== 'admin' ? <WelcomeModal /> : null}
+      {/* WelcomeModal only after a role is confirmed — never on the role-picker itself */}
+      {user && user.role === 'buyer' || user?.role === 'seller' ? <WelcomeModal /> : null}
     </>
   );
 }

@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, X, Edit2, Trash2, Eye, EyeOff, Search, SlidersHorizontal } from 'lucide-react-native';
 import { Colors, Spacing, Gradient } from '../../constants/theme';
+import { cloudFolder } from '../../constants/cloudinaryFolders';
 import { adminAPI } from '../../api/admin';
 import { categoriesAPI } from '../../api/deals';
 import { ImageUploader } from '../../components/ImageUploader';
@@ -256,7 +257,7 @@ export function DealFormModal({ visible, onClose, deal, categories }: {
             <ImageUploader
               value={form.imageUrl}
               onChange={(url) => setForm({ ...form, imageUrl: url })}
-              folder="chingiringi/deals"
+              folder={cloudFolder.deals}
             />
 
             {/* Coins Reward — coins the user earns per purchase via this deal. */}

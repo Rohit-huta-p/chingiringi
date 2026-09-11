@@ -23,6 +23,7 @@ const storeSchema = new mongoose.Schema(
     logoUrl: { type: String, default: '' },
     images: [{ type: String }],
     phone: { type: String, default: '' },
+    website: { type: String, default: '', trim: true },
 
     // ── Location ─────────────────────────────────────────────
     address: { type: String, required: [true, 'Address is required'], trim: true },
@@ -40,11 +41,13 @@ const storeSchema = new mongoose.Schema(
     openDays: [{ type: Number, min: 0, max: 6 }], // empty = every day
 
     // ── Deal terms (admin-only; stripped from public responses) ──
+    // Admin-configured deal fields — not required at seller onboarding (default 0).
+    // Admin sets these later when activating the store's cashback deal.
     userDiscountPercent: {
-      type: Number, required: [true, 'User discount % is required'], min: 0, max: 100,
+      type: Number, default: 0, min: 0, max: 100,
     },
     platformCommissionPercent: {
-      type: Number, required: [true, 'Commission % is required'], min: 0, max: 100,
+      type: Number, default: 0, min: 0, max: 100,
     },
     maxDiscountCap: { type: Number, default: 0, min: 0 }, // 0 = no cap
     minBillAmount: { type: Number, default: 0, min: 0 },
@@ -54,6 +57,41 @@ const storeSchema = new mongoose.Schema(
       upiId: { type: String, default: '' },
       bankName: { type: String, default: '' },
       accountLast4: { type: String, default: '' },
+    },
+
+    // ── Live commerce ownership ──────────────────────────────
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', sparse: true },
+    followerCount: { type: Number, default: 0, min: 0 },
+    isLive: { type: Boolean, default: false },
+
+    // ── Seller verification ──────────────────────────────────
+    verificationStatus: {
+      type: String,
+      enum: ['unverified', 'pending', 'verified', 'rejected'],
+      default: 'unverified',
+    },
+    verificationDoc: {
+      type:            { type: String, default: '' },
+      url:             { type: String, default: '' },   // legacy public URL (pre-private-KYC)
+      publicId:        { type: String, default: '' },   // private (authenticated) Cloudinary asset
+      format:          { type: String, default: '' },
+      submittedAt:     { type: Date },
+      rejectionReason: { type: String, default: '' },
+    },
+    // Personal identity of the store owner (govt ID + selfie), reviewed together
+    // with the store document — the store is only 'verified' when both pass.
+    // New submissions store a private Cloudinary publicId (+ format) instead of a
+    // public URL; the *Url fields remain for legacy rows and are never populated
+    // for new secure uploads.
+    identityDoc: {
+      type:           { type: String, default: '' },  // aadhaar | pan | dl | passport
+      docUrl:         { type: String, default: '' },   // legacy public URL
+      docPublicId:    { type: String, default: '' },   // private ID document asset
+      docFormat:      { type: String, default: '' },
+      selfieUrl:      { type: String, default: '' },   // legacy public URL
+      selfiePublicId: { type: String, default: '' },   // private selfie asset
+      selfieFormat:   { type: String, default: '' },
+      submittedAt:    { type: Date },
     },
 
     // ── Flags ────────────────────────────────────────────────

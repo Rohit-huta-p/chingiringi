@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Image,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import {
   Bell, ShieldCheck, LifeBuoy, UserCog, Lock, LogOut, ChevronRight,
@@ -26,6 +27,11 @@ import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { DeleteAccountModal } from '../../components/DeleteAccountModal';
 import { ChangePasswordModal } from '../../components/ChangePasswordModal';
 import { SettingsSection, SettingRow, SettingToggle, Tint } from '../../components/SettingsList';
+import { LegalModal, LegalType } from '../../components/LegalModal';
+
+// TODO(support): confirm the real support address + store listing URL.
+const SUPPORT_EMAIL = 'support@chingiringi.com';
+const RATE_URL = 'https://play.google.com/store/apps/details?id=com.chingiringi.app';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 // ─── Main ────────────────────────────────────────────────────────────
@@ -48,6 +54,7 @@ export const MobileSettingsScreen = () => {
   const [email, setEmail] = useState(true);
   const [withdrawals, setWithdrawals] = useState(true);
   const [push, setPush] = useState(true);
+  const [legal, setLegal] = useState<LegalType | null>(null);
 
   useEffect(() => {
     if (prefs) {
@@ -184,10 +191,10 @@ export const MobileSettingsScreen = () => {
 
           {/* ── Support ─────────────────────────────────── */}
           <SettingsSection title="Support" icon={LifeBuoy} {...Tint.teal}>
-            <SettingRow icon={HelpCircle} {...Tint.sky} label="Help & Support" onPress={() => {}} />
-            <SettingRow icon={FileText} {...Tint.slate} label="Terms of Service" onPress={() => {}} />
-            <SettingRow icon={ScrollText} {...Tint.teal} label="Privacy Policy" onPress={() => {}} />
-            <SettingRow icon={Star} {...Tint.amber} label="Rate the App" onPress={() => {}} />
+            <SettingRow icon={HelpCircle} {...Tint.sky} label="Help & Support" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => {})} />
+            <SettingRow icon={FileText} {...Tint.slate} label="Terms of Service" onPress={() => setLegal('terms')} />
+            <SettingRow icon={ScrollText} {...Tint.teal} label="Privacy Policy" onPress={() => setLegal('privacy')} />
+            <SettingRow icon={Star} {...Tint.amber} label="Rate the App" onPress={() => Linking.openURL(RATE_URL).catch(() => {})} />
           </SettingsSection>
 
           {/* ── Account ─────────────────────────────────── */}
@@ -239,6 +246,7 @@ export const MobileSettingsScreen = () => {
         }}
         isDeleting={deleteMutation.isPending}
       />
+      <LegalModal type={legal} onClose={() => setLegal(null)} />
     </View>
   );
 };

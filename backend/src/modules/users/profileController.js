@@ -5,6 +5,27 @@ import { generateAndStoreOTP, verifyUserOTP } from '../auth/authService.js';
 import { sendMail, isEmailConfigured } from '../../services/email.js';
 import { AUTH_COOKIE_OPTS } from '../../utils/generateToken.js';
 
+// @desc    Set role for the authenticated user (buyer | seller only)
+// @route   PATCH /api/profile/role
+// @access  Private
+export const updateRole = async (req, res) => {
+  const { role } = req.body;
+  const ALLOWED = ['buyer', 'seller'];
+
+  if (!role || !ALLOWED.includes(role)) {
+    res.status(400);
+    throw new Error(`role must be one of: ${ALLOWED.join(', ')}`);
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { role },
+    { new: true, runValidators: true }
+  ).select('-passwordHash -refreshTokens');
+
+  res.status(200).json({ status: 'success', data: { user } });
+};
+
 // @desc    Update user profile
 // @route   PUT /api/profile
 // @access  Private

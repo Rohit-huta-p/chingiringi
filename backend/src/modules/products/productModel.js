@@ -100,6 +100,22 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // When true, the buyer product page shows a "Chat to buy" action that opens
+    // an in-app conversation with the store — the buy path when there's no
+    // affiliate/buy link (the seller form auto-enables it in that case).
+    buyViaChat: {
+      type: Boolean,
+      default: false,
+    },
+    // Optional store association — products without storeId are platform-wide.
+    // Sellers cannot create products themselves; admin assigns storeId to surface
+    // a product on that store's public profile.
+    storeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Store',
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

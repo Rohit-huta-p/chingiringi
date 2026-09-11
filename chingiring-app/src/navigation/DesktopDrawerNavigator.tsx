@@ -22,6 +22,8 @@ import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 import { StoreDetailScreen } from '../screens/Dashboard/StoreDetailScreen';
 import { AboutScreen } from '../screens/Dashboard/AboutScreen';
+import { ViewerScreen } from '../screens/Live/ViewerScreen';
+import { SellerProfileScreen } from '../screens/Seller/SellerProfileScreen';
 import { useUIStore } from '../store/uiStore';
 
 const Drawer = createDrawerNavigator();
@@ -72,6 +74,9 @@ export default function DesktopDrawerNavigator() {
       <Drawer.Screen name="Video" component={VideoScreen} />
       <Drawer.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Drawer.Screen name="CategoryProducts" component={CategoryProductsScreen} />
+      {/* v2 live screens — reachable from the Live toggle in OfflineStores */}
+      <Drawer.Screen name="ViewerScreen" component={ViewerScreen} />
+      <Drawer.Screen name="SellerProfile" component={SellerProfileScreen} />
     </Drawer.Navigator>
   );
 }

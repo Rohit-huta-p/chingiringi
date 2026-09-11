@@ -1,4 +1,5 @@
 import Product from './productModel.js';
+import Store from '../stores/storeModel.js';
 import { merchantFromUrl } from '../../utils/merchant.js';
 import { buildSearchPipeline } from './searchPipeline.js';
 import SearchQuery from '../search/searchQueryModel.js';
@@ -12,6 +13,7 @@ export const getProducts = async (req, res) => {
     limit = 12,
     category,
     search,
+    storeId,
     featured,
     sort = null,          // null → relevance when searching, newest otherwise
     minPrice,
@@ -27,6 +29,7 @@ export const getProducts = async (req, res) => {
   const opts = {
     search: search?.trim() || undefined,
     category: category || undefined,
+    storeId: storeId || undefined,
     featured: featured === 'true',
     sort: sort || null,
     minPrice:    num(minPrice),
@@ -164,6 +167,15 @@ export const getProduct = async (req, res) => {
     throw new Error('Product not found');
   }
 
+  // Attach the seller store that posted this product — powers the "Sold by"
+  // attribution card + buy-method line on the buyer product page.
+  if (product.storeId) {
+    const store = await Store.findById(product.storeId)
+      .select('name shortName logoUrl isVerified slug')
+      .lean();
+    if (store) product.store = store;
+  }
+
   res.status(200).json({ status: 'success', data: { product } });
 };
 
@@ -265,6 +277,79 @@ export const deleteProduct = async (req, res) => {
     throw new Error('Product not found');
   }
 
+  res.status(200).json({ status: 'success', message: 'Product deleted' });
+};
+
+// ── Seller-scoped product writes (own store only) ────────────────────────────
+// Fields a seller may set on their own products. Everything else on the schema
+// (merchant, rating, isFeatured, storeId, sold, coinsPrice, isActive) is
+// admin-controlled or computed, and is ignored on seller writes.
+const SELLER_PRODUCT_FIELDS = [
+  'name', 'description', 'category', 'price', 'mrp',
+  'imageUrl', 'mobileImageUrl', 'images', 'mobileImages', 'affiliateUrl',
+  'buyViaChat',
+];
+
+function pickSellerFields(body = {}) {
+  const out = {};
+  for (const k of SELLER_PRODUCT_FIELDS) if (k in body) out[k] = body[k];
+  // Keep the cover mirror consistent (imageUrl mirrors images[0]).
+  if (Array.isArray(out.images) && out.images.length && !out.imageUrl) out.imageUrl = out.images[0];
+  if (Array.isArray(out.mobileImages) && out.mobileImages.length && !out.mobileImageUrl) {
+    out.mobileImageUrl = out.mobileImages[0];
+  }
+  return out;
+}
+
+// Resolve the caller's own store (one store per seller) or 403.
+async function ownStoreOr403(req, res) {
+  const store = await Store.findOne({ ownerId: req.user._id });
+  if (!store) {
+    res.status(403);
+    throw new Error('Create your store before managing products.');
+  }
+  return store;
+}
+
+// @desc    Seller creates a product on their own store
+// @route   POST /api/products/mine
+// @access  Private (seller)
+export const createMyProduct = async (req, res) => {
+  const store = await ownStoreOr403(req, res);
+  const fields = pickSellerFields(req.body);
+  if (!fields.name || fields.price == null) {
+    res.status(400);
+    throw new Error('name and price are required.');
+  }
+  const product = await Product.create({ ...fields, storeId: store._id });
+  res.status(201).json({ status: 'success', data: { product } });
+};
+
+// @desc    Seller updates one of their own products
+// @route   PUT /api/products/mine/:id
+// @access  Private (seller)
+export const updateMyProduct = async (req, res) => {
+  const store = await ownStoreOr403(req, res);
+  const product = await Product.findOne({ _id: req.params.id, storeId: store._id });
+  if (!product) {
+    res.status(404);
+    throw new Error('Product not found.');
+  }
+  Object.assign(product, pickSellerFields(req.body));
+  await product.save();
+  res.status(200).json({ status: 'success', data: { product } });
+};
+
+// @desc    Seller deletes one of their own products
+// @route   DELETE /api/products/mine/:id
+// @access  Private (seller)
+export const deleteMyProduct = async (req, res) => {
+  const store = await ownStoreOr403(req, res);
+  const product = await Product.findOneAndDelete({ _id: req.params.id, storeId: store._id });
+  if (!product) {
+    res.status(404);
+    throw new Error('Product not found.');
+  }
   res.status(200).json({ status: 'success', message: 'Product deleted' });
 };
 

@@ -62,7 +62,7 @@ export function useComments(videoId: string | null) {
       const tempId = `temp-${Date.now()}`;
       prepend({
         _id: tempId, text, createdAt: new Date().toISOString(), mine: true,
-        user: { _id: me?.id || 'me', name: me?.name, username: me?.username, avatarUrl: me?.avatarUrl },
+        user: { _id: me?.id || 'me', name: me?.name, avatarUrl: me?.avatarUrl },
       });
       bumpCount(1);
       return { tempId };

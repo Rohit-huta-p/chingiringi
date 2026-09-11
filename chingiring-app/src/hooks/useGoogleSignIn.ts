@@ -75,6 +75,8 @@ export function useGoogleSignIn(onError?: (msg: string) => void) {
       onError?.('Google sign-in isn’t configured yet.');
       return;
     }
+    // 🔍 TEMP: log the exact redirect_uri expo-auth-session sends to Google
+    console.log('[GoogleSignIn] redirectUri being sent to Google:', request?.redirectUri);
     setLoading(true);
     try {
       await promptAsync();

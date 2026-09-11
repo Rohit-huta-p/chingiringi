@@ -203,7 +203,7 @@ export const MobileAdminWithdrawals = () => {
           {/* ── Search ────────────────────────────────── */}
           <View style={s.searchRow}>
             <Search size={16} color="#94a3b8" strokeWidth={2} />
-            <TextInput style={s.searchInput} placeholder="Search by username..." placeholderTextColor="#94a3b8"
+            <TextInput style={s.searchInput} placeholder="Search by name..." placeholderTextColor="#94a3b8"
               value={search} onChangeText={setSearch} />
             <SlidersHorizontal size={18} color="#94a3b8" strokeWidth={2} />
           </View>

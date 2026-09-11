@@ -7,6 +7,9 @@ import {
   bulkCreateProducts,
   updateProduct,
   deleteProduct,
+  createMyProduct,
+  updateMyProduct,
+  deleteMyProduct,
 } from './productController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
@@ -17,6 +20,11 @@ const router = express.Router();
 router.get('/', getProducts);
 router.get('/featured', getFeaturedProducts);
 router.get('/:id', getProduct);
+
+// Seller — own store only (ownership enforced in the controller)
+router.post('/mine',       protect, createMyProduct);
+router.put('/mine/:id',    protect, updateMyProduct);
+router.delete('/mine/:id', protect, deleteMyProduct);
 
 // Admin
 router.post('/', protect, admin, createProduct);

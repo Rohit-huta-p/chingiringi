@@ -14,13 +14,14 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, ChevronRight, ChevronDown, Bell } from 'lucide-react-native';
+import { Search, ChevronRight, ChevronDown, Bell, MessageCircle } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useUnreadCount } from '../../hooks/useUnreadCount';
+import { getUnreadTotal } from '../../api/chat';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
@@ -87,6 +88,13 @@ export const MobileHomeScreen = () => {
   const user = useAuthStore((s) => s.user);
   const refresh = usePullToRefresh();
   const unreadCount = useUnreadCount();
+  const { data: chatUnread = 0 } = useQuery({
+    queryKey: ['chat', 'unread'],
+    queryFn: getUnreadTotal,
+    enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -307,25 +315,41 @@ export const MobileHomeScreen = () => {
       <View style={st.hrow}>
         <View style={st.greetWrap}>
           <Text style={st.greet}>{greeting()},</Text>
-          <TouchableOpacity style={st.locRow} activeOpacity={0.7}>
+          {/* Non-interactive greeting line (was a fake location selector). */}
+          <View style={st.locRow}>
             <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
-            {/* <ChevronDown size={14} color="#fff" /> */}
+          </View>
+        </View>
+        <View style={st.headerIcons}>
+          <TouchableOpacity
+            style={st.bellBtn}
+            onPress={() => navigation.navigate('Messages')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
+          >
+            <MessageCircle size={20} color="#fff" strokeWidth={2.2} />
+            {chatUnread > 0 ? (
+              <View style={st.bellBadge}>
+                <Text style={st.bellBadgeText}>{chatUnread > 9 ? '9+' : chatUnread}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={st.bellBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+          >
+            <Bell size={20} color="#fff" strokeWidth={2.2} />
+            {unreadCount > 0 ? (
+              <View style={st.bellBadge}>
+                <Text style={st.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={st.bellBtn}
-          onPress={() => navigation.navigate('Notifications')}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications"
-        >
-          <Bell size={20} color="#fff" strokeWidth={2.2} />
-          {unreadCount > 0 ? (
-            <View style={st.bellBadge}>
-              <Text style={st.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-            </View>
-          ) : null}
-        </TouchableOpacity>
       </View>
 
       <View style={st.searchRow}>
@@ -448,6 +472,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 16,
   },
   greetWrap: { alignItems: 'flex-start' },
+  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   bellBtn: {
     width: 40,
     height: 40,

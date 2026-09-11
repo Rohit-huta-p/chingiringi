@@ -9,12 +9,6 @@ const userSchema = new mongoose.Schema(
       required: [true, 'First name is required'],
       trim: true,
     },
-    username: {
-      type: String,
-      unique: true,
-      sparse: true,
-      trim: true,
-    },
     email: {
       type: String,
       unique: true,
@@ -43,7 +37,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['user', 'admin'],
+      enum: ['user', 'buyer', 'seller', 'admin'],
       default: 'user',
     },
     referralCode: {
@@ -108,6 +102,10 @@ userSchema.pre('save', async function () {
 });
 
 userSchema.methods.matchPassword = async function (enteredPassword) {
+  // Google/OTP accounts have no passwordHash. bcrypt.compare throws
+  // "data and hash arguments required" on an undefined hash, so short-circuit
+  // to a failed match — the caller surfaces a clean 401 instead of a 500.
+  if (!this.passwordHash) return false;
   return await bcrypt.compare(enteredPassword, this.passwordHash);
 };
 

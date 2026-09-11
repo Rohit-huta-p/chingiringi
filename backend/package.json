@@ -16,6 +16,7 @@
     "cron:reconcile-videos": "node src/scripts/reconcileVideos.js",
     "cron:expire-shares": "node src/scripts/expirePendingShares.js",
     "migrate:share-status": "node src/scripts/backfillShareStatus.js",
+    "migrate:drop-username": "node src/scripts/dropUsername.js",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --forceExit --detectOpenHandles"
   },
   "keywords": [],
@@ -23,6 +24,7 @@
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -35,7 +37,9 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.2",
     "morgan": "^1.10.1",
+    "multer": "^2.3.0",
     "nodemailer": "^9.0.5",
+    "socket.io": "^4.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

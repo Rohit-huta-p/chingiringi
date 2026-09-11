@@ -1,23 +1,32 @@
 import axios from 'axios';
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
 function getBaseURL(): string {
+  // Production / EAS builds inject the real API URL.
   if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
 
-  // Try to auto-detect LAN IP from Expo's dev server connection
-  const debuggerHost = Constants.expoGoConfig?.debuggerHost ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
-
-  if (debuggerHost) {
-    const ip = debuggerHost.split(':')[0];
-    if (ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:8000`;
-    }
-  }
-
+  // Web dev: the browser runs on the same machine as the backend, so just hit
+  // localhost. No LAN-IP detection — it only ever broke when the machine's DHCP
+  // address changed mid-session.
   if (Platform.OS === 'web') return 'http://localhost:8000';
-  return 'exp://10.40.27.107:8081';
+
+  // Native dev (physical device / simulator): the device can't reach the host's
+  // "localhost", so derive the dev machine's LAN host from the URL the JS bundle
+  // was loaded from. Falls back to localhost for simulators.
+  const scriptURL: string = NativeModules?.SourceCode?.scriptURL ?? '';
+  const scriptHost = scriptURL.includes('://') ? scriptURL.split('://')[1].split('/')[0] : '';
+  const hostUri =
+    scriptHost ||
+    Constants.expoConfig?.hostUri ||
+    Constants.expoGoConfig?.debuggerHost ||
+    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
+    '';
+  const ip = String(hostUri).split(':')[0];
+  if (ip && ip !== 'localhost' && ip !== '127.0.0.1') return `http://${ip}:8000`;
+
+  return 'http://localhost:8000';
 }
 
 const isNative = Platform.OS !== 'web';

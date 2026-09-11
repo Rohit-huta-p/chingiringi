@@ -1,0 +1,500 @@
+[
+  {
+    "_id": "6a7c66c220e3a596d85f3b6e",
+    "store": {
+      "name": "ZOUK",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "JiFCI7PUq8noJtAFUeenE6GEMJFLsvyQJsQIUPdr1hk",
+    "provider": "mux",
+    "providerAssetId": "y6X02agERGp3APNPZFoaynBtFRmfXDY3qv3uJ5Pc02BPo",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/U7LcPh4EOVp7y7c37j00LMotLWpPZJjWxRlyZ00yTTxKA.m3u8",
+    "thumbnailUrl": "https://image.mux.com/U7LcPh4EOVp7y7c37j00LMotLWpPZJjWxRlyZ00yTTxKA/thumbnail.jpg",
+    "durationSec": 8,
+    "caption": "ZOUK Baguette Bag | Crossbody Bags for Women",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "ZOUK Baguette Bag | Crossbody Bags for Women",
+        "description": "Women's Handbags | Stylish Sling Bag for Woman | Vegan Leather Evening Bag | Travel & Office Use | Purse and Wallet | Bidri Kaiser Print",
+        "price": 726,
+        "url": "https://link.amazon/B0eePxMPC"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T12:27:46.045Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 11,
+      "uniqueViews": 0,
+      "watchSec": 56,
+      "likes": 0,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T12:27:46.047Z",
+    "updatedAt": "2026-08-12T13:14:12.434Z",
+    "__v": 0,
+    "publishedAt": "2026-08-12T12:27:46.878Z"
+  },
+  {
+    "_id": "6a7c655820e3a596d85f3a94",
+    "store": {
+      "name": "ZOUK",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "x0201Nke5Ntri7DZ1KFQ2pDm7u00UP5BUT9b002uyXuPSkk",
+    "provider": "mux",
+    "providerAssetId": "",
+    "status": "processing",
+    "hlsUrl": "",
+    "thumbnailUrl": "",
+    "durationSec": 0,
+    "caption": "ZOUK Baguette Bag | Crossbody Bags for Women",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "ZOUK Baguette Bag | Crossbody Bags for Women",
+        "description": "Women's Handbags | Stylish Sling Bag for Woman | Vegan Leather Evening Bag | Travel & Office Use | Purse and Wallet | Bidri Kaiser Print",
+        "price": 726,
+        "url": "https://link.amazon/B0jhXHGR4"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T12:21:44.340Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 0,
+      "uniqueViews": 0,
+      "watchSec": 0,
+      "likes": 0,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T12:21:44.341Z",
+    "updatedAt": "2026-08-12T12:21:44.341Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a7c626a20e3a596d85f3a37",
+    "store": {
+      "name": "Nutripro",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "7YNZ201y8hGf25GhO25hl0027OMSaR3n3DFiksWFS8epA",
+    "provider": "mux",
+    "providerAssetId": "SZOswV2m00FtVNopt00sUROFhL5yp2GClQvEJghfJHOgU",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/42hGOxVSl8PwLwBz7tNvrMmtrzi8azKxiZcWMjulnf8.m3u8",
+    "thumbnailUrl": "https://image.mux.com/42hGOxVSl8PwLwBz7tNvrMmtrzi8azKxiZcWMjulnf8/thumbnail.jpg",
+    "durationSec": 8,
+    "caption": "NutriPro Juicer Mixer Grinder - Smoothie Maker - 500 Watts",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "NutriPro Juicer Mixer Grinder",
+        "description": "Make Smoothies and Juices within seconds.\nAlso suitable for dry grinding, chutneys and dips\nPowerful 500 W copper motor can grind almost any food.\nBest in the segment customer support and quality",
+        "price": 1699,
+        "url": "https://link.amazon/B0eDjaeId"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T12:09:14.299Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 8,
+      "uniqueViews": 0,
+      "watchSec": 17,
+      "likes": 0,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T12:09:14.305Z",
+    "updatedAt": "2026-08-12T13:14:15.576Z",
+    "__v": 0,
+    "publishedAt": "2026-08-12T12:09:15.400Z"
+  },
+  {
+    "_id": "6a7c4807dbd8a327822a03c9",
+    "store": {
+      "name": "Fastrack",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "vhPS00P6grcCXYvhYXhvs00yMYFLMt9h9RWKSkVO02b01kE",
+    "provider": "mux",
+    "providerAssetId": "zB02y3lD1FKlAxRpio3qaj00iqO75pCDrG5Bq1nDfdWw4",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/JhJmpaVFNRbikqLP1qEsbnM7suMu5nyHrbUsnnCzUCs.m3u8",
+    "thumbnailUrl": "https://image.mux.com/JhJmpaVFNRbikqLP1qEsbnM7suMu5nyHrbUsnnCzUCs/thumbnail.jpg",
+    "durationSec": 8,
+    "caption": "Fastrack Bold Quartz Analog Black Dial Silver Stainless Steel Strap Watch for Guys, Men- NT38051SM07",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "Fastrack Bold Quartz",
+        "description": "Unique 24-Hour/Minute Markers: The bold grey Arabic numerals at 6 and 12 offer a distinctive way to read time.",
+        "price": 1432,
+        "url": "https://link.amazon/B098LBRFu"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T10:16:39.766Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 18,
+      "uniqueViews": 0,
+      "watchSec": 59,
+      "likes": 1,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T10:16:39.767Z",
+    "updatedAt": "2026-08-12T13:14:13.747Z",
+    "__v": 0,
+    "publishedAt": "2026-08-12T10:16:40.049Z"
+  },
+  {
+    "_id": "6a7c4402dbd8a327822a0298",
+    "store": {
+      "name": "pTron",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "NG3eDe6mw5eoEfkGX00tp2mmRT8slT01TSYKWU00h6wKgQ",
+    "provider": "mux",
+    "providerAssetId": "oFhfSz02EHBkDlVPg9DjOTq02RMhdT1BygsPYjbQ249yc",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/r1mm00Rq9OcWcB02U8PJwsPjfYgyr00Po1onAxaea9zc54.m3u8",
+    "thumbnailUrl": "https://image.mux.com/r1mm00Rq9OcWcB02U8PJwsPjfYgyr00Po1onAxaea9zc54/thumbnail.jpg",
+    "durationSec": 8,
+    "caption": "Bassbuds Astra in-Ear",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "Bassbuds Astra in-Ear",
+        "description": "TWS Earbuds w/Stereo Sound, 34Hrs Playtime, Stereo Calls, Custom EQ, Mobile App, BTv5.3 Headphones, Touch Control, Voice Assistant, Type C Charging & IPX4 (Lilac)",
+        "price": 599,
+        "url": "https://link.amazon/B0gXN3mi3"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T09:59:30.251Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 18,
+      "uniqueViews": 0,
+      "watchSec": 53,
+      "likes": 0,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T09:59:30.258Z",
+    "updatedAt": "2026-08-12T12:33:55.270Z",
+    "__v": 0,
+    "publishedAt": "2026-08-12T09:59:31.162Z"
+  },
+  {
+    "_id": "6a7c3cfacda4da9923070e79",
+    "store": {
+      "name": "Conbrey",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "sebxbAbi2z2YigXapiZ9XBzw02JW6Dnr2ASTlrkY2Wzo",
+    "provider": "mux",
+    "providerAssetId": "AKWX01b32pmk2giw7LAlWnmHW01OsyZDRlkqE00H8qVj01Q",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/QQCGAklg74LMEZj0001702qFOlA17CDhyqELC9fhPpkiCE.m3u8",
+    "thumbnailUrl": "https://image.mux.com/QQCGAklg74LMEZj0001702qFOlA17CDhyqELC9fhPpkiCE/thumbnail.jpg",
+    "durationSec": 8,
+    "caption": "Instant Print Camera with 4 Games – 3-in-1 Digital Camera for Boys & Girls Ages 3-12",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "Conbre Kids Instant Print Camera",
+        "description": "",
+        "price": 2299,
+        "url": ""
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T09:29:30.342Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 19,
+      "uniqueViews": 0,
+      "watchSec": 71,
+      "likes": 2,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T09:29:30.343Z",
+    "updatedAt": "2026-08-12T12:33:55.994Z",
+    "__v": 0,
+    "publishedAt": "2026-08-12T09:29:31.277Z"
+  },
+  {
+    "_id": "6a7c3bc5cda4da9923070df9",
+    "store": {
+      "name": "Spicyshine",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "wj5SspoD5Eai5DN9zoPs4gpwboUILdCGGFYURUf00ytI",
+    "provider": "mux",
+    "providerAssetId": "cCRwlY022sFOKbQ8n5GG5YJ01SPVfVxkyQC3aIQSTGL24",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/FmPeg1mJmCYZ2ota89eiMiQcvODXX2wg00yJkoCj7Wl00.m3u8",
+    "thumbnailUrl": "https://image.mux.com/FmPeg1mJmCYZ2ota89eiMiQcvODXX2wg00yJkoCj7Wl00/thumbnail.jpg",
+    "durationSec": 8,
+    "caption": "Dimmable Engraved LED Glass Ball Table Lamp with USB and Wooden Base",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "3D Galaxy Crystal Ball Night Light",
+        "description": "",
+        "price": 62,
+        "url": "https://link.amazon/B0d5bmodQ"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T09:24:21.804Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 17,
+      "uniqueViews": 0,
+      "watchSec": 54,
+      "likes": 1,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T09:24:21.806Z",
+    "updatedAt": "2026-08-12T12:33:56.529Z",
+    "__v": 0,
+    "publishedAt": "2026-08-12T09:24:23.371Z"
+  },
+  {
+    "_id": "6a7c3a3acda4da9923070d58",
+    "store": {
+      "name": "One94Store",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "jiir6DPpR0102VXq02GSPj5XO2BINKXsjP1tBl00n011B01hA",
+    "provider": "mux",
+    "providerAssetId": "011q6sXmmWraQIQJeIQvmgAF77fRwS1jQ7Elzi1EwjnM",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/OxvLroilDO02WGcOX02100FSTQ9dLJkO00RrD73mZPztYyM.m3u8",
+    "thumbnailUrl": "https://image.mux.com/OxvLroilDO02WGcOX02100FSTQ9dLJkO00RrD73mZPztYyM/thumbnail.jpg",
+    "durationSec": 8,
+    "caption": "Adorable Rabbit Design: This cute and playful rabbit-shaped night light is made from soft, BPA-free silicone, creating a comforting and fun atmosphere for your child's room.",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "Cute Little Rabbit Silicone Night Lamp",
+        "description": "",
+        "price": 372,
+        "url": "https://link.amazon/B02sZUNz5"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T09:17:46.902Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 15,
+      "uniqueViews": 0,
+      "watchSec": 66,
+      "likes": 2,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T09:17:46.905Z",
+    "updatedAt": "2026-08-12T12:33:57.666Z",
+    "__v": 0,
+    "publishedAt": "2026-08-12T09:17:47.938Z"
+  },
+  {
+    "_id": "6a7c3789cda4da9923070b54",
+    "store": {
+      "name": "Boldfit",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "bDDNdZPZo1t1P8fHtGMR01RQDs02ZbcZfhvJ01f3PHgdb00",
+    "provider": "mux",
+    "providerAssetId": "",
+    "status": "processing",
+    "hlsUrl": "",
+    "thumbnailUrl": "",
+    "durationSec": 0,
+    "caption": "EXCEPTIONAL DURABILITY FOR OUTDOOR EXPLORATION",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "Boldfit Trekking Shoes for Man",
+        "description": "",
+        "price": 1549,
+        "url": "https://link.amazon/A05QyxaWl"
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-12T09:06:17.275Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 0,
+      "uniqueViews": 0,
+      "watchSec": 0,
+      "likes": 0,
+      "shares": 0,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-12T09:06:17.329Z",
+    "updatedAt": "2026-08-12T09:06:17.329Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a78f7da19eaa92f84e61dac",
+    "store": {
+      "name": "Hotwheels",
+      "logoUrl": ""
+    },
+    "createdByAdmin": "69d2b829f1a71edeb5d0130c",
+    "streamUid": "j02xIxtHXK008QfqPpZmFusEJQ9OSyJo1OTeK8ycoTCrM",
+    "provider": "mux",
+    "providerAssetId": "1h4qJXN8gw7P022pSDOf012o02wG2uIRoqq4Rb2qKk1ZTc",
+    "status": "ready",
+    "hlsUrl": "https://stream.mux.com/RUZrXaEIl02tBeJKMTMSS00wMGkDaETTVW1YfL8u02WZC4.m3u8",
+    "thumbnailUrl": "https://image.mux.com/RUZrXaEIl02tBeJKMTMSS00wMGkDaETTVW1YfL8u02WZC4/thumbnail.jpg",
+    "durationSec": 10,
+    "caption": "A brand new collection - RED",
+    "hashtags": [],
+    "taggedProducts": [
+      {
+        "title": "Hotwheels RED",
+        "description": "A brand new collection - RED",
+        "price": 1299,
+        "url": ""
+      }
+    ],
+    "cta": {
+      "type": "shop",
+      "url": ""
+    },
+    "moderation": {
+      "state": "approved",
+      "reviewedBy": "69d2b829f1a71edeb5d0130c",
+      "at": "2026-08-09T21:57:46.517Z",
+      "reason": ""
+    },
+    "isFeatured": false,
+    "stats": {
+      "views": 14,
+      "uniqueViews": 0,
+      "watchSec": 28,
+      "likes": 1,
+      "shares": 1,
+      "saves": 0,
+      "productTaps": 0,
+      "storeTaps": 0
+    },
+    "createdAt": "2026-08-09T21:57:46.524Z",
+    "updatedAt": "2026-08-12T12:33:57.820Z",
+    "__v": 0,
+    "publishedAt": "2026-08-09T22:07:37.543Z"
+  }
+]

@@ -13,25 +13,25 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Search,
   MapPin,
-  Map as MapIcon,
   List,
+  Radio,
   Tag,
   Star,
   Clock,
   SlidersHorizontal,
   Plus,
-  Minus,
   Check,
   X,
 } from 'lucide-react-native';
+import { fetchActiveStreams, type LiveStream } from '../Buyer/LiveDiscoveryScreen';
 import * as Location from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
-import { StoreMap } from '../../components/StoreMap';
 import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
@@ -43,7 +43,7 @@ import {
 } from '../../data/offlineStores';
 
 type SortKey = 'discount' | 'rating';
-type ViewMode = 'list' | 'map';
+type ViewMode = 'live' | 'stores';
 type StoreFilters = { openNow: boolean; minDiscount: number; minRating: number };
 
 const DEFAULT_FILTERS: StoreFilters = { openNow: false, minDiscount: 0, minRating: 0 };
@@ -61,11 +61,14 @@ export const OfflineStoresScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
   const [sort, setSort] = useState<SortKey>('discount');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('stores');
   const [filters, setFilters] = useState<StoreFilters>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationLabel, setLocationLabel] = useState('Bengaluru, Karnataka');
+  // Measured width of the live grid pane (updated on layout so the column
+  // math is correct inside the desktop drawer, not just at window width).
+  const [liveGridW, setLiveGridW] = useState(0);
 
   // Ask for GPS once so "Near" sorts by the shopper's real distance; fall back
   // to the city center (BENGALURU_CENTER) on denial/error.
@@ -111,6 +114,13 @@ export const OfflineStoresScreen: React.FC = () => {
     queryFn: () => storesAPI.list({ limit: 50 }),
   });
 
+  const { data: liveStreams = [], isLoading: liveLoading } = useQuery<LiveStream[]>({
+    queryKey: ['streams', 'active'],
+    queryFn: fetchActiveStreams,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
+
   // Daily share quota — screen-level (not per-card); same query key the
   // per-store share action invalidates.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
@@ -145,8 +155,18 @@ export const OfflineStoresScreen: React.FC = () => {
     (filters.openNow ? 1 : 0) + (filters.minDiscount > 0 ? 1 : 0) + (filters.minRating > 0 ? 1 : 0);
 
   const openCount = filtered.filter((s) => s.isOpen).length;
-  const showMap = !isNarrow || viewMode === 'map';
-  const showList = !isNarrow || viewMode === 'list';
+  // Toggle is active on both mobile and desktop — only the selected panel renders.
+  const showStores = viewMode === 'stores';
+  const showLive   = viewMode === 'live';
+
+  // Live grid: 2 / 3 / 4 columns for sm / md / lg. Card width is derived from
+  // the measured pane width so columns stay flush regardless of drawer offset.
+  const LIVE_GAP = isNarrow ? 12 : 16;
+  const liveCols = width < 768 ? 2 : width < 1200 ? 3 : 4;
+  const liveScrollbar = Platform.OS === 'web' && !isNarrow ? 16 : 0; // reserve web scrollbar
+  const liveCardW = Math.floor(
+    (liveGridW - liveScrollbar - LIVE_GAP * (liveCols - 1)) / liveCols,
+  );
 
   return (
     <View
@@ -180,18 +200,18 @@ export const OfflineStoresScreen: React.FC = () => {
           <View style={styles.mobileControlsRow}>
             <View style={styles.viewToggle}>
               <Pressable
-                onPress={() => setViewMode('list')}
-                style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
+                onPress={() => setViewMode('live')}
+                style={[styles.toggleBtn, viewMode === 'live' && styles.toggleBtnActive]}
               >
-                <List size={14} color={viewMode === 'list' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
+                <Radio size={14} color={viewMode === 'live' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
               </Pressable>
               <Pressable
-                onPress={() => setViewMode('map')}
-                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+                onPress={() => setViewMode('stores')}
+                style={[styles.toggleBtn, viewMode === 'stores' && styles.toggleBtnActive]}
               >
-                <MapIcon size={14} color={viewMode === 'map' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'map' && styles.toggleTextActive]}>Map</Text>
+                <List size={14} color={viewMode === 'stores' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'stores' && styles.toggleTextActive]}>Stores</Text>
               </Pressable>
             </View>
 
@@ -228,7 +248,23 @@ export const OfflineStoresScreen: React.FC = () => {
           </View>
 
           <View style={styles.headerRight}>
-
+            {/* Live | Stores toggle — same behaviour as mobile */}
+            <View style={styles.viewToggle}>
+              <Pressable
+                onPress={() => setViewMode('live')}
+                style={[styles.toggleBtn, viewMode === 'live' && styles.toggleBtnActive]}
+              >
+                <Radio size={14} color={viewMode === 'live' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setViewMode('stores')}
+                style={[styles.toggleBtn, viewMode === 'stores' && styles.toggleBtnActive]}
+              >
+                <List size={14} color={viewMode === 'stores' ? PRIMARY : Colors.textSecondary} />
+                <Text style={[styles.toggleText, viewMode === 'stores' && styles.toggleTextActive]}>Stores</Text>
+              </Pressable>
+            </View>
 
             <View style={styles.sortGroup}>
               <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
@@ -299,40 +335,7 @@ export const OfflineStoresScreen: React.FC = () => {
         styles.body,
         isNarrow && { flexDirection: 'column', paddingHorizontal: 16 },
       ]}>
-        {showMap && (
-          <View style={[styles.mapCol, isNarrow && { flex: 1, minHeight: 0, marginBottom: 96 }]}>
-            <View style={styles.mapInner}>
-              <StoreMap userLocation={coords} stores={filtered} />
-
-              {/* Top-left Stores Nearby badge */}
-              <View style={styles.nearbyBadge} pointerEvents="none">
-                <View style={styles.nearbyPin}>
-                  <MapPin size={10} color="#fff" />
-                </View>
-                <Text style={styles.nearbyText}>{filtered.length} Stores Nearby</Text>
-              </View>
-
-              {/* Legend bottom-left */}
-              <View style={styles.legend} pointerEvents="none">
-                <LegendRow color={PRIMARY} label="You" />
-              </View>
-
-              {/* Custom zoom buttons (visual only on placeholder) */}
-              {Platform.OS !== 'web' && (
-                <View style={styles.zoomGroup}>
-                  <Pressable style={styles.zoomBtn}>
-                    <Plus size={14} color={Colors.textSecondary} />
-                  </Pressable>
-                  <Pressable style={styles.zoomBtn}>
-                    <Minus size={14} color={Colors.textSecondary} />
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {showList && (
+        {showStores && (
           <ScrollView
             style={isNarrow ? styles.listColMobile : styles.listColDesktop}
             contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
@@ -355,6 +358,54 @@ export const OfflineStoresScreen: React.FC = () => {
               </View>
             )}
           </ScrollView>
+        )}
+
+        {showLive && (
+          <View
+            style={styles.liveWrap}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w && Math.abs(w - liveGridW) > 1) setLiveGridW(w);
+            }}
+          >
+            {liveLoading || liveGridW === 0 ? (
+              <View style={[styles.liveWrap, styles.emptyState]}>
+                <ActivityIndicator color={PRIMARY} />
+              </View>
+            ) : liveStreams.length === 0 ? (
+              <View style={[styles.liveWrap, styles.emptyState]}>
+                <Radio size={40} color={Colors.border} />
+                <Text style={styles.emptyText}>No one is live right now</Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.liveWrap}
+                contentContainerStyle={[
+                  styles.liveGridContent,
+                  { gap: LIVE_GAP },
+                  isNarrow && { paddingBottom: 96 },
+                ]}
+                showsVerticalScrollIndicator={false}
+              >
+                {liveStreams.map((item) => (
+                  <LiveCard
+                    key={item._id}
+                    stream={item}
+                    width={liveCardW}
+                    onPress={() =>
+                      navigation.navigate('ViewerScreen', {
+                        streamId: item._id,
+                        storeId: item.storeId,
+                        storeName: item.storeName,
+                        storeLogoUrl: item.storeLogoUrl,
+                        streamTitle: item.title,
+                      })
+                    }
+                  />
+                ))}
+              </ScrollView>
+            )}
+          </View>
         )}
       </View>
 
@@ -624,6 +675,66 @@ const StoreCard: React.FC<{
   );
 };
 
+// ─── Live stream card (portrait cover, gradient or thumbnail) ────────────────
+// Deterministic 2-stop gradient per stream, so placeholder cards look varied
+// (like the reference design) but stay stable across refetches.
+const LIVE_GRADIENTS: string[][] = [
+  ['#8A5A2B', '#241206'], // warm amber
+  ['#3E5BA6', '#0E1A38'], // royal blue
+  ['#7A3B8F', '#1E0E2E'], // violet
+  ['#B5476B', '#2E0E1C'], // rose
+  ['#2F8F7A', '#08211C'], // teal
+  ['#A5533B', '#2A0F08'], // rust
+  ['#3B7AA5', '#0A1E2E'], // steel
+  ['#5A6B2F', '#171C08'], // olive
+];
+function liveGradient(seed: string): [string, string] {
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const g = LIVE_GRADIENTS[h % LIVE_GRADIENTS.length];
+  return [g[0], g[1]];
+}
+
+const LiveCard: React.FC<{
+  stream: LiveStream;
+  width: number;
+  onPress: () => void;
+}> = ({ stream, width, onPress }) => {
+  const cover = stream.thumbnail || stream.storeLogoUrl;
+  const grad = liveGradient(stream._id || stream.storeName || '');
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.liveCard, { width, aspectRatio: 0.72 }, pressed && { opacity: 0.9 }]}
+    >
+      {cover ? (
+        <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      ) : (
+        <LinearGradient
+          colors={grad}
+          start={{ x: 0.25, y: 0 }}
+          end={{ x: 0.75, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      {/* Bottom scrim keeps the title/store legible over any cover */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.78)']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.liveTag}>
+        <View style={styles.liveTagDot} />
+        <Text style={styles.liveTagText}>LIVE</Text>
+      </View>
+      <View style={styles.liveTextWrap}>
+        <Text style={styles.liveTitle} numberOfLines={2}>{stream.title}</Text>
+        <Text style={styles.liveStore} numberOfLines={1}>{stream.storeName}</Text>
+      </View>
+    </Pressable>
+  );
+};
+
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -633,6 +744,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
   },
+
+  // ── Live stream grid (shown when viewMode === 'live') ───────────────────
+  liveWrap: { flex: 1, width: '100%' },
+  liveGridContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    paddingBottom: 30,
+  },
+  liveCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#1F2430',
+    justifyContent: 'flex-end',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  liveTag: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F2685E',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  liveTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  liveTagText: { fontSize: 10, fontFamily: Fonts.bold, color: '#fff', letterSpacing: 0.6 },
+  liveTextWrap: { padding: 12, gap: 2 },
+  liveTitle: { fontSize: 15, lineHeight: 19, fontFamily: Fonts.bold, color: '#fff' },
+  liveStore: { fontSize: 12, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.82)' },
 
   // Mobile search pill — mirrors the Home search bar (white, rounded, 44px).
   mobileSearchBar: {

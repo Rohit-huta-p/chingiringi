@@ -18,6 +18,16 @@ interface Props {
    * Useful when the app is still hydrating / loading data behind the splash.
    */
   holdMs?: number;
+  /**
+   * Whether the custom Outfit font is confirmed loaded (from App.tsx's
+   * useFonts()). The wordmark below uses Fonts.bold — on Android, rendering
+   * that Text before the font is actually registered lays it out with
+   * fallback-font metrics, then swaps fonts mid-flight without re-expanding
+   * the box, which clips the text (seen on real devices as "ChingiRingi"
+   * truncating to "Chingi" with the remaining glyphs cut off vertically
+   * too). Defaults to true so existing callers aren't forced to pass it.
+   */
+  fontsReady?: boolean;
 }
 
 // ─── Timeline (ms) ──────────────────────────────────────────────────────────
@@ -49,7 +59,7 @@ const WHITE_WIPE_BASE_SIZE = 120;
  *      decorative white circle expands from the centre                1.5 – 2.2 s
  *   4. "ChingiRingi" wordmark fades in to the right of the logo      2.2 – 2.65 s
  */
-export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400 }) => {
+export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400, fontsReady = true }) => {
   const { width, height } = useWindowDimensions();
 
   // ── Animated values ───────────────────────────────────────────────────────
@@ -179,14 +189,16 @@ export const SplashAnimation: React.FC<Props> = ({ onComplete, holdMs = 400 }) =
           </View>
         </Animated.View>
 
-        <Animated.Text
-          style={[
-            st.wordmark,
-            { opacity: textOpacity, transform: [{ translateY: textTranslateY }] },
-          ]}
-        >
-          ChingiRingi
-        </Animated.Text>
+        {fontsReady && (
+          <Animated.Text
+            style={[
+              st.wordmark,
+              { opacity: textOpacity, transform: [{ translateY: textTranslateY }] },
+            ]}
+          >
+            ChingiRingi
+          </Animated.Text>
+        )}
       </View>
     </View>
   );
@@ -266,6 +278,11 @@ const st = StyleSheet.create({
 
   wordmark: {
     fontSize: 32,
+    // Explicit lineHeight (not just fontSize) matters on Android: without
+    // it, a custom font's box can end up sized too short for its own
+    // glyphs — descenders (the 'g' in ChingiRingi) get clipped. 1.25x is a
+    // safe margin for Outfit Bold.
+    lineHeight: 40,
     fontFamily: Fonts.bold,
     color: '#101828',
     letterSpacing: -0.4,

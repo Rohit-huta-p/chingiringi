@@ -16,6 +16,7 @@ import { MobileAdminSearchQueries } from '../screens/Admin/MobileAdminSearchQuer
 import { WalletOperationsScreen } from '../screens/Admin/WalletOperationsScreen';
 import { AdminProfileScreen } from '../screens/Admin/AdminProfileScreen';
 import { AdminVideoUploadScreen } from '../screens/Admin/AdminVideoUploadScreen';
+import { AdminStoreVerificationsScreen } from '../screens/Admin/AdminStoreVerificationsScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -51,6 +52,7 @@ export default function DesktopAdminDrawer() {
       <Drawer.Screen name="AdminUsers" component={AdminUsersScreen} />
       <Drawer.Screen name="AdminAllProducts" component={AdminProductsScreen} />
       <Drawer.Screen name="AdminStores" component={AdminStoresScreen} />
+      <Drawer.Screen name="AdminStoreVerifications" component={AdminStoreVerificationsScreen} options={{ title: 'Store Verifications' }} />
       <Drawer.Screen name="AdminVideos" component={AdminVideoUploadScreen} />
       <Drawer.Screen name="AdminOrders" component={AdminOrdersScreen} />
       <Drawer.Screen name="AdminInventory" component={AdminInventoryScreen} />

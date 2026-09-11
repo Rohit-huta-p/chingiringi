@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Image,
-  Linking, Alert, ActivityIndicator, useWindowDimensions,
+  Linking, Alert, ActivityIndicator, useWindowDimensions, ToastAndroid, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation,
+  ChevronLeft, BadgeCheck, Star, MapPin, Clock, Phone, Share2, Navigation, UserPlus, UserCheck, Globe, MessageCircle,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { storesAPI, type Store } from '../../api/stores';
+import { productsAPI, type Product } from '../../api/products';
 import { sharesAPI } from '../../api/shares';
 import { ShareSheet } from '../../components/ShareSheet';
+import { ProductCard } from '../../components/ProductCard';
+import { fetchActiveStreams } from '../Buyer/LiveDiscoveryScreen';
+import { reviewsAPI, toUiReview } from '../../api/reviews';
+import { RatingBars } from '../../components/RatingBars';
+import { WriteReviewModal } from '../../components/WriteReviewModal';
 import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
+import { useFollow } from '../../hooks/useFollow';
+import { getOrCreateConversation } from '../../api/chat';
 import type { StoreCategory } from '../../data/offlineStores';
 
 // Category accent colors — mirrors the map/list on OfflineStoresScreen.
@@ -47,6 +55,17 @@ function fmt12(hhmm?: string): string {
   return `${h}:${String(min).padStart(2, '0')} ${ampm}`;
 }
 
+// Compact 5-star row (rounded) for the reviews summary + cards.
+const StarRow: React.FC<{ value: number; size?: number }> = ({ value, size = 14 }) => {
+  const full = Math.max(0, Math.min(5, Math.round(value)));
+  return (
+    <Text style={{ fontSize: size, color: '#f59e0b', letterSpacing: 1 }}>
+      {'★'.repeat(full)}
+      <Text style={{ color: '#e2e8f0' }}>{'★'.repeat(5 - full)}</Text>
+    </Text>
+  );
+};
+
 export const StoreDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -58,6 +77,9 @@ export const StoreDetailScreen: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const { requireAuth } = useAuthGate();
   const [shareOpen, setShareOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const { follow, unfollow, isFollowing } = useFollow();
 
   const storeId: string | undefined = route.params?.storeId;
   const passed: Store | undefined = route.params?.store;
@@ -76,6 +98,32 @@ export const StoreDetailScreen: React.FC = () => {
   // Daily share quota — same query key the share action invalidates.
   const { data: quotaRes } = useQuery({ queryKey: ['shareQuota'], queryFn: sharesAPI.getQuota });
 
+  // The store's own catalogue — powers the "Products" section (makes the store
+  // shoppable). Keyed off whichever id we have before the store object resolves.
+  const sid = storeId ?? passed?._id;
+  const { data: prodRes } = useQuery({
+    queryKey: ['store', sid, 'products'],
+    queryFn: () => productsAPI.getProducts({ storeId: sid as string, limit: 24 }),
+    enabled: !!sid,
+  });
+  const storeProducts: Product[] = prodRes?.data?.products ?? [];
+
+  // Is this store live right now? Match the active-streams list by storeId.
+  const { data: activeStreams } = useQuery({
+    queryKey: ['streams', 'active'],
+    queryFn: fetchActiveStreams,
+    staleTime: 30_000,
+  });
+  const liveStream = (activeStreams ?? []).find((s) => String(s.storeId) === String(sid));
+
+  // Store reviews — list + count + average.
+  const { data: reviewsRes } = useQuery({
+    queryKey: ['store', sid, 'reviews'],
+    queryFn: () => reviewsAPI.getStoreReviews(sid as string),
+    enabled: !!sid,
+  });
+  const reviews = reviewsRes?.data?.reviews ?? [];
+
   if (!store) {
     return (
       <View style={styles.loading}>
@@ -90,10 +138,78 @@ export const StoreDetailScreen: React.FC = () => {
   const hasHours = !!(openStr && closeStr);
   const heroImg = store.images?.[0];              // real photo only (logo isn't a good hero)
   const photos = (store.images ?? []).slice(0, 8);
+
+  // Product grid sizing — mirrors CategoryProductsScreen (3 up on phones, 4 wide).
+  const PGAP = 12;
+  const pcols = isWide ? 4 : 3;
+  const gridPad = isWide ? 24 : 16;
+  const gridW = (isWide ? Math.min(820, width) : width) - gridPad * 2;
+  const cardW = Math.floor((gridW - PGAP * (pcols - 1)) / pcols);
   const shareUrl = `${process.env.EXPO_PUBLIC_SHARE_BASE || 'https://chingiringi-backend.onrender.com'}/s/store/${store._id}?ref=cr_${user?.id ?? ''}`;
+
+  const following = store ? isFollowing(store._id) : false;
+  // Hide "Message" on a seller's own store (backend rejects self-chat anyway).
+  const isOwnStore = !!user?.id && (store as any)?.ownerId === user.id;
+  const canReview = user?.role !== 'admin' && !isOwnStore;
+  const reviewCount = reviewsRes?.data?.count ?? store.reviewsCount ?? 0;
+  const avgRating = reviewsRes?.data?.averageRating ?? store.rating ?? 0;
+
+  const submitStoreReview = async (rating: number, text: string) => {
+    await reviewsAPI.createStoreReview(store._id, { rating, text });
+    qc.invalidateQueries({ queryKey: ['store', sid, 'reviews'] });
+    qc.invalidateQueries({ queryKey: ['store', storeId] }); // refresh the aggregate rating
+    setReviewOpen(false);
+  };
+  const onWriteReview = () =>
+    requireAuth(() => setReviewOpen(true), { title: 'Sign in to review', subtitle: 'Share your experience with this store.', icon: 'star' });
+
+  const showToast = (msg: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(msg, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', msg, [{ text: 'OK' }], { cancelable: true });
+    }
+  };
+
+  const handleFollowToggle = async () => {
+    if (!store) return;
+    requireAuth(async () => {
+      setFollowBusy(true);
+      try {
+        if (following) {
+          await unfollow(store._id);
+        } else {
+          await follow(store._id);
+          showToast(`Following ${store.name} — you'll see them first in your feed`);
+        }
+      } catch {
+        showToast('Something went wrong. Please try again.');
+      } finally {
+        setFollowBusy(false);
+      }
+    }, { title: 'Sign in to follow stores', subtitle: 'See live streams and deals first when you follow a store.', icon: 'star' });
+  };
 
   const callStore = () => {
     if (store.phone) Linking.openURL(`tel:${store.phone.replace(/\s+/g, '')}`).catch(() => {});
+  };
+
+  // Open (or reuse) a chat thread with this store. Gated behind auth for guests.
+  const openChat = () => {
+    requireAuth(async () => {
+      try {
+        const conv = await getOrCreateConversation(store._id);
+        if (conv) {
+          navigation.navigate('Chat', {
+            conversationId: conv._id,
+            title: conv.otherParty.name,
+            otherParty: conv.otherParty,
+          });
+        }
+      } catch (e: any) {
+        Alert.alert('Couldn’t open chat', e?.response?.data?.message || 'Please try again in a moment.');
+      }
+    }, { title: 'Sign in to message', subtitle: 'Chat with sellers about their products and live streams.', icon: 'default' });
   };
 
   // Open Google Maps directions to the store — exact coords when we have them
@@ -162,6 +278,28 @@ export const StoreDetailScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* ── Live now — jump straight into the stream ── */}
+        {liveStream && (
+          <Pressable
+            style={styles.liveBanner}
+            onPress={() => navigation.navigate('ViewerScreen', {
+              streamId:     liveStream._id,
+              storeName:    liveStream.storeName ?? store.name,
+              storeLogoUrl: liveStream.storeLogoUrl ?? store.logoUrl,
+              streamTitle:  liveStream.title,
+              storeId:      store._id,
+            })}
+            accessibilityRole="button"
+            accessibilityLabel="Watch this store's live stream"
+          >
+            <View style={styles.liveDot} />
+            <Text style={styles.liveBannerText} numberOfLines={1}>
+              Live now{liveStream.title ? ` · ${liveStream.title}` : ''}
+            </Text>
+            <Text style={styles.liveWatch}>Watch ›</Text>
+          </Pressable>
+        )}
+
         {/* ── Deal band ── */}
         <LinearGradient
           colors={DEAL_GRADIENT}
@@ -169,20 +307,40 @@ export const StoreDetailScreen: React.FC = () => {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={[styles.band, isWide ? styles.bandRow : styles.bandCol]}
         >
-          {/* Discount container — commented out (discount feature disabled)
-          <View style={isWide ? { flex: 1 } : undefined}>
-            <View style={styles.bandOff}>
-              <Text style={[styles.bandBig, isWide && { fontSize: 40 }]}>{store.userDiscountPercent}%</Text>
-              <Text style={styles.bandOffSm}> OFF</Text>
-            </View>
-            <Text style={styles.bandText}>on every bill — pay through the app, no coupon needed</Text>
-          </View>
-          */}
           <View style={styles.bandActions}>
-            {!!store.phone && (
-              <Pressable onPress={callStore} style={[styles.btn, styles.btnGhost]}>
-                <Phone size={16} color="#fff" />
-                <Text style={styles.btnGhostText}>Call</Text>
+            {/* Chat is the lead action in the blue band; Call lives in Contact below. */}
+            {user?.role !== 'admin' && !isOwnStore && (
+              <Pressable onPress={openChat} style={[styles.btn, styles.btnGhost]}>
+                <MessageCircle size={16} color="#fff" />
+                <Text style={styles.btnGhostText}>Chat</Text>
+              </Pressable>
+            )}
+            {/* Follow / Following toggle — buyers only (hide for admin / own store) */}
+            {user?.role !== 'admin' && (
+              <Pressable
+                onPress={handleFollowToggle}
+                disabled={followBusy}
+                style={[
+                  styles.btn,
+                  following ? styles.btnFollowing : styles.btnFollow,
+                  followBusy && styles.btnDisabled,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={following ? 'Unfollow store' : 'Follow store'}
+              >
+                {followBusy ? (
+                  <ActivityIndicator size="small" color={following ? Colors.primary : '#fff'} />
+                ) : following ? (
+                  <>
+                    <UserCheck size={15} color={Colors.primary} />
+                    <Text style={styles.btnFollowingText}>Following ✓</Text>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={15} color="#fff" />
+                    <Text style={styles.btnFollowText}>+ Follow</Text>
+                  </>
+                )}
               </Pressable>
             )}
             <Pressable onPress={() => requireAuth(() => setShareOpen(true), { title: 'Sign in to share & earn', subtitle: 'Earn CR when friends visit the store via your link.', icon: 'share' })} style={[styles.btn, styles.btnShare, !isWide && { flex: 1 }]}>
@@ -198,6 +356,32 @@ export const StoreDetailScreen: React.FC = () => {
             <View style={styles.sec}>
               <Text style={styles.eye}>About</Text>
               <Text style={styles.about}>{store.description}</Text>
+            </View>
+          )}
+
+          {(!!store.phone || !!store.website) && (
+            <View style={styles.sec}>
+              <Text style={styles.eye}>Contact</Text>
+              {!!store.phone && (
+                <Pressable style={styles.infoline} onPress={callStore} accessibilityRole="button" accessibilityLabel="Call store">
+                  <Phone size={16} color={Colors.primary} />
+                  <Text style={[styles.infoText, { color: Colors.primary }]}>{store.phone}</Text>
+                </Pressable>
+              )}
+              {!!store.website && (
+                <Pressable
+                  style={styles.infoline}
+                  onPress={() => {
+                    const url = /^https?:\/\//i.test(store.website!) ? store.website! : `https://${store.website}`;
+                    Linking.openURL(url).catch(() => {});
+                  }}
+                >
+                  <Globe size={16} color={Colors.primary} />
+                  <Text style={[styles.infoText, { color: Colors.primary }]} numberOfLines={1}>
+                    {store.website!.replace(/^https?:\/\//i, '').replace(/\/$/, '')}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -245,8 +429,89 @@ export const StoreDetailScreen: React.FC = () => {
               <Text style={styles.dirBtnText}>Get directions</Text>
             </Pressable>
           </View>
+
+          {/* ── Products — after location, before reviews ── */}
+          {storeProducts.length > 0 && (
+            <>
+              <View style={styles.rule} />
+              <View style={styles.sec}>
+                <Text style={styles.eye}>Products</Text>
+                <View style={styles.prodGrid}>
+                  {storeProducts.map((p) => (
+                    <ProductCard
+                      key={p._id}
+                      product={p}
+                      width={cardW}
+                      onPress={() => navigation.navigate('ProductDetail', { productId: p._id, product: p })}
+                    />
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* ── Reviews ── */}
+          <View style={styles.rule} />
+          <View style={styles.sec}>
+            <View style={styles.reviewHead}>
+              <Text style={styles.eye}>Reviews</Text>
+              {canReview && (
+                <Pressable onPress={onWriteReview} hitSlop={6}>
+                  <Text style={styles.writeLink}>Write a review</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {reviewCount > 0 ? (
+              <>
+                <View style={styles.reviewSummary}>
+                  <Text style={styles.avgBig}>{avgRating.toFixed(1)}</Text>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <StarRow value={avgRating} size={16} />
+                    <Text style={styles.reviewCountText}>{reviewCount} review{reviewCount === 1 ? '' : 's'}</Text>
+                  </View>
+                </View>
+
+                {reviews.length >= 4 && <RatingBars reviews={reviews} />}
+
+                <View style={styles.reviewList}>
+                  {reviews.slice(0, 6).map((r) => {
+                    const u = toUiReview(r);
+                    return (
+                      <View key={u._id} style={styles.reviewCard}>
+                        <View style={[styles.reviewAvatar, { backgroundColor: u.initialBg }]}>
+                          <Text style={styles.reviewInitial}>{u.initial}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.reviewCardTop}>
+                            <Text style={styles.reviewAuthor} numberOfLines={1}>{u.author}</Text>
+                            <StarRow value={u.rating} />
+                          </View>
+                          {!!u.body && <Text style={styles.reviewBody}>{u.body}</Text>}
+                          {typeof u.daysAgo === 'number' && (
+                            <Text style={styles.reviewAge}>{u.daysAgo === 0 ? 'Today' : `${u.daysAgo}d ago`}</Text>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.reviewEmpty}>
+                No reviews yet.{canReview ? ' Be the first to review this store.' : ''}
+              </Text>
+            )}
+          </View>
         </View>
       </ScrollView>
+
+      <WriteReviewModal
+        visible={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        onSubmit={submitStoreReview}
+        subtitle="How was your experience with this store?"
+      />
 
       <ShareSheet
         visible={shareOpen}
@@ -303,6 +568,11 @@ const styles = StyleSheet.create({
   btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 18, borderRadius: 12 },
   btnGhost: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.55)', backgroundColor: 'transparent' },
   btnGhostText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+  btnFollow: { backgroundColor: Colors.primary },
+  btnFollowText: { color: '#fff', fontSize: 13, fontFamily: Fonts.bold },
+  btnFollowing: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: Colors.primary },
+  btnFollowingText: { color: Colors.primary, fontSize: 13, fontFamily: Fonts.bold },
+  btnDisabled: { opacity: 0.55 },
   btnShare: { backgroundColor: '#fff' },
   btnShareText: { color: Colors.primary, fontSize: 14.5, fontFamily: Fonts.bold },
 
@@ -310,6 +580,29 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingTop: 20, gap: 20 },
   contentWide: { maxWidth: 820, width: '100%', alignSelf: 'center', paddingHorizontal: 24, paddingTop: 26 },
   sec: { gap: 10 },
+  prodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  liveBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    marginHorizontal: 16, marginTop: 12, paddingHorizontal: 14, paddingVertical: 11,
+    backgroundColor: '#DC2626', borderRadius: 12,
+  },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
+  liveBannerText: { flex: 1, color: '#fff', fontSize: 13.5, fontFamily: Fonts.bold },
+  liveWatch: { color: '#fff', fontSize: 13, fontFamily: Fonts.extraBold },
+  reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  writeLink: { fontSize: 13, fontFamily: Fonts.bold, color: Colors.primary },
+  reviewSummary: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avgBig: { fontSize: 40, fontFamily: Fonts.extraBold, color: Colors.navy, lineHeight: 44 },
+  reviewCountText: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  reviewList: { gap: 14, marginTop: 4 },
+  reviewCard: { flexDirection: 'row', gap: 10 },
+  reviewAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  reviewInitial: { fontSize: 14, fontFamily: Fonts.bold, color: '#3B4759' },
+  reviewCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  reviewAuthor: { flex: 1, fontSize: 13.5, fontFamily: Fonts.bold, color: Colors.navy },
+  reviewBody: { fontSize: 13.5, fontFamily: Fonts.regular, color: '#475569', lineHeight: 20, marginTop: 2 },
+  reviewAge: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 3 },
+  reviewEmpty: { fontSize: 13.5, fontFamily: Fonts.regular, color: Colors.textSecondary },
   eye: { fontSize: 11, fontFamily: Fonts.extraBold, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' },
   about: { fontSize: 14, fontFamily: Fonts.regular, color: '#475569', lineHeight: 21 },
   rule: { height: 1, backgroundColor: Colors.border },

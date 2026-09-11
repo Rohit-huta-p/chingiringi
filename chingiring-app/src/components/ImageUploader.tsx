@@ -18,6 +18,9 @@ interface Props {
   folder?: string;
   /** Disables the uploader (e.g. during form submission). */
   disabled?: boolean;
+  /** Optional dimension/aspect guidance rendered under the picker, matching the
+   *  admin-form style ("Recommended 1600 × 1200 px (4:3) …"). */
+  hint?: string;
 }
 
 /**
@@ -27,7 +30,7 @@ interface Props {
  * unchanged — all existing consumers keep working.
  */
 export const ImageUploader: React.FC<Props> = ({
-  value, onChange, label, folder, disabled,
+  value, onChange, label, folder, disabled, hint,
 }) => {
   const [showUrlInput, setShowUrlInput] = useState(false);
   const { uploading, error, isConfigured, pick } = useImageUpload(folder);
@@ -86,6 +89,8 @@ export const ImageUploader: React.FC<Props> = ({
           )}
         </TouchableOpacity>
       )}
+
+      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
 
       {/* "Or paste a URL" escape hatch — kept for both web (admin already has
           a hosted URL) and native (until expo-image-picker is wired). */}
@@ -150,6 +155,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
     marginBottom: 4,
+  },
+  hint: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    lineHeight: 15,
   },
 
   // Dropzone (empty state)

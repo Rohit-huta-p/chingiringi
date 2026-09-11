@@ -7,6 +7,7 @@ import { ChevronDown, Plus, Pencil, Trash2, Check, X, Search } from 'lucide-reac
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminAPI } from '../api/admin';
 import { ImageUploader } from './ImageUploader';
+import { cloudFolder } from '../constants/cloudinaryFolders';
 
 /**
  * Inline category picker. Replaces the standalone admin Categories screen.
@@ -321,7 +322,7 @@ export const CategoryPicker: React.FC<Props> = ({ value, onChange, disabled }) =
                           value={editingImage}
                           onChange={setEditingImage}
                           label="Category image"
-                          folder="categories"
+                          folder={cloudFolder.categories}
                         />
                       </View>
                       <View style={st.colorRow}>

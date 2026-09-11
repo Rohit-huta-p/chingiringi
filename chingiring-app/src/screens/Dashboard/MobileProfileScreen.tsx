@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  Share, Platform, RefreshControl,
+  Share, Platform, RefreshControl, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRight, Info, HelpCircle, MessageCircle,
-  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX, MailCheck,
+  Shield, FileText, Copy, Share2, Gift, PlaySquare, UserX, MailCheck, ShoppingBag, Store,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -93,6 +93,7 @@ function QuickAction({
 export const MobileProfileScreen = () => {
   const nav = useNavigation<any>();
   const user = useAuthStore((st) => st.user);
+  const setViewAsBuyer = useAuthStore((st) => st.setViewAsBuyer);
   const { requireAuth } = useAuthGate();
   const [legal, setLegal] = useState<LegalType | null>(null);
   const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
@@ -271,6 +272,29 @@ export const MobileProfileScreen = () => {
             </>
           ) : null}
 
+          {/* ── Seller: shop as a buyer (role-gated; screen is shared) ─────── */}
+          {user?.role === 'seller' ? (
+            <>
+              <Text style={s.sectionHeader}>SELLING</Text>
+              <QuickAction
+                icon={Store}
+                iconColor={Colors.orange}
+                iconBg="rgba(249,115,22,0.12)"
+                title="Edit store details"
+                subtitle="Name, photos, hours, website & more"
+                onPress={() => nav.navigate('EditStoreDetails')}
+              />
+              <QuickAction
+                icon={ShoppingBag}
+                iconColor={Colors.primary}
+                iconBg={Colors.primaryLight10}
+                title="Shop as a buyer"
+                subtitle="Browse & buy on Chingiringi — your store stays live"
+                onPress={() => setViewAsBuyer(true)}
+              />
+            </>
+          ) : null}
+
           {/* ── My content ────────────────────────────────────────────────── */}
           <View style={{ position: 'relative' }}>
             <Text style={s.sectionHeader}>MY CONTENT</Text>
@@ -315,6 +339,7 @@ export const MobileProfileScreen = () => {
             iconBg="#f5f3ff"
             title="Help & Support"
             subtitle="FAQs, raise a ticket & more"
+            onPress={() => Linking.openURL('mailto:support@chingiringi.com').catch(() => {})}
           />
           <QuickAction
             icon={MessageCircle}
@@ -322,6 +347,7 @@ export const MobileProfileScreen = () => {
             iconBg="#dcfce7"
             title="Contact Us"
             subtitle="Get in touch with our team"
+            onPress={() => Linking.openURL('mailto:support@chingiringi.com').catch(() => {})}
           />
           <QuickAction
             icon={Shield}

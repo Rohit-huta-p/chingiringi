@@ -3,6 +3,7 @@
  * No I/O — all logic is testable without a DB connection.
  * Consumed by getProducts in productController.js.
  */
+import mongoose from 'mongoose';
 
 const SORT_MAP = {
   price_asc:    { price: 1 },
@@ -48,6 +49,7 @@ const DISCOUNT_EXPR = {
 export function buildSearchPipeline({
   search,
   category,
+  storeId,
   minPrice, maxPrice,
   minCoins, maxCoins,
   minRating,
@@ -110,6 +112,13 @@ export function buildSearchPipeline({
   const match = { isActive: true };
   if (category) match.category = { $regex: `^${category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
   if (featured) match.isFeatured = true;
+  // storeId: filter to products assigned to this store. Products without a storeId
+  // are platform-wide and will NOT appear on any individual store profile — they
+  // are only visible through the main catalogue. Admin assigns storeId to surface
+  // a product on a store's public SellerProfileScreen.
+  if (storeId) {
+    match.storeId = new mongoose.Types.ObjectId(storeId);
+  }
 
   const priceRange = {};
   if (minPrice !== undefined) priceRange.$gte = minPrice;
