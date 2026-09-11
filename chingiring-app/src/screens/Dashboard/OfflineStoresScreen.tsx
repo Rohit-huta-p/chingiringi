@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  FlatList,
   TextInput,
   Pressable,
   Image,
@@ -14,12 +13,12 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Search,
   MapPin,
   List,
   Radio,
-  Users,
   Tag,
   Star,
   Clock,
@@ -67,6 +66,9 @@ export const OfflineStoresScreen: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationLabel, setLocationLabel] = useState('Bengaluru, Karnataka');
+  // Measured width of the live grid pane (updated on layout so the column
+  // math is correct inside the desktop drawer, not just at window width).
+  const [liveGridW, setLiveGridW] = useState(0);
 
   // Ask for GPS once so "Near" sorts by the shopper's real distance; fall back
   // to the city center (BENGALURU_CENTER) on denial/error.
@@ -156,6 +158,15 @@ export const OfflineStoresScreen: React.FC = () => {
   // Toggle is active on both mobile and desktop — only the selected panel renders.
   const showStores = viewMode === 'stores';
   const showLive   = viewMode === 'live';
+
+  // Live grid: 2 / 3 / 4 columns for sm / md / lg. Card width is derived from
+  // the measured pane width so columns stay flush regardless of drawer offset.
+  const LIVE_GAP = isNarrow ? 12 : 16;
+  const liveCols = width < 768 ? 2 : width < 1200 ? 3 : 4;
+  const liveScrollbar = Platform.OS === 'web' && !isNarrow ? 16 : 0; // reserve web scrollbar
+  const liveCardW = Math.floor(
+    (liveGridW - liveScrollbar - LIVE_GAP * (liveCols - 1)) / liveCols,
+  );
 
   return (
     <View
@@ -350,48 +361,51 @@ export const OfflineStoresScreen: React.FC = () => {
         )}
 
         {showLive && (
-          liveLoading ? (
-            <View style={[isNarrow ? styles.listColMobile : styles.listColDesktop, { justifyContent: 'center', alignItems: 'center' }]}>
-              <ActivityIndicator color={PRIMARY} />
-            </View>
-          ) : liveStreams.length === 0 ? (
-            <View style={[isNarrow ? styles.listColMobile : styles.listColDesktop, styles.emptyState]}>
-              <Radio size={40} color={Colors.border} />
-              <Text style={styles.emptyText}>No one is live right now</Text>
-            </View>
-          ) : (
-          <FlatList
-            style={isNarrow ? styles.listColMobile : styles.listColDesktop}
-            contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
-            showsVerticalScrollIndicator={false}
-            data={liveStreams}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => (
-              <Pressable
-                style={({ pressed }) => [styles.liveCard, pressed && { opacity: 0.85 }]}
-                onPress={() => navigation.navigate('ViewerScreen', { streamId: item._id, storeId: item.storeId, storeName: item.storeName, storeLogoUrl: item.storeLogoUrl, streamTitle: item.title })}
+          <View
+            style={styles.liveWrap}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w && Math.abs(w - liveGridW) > 1) setLiveGridW(w);
+            }}
+          >
+            {liveLoading || liveGridW === 0 ? (
+              <View style={[styles.liveWrap, styles.emptyState]}>
+                <ActivityIndicator color={PRIMARY} />
+              </View>
+            ) : liveStreams.length === 0 ? (
+              <View style={[styles.liveWrap, styles.emptyState]}>
+                <Radio size={40} color={Colors.border} />
+                <Text style={styles.emptyText}>No one is live right now</Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.liveWrap}
+                contentContainerStyle={[
+                  styles.liveGridContent,
+                  { gap: LIVE_GAP },
+                  isNarrow && { paddingBottom: 96 },
+                ]}
+                showsVerticalScrollIndicator={false}
               >
-                <View style={styles.liveCardAvatar}>
-                  {item.storeLogoUrl
-                    ? <Image source={{ uri: item.storeLogoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                    : <Text style={styles.liveCardAvatarText}>{item.storeName[0]?.toUpperCase()}</Text>}
-                  <View style={styles.liveBadge}>
-                    <Radio size={8} color="#fff" />
-                    <Text style={styles.liveBadgeText}>LIVE</Text>
-                  </View>
-                </View>
-                <View style={styles.liveCardInfo}>
-                  <Text style={styles.liveCardStore} numberOfLines={1}>{item.storeName}</Text>
-                  <Text style={styles.liveCardTitle} numberOfLines={2}>{item.title}</Text>
-                  <View style={styles.liveCardViewers}>
-                    <Users size={12} color={Colors.textSecondary} />
-                    <Text style={styles.liveCardViewerText}>{item.viewerCount.toLocaleString('en-IN')} watching</Text>
-                  </View>
-                </View>
-              </Pressable>
+                {liveStreams.map((item) => (
+                  <LiveCard
+                    key={item._id}
+                    stream={item}
+                    width={liveCardW}
+                    onPress={() =>
+                      navigation.navigate('ViewerScreen', {
+                        streamId: item._id,
+                        storeId: item.storeId,
+                        storeName: item.storeName,
+                        storeLogoUrl: item.storeLogoUrl,
+                        streamTitle: item.title,
+                      })
+                    }
+                  />
+                ))}
+              </ScrollView>
             )}
-          />
-          )
+          </View>
         )}
       </View>
 
@@ -661,6 +675,66 @@ const StoreCard: React.FC<{
   );
 };
 
+// ─── Live stream card (portrait cover, gradient or thumbnail) ────────────────
+// Deterministic 2-stop gradient per stream, so placeholder cards look varied
+// (like the reference design) but stay stable across refetches.
+const LIVE_GRADIENTS: string[][] = [
+  ['#8A5A2B', '#241206'], // warm amber
+  ['#3E5BA6', '#0E1A38'], // royal blue
+  ['#7A3B8F', '#1E0E2E'], // violet
+  ['#B5476B', '#2E0E1C'], // rose
+  ['#2F8F7A', '#08211C'], // teal
+  ['#A5533B', '#2A0F08'], // rust
+  ['#3B7AA5', '#0A1E2E'], // steel
+  ['#5A6B2F', '#171C08'], // olive
+];
+function liveGradient(seed: string): [string, string] {
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const g = LIVE_GRADIENTS[h % LIVE_GRADIENTS.length];
+  return [g[0], g[1]];
+}
+
+const LiveCard: React.FC<{
+  stream: LiveStream;
+  width: number;
+  onPress: () => void;
+}> = ({ stream, width, onPress }) => {
+  const cover = stream.thumbnail || stream.storeLogoUrl;
+  const grad = liveGradient(stream._id || stream.storeName || '');
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.liveCard, { width, aspectRatio: 0.72 }, pressed && { opacity: 0.9 }]}
+    >
+      {cover ? (
+        <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      ) : (
+        <LinearGradient
+          colors={grad}
+          start={{ x: 0.25, y: 0 }}
+          end={{ x: 0.75, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      {/* Bottom scrim keeps the title/store legible over any cover */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.78)']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.liveTag}>
+        <View style={styles.liveTagDot} />
+        <Text style={styles.liveTagText}>LIVE</Text>
+      </View>
+      <View style={styles.liveTextWrap}>
+        <Text style={styles.liveTitle} numberOfLines={2}>{stream.title}</Text>
+        <Text style={styles.liveStore} numberOfLines={1}>{stream.storeName}</Text>
+      </View>
+    </Pressable>
+  );
+};
+
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -671,36 +745,42 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
 
-  // ── Live stream cards (shown when viewMode === 'live') ──────────────────
-  liveCard: {
+  // ── Live stream grid (shown when viewMode === 'live') ───────────────────
+  liveWrap: { flex: 1, width: '100%' },
+  liveGridContent: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    marginBottom: 10,
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    paddingBottom: 30,
+  },
+  liveCard: {
+    borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: '#1F2430',
+    justifyContent: 'flex-end',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
-  liveCardAvatar: {
-    width: 80,
-    height: 80,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
+  liveTag: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F2685E',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  liveCardAvatarText: { fontSize: 28, fontFamily: Fonts.bold, color: '#fff' },
-  liveBadge: {
-    position: 'absolute', bottom: 6, left: 6,
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.danger, borderRadius: 4,
-    paddingHorizontal: 5, paddingVertical: 2,
-  },
-  liveBadgeText: { fontSize: 9, fontFamily: Fonts.bold, color: '#fff', letterSpacing: 0.5 },
-  liveCardInfo: { flex: 1, padding: 10, justifyContent: 'center', gap: 3 },
-  liveCardStore: { fontFamily: Fonts.semiBold, fontSize: 13, color: Colors.text },
-  liveCardTitle: { fontFamily: Fonts.regular, fontSize: 12, color: Colors.textSecondary },
-  liveCardViewers: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  liveCardViewerText: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  liveTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  liveTagText: { fontSize: 10, fontFamily: Fonts.bold, color: '#fff', letterSpacing: 0.6 },
+  liveTextWrap: { padding: 12, gap: 2 },
+  liveTitle: { fontSize: 15, lineHeight: 19, fontFamily: Fonts.bold, color: '#fff' },
+  liveStore: { fontSize: 12, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.82)' },
 
   // Mobile search pill — mirrors the Home search bar (white, rounded, 44px).
   mobileSearchBar: {
