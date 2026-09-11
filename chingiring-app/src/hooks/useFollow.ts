@@ -1,8 +1,9 @@
 /**
  * useFollow — optimistic follow/unfollow with Zustand persistence.
  *
- * Followed store IDs are kept in a small followStore so LiveDiscoveryScreen
- * can sort followed stores to the top without re-fetching the network.
+ * Followed store IDs are kept in a small followStore so any screen reflects
+ * follow state instantly (SellerProfileScreen, ViewerScreen, StoreDetailScreen)
+ * and BuyerProfileScreen can show the following list/count without re-fetching.
  */
 import { create } from 'zustand';
 import { followsAPI } from '../api/follows';

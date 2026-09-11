@@ -3,7 +3,7 @@
  *
  * Navigated to from:
  *   - BuyerProfileScreen (followed stores list)
- *   - LiveDiscoveryScreen (store card tap)
+ *   - ViewerScreen (tapping the store header during a live stream)
  *
  * Route params: { storeId: string, store?: Store }
  *

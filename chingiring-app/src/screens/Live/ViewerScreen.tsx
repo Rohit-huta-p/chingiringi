@@ -24,8 +24,8 @@
  *                  when the stream has no featured products.
  * • Stream end  — full-screen "stream has ended" overlay with a way back.
  *
- * Navigation params (from LiveDiscoveryScreen)
- * ─────────────────────────────────────────────
+ * Navigation params (from OfflineStoresScreen's Live grid + StoreDetailScreen)
+ * ────────────────────────────────────────────────────────────────────────────
  *   streamId:      string   — MongoDB stream _id
  *   storeName:     string   — display name in the header
  *   storeLogoUrl?: string   — store avatar (optional)

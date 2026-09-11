@@ -4,12 +4,12 @@
  * Adapted from DrawerNavigator's MobileNavigator + MobileTabBar.
  * Active colour: Colors.primary (#4784E2, blue).
  *
- * Tabs: LiveDiscovery · Cashback · Stores · Wallet · Profile
- *   - LiveDiscovery: placeholder (S2 wires real content)
- *   - Cashback: MobileHomeScreen (existing deals/cashback feed)
- *   - Stores: OfflineStoresScreen
- *   - Wallet: MobileWalletScreen
- *   - Profile: MobileProfileScreen
+ * Tabs: Videos · Stores · Home · Wallet · Profile
+ *   - Videos:  MobileVideosScreen
+ *   - Stores:  OfflineStoresScreen (nearby stores + Live toggle)
+ *   - Home:    MobileHomeScreen (deals/cashback feed; centre anchor tab)
+ *   - Wallet:  MobileWalletScreen
+ *   - Profile: BuyerProfileScreen
  *
  * All existing stack screens from MobileNavigator are retained so deep-links
  * and push-navigation (StoreDetail, ProductDetail, etc.) keep working.
@@ -36,7 +36,6 @@ import { OfflineStoresScreen } from '../screens/Dashboard/OfflineStoresScreen';
 
 // Buyer screens
 import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
-import { LiveDiscoveryScreen } from '../screens/Buyer/LiveDiscoveryScreen';
 import { BuyerOnboardingScreen } from '../screens/Buyer/BuyerOnboardingScreen';
 import { BuyerProfileScreen } from '../screens/Buyer/BuyerProfileScreen';
 import { ViewerScreen } from '../screens/Live/ViewerScreen';
