@@ -23,25 +23,53 @@ import { ProductPreviewSheet } from '../../components/ProductPreviewSheet';
  *
  * Route params: { conversationId, title?, otherParty? }. otherParty drives the
  * header avatar + (for a store) tap-through to the store profile.
+ *
+ * Can also render EMBEDDED (values via props instead of route params) inside a
+ * bottom-sheet Modal — see ChatSheet — so the live viewer opens a chat as a
+ * slide-up sheet that works on web and native alike.
  */
-export function ChatScreen() {
+type ChatScreenProps = {
+  conversationId?: string;
+  otherParty?: ChatOtherParty;
+  title?: string;
+  prefill?: string;
+  product?: ChatProduct | null;
+  /** Dismiss handler when embedded (closes the sheet instead of nav.goBack). */
+  onClose?: () => void;
+  /** Sheet mode: no status-bar inset, an X (close) instead of the back chevron. */
+  embedded?: boolean;
+};
+
+export function ChatScreen(props: ChatScreenProps = {}) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const queryClient = useQueryClient();
   const myId = useAuthStore((s) => s.user?.id);
 
-  const conversationId: string = route.params?.conversationId;
-  const otherParty: ChatOtherParty | undefined = route.params?.otherParty;
-  const title: string = route.params?.title ?? otherParty?.name ?? 'Chat';
+  const conversationId: string = props.conversationId ?? route.params?.conversationId;
+  const otherParty: ChatOtherParty | undefined = props.otherParty ?? route.params?.otherParty;
+  const title: string = props.title ?? route.params?.title ?? otherParty?.name ?? 'Chat';
+  const embedded = !!props.embedded;
+  const onCloseProp = props.onClose;
+  const close = useCallback(() => {
+    if (onCloseProp) onCloseProp();
+    else navigation.goBack();
+  }, [onCloseProp, navigation]);
+  // Navigating away from an embedded sheet must dismiss it first, else the new
+  // screen would render behind the still-open Modal.
+  const goTo = useCallback((name: string, params?: object) => {
+    if (embedded) close();
+    navigation.navigate(name, params);
+  }, [embedded, close, navigation]);
   // If the other party is a store, I'm the buyer here; otherwise I'm the seller.
   const myRole: 'buyer' | 'seller' = otherParty?.kind === 'store' ? 'buyer' : 'seller';
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   // Prefill text + a pinned product card arrive from a product page's "Chat to buy".
-  const [text, setText] = useState<string>(route.params?.prefill ?? '');
-  const [attached, setAttached] = useState<ChatProduct | null>(route.params?.product ?? null);
+  const [text, setText] = useState<string>(props.prefill ?? route.params?.prefill ?? '');
+  const [attached, setAttached] = useState<ChatProduct | null>(props.product ?? route.params?.product ?? null);
   const [previewProduct, setPreviewProduct] = useState<ChatProduct | null>(null);
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -135,9 +163,9 @@ export function ChatScreen() {
 
   const onHeaderPress = useCallback(() => {
     if (otherParty?.kind === 'store' && otherParty.storeId) {
-      navigation.navigate('StoreDetail', { storeId: otherParty.storeId });
+      goTo('StoreDetail', { storeId: otherParty.storeId });
     }
-  }, [navigation, otherParty]);
+  }, [goTo, otherParty]);
 
   // Index of my last message — the read receipt hangs off it.
   const lastMineIndex = useMemo(() => {
@@ -161,7 +189,7 @@ export function ChatScreen() {
                 if (!item.product) return;
                 // Seller previews it in a sheet; buyer opens the full product page.
                 if (myRole === 'seller') setPreviewProduct(item.product);
-                else if (item.product.productId) navigation.navigate('ProductDetail', { productId: item.product.productId });
+                else if (item.product.productId) goTo('ProductDetail', { productId: item.product.productId });
               }}
             >
               {item.product.imageUrl ? (
@@ -183,7 +211,7 @@ export function ChatScreen() {
         {showSeen ? <Text style={styles.seen}>Seen</Text> : null}
       </View>
     );
-  }, [myId, lastMineIndex, navigation, myRole]);
+  }, [myId, lastMineIndex, myRole, goTo]);
 
   return (
     <KeyboardAvoidingView
@@ -191,14 +219,18 @@ export function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingTop: embedded ? 8 : insets.top }]}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => navigation.goBack()}
+          onPress={close}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={embedded ? 'Close' : 'Back'}
         >
-          <ChevronLeft size={24} color={Colors.navy} strokeWidth={2.2} />
+          {embedded ? (
+            <X size={24} color={Colors.navy} strokeWidth={2.2} />
+          ) : (
+            <ChevronLeft size={24} color={Colors.navy} strokeWidth={2.2} />
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerParty}

@@ -66,6 +66,20 @@ export async function abortStream(streamId: string): Promise<void> {
   await apiClient.post(`/api/streams/${streamId}/abort`);
 }
 
+/**
+ * PATCH /api/streams/:id/products
+ * Broadcaster updates the featured product set on a live stream — persists the
+ * new set and broadcasts it to viewers (stream_products_updated). Returns the
+ * new populated product list. Owner-only.
+ */
+export async function updateStreamProducts(
+  streamId: string,
+  productIds: string[],
+): Promise<StreamProductLite[]> {
+  const res = await apiClient.patch(`/api/streams/${streamId}/products`, { productIds });
+  return (res.data?.data?.products ?? res.data?.products ?? []) as StreamProductLite[];
+}
+
 // ── Viewer token ───────────────────────────────────────────────────────────
 
 export interface ViewerTokenResponse {

@@ -31,7 +31,7 @@ export const LoginScreen = ({ navigation }: any) => {
 
   const handleLogin = () => {
     setErrorMsg('');
-    loginMutation.mutate({ identifier, password });
+    loginMutation.mutate({ identifier: identifier.trim(), password });
   };
 
   const Header = (
@@ -48,8 +48,10 @@ export const LoginScreen = ({ navigation }: any) => {
   return (
     <AuthLayout title={Header} subtitle={Subtitle}>
       <Input
-        label="Username or Email"
-        placeholder="your username"
+        label="Email"
+        placeholder="your@email.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
         value={identifier}
         onChangeText={setIdentifier}
       />
@@ -91,6 +93,13 @@ export const LoginScreen = ({ navigation }: any) => {
         onPress={googleSignIn}
         loading={googleLoading}
         disabled={googleLoading}
+        style={styles.googleButton}
+      />
+
+      <Button
+        title="Continue with phone"
+        variant="outline"
+        onPress={() => navigation.navigate('PhoneLogin')}
         style={styles.googleButton}
       />
 

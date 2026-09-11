@@ -34,6 +34,7 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
       Login:           'login',
       PasswordLogin:   'login/password',
       Signup:          'signup',
+      PhoneLogin:      'login/phone',
       OTPVerification: 'otp',
       ForgotPassword:  'forgot-password',
       ResetPassword:   'reset-password',

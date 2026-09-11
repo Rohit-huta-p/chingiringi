@@ -71,7 +71,8 @@ import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
 import { getStream, type StreamDetail, type StreamProductLite } from '../../api/streams';
 import { useFollow } from '../../hooks/useFollow';
 import { useAuthGate } from '../../context/AuthGateContext';
-import { getOrCreateConversation } from '../../api/chat';
+import { getOrCreateConversation, type ChatProduct } from '../../api/chat';
+import { ChatSheet } from '../Messages/ChatSheet';
 import VideoLayer from '../../components/VideoLayer';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -368,6 +369,13 @@ export const ViewerScreen: React.FC = () => {
   const [streamDetail, setStreamDetail] = useState<StreamDetail | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
+  // Product chat, presented as a cross-platform bottom sheet (web + native).
+  const [chatSheet, setChatSheet] = useState<{
+    conversationId: string;
+    otherParty: any;
+    title: string;
+    product: ChatProduct;
+  } | null>(null);
 
   const { follow, unfollow, isFollowing } = useFollow();
   const { requireAuth } = useAuthGate();
@@ -436,6 +444,9 @@ export const ViewerScreen: React.FC = () => {
     onHeartBurst: addHearts,
     onNewChat: (msg) => setMessages((prev) => [...prev.slice(-49), msg]),
     onStreamEnded: () => setStreamEnded(true),
+    // Broadcaster changed the featured set → refresh the shelf + "See all" sheet.
+    onProductsUpdated: (next) =>
+      setStreamDetail((prev) => (prev ? { ...prev, products: next } : prev)),
   });
 
   // ── Actions ─────────────────────────────────────────────────────────────
@@ -491,12 +502,11 @@ export const ViewerScreen: React.FC = () => {
           try {
             const conv = await getOrCreateConversation(resolvedStoreId);
             if (conv) {
-              navigation.navigate('Chat', {
+              setChatSheet({
                 conversationId: conv._id,
                 title: conv.otherParty.name,
                 otherParty: conv.otherParty,
                 product: { productId: product._id, name: product.name, imageUrl: product.imageUrl, price: product.price },
-                asSheet: true, // present as a bottom sheet over the live stream
               });
             }
           } catch (e: any) {
@@ -667,6 +677,16 @@ export const ViewerScreen: React.FC = () => {
         onChat={openProductChat}
         onDetail={openProductDetail}
         bottomInset={insets.bottom}
+      />
+
+      {/* Product chat as a slide-up bottom sheet (cross-platform: web + native) */}
+      <ChatSheet
+        visible={!!chatSheet}
+        onClose={() => setChatSheet(null)}
+        conversationId={chatSheet?.conversationId}
+        otherParty={chatSheet?.otherParty}
+        title={chatSheet?.title}
+        product={chatSheet?.product ?? null}
       />
     </View>
   );

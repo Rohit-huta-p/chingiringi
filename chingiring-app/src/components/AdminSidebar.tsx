@@ -7,6 +7,8 @@ import {
 } from 'lucide-react-native';
 import { Colors, Spacing } from '../constants/theme';
 import { useAuthStore } from '../store';
+import { usePendingVerificationCount } from '../hooks/usePendingVerificationCount';
+import { NavCountBadge } from './NavCountBadge';
 
 const ADMIN_NAV = [
   { key: 'AdminDashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -36,6 +38,7 @@ const ADMIN_NAV = [
 export function AdminSidebar({ navigation, state }: any) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const logout = useAuthStore((s) => s.logout);
+  const pendingVerifications = usePendingVerificationCount();
 
   const activeRoute = state?.routes?.[state.index]?.name ?? 'AdminDashboard';
 
@@ -98,6 +101,9 @@ export function AdminSidebar({ navigation, state }: any) {
             >
               <item.icon size={18} color={isActive ? Colors.primary : Colors.textSecondary} />
               <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
+              {item.key === 'AdminStoreVerifications' && (
+                <NavCountBadge count={pendingVerifications} />
+              )}
             </TouchableOpacity>
           );
         })}

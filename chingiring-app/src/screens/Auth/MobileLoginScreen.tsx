@@ -17,7 +17,7 @@ export const MobileLoginScreen = ({ navigation }: any) => {
     if (user && navigation.canGoBack()) navigation.goBack();
   }, [user]);
 
-  const [identifier, setIdentifier] = useState('');   // username or email
+  const [identifier, setIdentifier] = useState('');   // email address
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -38,7 +38,7 @@ export const MobileLoginScreen = ({ navigation }: any) => {
   const handleSignIn = () => {
     setErrorMsg('');
     if (!identifier.trim() || !password) {
-      setErrorMsg('Enter username and password');
+      setErrorMsg('Enter email and password');
       return;
     }
     loginMutation.mutate({ identifier: identifier.trim(), password });
@@ -56,6 +56,7 @@ export const MobileLoginScreen = ({ navigation }: any) => {
       onSwitch={goSignup}
       onGoogle={googleSignIn}
       googleLoading={googleLoading}
+      onPhone={() => navigation.navigate('PhoneLogin')}
       footer={
         <Text style={st.terms}>
           By continuing, you agree to our <Text style={st.termsLink}>Terms of Service</Text>
@@ -64,11 +65,12 @@ export const MobileLoginScreen = ({ navigation }: any) => {
       }
     >
       <AuthField
-        label="Username"
+        label="Email"
         icon={Mail}
-        placeholder="your username"
+        placeholder="your@email.com"
         value={identifier}
         onChangeText={setIdentifier}
+        keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
       />

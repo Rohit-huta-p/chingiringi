@@ -173,24 +173,7 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="Settings"          component={MobileSettingsScreen} />
         <Stack.Screen name="Notifications"     component={NotificationsScreen} />
         <Stack.Screen name="Messages"          component={MessagesScreen} />
-        <Stack.Screen
-          name="Chat"
-          component={ChatScreen}
-          options={({ route }) => {
-            // From the live viewer (openProductChat passes asSheet) → a detented
-            // bottom sheet that slides up from the bottom with a gap above, on
-            // iOS AND Android (formSheet). From the inbox → full-screen push.
-            const asSheet = (route.params as { asSheet?: boolean } | undefined)?.asSheet;
-            return asSheet
-              ? {
-                  presentation: 'formSheet',
-                  sheetAllowedDetents: [0.92], // ~92% tall → ~8% gap at the top
-                  sheetCornerRadius: 20,
-                  sheetGrabberVisible: true,
-                }
-              : { presentation: 'card' };
-          }}
-        />
+        <Stack.Screen name="Chat"              component={ChatScreen} />
         <Stack.Screen name="About"             component={MobileAboutScreen} />
         <Stack.Screen name="BuyerOnboarding"   component={BuyerOnboardingScreen} />
         <Stack.Screen name="ViewerScreen"      component={ViewerScreen} />

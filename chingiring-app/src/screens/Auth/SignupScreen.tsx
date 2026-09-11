@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
-import { User, AtSign, Mail, Phone, Lock, Gift, Eye, EyeOff } from 'lucide-react-native';
+import { User, Mail, Phone, Lock, Gift, Eye, EyeOff } from 'lucide-react-native';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -16,7 +16,6 @@ import { MobileAuthScaffold, AuthField, AuthCTA } from '../../components/MobileA
 
 export const SignupScreen = ({ navigation, route }: any) => {
   const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -83,7 +82,6 @@ export const SignupScreen = ({ navigation, route }: any) => {
     // Only send what's provided
     signupMutation.mutate({
       name,
-      username,
       email: email || undefined,
       phone: phone || undefined,
       password,
@@ -109,6 +107,7 @@ export const SignupScreen = ({ navigation, route }: any) => {
           onSwitch={goLogin}
           onGoogle={googleSignIn}
           googleLoading={googleLoading}
+          onPhone={() => navigation.navigate('PhoneLogin')}
           footer={
             <Text style={styles.mTerms}>
               By signing up, you agree to our <Text style={styles.mTermsLink}>Terms of Service</Text> and <Text style={styles.mTermsLink}>Privacy Policy</Text>
@@ -116,7 +115,6 @@ export const SignupScreen = ({ navigation, route }: any) => {
           }
         >
           <AuthField label="Full name" icon={User} placeholder="Your name" value={name} onChangeText={setName} />
-          <AuthField label="Username" icon={AtSign} placeholder="Your username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
           <AuthField label="Email" icon={Mail} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
           <AuthField label="Phone (optional if email given)" icon={Phone} placeholder="10-digit mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
           <AuthField
@@ -142,7 +140,6 @@ export const SignupScreen = ({ navigation, route }: any) => {
       ) : (
         <AuthLayout title={Header} subtitle={Subtitle}>
           <Input label="Full Name" placeholder="Your name" value={name} onChangeText={setName} />
-          <Input label="Username" placeholder="Your username" value={username} onChangeText={setUsername} />
           <Input label="Email" placeholder="your@email.com" keyboardType="email-address" value={email} onChangeText={setEmail} />
           <Input label="Phone Number" placeholder="10-digit mobile number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
           <Input label="Password" placeholder="At least 6 characters" secureTextEntry value={password} onChangeText={setPassword} />

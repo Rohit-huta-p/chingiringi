@@ -1,5 +1,6 @@
 import Stream from './streamModel.js';
 import Store from '../stores/storeModel.js';
+import Product from '../products/productModel.js';
 import { Message } from '../chat/chatModel.js';
 import * as mux from '../../services/muxVideo.js';
 
@@ -217,6 +218,61 @@ export const endStream = async (req, res) => {
   }
 
   res.status(200).json({ status: 'success', data: { ok: true } });
+};
+
+// @desc    Broadcaster updates the featured product set on their live stream —
+//          the "Feature products" picker. Persists the new set and pushes it to
+//          every viewer via Socket.io so their live shelves update in real time.
+// @route   PATCH /api/streams/:id/products
+// @access  Private (owner)
+export const updateStreamProducts = async (req, res) => {
+  const { productIds } = req.body;
+  if (!Array.isArray(productIds)) {
+    res.status(400);
+    throw new Error('productIds must be an array');
+  }
+
+  const stream = await Stream.findById(req.params.id);
+  if (!stream) {
+    res.status(404);
+    throw new Error('Stream not found');
+  }
+  if (stream.ownerId.toString() !== req.user._id.toString()) {
+    res.status(403);
+    throw new Error('You do not own this stream');
+  }
+
+  // Accept only products that belong to this stream's store (guards against a
+  // client featuring foreign ids), preserving the seller's chosen order. Cap
+  // matches createStream.
+  const capped = productIds.slice(0, 30).map(String);
+  const owned = new Set(
+    (await Product.find({ _id: { $in: capped }, storeId: stream.storeId }).select('_id').lean())
+      .map((p) => p._id.toString()),
+  );
+  stream.products = capped.filter((id) => owned.has(id));
+  await stream.save();
+
+  // Re-read populated (same projection as getStream) for the response + socket.
+  const populated = await Stream.findById(stream._id)
+    .populate('products', 'name price mrp imageUrl images category')
+    .lean();
+  const products = populated?.products ?? [];
+
+  // Push the new featured set to every viewer in the room.
+  try {
+    const { io } = await import('../../server.js');
+    io.of('/stream')
+      .to(`stream:${stream._id}`)
+      .emit('stream_products_updated', {
+        streamId: stream._id.toString(),
+        products,
+      });
+  } catch (err) {
+    console.warn('[updateStreamProducts] Could not emit stream_products_updated:', err.message);
+  }
+
+  res.status(200).json({ status: 'success', data: { products } });
 };
 
 // @desc    Broadcaster confirms the RTMP session connected → flip idle → live.

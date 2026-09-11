@@ -225,7 +225,7 @@ export const MyStoreScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Edit store details"
         >
-          <Pencil size={17} color="#fff" strokeWidth={2} />
+          <Text style={{ color: 'white' }}>Edit store details</Text>
         </Pressable>
       </View>
 
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   storeName: { fontSize: 18, fontFamily: Fonts.extraBold, color: '#fff', flexShrink: 1 },
   headerSub: { fontSize: 12, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   editBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    paddingVertical: 4, paddingHorizontal: 2, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center', justifyContent: 'center',
   },

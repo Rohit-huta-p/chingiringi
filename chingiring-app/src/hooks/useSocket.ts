@@ -29,6 +29,7 @@ import { Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 import apiClient from '../api/client';
+import type { StreamProductLite } from '../api/streams';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ export interface UseSocketOptions {
   onHeartBurst?: (count: number) => void;
   onNewChat?: (msg: LiveChatMsg) => void;
   onStreamEnded?: () => void;
+  /** The broadcaster changed the featured set — refresh the live shelf. */
+  onProductsUpdated?: (products: StreamProductLite[]) => void;
   /** False for the broadcaster's own connection so it isn't counted as a viewer. Default true. */
   countAsViewer?: boolean;
 }
@@ -75,6 +78,7 @@ export function useSocket({
   onHeartBurst,
   onNewChat,
   onStreamEnded,
+  onProductsUpdated,
   countAsViewer = true,
 }: UseSocketOptions): {
   sendHeart: () => void;
@@ -84,9 +88,9 @@ export function useSocket({
 
   // Stable callback refs — updated every render so callers never stale-close,
   // but changes do NOT re-trigger the socket effect.
-  const cbRef = useRef({ onViewerCount, onHeartBurst, onNewChat, onStreamEnded });
+  const cbRef = useRef({ onViewerCount, onHeartBurst, onNewChat, onStreamEnded, onProductsUpdated });
   useEffect(() => {
-    cbRef.current = { onViewerCount, onHeartBurst, onNewChat, onStreamEnded };
+    cbRef.current = { onViewerCount, onHeartBurst, onNewChat, onStreamEnded, onProductsUpdated };
   });
 
   // Connect / disconnect effect — re-runs only when streamId changes.
@@ -156,6 +160,13 @@ export function useSocket({
       socket.on('stream_ended', () => {
         cbRef.current.onStreamEnded?.();
       });
+
+      socket.on(
+        'stream_products_updated',
+        ({ products }: { streamId: string; products: StreamProductLite[] }) => {
+          cbRef.current.onProductsUpdated?.(products ?? []);
+        },
+      );
     })();
 
     return () => {

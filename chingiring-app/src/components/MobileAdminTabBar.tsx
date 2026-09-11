@@ -5,6 +5,8 @@ import { MoreHorizontal, X } from 'lucide-react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Colors, Fonts } from '../constants/theme';
 import { ADMIN_NAV_ITEMS } from './MobileAdminNav';
+import { usePendingVerificationCount } from '../hooks/usePendingVerificationCount';
+import { NavCountBadge } from './NavCountBadge';
 
 // The sections that get an always-visible bottom tab. Everything else in
 // ADMIN_NAV_ITEMS falls into the "More" sheet. Reorder / swap these 4 keys to
@@ -34,6 +36,7 @@ export function MobileAdminTabBar({ state, navigation }: BottomTabBarProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const current = state.routes[state.index]?.name;
   const moreActive = MORE_KEYS.includes(current);
+  const pendingVerifications = usePendingVerificationCount();
 
   const go = (key: string) => {
     setMoreOpen(false);
@@ -67,9 +70,12 @@ export function MobileAdminTabBar({ state, navigation }: BottomTabBarProps) {
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityState={{ selected: moreActive }}
-          accessibilityLabel="More sections"
+          accessibilityLabel={pendingVerifications > 0 ? `More sections, ${pendingVerifications} pending` : 'More sections'}
         >
-          <MoreHorizontal size={22} color={moreActive ? Colors.primary : Colors.textSecondary} strokeWidth={moreActive ? 2.4 : 2} />
+          <View style={st.moreIconWrap}>
+            <MoreHorizontal size={22} color={moreActive ? Colors.primary : Colors.textSecondary} strokeWidth={moreActive ? 2.4 : 2} />
+            <NavCountBadge count={pendingVerifications} style={st.tabBadge} />
+          </View>
           <Text style={[st.label, moreActive && st.labelOn]}>More</Text>
         </TouchableOpacity>
       </View>
@@ -101,6 +107,12 @@ export function MobileAdminTabBar({ state, navigation }: BottomTabBarProps) {
                     <Icon size={18} color={on ? Colors.primary : Colors.textSecondary} strokeWidth={2} />
                   </View>
                   <Text style={[st.rowLabel, on && st.rowLabelOn]}>{item.label}</Text>
+                  {item.key === 'AdminStoreVerifications' && pendingVerifications > 0 && (
+                    <>
+                      <View style={st.rowSpacer} />
+                      <NavCountBadge count={pendingVerifications} />
+                    </>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -123,6 +135,8 @@ const st = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 2 },
   label: { fontSize: 10.5, fontFamily: Fonts.medium, color: Colors.textSecondary },
   labelOn: { color: Colors.primary, fontFamily: Fonts.bold },
+  moreIconWrap: { position: 'relative' },
+  tabBadge: { position: 'absolute', top: -7, right: -11 },
 
   scrim: { flex: 1, backgroundColor: 'rgba(15,23,42,0.35)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 12, paddingTop: 8 },
@@ -135,6 +149,7 @@ const st = StyleSheet.create({
   rowIconOn: { backgroundColor: '#fff' },
   rowLabel: { fontSize: 15, fontFamily: Fonts.semiBold, color: Colors.text },
   rowLabelOn: { color: Colors.primary },
+  rowSpacer: { flex: 1 },
 });
 
 export default MobileAdminTabBar;

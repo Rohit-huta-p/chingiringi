@@ -286,6 +286,15 @@ const st = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: '#101828',
     letterSpacing: -0.4,
+    // Horizontal counterpart to the lineHeight fix. Android under-measures a
+    // Text's width when a custom font is combined with negative letterSpacing,
+    // so the trailing glyph's advance spills past the measured box and gets
+    // clipped — seen as the final "i" in "ChingiRingi" vanishing on some
+    // (typically narrower / lower-DPI) devices. Symmetric horizontal padding
+    // gives the layout slack so the last glyph always fits; textAlign keeps
+    // the wordmark centered within that padded box.
+    paddingHorizontal: 8,
+    textAlign: 'center',
   },
 });
 

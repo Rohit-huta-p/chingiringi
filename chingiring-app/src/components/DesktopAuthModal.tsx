@@ -3,7 +3,7 @@ import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mail, Lock, Eye, EyeOff, User, AtSign, Phone, Gift, X, ArrowRight, MailOpen } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, User, Phone, Gift, X, ArrowRight, MailOpen } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { Colors, Fonts } from '../constants/theme';
 import { authAPI } from '../api/auth';
@@ -56,7 +56,6 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [referralCode, setReferralCode] = useState('');
@@ -68,6 +67,13 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
   const [otpErr, setOtpErr] = useState('');
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
+  // Phone-OTP login channel (mirrors MobileAuthModal). `channel` swaps the login
+  // form to a phone field; `verifyChannel` tells the verify step which API to hit.
+  const [channel, setChannel] = useState<'password' | 'phone'>('password');
+  const [verifyChannel, setVerifyChannel] = useState<'email' | 'phone'>('email');
+  const [otpPhone, setOtpPhone] = useState('');
+  const [phoneSending, setPhoneSending] = useState(false);
 
   // Auto-close on login / Google success (only from the form step — the verify
   // step manages its own closing so signup can pause here for the OTP).
@@ -88,8 +94,13 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
   const sendOtp = async () => {
     setOtpErr(''); setSending(true);
     try {
-      await profileAPI.sendEmailOtp();
-      setOtpInfo(`We sent a 6-digit code to ${email}.`);
+      if (verifyChannel === 'phone') {
+        await authAPI.sendOtp({ phone: otpPhone });
+        setOtpInfo(`We sent a 6-digit code to ${otpPhone}.`);
+      } else {
+        await profileAPI.sendEmailOtp();
+        setOtpInfo(`We sent a 6-digit code to ${email}.`);
+      }
     } catch (e: any) {
       setOtpErr(e?.response?.data?.message || e?.message || 'Could not send the code. Try again.');
     } finally {
@@ -101,12 +112,36 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
     if (otp.length !== 6) { setOtpErr('Enter the 6-digit code.'); return; }
     setOtpErr(''); setVerifying(true);
     try {
-      await profileAPI.verifyEmailOtp(otp);
-      finish();
+      if (verifyChannel === 'phone') {
+        const res: any = await authAPI.verifyOtp({ identifier: otpPhone, otp });
+        if (res?.data?.isLogin) { await hydrate(); onComplete(); }
+        else { setOtpErr('Could not sign you in. Please try again.'); }
+      } else {
+        await profileAPI.verifyEmailOtp(otp);
+        finish();
+      }
     } catch (e: any) {
       setOtpErr(e?.response?.data?.message || e?.message || 'Invalid or expired code.');
     } finally {
       setVerifying(false);
+    }
+  };
+
+  // Login form → phone step: send the first code, then move to the verify step.
+  const startPhoneOtp = async () => {
+    const p = otpPhone.replace(/\D/g, '');
+    if (p.length !== 10) { setError('Enter a valid 10-digit mobile number.'); return; }
+    setError(''); setPhoneSending(true);
+    try {
+      await authAPI.sendOtp({ phone: p });
+      setOtpPhone(p);
+      setVerifyChannel('phone');
+      setOtp(''); setOtpErr(''); setOtpInfo(`We sent a 6-digit code to ${p}.`);
+      setStep('verify');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || 'Could not send the code. Please try again.');
+    } finally {
+      setPhoneSending(false);
     }
   };
 
@@ -143,25 +178,28 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
   const submit = () => {
     setError('');
     if (mode === 'login') {
-      if (!identifier.trim() || !password) { setError('Enter username and password'); return; }
+      if (!identifier.trim() || !password) { setError('Enter email and password'); return; }
       loginMut.mutate({ identifier: identifier.trim(), password });
     } else {
-      if (!name.trim() || !username.trim() || !password) { setError('Fill name, username and password'); return; }
+      if (!name.trim() || !password) { setError('Fill in your name and password'); return; }
       if (!email && !phone) { setError('Enter an email or phone number'); return; }
-      signupMut.mutate({ name: name.trim(), username: username.trim(), email: email || undefined, phone: phone || undefined, password });
+      signupMut.mutate({ name: name.trim(), email: email || undefined, phone: phone || undefined, password });
     }
   };
 
   const isLogin = mode === 'login';
   const inVerify = step === 'verify';
+  // Email verify is post-signup (authed) → closing finishes; phone verify is
+  // pre-auth → closing just cancels.
+  const closeVerify = verifyChannel === 'phone' ? onCancel : finish;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={inVerify ? finish : onCancel}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={inVerify ? closeVerify : onCancel}>
       <View style={st.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={inVerify ? finish : onCancel} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={inVerify ? closeVerify : onCancel} />
 
         <View style={st.card}>
-          <TouchableOpacity style={st.close} onPress={inVerify ? finish : onCancel} hitSlop={8}>
+          <TouchableOpacity style={st.close} onPress={inVerify ? closeVerify : onCancel} hitSlop={8}>
             <X size={16} color="#475569" strokeWidth={2.2} />
           </TouchableOpacity>
 
@@ -184,8 +222,8 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
           <ScrollView style={st.right} contentContainerStyle={st.rightInner} keyboardShouldPersistTaps="handled">
             {inVerify ? (
               <>
-                <Text style={st.fhead}>Verify your email</Text>
-                <Text style={st.fsub}>{otpInfo || (sending ? 'Sending a code…' : `Enter the 6-digit code sent to ${email}.`)}</Text>
+                <Text style={st.fhead}>{verifyChannel === 'phone' ? 'Verify your phone' : 'Verify your email'}</Text>
+                <Text style={st.fsub}>{otpInfo || (sending ? 'Sending a code…' : `Enter the 6-digit code sent to ${verifyChannel === 'phone' ? otpPhone : email}.`)}</Text>
 
                 <TextInput
                   style={st.otp}
@@ -201,21 +239,34 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
 
                 <TouchableOpacity style={[st.cta, (verifying || otp.length !== 6) && { opacity: 0.7 }]} onPress={verifyOtp} disabled={verifying || otp.length !== 6} activeOpacity={0.9}>
                   {verifying ? <ActivityIndicator color="#fff" /> : (
-                    <View style={st.ctaRow}><Text style={st.ctaTxt}>Verify</Text><ArrowRight size={17} color="#fff" strokeWidth={2.4} /></View>
+                    <View style={st.ctaRow}><Text style={st.ctaTxt}>{verifyChannel === 'phone' ? 'Verify & continue' : 'Verify'}</Text><ArrowRight size={17} color="#fff" strokeWidth={2.4} /></View>
                   )}
                 </TouchableOpacity>
 
-                <View style={st.vRow}>
-                  <TouchableOpacity style={st.openMail} onPress={() => openMailInbox(email)} activeOpacity={0.85}>
-                    <MailOpen size={15} color={Colors.primary} strokeWidth={2} />
-                    <Text style={st.openMailTxt}>Open mail</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={sendOtp} disabled={sending}>
-                    <Text style={st.link}>{sending ? 'Sending…' : 'Resend code'}</Text>
-                  </TouchableOpacity>
-                </View>
+                {verifyChannel === 'phone' ? (
+                  <View style={[st.vRow, { justifyContent: 'space-between' }]}>
+                    <TouchableOpacity onPress={() => { setStep('form'); setOtp(''); setOtpErr(''); }}>
+                      <Text style={st.link}>Change number</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={sendOtp} disabled={sending}>
+                      <Text style={st.link}>{sending ? 'Sending…' : 'Resend code'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <View style={st.vRow}>
+                      <TouchableOpacity style={st.openMail} onPress={() => openMailInbox(email)} activeOpacity={0.85}>
+                        <MailOpen size={15} color={Colors.primary} strokeWidth={2} />
+                        <Text style={st.openMailTxt}>Open mail</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={sendOtp} disabled={sending}>
+                        <Text style={st.link}>{sending ? 'Sending…' : 'Resend code'}</Text>
+                      </TouchableOpacity>
+                    </View>
 
-                <Text style={st.foot}><Text style={st.footLink} onPress={finish}>I'll verify later</Text></Text>
+                    <Text style={st.foot}><Text style={st.footLink} onPress={finish}>I'll verify later</Text></Text>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -223,17 +274,24 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
                 <Text style={st.fsub}>{isLogin ? (opts?.subtitle ?? 'Sign in to continue earning cashback.') : (pendingRef ? `Create your account to claim ${REFEREE_REWARD_LABEL} — referred with code ${pendingRef}.` : 'Start earning cashback in minutes.')}</Text>
 
                 <View style={st.seg}>
-                  <TouchableOpacity style={[st.segBtn, isLogin && st.segOn]} onPress={() => { setMode('login'); setError(''); }}>
+                  <TouchableOpacity style={[st.segBtn, isLogin && st.segOn]} onPress={() => { setMode('login'); setChannel('password'); setError(''); }}>
                     <Text style={[st.segTxt, isLogin && st.segTxtOn]}>Sign in</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[st.segBtn, !isLogin && st.segOn]} onPress={() => { setMode('signup'); setError(''); }}>
+                  <TouchableOpacity style={[st.segBtn, !isLogin && st.segOn]} onPress={() => { setMode('signup'); setChannel('password'); setError(''); }}>
                     <Text style={[st.segTxt, !isLogin && st.segTxtOn]}>Create account</Text>
                   </TouchableOpacity>
                 </View>
 
-                {isLogin ? (
+                {channel === 'phone' ? (
                   <>
-                    <Field icon={Mail} placeholder="Username or email" value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} />
+                    <Field icon={Phone} placeholder="10-digit mobile number" value={otpPhone} onChangeText={setOtpPhone} keyboardType="phone-pad" autoCapitalize="none" autoCorrect={false} />
+                    <TouchableOpacity onPress={() => { setChannel('password'); setError(''); }} style={{ marginBottom: 4 }}>
+                      <Text style={st.link}>Use email &amp; password</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : isLogin ? (
+                  <>
+                    <Field icon={Mail} placeholder="Email" value={identifier} onChangeText={setIdentifier} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
                     <View style={st.field}>
                       <Lock size={16} color="#9AA6B8" />
                       <TextInput style={st.input} placeholder="Enter your password" placeholderTextColor="#9AA6B8" value={password} onChangeText={setPassword} secureTextEntry={!showPw} autoCapitalize="none" />
@@ -243,7 +301,6 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
                 ) : (
                   <>
                     <Field icon={User} placeholder="Full name" value={name} onChangeText={setName} />
-                    <Field icon={AtSign} placeholder="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
                     <Field icon={Mail} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
                     <Field icon={Phone} placeholder="Phone (optional if email given)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
                     <View style={st.field}>
@@ -257,11 +314,19 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
 
                 {error ? <Text style={st.err}>{error}</Text> : null}
 
-                <TouchableOpacity style={[st.cta, busy && { opacity: 0.7 }]} onPress={submit} disabled={busy} activeOpacity={0.9}>
-                  {busy ? <ActivityIndicator color="#fff" /> : (
-                    <View style={st.ctaRow}><Text style={st.ctaTxt}>{isLogin ? 'Sign in' : 'Create account'}</Text><ArrowRight size={17} color="#fff" strokeWidth={2.4} /></View>
-                  )}
-                </TouchableOpacity>
+                {channel === 'phone' ? (
+                  <TouchableOpacity style={[st.cta, phoneSending && { opacity: 0.7 }]} onPress={startPhoneOtp} disabled={phoneSending} activeOpacity={0.9}>
+                    {phoneSending ? <ActivityIndicator color="#fff" /> : (
+                      <View style={st.ctaRow}><Text style={st.ctaTxt}>Send code</Text><ArrowRight size={17} color="#fff" strokeWidth={2.4} /></View>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={[st.cta, busy && { opacity: 0.7 }]} onPress={submit} disabled={busy} activeOpacity={0.9}>
+                    {busy ? <ActivityIndicator color="#fff" /> : (
+                      <View style={st.ctaRow}><Text style={st.ctaTxt}>{isLogin ? 'Sign in' : 'Create account'}</Text><ArrowRight size={17} color="#fff" strokeWidth={2.4} /></View>
+                    )}
+                  </TouchableOpacity>
+                )}
 
                 <View style={st.orRow}><View style={st.orLine} /><Text style={st.orTxt}>OR</Text><View style={st.orLine} /></View>
 
@@ -269,9 +334,16 @@ export const DesktopAuthModal: React.FC<Props> = ({ visible, opts, onComplete, o
                   {googleLoading ? <ActivityIndicator color={Colors.primary} /> : <><GoogleG /><Text style={st.googleTxt}>{isLogin ? 'Continue with Google' : 'Sign up with Google'}</Text></>}
                 </TouchableOpacity>
 
+                {channel === 'password' && (
+                  <TouchableOpacity style={[st.google, { marginTop: 10 }]} onPress={() => { setChannel('phone'); setError(''); }} activeOpacity={0.9}>
+                    <Phone size={17} color={Colors.primary} strokeWidth={2} />
+                    <Text style={st.googleTxt}>{isLogin ? 'Continue with phone' : 'Sign up with phone'}</Text>
+                  </TouchableOpacity>
+                )}
+
                 <Text style={st.foot}>
                   {isLogin ? "Don't have an account? " : 'Already have an account? '}
-                  <Text style={st.footLink} onPress={() => { setMode(isLogin ? 'signup' : 'login'); setError(''); }}>
+                  <Text style={st.footLink} onPress={() => { setMode(isLogin ? 'signup' : 'login'); setChannel('password'); setError(''); }}>
                     {isLogin ? 'Create one' : 'Sign in'}
                   </Text>
                 </Text>
