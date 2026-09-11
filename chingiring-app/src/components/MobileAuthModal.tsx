@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
-import { Mail, Lock, Eye, EyeOff, User, AtSign, Phone, Gift, X, MailOpen } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, User, Phone, Gift, X, MailOpen } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { Colors, Fonts } from '../constants/theme';
 import { authAPI } from '../api/auth';
@@ -44,7 +44,6 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [referralCode, setReferralCode] = useState('');
@@ -58,9 +57,20 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
   const [verifying, setVerifying] = useState(false);
   const isNewUserRef = useRef(false);
 
+  // Phone-OTP login (passwordless). `channel` swaps the form between the
+  // email+password fields and a single phone field; `verifyChannel` tells the
+  // shared verify step which API to hit (post-signup email vs. phone login).
+  const [channel, setChannel] = useState<'password' | 'phone'>('password');
+  const [verifyChannel, setVerifyChannel] = useState<'email' | 'phone'>('email');
+  const [otpPhone, setOtpPhone] = useState('');
+  const [phoneSending, setPhoneSending] = useState(false);
+
   // Fresh state each time the modal opens.
   useEffect(() => {
-    if (visible) { setStep('form'); setError(''); setOtp(''); setOtpErr(''); setOtpInfo(''); }
+    if (visible) {
+      setStep('form'); setError(''); setOtp(''); setOtpErr(''); setOtpInfo('');
+      setChannel('password'); setVerifyChannel('email'); setOtpPhone('');
+    }
   }, [visible]);
 
   // Referred guest: default to the signup tab + prefill the code from the stash.
@@ -78,11 +88,17 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
   // After verify success or "I'll verify later": mark welcome, fire pending action.
   const finish = () => { setShowWelcome(true); onComplete(); };
 
+  // Resend the code — phone via /auth/send-otp, email via the profile endpoint.
   const sendOtp = async () => {
     setOtpErr(''); setSending(true);
     try {
-      await profileAPI.sendEmailOtp();
-      setOtpInfo(`We sent a 6-digit code to ${email}.`);
+      if (verifyChannel === 'phone') {
+        await authAPI.sendOtp({ phone: otpPhone });
+        setOtpInfo(`We sent a 6-digit code to ${otpPhone}.`);
+      } else {
+        await profileAPI.sendEmailOtp();
+        setOtpInfo(`We sent a 6-digit code to ${email}.`);
+      }
     } catch (e: any) {
       setOtpErr(e?.response?.data?.message || e?.message || 'Could not send the code. Try again.');
     } finally { setSending(false); }
@@ -92,11 +108,35 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
     if (otp.length !== 6) { setOtpErr('Enter the 6-digit code.'); return; }
     setOtpErr(''); setVerifying(true);
     try {
-      await profileAPI.verifyEmailOtp(otp);
-      finish();
+      if (verifyChannel === 'phone') {
+        // Passwordless phone login — verify-otp returns tokens (interceptor
+        // stores them) and isLogin; hydrate flips the app into the authed stack.
+        const res: any = await authAPI.verifyOtp({ identifier: otpPhone, otp });
+        if (res?.data?.isLogin) { await hydrate(); onComplete(); }
+        else { setOtpErr('Could not sign you in. Please try again.'); }
+      } else {
+        await profileAPI.verifyEmailOtp(otp);
+        finish();
+      }
     } catch (e: any) {
       setOtpErr(e?.response?.data?.message || e?.message || 'Invalid or expired code.');
     } finally { setVerifying(false); }
+  };
+
+  // Login form → phone step: send the first code, then move to the verify step.
+  const startPhoneOtp = async () => {
+    const p = otpPhone.replace(/\D/g, '');
+    if (p.length !== 10) { setError('Enter a valid 10-digit mobile number.'); return; }
+    setError(''); setPhoneSending(true);
+    try {
+      await authAPI.sendOtp({ phone: p });
+      setOtpPhone(p);
+      setVerifyChannel('phone');
+      setOtp(''); setOtpErr(''); setOtpInfo(`We sent a 6-digit code to ${p}.`);
+      setStep('verify');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || 'Could not send the code. Please try again.');
+    } finally { setPhoneSending(false); }
   };
 
   const loginMut = useMutation({
@@ -132,12 +172,12 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
   const submit = () => {
     setError('');
     if (mode === 'login') {
-      if (!identifier.trim() || !password) { setError('Enter username and password'); return; }
+      if (!identifier.trim() || !password) { setError('Enter email and password'); return; }
       loginMut.mutate({ identifier: identifier.trim(), password });
     } else {
-      if (!name.trim() || !username.trim() || !password) { setError('Fill name, username and password'); return; }
+      if (!name.trim() || !password) { setError('Fill in your name and password'); return; }
       if (!email && !phone) { setError('Enter an email or phone number'); return; }
-      signupMut.mutate({ name: name.trim(), username: username.trim(), email: email || undefined, phone: phone || undefined, password });
+      signupMut.mutate({ name: name.trim(), email: email || undefined, phone: phone || undefined, password });
     }
   };
 
@@ -145,7 +185,9 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
 
   const isLogin = mode === 'login';
   const inVerify = step === 'verify';
-  const close = inVerify ? finish : onCancel;
+  // Email verify happens AFTER signup (user is already authed) so closing =
+  // finish/skip. Phone verify happens BEFORE auth, so closing = plain cancel.
+  const close = inVerify ? (verifyChannel === 'phone' ? onCancel : finish) : onCancel;
 
   const passwordField = (placeholder: string) => (
     <AuthField
@@ -167,8 +209,8 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
 
       {inVerify ? (
         <MobileAuthScaffold mode="signup" hideChrome>
-          <Text style={st.vHead}>Verify your email</Text>
-          <Text style={st.vSub}>{otpInfo || (sending ? 'Sending a code…' : `Enter the 6-digit code sent to ${email}.`)}</Text>
+          <Text style={st.vHead}>{verifyChannel === 'phone' ? 'Verify your phone' : 'Verify your email'}</Text>
+          <Text style={st.vSub}>{otpInfo || (sending ? 'Sending a code…' : `Enter the 6-digit code sent to ${verifyChannel === 'phone' ? otpPhone : email}.`)}</Text>
           <TextInput
             style={st.otp}
             value={otp}
@@ -180,30 +222,48 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
             autoFocus
           />
           {otpErr ? <Text style={st.err}>{otpErr}</Text> : null}
-          <AuthCTA label="Verify" onPress={verifyOtp} loading={verifying} />
-          <View style={st.vRow}>
-            <TouchableOpacity style={st.openMail} onPress={() => openMailInbox(email)} activeOpacity={0.85}>
-              <MailOpen size={15} color={Colors.primary} strokeWidth={2} />
-              <Text style={st.openMailTxt}>Open mail</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={sendOtp} disabled={sending}>
-              <Text style={st.link}>{sending ? 'Sending…' : 'Resend code'}</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity onPress={finish} style={st.laterWrap} hitSlop={8}>
-            <Text style={st.later}>I'll verify later</Text>
-          </TouchableOpacity>
+          <AuthCTA label={verifyChannel === 'phone' ? 'Verify & continue' : 'Verify'} onPress={verifyOtp} loading={verifying} />
+          {verifyChannel === 'phone' ? (
+            <View style={[st.vRow, { justifyContent: 'center' }]}>
+              <TouchableOpacity onPress={sendOtp} disabled={sending}>
+                <Text style={st.link}>{sending ? 'Sending…' : 'Resend code'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={st.vRow}>
+                <TouchableOpacity style={st.openMail} onPress={() => openMailInbox(email)} activeOpacity={0.85}>
+                  <MailOpen size={15} color={Colors.primary} strokeWidth={2} />
+                  <Text style={st.openMailTxt}>Open mail</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={sendOtp} disabled={sending}>
+                  <Text style={st.link}>{sending ? 'Sending…' : 'Resend code'}</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity onPress={finish} style={st.laterWrap} hitSlop={8}>
+                <Text style={st.later}>I'll verify later</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </MobileAuthScaffold>
       ) : (
         <MobileAuthScaffold
           mode={mode}
-          onSwitch={() => { setMode(isLogin ? 'signup' : 'login'); setError(''); }}
+          onSwitch={() => { setMode(isLogin ? 'signup' : 'login'); setChannel('password'); setError(''); }}
           onGoogle={googleSignIn}
           googleLoading={googleLoading}
+          onPhone={channel === 'password' ? () => { setChannel('phone'); setError(''); } : undefined}
         >
-          {isLogin ? (
+          {channel === 'phone' ? (
             <>
-              <AuthField label="Username or email" icon={Mail} placeholder="your username" value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} />
+              <AuthField label="Mobile number" icon={Phone} placeholder="10-digit mobile number" value={otpPhone} onChangeText={setOtpPhone} keyboardType="phone-pad" autoCapitalize="none" autoCorrect={false} />
+              <TouchableOpacity style={st.forgotWrap} onPress={() => { setChannel('password'); setError(''); }}>
+                <Text style={st.forgot}>Use email & password</Text>
+              </TouchableOpacity>
+            </>
+          ) : isLogin ? (
+            <>
+              <AuthField label="Email" icon={Mail} placeholder="your@email.com" value={identifier} onChangeText={setIdentifier} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
               {passwordField('Enter your password')}
               <TouchableOpacity style={st.forgotWrap} onPress={goForgot}>
                 <Text style={st.forgot}>Forgot Password?</Text>
@@ -218,7 +278,6 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
                 </View>
               ) : null}
               <AuthField label="Full name" icon={User} placeholder="Your name" value={name} onChangeText={setName} />
-              <AuthField label="Username" icon={AtSign} placeholder="Your username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
               <AuthField label="Email" icon={Mail} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
               <AuthField label="Phone (optional if email given)" icon={Phone} placeholder="10-digit mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
               {passwordField('At least 6 characters')}
@@ -226,7 +285,9 @@ export const MobileAuthModal: React.FC<Props> = ({ visible, onComplete, onCancel
             </>
           )}
           {error ? <Text style={st.err}>{error}</Text> : null}
-          <AuthCTA label={isLogin ? 'Sign in' : 'Create account'} onPress={submit} loading={busy} />
+          {channel === 'phone'
+            ? <AuthCTA label="Send code" onPress={startPhoneOtp} loading={phoneSending} />
+            : <AuthCTA label={isLogin ? 'Sign in' : 'Create account'} onPress={submit} loading={busy} />}
         </MobileAuthScaffold>
       )}
     </Modal>

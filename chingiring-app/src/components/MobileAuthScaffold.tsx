@@ -4,7 +4,7 @@ import {
   Platform, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowRight } from 'lucide-react-native';
+import { ArrowRight, Phone } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 
 // Editorial mobile auth chrome — "Direction A: hero band" from the approved
@@ -47,13 +47,15 @@ interface ScaffoldProps {
   onSwitch?: () => void;       // toggle to the other mode (omit when hideChrome)
   onGoogle?: () => void;
   googleLoading?: boolean;
+  onPhone?: () => void;        // start the phone-OTP flow (omit to hide the button)
+  phoneLoading?: boolean;
   hideChrome?: boolean;        // hide the toggle + OR + Google (e.g. the verify step)
   children: React.ReactNode;   // fields + forgot/error + CTA
   footer?: React.ReactNode;    // terms text etc.
 }
 
 export const MobileAuthScaffold: React.FC<ScaffoldProps> = ({
-  mode, onSwitch, onGoogle, googleLoading, hideChrome, children, footer,
+  mode, onSwitch, onGoogle, googleLoading, onPhone, phoneLoading, hideChrome, children, footer,
 }) => {
   const isLogin = mode === 'login';
   return (
@@ -99,6 +101,17 @@ export const MobileAuthScaffold: React.FC<ScaffoldProps> = ({
                   </>
                 )}
               </TouchableOpacity>
+
+              {onPhone && (
+                <TouchableOpacity style={[s.google, { marginTop: 10 }, phoneLoading && { opacity: 0.7 }]} onPress={onPhone} disabled={phoneLoading} activeOpacity={0.9}>
+                  {phoneLoading ? <ActivityIndicator color={Colors.primary} /> : (
+                    <>
+                      <Phone size={17} color="#26313f" strokeWidth={2.2} />
+                      <Text style={s.googleTxt}>{isLogin ? 'Continue with phone' : 'Sign up with phone'}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </>
           )}
 

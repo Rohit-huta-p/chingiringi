@@ -4,12 +4,19 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
 function getBaseURL(): string {
-  // Production / EAS builds inject the real API URL.
+  // Web dev: the browser runs on the SAME machine as the backend, so hit
+  // localhost directly — and deliberately IGNORE any dev tunnel sitting in
+  // EXPO_PUBLIC_API_URL. That tunnel exists only so a physical phone can reach
+  // this Mac; a *.trycloudflare.com URL is flaky (goes "zombie" after sleep) and
+  // pointless for a browser on the same box. Production web (__DEV__ === false)
+  // falls through to the injected URL below.
+  if (Platform.OS === 'web' && __DEV__) return 'http://localhost:8000';
+
+  // Production / EAS builds — and native dev pointed at a tunnel — use the
+  // injected API URL.
   if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
 
-  // Web dev: the browser runs on the same machine as the backend, so just hit
-  // localhost. No LAN-IP detection — it only ever broke when the machine's DHCP
-  // address changed mid-session.
+  // Web with no injected URL (e.g. a prod web build missing the env) → localhost.
   if (Platform.OS === 'web') return 'http://localhost:8000';
 
   // Native dev (physical device / simulator): the device can't reach the host's

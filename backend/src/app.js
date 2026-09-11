@@ -58,6 +58,7 @@ const allowedOrigins = [
   'http://localhost:8001',
   'http://localhost:8000',
   'http://192.168.1.55:8081',
+  'http://192.168.1.48:8082',
   'http://192.168.1.55:8082',
   'http://192.168.1.107:8081',
   'http://192.168.1.107:8082',
@@ -66,11 +67,19 @@ const allowedOrigins = [
   'https://chingiringi.com',
   'https://chingiringi.ai',
 ];
+// Dev convenience: the Expo web build is served from whatever LAN IP your
+// machine has today, so hard-coding each one (192.168.1.55, .107, …) meant a
+// new address silently broke login with a CORS "(cancelled)" request. In
+// development, accept localhost + any private-network origin instead. Production
+// stays locked to the explicit allowlist above.
+const PRIVATE_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+const isDevOrigin = (origin) => process.env.NODE_ENV !== 'production' && PRIVATE_ORIGIN.test(origin);
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, Postman, curl)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (allowedOrigins.includes(origin) || isDevOrigin(origin)) return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -139,7 +148,7 @@ app.use('/api/products', reviewRoutes);
 app.use('/api/clicks', clickRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stores', storeRoutes);
-app.use('/api/users',  followRoutes);
+app.use('/api/users', followRoutes);
 app.use('/api/streams', streamRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/videos', videoRoutes);

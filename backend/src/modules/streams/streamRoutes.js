@@ -5,6 +5,7 @@ import {
   endStream,
   markStreamLive,
   abortStream,
+  updateStreamProducts,
   getActiveStreams,
   getStream,
   getMyStreams,
@@ -28,6 +29,7 @@ router.post('/',              protect, createStream);
 router.post('/:id/viewer-token', protect, viewerToken);
 router.post('/:id/live',     protect, markStreamLive);
 router.post('/:id/abort',    protect, abortStream);
+router.patch('/:id/products', protect, updateStreamProducts);
 router.post('/:id/end',      protect, endStream);
 
 export default router;

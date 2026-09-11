@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { OAuth2Client } from 'google-auth-library';
 import { createUser, verifyPassword, generateAndStoreOTP, verifyUserOTP, findOrCreateGoogleUser } from './authService.js';
 import { generateTokens, AUTH_COOKIE_OPTS } from '../../utils/generateToken.js';
+import { isSmsConfigured, sendOtpSms } from '../../services/sms.js';
+import { isEmailConfigured, sendMail } from '../../services/email.js';
 import User from '../users/userModel.js';
 import jwt from 'jsonwebtoken';
 
@@ -19,7 +21,6 @@ const googleAudiences = () => [
 export const signup = async (req, res) => {
   const schema = z.object({
     name: z.string().min(1, 'Name is required'),
-    username: z.string().min(3),
     email: z.string().email().optional(),
     phone: z.string().min(10).optional(),
     password: z.string().min(6),
@@ -118,16 +119,47 @@ export const sendOtp = async (req, res) => {
   });
 
   const { phone, email } = schema.parse(req.body);
+
+  // Phone → SMS (MSG91); email → transactional mail. We own the OTP; these
+  // services are pure transport. A channel MUST be configured in production;
+  // in dev we fall back to logging the code so local flows still work.
+  const isProd = process.env.NODE_ENV === 'production';
+  const channel = phone ? 'sms' : 'email';
+  const ready = channel === 'sms' ? isSmsConfigured() : isEmailConfigured();
+
+  if (!ready && isProd) {
+    res.status(503);
+    throw new Error(`${channel === 'sms' ? 'SMS' : 'Email'} service is unavailable right now. Please try again later.`);
+  }
+
   const otp = await generateAndStoreOTP(phone, email);
 
-  // In production, integrate with SMS/Email provider here
-  // For dev, returning it in console
-  console.log(`[DEV OTP GENERATED]: ${otp} for ${phone || email}`);
+  if (ready) {
+    try {
+      if (channel === 'sms') {
+        await sendOtpSms(phone, otp);
+      } else {
+        await sendMail({
+          to: email,
+          subject: 'Your Chingiringi verification code',
+          text: `Your Chingiringi verification code is ${otp}. It expires in 5 minutes. If you didn't request this, ignore this message.`,
+          html: `<p>Your Chingiringi verification code is <strong style="font-size:20px;letter-spacing:3px">${otp}</strong>.</p><p>It expires in 5 minutes.</p>`,
+        });
+      }
+    } catch (err) {
+      // Log the provider error (never the OTP) and return a clean client error.
+      console.error(`[sendOtp] ${channel} delivery failed:`, err?.message);
+      res.status(502);
+      throw new Error('Could not send the code right now. Please try again.');
+    }
+  } else {
+    // Dev only, channel unconfigured — surface the code so local testing works.
+    console.log(`[DEV OTP] ${otp} → ${phone || email} (${channel} not configured)`);
+  }
 
   res.status(200).json({
     status: 'success',
     message: 'OTP sent successfully',
-    // data: { otp } // Remove in prod
   });
 };
 
@@ -222,7 +254,6 @@ export const getMe = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        username: user.username,
         email: user.email,
         phone: user.phone,
         role: user.role,
@@ -242,16 +273,32 @@ export const forgotPassword = async (req, res) => {
   const { email } = schema.parse(req.body);
   const user = await User.findOne({ email });
 
-  if (!user) {
-    throw new Error('User not found');
+  // Only send a code when the account exists, but ALWAYS return the same
+  // response so this endpoint can't be used to enumerate registered emails.
+  if (user) {
+    if (isEmailConfigured()) {
+      const otp = await generateAndStoreOTP(null, email);
+      try {
+        await sendMail({
+          to: email,
+          subject: 'Reset your Chingiringi password',
+          text: `Your Chingiringi password reset code is ${otp}. It expires in 5 minutes. If you didn't request this, ignore this email.`,
+          html: `<p>Your Chingiringi password reset code is <strong style="font-size:20px;letter-spacing:3px">${otp}</strong>.</p><p>It expires in 5 minutes. If you didn't request this, you can ignore this email.</p>`,
+        });
+      } catch (err) {
+        // Don't leak provider errors to the client — log and fall through to the
+        // generic success response.
+        console.error('[forgotPassword] email send failed:', err?.message);
+      }
+    } else if (process.env.NODE_ENV !== 'production') {
+      const otp = await generateAndStoreOTP(null, email);
+      console.log(`[DEV RESET OTP] ${otp} → ${email} (email not configured)`);
+    }
   }
-
-  const otp = await generateAndStoreOTP(null, email);
-  console.log(`[DEV RESET OTP GENERATED]: ${otp} for ${email}`);
 
   res.status(200).json({
     status: 'success',
-    message: 'Password reset OTP sent to email',
+    message: 'If an account exists for that email, a reset code has been sent.',
   });
 };
 

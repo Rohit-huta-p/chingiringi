@@ -6,6 +6,7 @@ import { Colors } from '../constants/theme';
 import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
 import { SignupScreen } from '../screens/Auth/SignupScreen';
+import { PhoneAuthScreen } from '../screens/Auth/PhoneAuthScreen';
 import { OTPVerificationScreen } from '../screens/Auth/OTPVerificationScreen';
 import { MobileOTPScreen } from '../screens/Auth/MobileOTPScreen';
 import { ForgotPasswordScreen } from '../screens/Auth/ForgotPasswordScreen';
@@ -21,6 +22,7 @@ export default function AuthNavigator() {
         <Stack.Screen name="Login" component={isMobile ? MobileLoginScreen : LoginScreen} />
         <Stack.Screen name="PasswordLogin" component={LoginScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
+        <Stack.Screen name="PhoneLogin" component={PhoneAuthScreen} />
         <Stack.Screen name="OTPVerification" component={isMobile ? MobileOTPScreen : OTPVerificationScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />

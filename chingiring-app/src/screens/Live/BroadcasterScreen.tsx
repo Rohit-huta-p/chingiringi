@@ -63,7 +63,8 @@ import {
   ShoppingBag,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { endStream, markStreamLive, abortStream, getStream, type StreamProductLite } from '../../api/streams';
+import { endStream, markStreamLive, abortStream, getStream, updateStreamProducts, type StreamProductLite } from '../../api/streams';
+import { FeatureProductsSheet } from './FeatureProductsSheet';
 import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
 // Platform-resolved: the native RTMP publisher on iOS/Android, `null` on web
 // (LiveStreamView.web.tsx) so the native-only module never enters the web bundle.
@@ -306,12 +307,33 @@ export const BroadcasterScreen: React.FC = () => {
   // `currentProductId` field + a socket event (not yet wired).
   const [products, setProducts] = useState<StreamProductLite[]>([]);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
+  // "Feature products" picker (bc-04) — opened from the shelf's "See all".
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // The stream's store id (from getStream) — the picker's catalog source.
+  const [storeId, setStoreId] = useState<string | null>(null);
+
+  // Apply a new featured set from the picker: update the shelf immediately
+  // (optimistic), then persist to the stream so viewers' shelves update too.
+  const applyFeatured = useCallback((next: StreamProductLite[]) => {
+    setProducts(next);
+    if (streamId) {
+      updateStreamProducts(streamId, next.map((p) => p._id)).then(
+        (server) => { if (server.length) setProducts(server); },
+        () => { /* best-effort — the local shelf is already updated */ },
+      );
+    }
+  }, [streamId]);
   useEffect(() => {
     if (!streamId) return;
     let alive = true;
     getStream(streamId)
-      .then((d) => { if (alive && d?.products?.length) setProducts(d.products); })
-      .catch(() => {});
+      .then((d) => {
+        if (!alive || !d) return;
+        if (d.products?.length) setProducts(d.products);
+        const sid = typeof d.storeId === 'object' ? d.storeId?._id : d.storeId;
+        if (sid) setStoreId(sid);
+      })
+      .catch(() => { });
     return () => { alive = false; };
   }, [streamId]);
 
@@ -381,7 +403,7 @@ export const BroadcasterScreen: React.FC = () => {
   const handleConnected = useCallback(() => {
     wasLiveRef.current = true;
     setConnState('live');
-    if (streamId) markStreamLive(streamId).catch(() => {});
+    if (streamId) markStreamLive(streamId).catch(() => { });
   }, [streamId]);
 
   // Auto-start once the native view is mounted and camera is granted (give the
@@ -420,7 +442,7 @@ export const BroadcasterScreen: React.FC = () => {
     return () => {
       try { liveRef.current?.stopStreaming?.(); } catch { /* already down */ }
       if (streamId && wasLiveRef.current && !endedRef.current) {
-        endStream(streamId).catch(() => {});
+        endStream(streamId).catch(() => { });
       }
     };
   }, [streamId]);
@@ -627,7 +649,9 @@ export const BroadcasterScreen: React.FC = () => {
                   <Text style={styles.shelfTitle}>Featured products</Text>
                   <Text style={styles.shelfCount}> · {products.length}</Text>
                   <View style={{ flex: 1 }} />
-                  <Text style={styles.shelfSeeAll}>See all ›</Text>
+                  <Pressable onPress={() => setPickerOpen(true)} hitSlop={8} accessibilityLabel="See all featured products">
+                    <Text style={styles.shelfSeeAll}>See all ›</Text>
+                  </Pressable>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelfRow}>
                   {products.map((p) => {
@@ -708,6 +732,15 @@ export const BroadcasterScreen: React.FC = () => {
             ending={ending}
             onCancel={() => setConfirmVisible(false)}
             onConfirm={handleConfirmEnd}
+          />
+
+          {/* ── "Feature products" picker (bc-04) ── */}
+          <FeatureProductsSheet
+            visible={pickerOpen}
+            onClose={() => setPickerOpen(false)}
+            storeId={storeId}
+            featured={products}
+            onApply={applyFeatured}
           />
         </>
       )}
