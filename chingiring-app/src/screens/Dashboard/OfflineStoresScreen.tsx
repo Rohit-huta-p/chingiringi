@@ -412,7 +412,7 @@ export const OfflineStoresScreen: React.FC = () => {
           </View>
           <CategoryTiles
             active={activeCategory}
-            onSelect={setActiveCategory}
+            onSelect={(c) => setActiveCategory(c as StoreCategory | 'All')}
             contentStyle={{ paddingHorizontal: 16 }}
           />
           <View style={styles.mStatusRow}>
