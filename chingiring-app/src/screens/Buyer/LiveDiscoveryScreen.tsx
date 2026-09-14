@@ -13,6 +13,7 @@
  * paths ('../Buyer/LiveDiscoveryScreen') stay valid.
  */
 import apiClient from '../../api/client';
+import type { StoreCategory } from '../../data/offlineStores';
 
 // ── Stream shape from GET /streams/active ─────────────────────────────────
 export interface LiveStream {
@@ -25,6 +26,8 @@ export interface LiveStream {
   title: string;
   viewerCount: number;
   status: 'live' | 'idle' | 'ended';
+  /** The broadcasting store's category — used to filter the live feed by category. */
+  category?: StoreCategory;
 }
 
 export async function fetchActiveStreams(): Promise<LiveStream[]> {
@@ -47,6 +50,7 @@ export async function fetchActiveStreams(): Promise<LiveStream[]> {
         title: s.title ?? '',
         viewerCount: s.viewerCount ?? 0,
         status: s.status ?? 'live',
+        category: store?.category ?? undefined,
       };
     });
   } catch {
