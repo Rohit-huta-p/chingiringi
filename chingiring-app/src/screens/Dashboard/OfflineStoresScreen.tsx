@@ -26,21 +26,27 @@ import {
   Plus,
   Check,
   X,
+  Bell,
+  MessageCircle,
 } from 'lucide-react-native';
 import { fetchActiveStreams, type LiveStream } from '../Buyer/LiveDiscoveryScreen';
 import * as Location from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
-import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { ShareSheet } from '../../components/ShareSheet';
 import { useAuthStore } from '../../store';
+import { useUnreadCount } from '../../hooks/useUnreadCount';
+import { getUnreadTotal } from '../../api/chat';
 import { storesAPI, type Store } from '../../api/stores';
 import { sharesAPI } from '../../api/shares';
 import {
   STORE_CATEGORIES,
   type StoreCategory,
 } from '../../data/offlineStores';
+import { LiveCard } from '../../components/LiveCard';
+import { CategoryTiles } from '../../components/CategoryTiles';
+import { CATEGORY_COLOR } from '../../constants/categories';
 
 type SortKey = 'discount' | 'rating';
 type ViewMode = 'live' | 'stores';
@@ -52,11 +58,29 @@ const RATING_STEPS = [0, 4, 4.5];
 
 const PRIMARY = Colors.primary;
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export const OfflineStoresScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   // Match the navigator: desktop two-pane only on web ≥768; native stays mobile.
   const isNarrow = Platform.OS !== 'web' || width < 768;
   const navigation = useNavigation<any>();
+
+  // Header identity mirrors the Home screen: greeting + message/bell icons.
+  const user = useAuthStore((s) => s.user);
+  const unreadCount = useUnreadCount();
+  const { data: chatUnread = 0 } = useQuery({
+    queryKey: ['chat', 'unread'],
+    queryFn: getUnreadTotal,
+    enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
@@ -155,12 +179,12 @@ export const OfflineStoresScreen: React.FC = () => {
     (filters.openNow ? 1 : 0) + (filters.minDiscount > 0 ? 1 : 0) + (filters.minRating > 0 ? 1 : 0);
 
   const openCount = filtered.filter((s) => s.isOpen).length;
-  // Toggle is active on both mobile and desktop — only the selected panel renders.
+  // Toggle is active on desktop only — only the selected panel renders.
   const showStores = viewMode === 'stores';
   const showLive   = viewMode === 'live';
 
-  // Live grid: 2 / 3 / 4 columns for sm / md / lg. Card width is derived from
-  // the measured pane width so columns stay flush regardless of drawer offset.
+  // Live grid (desktop): 2 / 3 / 4 columns for sm / md / lg. Card width is
+  // derived from the measured pane width so columns stay flush.
   const LIVE_GAP = isNarrow ? 12 : 16;
   const liveCols = width < 768 ? 2 : width < 1200 ? 3 : 4;
   const liveScrollbar = Platform.OS === 'web' && !isNarrow ? 16 : 0; // reserve web scrollbar
@@ -168,121 +192,326 @@ export const OfflineStoresScreen: React.FC = () => {
     (liveGridW - liveScrollbar - LIVE_GAP * (liveCols - 1)) / liveCols,
   );
 
-  return (
-    <View
-      style={[
-        styles.root,
-        isNarrow && { paddingHorizontal: 0, paddingVertical: 0 },
-      ]}
+  // ── Filters bottom-sheet — shared by mobile + desktop; also hosts sort ──
+  const renderFilters = () => (
+    <Modal
+      visible={filterOpen}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setFilterOpen(false)}
     >
-      {isNarrow ? (
-        // ── Mobile: blue gradient header + stacked controls ─────────────
-        <>
-          <MobileAuthHeader
-            hideBack
-            title="Nearby Stores"
-            align="left"
+      <Pressable style={styles.sheetOverlay} onPress={() => setFilterOpen(false)}>
+        <Pressable style={styles.sheet} onPress={() => { }}>
+          <View style={styles.sheetGrabber} />
+          <View style={styles.sheetHead}>
+            <Text style={styles.sheetTitle}>Filters</Text>
+            <View style={styles.sheetHeadRight}>
+              {filterCount > 0 && (
+                <Pressable onPress={() => setFilters(DEFAULT_FILTERS)} hitSlop={8}>
+                  <Text style={styles.sheetClear}>Clear all</Text>
+                </Pressable>
+              )}
+              <Pressable onPress={() => setFilterOpen(false)} hitSlop={8} accessibilityLabel="Close">
+                <X size={20} color={Colors.textSecondary} />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Sort by */}
+          <Text style={styles.sheetGroupLabel}>Sort by</Text>
+          <View style={styles.sheetChipWrap}>
+            {(['discount', 'rating'] as SortKey[]).map((k) => {
+              const active = sort === k;
+              return (
+                <Pressable
+                  key={k}
+                  style={[styles.sheetChip, active && styles.sheetChipActive]}
+                  onPress={() => setSort(k)}
+                >
+                  <Text style={[styles.sheetChipTxt, active && styles.sheetChipTxtActive]}>
+                    {k === 'discount' ? 'Discount' : 'Rating'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Open now */}
+          <Pressable
+            style={[styles.toggleRow, { marginTop: 18 }]}
+            onPress={() => setFilters((f) => ({ ...f, openNow: !f.openNow }))}
           >
-            {/* Search bar inside the header — matches the Home search pill */}
-            <View style={styles.mobileSearchBar}>
-              <Search size={18} color={Colors.primary} />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search stores, categories..."
-                placeholderTextColor="#9ca3af"
-                style={styles.mobileSearchInput}
-              />
+            <Text style={styles.toggleRowLabel}>Open now</Text>
+            <View style={[styles.check, filters.openNow && styles.checkOn]}>
+              {filters.openNow && <Check size={14} color="#fff" strokeWidth={3} />}
             </View>
-          </MobileAuthHeader>
+          </Pressable>
 
-          {/* List/Map + Sort pills */}
-          <View style={styles.mobileControlsRow}>
-            <View style={styles.viewToggle}>
-              <Pressable
-                onPress={() => setViewMode('live')}
-                style={[styles.toggleBtn, viewMode === 'live' && styles.toggleBtnActive]}
-              >
-                <Radio size={14} color={viewMode === 'live' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setViewMode('stores')}
-                style={[styles.toggleBtn, viewMode === 'stores' && styles.toggleBtnActive]}
-              >
-                <List size={14} color={viewMode === 'stores' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'stores' && styles.toggleTextActive]}>Stores</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.sortGroup}
-            >
-              <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
-              <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
-            </ScrollView>
-          </View>
-        </>
-      ) : (
-        // ── Desktop: existing horizontal header (unchanged) ─────────────
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Nearby Stores</Text>
-            <View style={styles.locationRow}>
-              <MapPin size={13} color={Colors.textSecondary} />
-              <Text style={styles.locationText}>{locationLabel}</Text>
-            </View>
+          {/* Minimum discount */}
+          <Text style={styles.sheetGroupLabel}>Minimum discount</Text>
+          <View style={styles.sheetChipWrap}>
+            {DISCOUNT_STEPS.map((d) => {
+              const active = filters.minDiscount === d;
+              return (
+                <Pressable
+                  key={d}
+                  style={[styles.sheetChip, active && styles.sheetChipActive]}
+                  onPress={() => setFilters((f) => ({ ...f, minDiscount: d }))}
+                >
+                  <Text style={[styles.sheetChipTxt, active && styles.sheetChipTxtActive]}>
+                    {d === 0 ? 'Any' : `${d}%+`}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          <View style={styles.searchWrap}>
-            <Search size={16} color={Colors.textSecondary} />
+          {/* Minimum rating */}
+          <Text style={[styles.sheetGroupLabel, { marginTop: 18 }]}>Minimum rating</Text>
+          <View style={styles.sheetChipWrap}>
+            {RATING_STEPS.map((r) => {
+              const active = filters.minRating === r;
+              return (
+                <Pressable
+                  key={r}
+                  style={[styles.sheetChip, active && styles.sheetChipActive]}
+                  onPress={() => setFilters((f) => ({ ...f, minRating: r }))}
+                >
+                  <Text style={[styles.sheetChipTxt, active && styles.sheetChipTxtActive]}>
+                    {r === 0 ? 'Any' : `${r}★+`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable style={styles.sheetDone} onPress={() => setFilterOpen(false)}>
+            <Text style={styles.sheetDoneTxt}>Show {filtered.length} stores</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+
+  // ── Mobile: Live-First feed (native + narrow web) ────────────────────────
+  if (isNarrow) {
+    return (
+      <View style={[styles.root, { paddingHorizontal: 0, paddingVertical: 0 }]}>
+        {/* Blue gradient header (matches other screens): greeting + icons + search inside */}
+        <LinearGradient
+          colors={['#1E3A8A', '#4784E2', '#91BDFF']}
+          locations={[0, 0.6, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.mHeaderGrad}
+        >
+          <View style={styles.mHeaderRow}>
+            <View style={styles.mGreetWrap}>
+              <Text style={styles.mGreetLabel}>{greeting()},</Text>
+              <Text style={styles.mGreetName} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
+            </View>
+            <View style={styles.mHeaderIcons}>
+              <Pressable
+                style={styles.mHeaderIconBtn}
+                onPress={() => navigation.navigate('Messages')}
+                accessibilityRole="button"
+                accessibilityLabel="Messages"
+              >
+                <MessageCircle size={20} color="#fff" strokeWidth={2.2} />
+                {chatUnread > 0 ? (
+                  <View style={styles.mHeaderBadge}><Text style={styles.mHeaderBadgeText}>{chatUnread > 9 ? '9+' : chatUnread}</Text></View>
+                ) : null}
+              </Pressable>
+              <Pressable
+                style={styles.mHeaderIconBtn}
+                onPress={() => navigation.navigate('Notifications')}
+                accessibilityRole="button"
+                accessibilityLabel="Notifications"
+              >
+                <Bell size={20} color="#fff" strokeWidth={2.2} />
+                {unreadCount > 0 ? (
+                  <View style={styles.mHeaderBadge}><Text style={styles.mHeaderBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View>
+                ) : null}
+              </Pressable>
+            </View>
+          </View>
+          <View style={styles.mHeaderSearch}>
+            <Search size={18} color={Colors.primary} />
             <TextInput
               value={search}
               onChangeText={setSearch}
               placeholder="Search stores, categories..."
-              placeholderTextColor={Colors.textSecondary}
-              style={styles.searchInput}
+              placeholderTextColor="#9ca3af"
+              style={styles.mSearchInput}
             />
           </View>
+        </LinearGradient>
 
-          <View style={styles.headerRight}>
-            {/* Live | Stores toggle — same behaviour as mobile */}
-            <View style={styles.viewToggle}>
-              <Pressable
-                onPress={() => setViewMode('live')}
-                style={[styles.toggleBtn, viewMode === 'live' && styles.toggleBtnActive]}
-              >
-                <Radio size={14} color={viewMode === 'live' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.mScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Live now */}
+          <View style={styles.mSecHead}>
+            <View style={styles.mSecHeadLeft}>
+              <View style={styles.mLivePulse} />
+              <Text style={[styles.mSecTitle, { fontSize: 22 }]}>Live now</Text>
+              {liveStreams.length > 0 && (
+                <View style={styles.mCountPill}><Text style={styles.mCountPillText}>{liveStreams.length}</Text></View>
+              )}
+            </View>
+            {liveStreams.length > 0 && (
+              <Pressable onPress={() => navigation.navigate('LiveNow')} hitSlop={8}>
+                <Text style={styles.mSeeAll}>See all ›</Text>
               </Pressable>
-              <Pressable
-                onPress={() => setViewMode('stores')}
-                style={[styles.toggleBtn, viewMode === 'stores' && styles.toggleBtnActive]}
-              >
-                <List size={14} color={viewMode === 'stores' ? PRIMARY : Colors.textSecondary} />
-                <Text style={[styles.toggleText, viewMode === 'stores' && styles.toggleTextActive]}>Stores</Text>
-              </Pressable>
-            </View>
+            )}
+          </View>
+          {liveLoading ? (
+            <View style={styles.mRailLoading}><ActivityIndicator color={Colors.primary} /></View>
+          ) : liveStreams.length === 0 ? (
+            <Pressable style={styles.mLiveEmpty} onPress={() => navigation.navigate('Notifications')}>
+              <Radio size={18} color={Colors.textSecondary} />
+              <Text style={styles.mLiveEmptyText}>No one is live right now — we&apos;ll notify you</Text>
+            </Pressable>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.mRail}
+            >
+              {liveStreams.slice(0, 8).map((item) => (
+                <LiveCard
+                  key={item._id}
+                  stream={item}
+                  width={150}
+                  onPress={() =>
+                    navigation.navigate('ViewerScreen', {
+                      streamId: item._id,
+                      storeId: item.storeId,
+                      storeName: item.storeName,
+                      storeLogoUrl: item.storeLogoUrl,
+                      streamTitle: item.title,
+                    })
+                  }
+                />
+              ))}
+            </ScrollView>
+          )}
 
-            <View style={styles.sortGroup}>
-              <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
-              <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
-            </View>
+          {/* Nearby stores */}
+          <View style={styles.mSecHead}>
+            <Text style={styles.mSecTitle}>Nearby stores</Text>
+            <Pressable style={styles.filtersBtn} onPress={() => setFilterOpen(true)}>
+              <SlidersHorizontal size={16} color={PRIMARY} />
+              <Text style={[styles.filtersText, { fontSize: 13.5 }]}>Filters</Text>
+              {filterCount > 0 && (
+                <View style={styles.filterBadge}><Text style={styles.filterBadgeTxt}>{filterCount}</Text></View>
+              )}
+            </Pressable>
+          </View>
+          <CategoryTiles
+            active={activeCategory}
+            onSelect={(c) => setActiveCategory(c as StoreCategory | 'All')}
+            contentStyle={{ paddingHorizontal: 16 }}
+          />
+          <View style={styles.mStatusRow}>
+            <View style={styles.openDot} />
+            <Text style={styles.statusText}>
+              <Text style={{ fontWeight: '700', color: Colors.text }}>{openCount} stores</Text>{' '}
+              open now
+            </Text>
+            <Text style={styles.statusSep}>·</Text>
+            <Text style={styles.statusText}>{filtered.length} near you</Text>
+          </View>
+          {sharesLeft != null && (
+            <Text style={[styles.shareQuotaText, { paddingHorizontal: 16, marginBottom: 2 }]}>
+              {sharesLeft}/{sharesCap} shares left today
+            </Text>
+          )}
+          <View style={styles.mStoreList}>
+            {filtered.map((s) => (
+              <StoreCard
+                key={s._id}
+                store={s}
+                onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
+              />
+            ))}
+            {filtered.length === 0 && (
+              <View style={styles.emptyState}>
+                {isLoading ? (
+                  <ActivityIndicator color={Colors.primary} />
+                ) : (
+                  <Text style={styles.emptyText}>No stores match your filters.</Text>
+                )}
+              </View>
+            )}
+          </View>
+        </ScrollView>
 
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>D</Text>
-            </View>
+        {renderFilters()}
+      </View>
+    );
+  }
+
+  // ── Desktop (web ≥768): existing two-pane layout, unchanged ──────────────
+  return (
+    <View style={styles.root}>
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Nearby Stores</Text>
+          <View style={styles.locationRow}>
+            <MapPin size={13} color={Colors.textSecondary} />
+            <Text style={styles.locationText}>{locationLabel}</Text>
           </View>
         </View>
-      )}
+
+        <View style={styles.searchWrap}>
+          <Search size={16} color={Colors.textSecondary} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search stores, categories..."
+            placeholderTextColor={Colors.textSecondary}
+            style={styles.searchInput}
+          />
+        </View>
+
+        <View style={styles.headerRight}>
+          {/* Live | Stores toggle */}
+          <View style={styles.viewToggle}>
+            <Pressable
+              onPress={() => setViewMode('live')}
+              style={[styles.toggleBtn, viewMode === 'live' && styles.toggleBtnActive]}
+            >
+              <Radio size={14} color={viewMode === 'live' ? PRIMARY : Colors.textSecondary} />
+              <Text style={[styles.toggleText, viewMode === 'live' && styles.toggleTextActive]}>Live</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setViewMode('stores')}
+              style={[styles.toggleBtn, viewMode === 'stores' && styles.toggleBtnActive]}
+            >
+              <List size={14} color={viewMode === 'stores' ? PRIMARY : Colors.textSecondary} />
+              <Text style={[styles.toggleText, viewMode === 'stores' && styles.toggleTextActive]}>Stores</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.sortGroup}>
+            <SortPill label="Discount" icon={Tag} active={sort === 'discount'} onPress={() => setSort('discount')} />
+            <SortPill label="Rating" icon={Star} active={sort === 'rating'} onPress={() => setSort('rating')} />
+          </View>
+
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>D</Text>
+          </View>
+        </View>
+      </View>
 
       {/* ── Category chip row ───────────────────────────────────── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[styles.chipRow, isNarrow && { paddingHorizontal: 16 }]}
+        contentContainerStyle={styles.chipRow}
         style={{ flexGrow: 0 }}
       >
         <CategoryChip
@@ -303,7 +532,7 @@ export const OfflineStoresScreen: React.FC = () => {
       </ScrollView>
 
       {/* ── Status row ──────────────────────────────────────────── */}
-      <View style={[styles.statusRow, isNarrow && { paddingHorizontal: 16 }]}>
+      <View style={styles.statusRow}>
         <View style={styles.statusLeft}>
           <View style={styles.openDot} />
           <Text style={styles.statusText}>
@@ -325,20 +554,17 @@ export const OfflineStoresScreen: React.FC = () => {
       </View>
 
       {sharesLeft != null && (
-        <Text style={[styles.shareQuotaText, isNarrow && { paddingHorizontal: 16 }]}>
+        <Text style={styles.shareQuotaText}>
           {sharesLeft}/{sharesCap} shares left today
         </Text>
       )}
 
-      {/* ── Body: map + list ────────────────────────────────────── */}
-      <View style={[
-        styles.body,
-        isNarrow && { flexDirection: 'column', paddingHorizontal: 16 },
-      ]}>
+      {/* ── Body: list / live grid ──────────────────────────────── */}
+      <View style={styles.body}>
         {showStores && (
           <ScrollView
-            style={isNarrow ? styles.listColMobile : styles.listColDesktop}
-            contentContainerStyle={[styles.listContent, isNarrow && { paddingBottom: 96, paddingRight: 0 }]}
+            style={styles.listColDesktop}
+            contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
           >
             {filtered.map((s) => (
@@ -380,11 +606,7 @@ export const OfflineStoresScreen: React.FC = () => {
             ) : (
               <ScrollView
                 style={styles.liveWrap}
-                contentContainerStyle={[
-                  styles.liveGridContent,
-                  { gap: LIVE_GAP },
-                  isNarrow && { paddingBottom: 96 },
-                ]}
+                contentContainerStyle={[styles.liveGridContent, { gap: LIVE_GAP }]}
                 showsVerticalScrollIndicator={false}
               >
                 {liveStreams.map((item) => (
@@ -409,85 +631,7 @@ export const OfflineStoresScreen: React.FC = () => {
         )}
       </View>
 
-      {/* ── Filter sheet ──────────────────────────────────────────── */}
-      <Modal
-        visible={filterOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setFilterOpen(false)}
-      >
-        <Pressable style={styles.sheetOverlay} onPress={() => setFilterOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => { }}>
-            <View style={styles.sheetGrabber} />
-            <View style={styles.sheetHead}>
-              <Text style={styles.sheetTitle}>Filters</Text>
-              <View style={styles.sheetHeadRight}>
-                {filterCount > 0 && (
-                  <Pressable onPress={() => setFilters(DEFAULT_FILTERS)} hitSlop={8}>
-                    <Text style={styles.sheetClear}>Clear all</Text>
-                  </Pressable>
-                )}
-                <Pressable onPress={() => setFilterOpen(false)} hitSlop={8} accessibilityLabel="Close">
-                  <X size={20} color={Colors.textSecondary} />
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Open now */}
-            <Pressable
-              style={styles.toggleRow}
-              onPress={() => setFilters((f) => ({ ...f, openNow: !f.openNow }))}
-            >
-              <Text style={styles.toggleRowLabel}>Open now</Text>
-              <View style={[styles.check, filters.openNow && styles.checkOn]}>
-                {filters.openNow && <Check size={14} color="#fff" strokeWidth={3} />}
-              </View>
-            </Pressable>
-
-            {/* Minimum discount */}
-            <Text style={styles.sheetGroupLabel}>Minimum discount</Text>
-            <View style={styles.sheetChipWrap}>
-              {DISCOUNT_STEPS.map((d) => {
-                const active = filters.minDiscount === d;
-                return (
-                  <Pressable
-                    key={d}
-                    style={[styles.sheetChip, active && styles.sheetChipActive]}
-                    onPress={() => setFilters((f) => ({ ...f, minDiscount: d }))}
-                  >
-                    <Text style={[styles.sheetChipTxt, active && styles.sheetChipTxtActive]}>
-                      {d === 0 ? 'Any' : `${d}%+`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Minimum rating */}
-            <Text style={[styles.sheetGroupLabel, { marginTop: 18 }]}>Minimum rating</Text>
-            <View style={styles.sheetChipWrap}>
-              {RATING_STEPS.map((r) => {
-                const active = filters.minRating === r;
-                return (
-                  <Pressable
-                    key={r}
-                    style={[styles.sheetChip, active && styles.sheetChipActive]}
-                    onPress={() => setFilters((f) => ({ ...f, minRating: r }))}
-                  >
-                    <Text style={[styles.sheetChipTxt, active && styles.sheetChipTxtActive]}>
-                      {r === 0 ? 'Any' : `${r}★+`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <Pressable style={styles.sheetDone} onPress={() => setFilterOpen(false)}>
-              <Text style={styles.sheetDoneTxt}>Show {filtered.length} stores</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {renderFilters()}
     </View>
   );
 };
@@ -505,17 +649,6 @@ const SortPill: React.FC<{
     <Text style={[styles.sortPillText, active && styles.sortPillTextActive]}>{label}</Text>
   </Pressable>
 );
-
-const CATEGORY_COLOR: Record<StoreCategory, string> = {
-  Fashion: '#F97316',
-  Electronics: '#3B82F6',
-  Grocery: '#10B981',
-  'Food & Cafe': '#F59E0B',
-  Health: '#EF4444',
-  Jewellery: '#A855F7',
-  Sports: '#0EA5E9',
-  Beauty: '#EC4899',
-};
 
 // Deterministic tile color from the store id/name — stable per store, varied across.
 const AVATAR_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#0EA5E9', '#EF4444', '#F97316'];
@@ -554,13 +687,6 @@ const CategoryChip: React.FC<{
   </Pressable>
 );
 
-const LegendRow: React.FC<{ color: string; label: string }> = ({ color, label }) => (
-  <View style={styles.legendRow}>
-    <View style={[styles.legendDot, { backgroundColor: color }]} />
-    <Text style={styles.legendText}>{label}</Text>
-  </View>
-);
-
 const StoreCard: React.FC<{
   store: Store;
   onPress: () => void;
@@ -588,11 +714,6 @@ const StoreCard: React.FC<{
             <Text style={styles.storeInitial}>{initial}</Text>
           </View>
         )}
-        {/* coin badge top-left */}
-        {/* <View style={styles.coinBadge}>
-          <Tag size={11} color="#fff" />
-          <Text style={styles.coinBadgeText}>{store.userDiscountPercent}% OFF</Text>
-        </View> */}
         {/* hottest badge */}
         {store.isFeatured && (
           <View style={styles.hotBadge}>
@@ -675,66 +796,6 @@ const StoreCard: React.FC<{
   );
 };
 
-// ─── Live stream card (portrait cover, gradient or thumbnail) ────────────────
-// Deterministic 2-stop gradient per stream, so placeholder cards look varied
-// (like the reference design) but stay stable across refetches.
-const LIVE_GRADIENTS: string[][] = [
-  ['#8A5A2B', '#241206'], // warm amber
-  ['#3E5BA6', '#0E1A38'], // royal blue
-  ['#7A3B8F', '#1E0E2E'], // violet
-  ['#B5476B', '#2E0E1C'], // rose
-  ['#2F8F7A', '#08211C'], // teal
-  ['#A5533B', '#2A0F08'], // rust
-  ['#3B7AA5', '#0A1E2E'], // steel
-  ['#5A6B2F', '#171C08'], // olive
-];
-function liveGradient(seed: string): [string, string] {
-  let h = 0;
-  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  const g = LIVE_GRADIENTS[h % LIVE_GRADIENTS.length];
-  return [g[0], g[1]];
-}
-
-const LiveCard: React.FC<{
-  stream: LiveStream;
-  width: number;
-  onPress: () => void;
-}> = ({ stream, width, onPress }) => {
-  const cover = stream.thumbnail || stream.storeLogoUrl;
-  const grad = liveGradient(stream._id || stream.storeName || '');
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.liveCard, { width, aspectRatio: 0.72 }, pressed && { opacity: 0.9 }]}
-    >
-      {cover ? (
-        <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      ) : (
-        <LinearGradient
-          colors={grad}
-          start={{ x: 0.25, y: 0 }}
-          end={{ x: 0.75, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      )}
-      {/* Bottom scrim keeps the title/store legible over any cover */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.78)']}
-        locations={[0, 0.5, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.liveTag}>
-        <View style={styles.liveTagDot} />
-        <Text style={styles.liveTagText}>LIVE</Text>
-      </View>
-      <View style={styles.liveTextWrap}>
-        <Text style={styles.liveTitle} numberOfLines={2}>{stream.title}</Text>
-        <Text style={styles.liveStore} numberOfLines={1}>{stream.storeName}</Text>
-      </View>
-    </Pressable>
-  );
-};
-
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -745,54 +806,103 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
 
-  // ── Live stream grid (shown when viewMode === 'live') ───────────────────
-  liveWrap: { flex: 1, width: '100%' },
-  liveGridContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
-    paddingBottom: 30,
+  // ── Mobile: Live-First feed ─────────────────────────────────────────────
+  // Blue gradient header (greeting + icons + search inside, rounded bottom)
+  mHeaderGrad: {
+    paddingTop: 16,
+    paddingBottom: 18,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
   },
-  liveCard: {
+  mHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  mGreetWrap: { flex: 1, alignItems: 'flex-start' },
+  mGreetLabel: { fontSize: 12.5, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.9)' },
+  mGreetName: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#fff', maxWidth: 220, marginTop: 1 },
+  mHeaderIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  mHeaderIconBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#1F2430',
-    justifyContent: 'flex-end',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  liveTag: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#F2685E',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    position: 'relative',
   },
-  liveTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
-  liveTagText: { fontSize: 10, fontFamily: Fonts.bold, color: '#fff', letterSpacing: 0.6 },
-  liveTextWrap: { padding: 12, gap: 2 },
-  liveTitle: { fontSize: 15, lineHeight: 19, fontFamily: Fonts.bold, color: '#fff' },
-  liveStore: { fontSize: 12, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.82)' },
-
-  // Mobile search pill — mirrors the Home search bar (white, rounded, 44px).
-  mobileSearchBar: {
+  mHeaderBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mHeaderBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
+  mHeaderSearch: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
     backgroundColor: '#fff',
     borderRadius: 13,
-    paddingHorizontal: 13,
     height: 44,
+    paddingHorizontal: 13,
+    marginTop: 12,
   },
-  mobileSearchInput: {
+  mHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+  mLoc: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  mLocLabel: { fontSize: 10, color: Colors.textSecondary, fontFamily: Fonts.medium },
+  mLocValRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
+  mLocVal: { fontSize: 15, fontFamily: Fonts.bold, color: Colors.text, maxWidth: 180 },
+  mIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  mBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 7,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: Colors.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
+  mScrollContent: { paddingBottom: 96, paddingTop: 4 },
+  mSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: Colors.surface,
+    borderRadius: 13,
+    height: 44,
+    paddingHorizontal: 13,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  mSearchInput: {
     flex: 1,
     fontSize: 14,
     fontFamily: Fonts.regular,
@@ -800,15 +910,56 @@ const styles = StyleSheet.create({
     height: 44,
     outlineStyle: 'none' as any,
   },
-
-  // Mobile control rows that sit below the gradient header
-  mobileControlsRow: {
+  mSecHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    marginTop: 18,
+    marginBottom: 10,
+  },
+  mSecHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  mLivePulse: { width: 11, height: 11, borderRadius: 5.5, backgroundColor: '#F2685E' },
+  mSecTitle: { fontSize: 19, fontFamily: Fonts.bold, color: Colors.text },
+  mCountPill: {
+    backgroundColor: 'rgba(242,104,94,0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 2,
+  },
+  mCountPillText: { fontSize: 14, fontFamily: Fonts.bold, color: '#F2685E' },
+  mSeeAll: { fontSize: 14, fontFamily: Fonts.semiBold, color: PRIMARY },
+  mRail: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 2 },
+  mRailLoading: { paddingVertical: 40, alignItems: 'center' },
+  mLiveEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  mLiveEmptyText: { fontSize: 12.5, color: Colors.textSecondary, flex: 1 },
+  mStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 2,
+  },
+  mStoreList: { paddingHorizontal: 16, paddingTop: 12, gap: 12 },
+
+  // ── Live stream grid (desktop live view) ────────────────────────────────
+  liveWrap: { flex: 1, width: '100%' },
+  liveGridContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    paddingBottom: 30,
   },
 
   // Header (desktop)
@@ -896,7 +1047,7 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Chip row
+  // Chip row (desktop)
   chipRow: { gap: 8, paddingVertical: 4, marginBottom: 10 },
   chip: {
     flexDirection: 'row',
@@ -1015,88 +1166,10 @@ const styles = StyleSheet.create({
   },
   sheetDoneTxt: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold },
 
-  // Body
-  // desktop: list on the left, map on the right (mobile overrides to column)
+  // Body (desktop)
   body: { flex: 1, flexDirection: 'row-reverse', gap: 14 },
-  mapCol: { flex: 1, minHeight: 400 },
-  mapInner: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: '#F4F8F6',
-    position: 'relative',
-  },
-  // Desktop: fixed-width left list (RN-Web ScrollView won't grow reliably with flex).
   listColDesktop: { width: 420, flexGrow: 0, flexShrink: 0 },
-  listColMobile: { flex: 1, width: '100%' },
   listContent: { paddingRight: 4, paddingBottom: 30, gap: 12 },
-
-  // Map overlays
-  nearbyBadge: {
-    position: 'absolute',
-    top: 14,
-    left: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#fff',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  nearbyPin: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nearbyText: { fontSize: 12, fontWeight: '700', color: Colors.text },
-  legend: {
-    position: 'absolute',
-    bottom: 14,
-    left: 14,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
-  zoomGroup: {
-    position: 'absolute',
-    bottom: 14,
-    right: 14,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  zoomBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
 
   // Store card
   storeCard: {
@@ -1109,10 +1182,6 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 12,
   },
-  storeCardSelected: {
-    borderColor: PRIMARY,
-    backgroundColor: '#F5FAFF',
-  },
   storeImage: {
     width: 92,
     height: 92,
@@ -1123,19 +1192,6 @@ const styles = StyleSheet.create({
   },
   storeInitialWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   storeInitial: { color: '#fff', fontSize: 30, fontFamily: Fonts.extraBold },
-  coinBadge: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: PRIMARY,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  coinBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   ocPill: {
     flexDirection: 'row',
     alignItems: 'center',

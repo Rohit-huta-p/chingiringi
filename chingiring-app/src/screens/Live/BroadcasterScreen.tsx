@@ -48,7 +48,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, CommonActions } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import {
   X,
   FlipHorizontal,
@@ -61,11 +61,13 @@ import {
   Eye,
   MessageCircle,
   ShoppingBag,
+  Pin,
+  ChevronUp,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { endStream, markStreamLive, abortStream, getStream, updateStreamProducts, type StreamProductLite } from '../../api/streams';
 import { FeatureProductsSheet } from './FeatureProductsSheet';
-import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
+import { useSocket, LiveChatMsg, PinnedMsg } from '../../hooks/useSocket';
 // Platform-resolved: the native RTMP publisher on iOS/Android, `null` on web
 // (LiveStreamView.web.tsx) so the native-only module never enters the web bundle.
 import { LiveStreamView } from './LiveStreamView';
@@ -162,11 +164,16 @@ const FloatingHeartsLayer: React.FC<{ hearts: HeartItem[]; onDone: (id: string) 
 
 // ── Chat feed row ────────────────────────────────────────────────────────
 
-const ChatRow: React.FC<{ item: LiveChatMsg }> = ({ item }) => {
+const ChatRow: React.FC<{ item: LiveChatMsg; onPin?: (m: LiveChatMsg) => void }> = ({ item, onPin }) => {
   const name = item.user?.name ?? 'Guest';
   const initial = name[0]?.toUpperCase() ?? '?';
   return (
-    <View style={styles.chatRow}>
+    <Pressable
+      style={styles.chatRow}
+      onLongPress={onPin ? () => onPin(item) : undefined}
+      delayLongPress={280}
+      accessibilityLabel={onPin ? 'Long-press to pin this message' : undefined}
+    >
       {item.user?.avatarUrl ? (
         <Image source={{ uri: item.user.avatarUrl }} style={styles.chatAvatar} />
       ) : (
@@ -174,12 +181,17 @@ const ChatRow: React.FC<{ item: LiveChatMsg }> = ({ item }) => {
           <Text style={styles.chatAvatarTxt}>{initial}</Text>
         </View>
       )}
-      <View style={styles.chatBubble}>
+      <View style={[styles.chatBubble, item.isAuthor && styles.chatBubbleAuthor]}>
+        {item.isAuthor && (
+          <View style={styles.authorBadge}>
+            <Text style={styles.authorBadgeTxt}>Author</Text>
+          </View>
+        )}
         <Text style={styles.chatText} numberOfLines={2}>
-          {name}: {item.text}
+          {item.text}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 };
 
@@ -273,6 +285,7 @@ export const BroadcasterScreen: React.FC = () => {
   const liveRef = useRef<any>(null);
   const startedRef = useRef(false);
   const [permission, requestPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [facing, setFacing] = useState<'front' | 'back'>('front');
   const [muted, setMuted] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -307,8 +320,11 @@ export const BroadcasterScreen: React.FC = () => {
   // `currentProductId` field + a socket event (not yet wired).
   const [products, setProducts] = useState<StreamProductLite[]>([]);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<PinnedMsg | null>(null);
   // "Feature products" picker (bc-04) — opened from the shelf's "See all".
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [showcaseOpen, setShowcaseOpen] = useState(false);
+  const spotlightProduct = spotlightId ? (products.find((p) => p._id === spotlightId) ?? null) : null;
   // The stream's store id (from getStream) — the picker's catalog source.
   const [storeId, setStoreId] = useState<string | null>(null);
 
@@ -330,6 +346,8 @@ export const BroadcasterScreen: React.FC = () => {
       .then((d) => {
         if (!alive || !d) return;
         if (d.products?.length) setProducts(d.products);
+        setPinned((d.pinnedMessage as PinnedMsg) ?? null);
+        setSpotlightId((d.currentProductId as string) ?? null);
         const sid = typeof d.storeId === 'object' ? d.storeId?._id : d.storeId;
         if (sid) setStoreId(sid);
       })
@@ -365,12 +383,14 @@ export const BroadcasterScreen: React.FC = () => {
     };
   }, [connState]);
 
-  // Request camera permission on mount
+  // Request camera + microphone permission on mount. BOTH are required — the
+  // RTMP publisher captures audio too, and calling startStreaming without
+  // RECORD_AUDIO granted crashes the native module (the app shuts down), so we
+  // must request and gate on mic just like camera.
   useEffect(() => {
-    if (!permission?.granted) {
-      requestPermission();
-    }
-  }, [permission, requestPermission]);
+    if (!permission?.granted) requestPermission();
+    if (!micPermission?.granted) requestMicPermission();
+  }, [permission, requestPermission, micPermission, requestMicPermission]);
 
   // ── Start pushing camera+mic to Mux over RTMPS ─────────────────────────────
   const beginBroadcast = useCallback(async () => {
@@ -409,10 +429,10 @@ export const BroadcasterScreen: React.FC = () => {
   // Auto-start once the native view is mounted and camera is granted (give the
   // native surface a beat to lay out before we kick the RTMP session).
   useEffect(() => {
-    if (!LiveStreamView || !permission?.granted) return;
+    if (!LiveStreamView || !permission?.granted || !micPermission?.granted) return;
     const t = setTimeout(beginBroadcast, 400);
     return () => clearTimeout(t);
-  }, [permission?.granted, beginBroadcast]);
+  }, [permission?.granted, micPermission?.granted, beginBroadcast]);
 
   // Don't hang on "Connecting…" forever — if neither success nor failure fires
   // within 20s, surface it as failed so the seller can retry / see the issue.
@@ -464,7 +484,7 @@ export const BroadcasterScreen: React.FC = () => {
   }, []);
 
   // ── Socket.io — same /stream namespace ViewerScreen uses ───────────────
-  const { sendHeart, sendChat } = useSocket({
+  const { sendHeart, sendChat, pinMessage, unpinMessage, setSpotlight } = useSocket({
     streamId: streamId ?? null,
     countAsViewer: false, // the broadcaster shouldn't count itself as a watcher
     onViewerCount: setViewerCount,
@@ -476,6 +496,8 @@ export const BroadcasterScreen: React.FC = () => {
       setMessages((prev) => [...prev.slice(-49), msg]);
       setMessagesCount((c) => c + 1);
     },
+    onPinned: setPinned,
+    onSpotlight: setSpotlightId, // keep local highlight in sync with the server echo
   });
 
   const handleHeartPress = useCallback(() => {
@@ -542,12 +564,22 @@ export const BroadcasterScreen: React.FC = () => {
   }, [title]);
 
   // ── Permission gate ──────────────────────────────────────────────────────
-  if (!permission?.granted) {
+  if (!permission?.granted || !micPermission?.granted) {
+    const needBoth = !permission?.granted && !micPermission?.granted;
     return (
       <View style={styles.center}>
-        <Text style={styles.permText}>Camera access is needed to go live.</Text>
-        <Pressable style={styles.permBtn} onPress={requestPermission}>
-          <Text style={styles.permBtnText}>Allow camera</Text>
+        <Text style={styles.permText}>
+          {needBoth
+            ? 'Camera and microphone access are needed to go live.'
+            : !permission?.granted
+              ? 'Camera access is needed to go live.'
+              : 'Microphone access is needed to go live.'}
+        </Text>
+        <Pressable
+          style={styles.permBtn}
+          onPress={() => { requestPermission(); requestMicPermission(); }}
+        >
+          <Text style={styles.permBtnText}>Allow camera &amp; mic</Text>
         </Pressable>
       </View>
     );
@@ -566,7 +598,9 @@ export const BroadcasterScreen: React.FC = () => {
             enablePinchedZoom
             // Conservative encode so the RTMP push sustains on a weak/unstable
             // uplink (the default ~720p high-bitrate drops after a few seconds).
-            video={{ bitrate: 1_000_000, fps: 30, resolution: { width: 854, height: 480 } }}
+            // Width MUST be 16-aligned — Android H.264 encoders reject non-multiples
+            // of 16 with "Failed to create codec" (854 crashed; 848 = 53×16 is safe).
+            video={{ bitrate: 1_000_000, fps: 30, resolution: { width: 848, height: 480 } }}
             audio={{ bitrate: 64_000, sampleRate: 44_100, isStereo: false }}
             onConnectionSuccess={handleConnected}
             onConnectionFailed={(code: any) => { setConnErr('code: ' + String(code ?? 'unknown')); setConnState('failed'); }}
@@ -641,57 +675,54 @@ export const BroadcasterScreen: React.FC = () => {
 
           {/* ── Bottom overlay: featured products + chat feed + input row ── */}
           <View style={[styles.bottomOverlay, { paddingBottom: kbHeight > 0 ? kbHeight + 16 : insets.bottom + 68 }]}>
-            {/* Featured products — the live shelf; tap Show to spotlight one */}
+            {pinned && (
+              <View style={styles.pinnedBar}>
+                <Pin size={13} color="#FFC74A" strokeWidth={2.4} fill="#FFC74A" />
+                {pinned.isAuthor && <Text style={styles.pinnedAuthor}>Author</Text>}
+                <Text style={styles.pinnedText} numberOfLines={1}>{pinned.text}</Text>
+                <Pressable onPress={unpinMessage} hitSlop={8} accessibilityLabel="Unpin message">
+                  <X size={15} color="rgba(255,255,255,0.85)" />
+                </Pressable>
+              </View>
+            )}
+            {/* Compact product pill — the one being "shown"; tap to open all (Phase 3) */}
             {products.length > 0 && (
-              <View style={styles.shelf}>
-                <View style={styles.shelfHead}>
-                  <ShoppingBag size={14} color="rgba(255,255,255,0.8)" strokeWidth={2} />
-                  <Text style={styles.shelfTitle}>Featured products</Text>
-                  <Text style={styles.shelfCount}> · {products.length}</Text>
-                  <View style={{ flex: 1 }} />
-                  <Pressable onPress={() => setPickerOpen(true)} hitSlop={8} accessibilityLabel="See all featured products">
-                    <Text style={styles.shelfSeeAll}>See all ›</Text>
-                  </Pressable>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelfRow}>
-                  {products.map((p) => {
-                    const showing = spotlightId === p._id;
-                    return (
-                      <View key={p._id} style={[styles.prodCard, showing && styles.prodCardActive]}>
-                        {p.imageUrl ? (
-                          <Image source={{ uri: p.imageUrl }} style={styles.prodImg} />
-                        ) : (
-                          <View style={[styles.prodImg, styles.prodImgFallback]} />
-                        )}
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.prodName} numberOfLines={1}>{p.name}</Text>
-                          <Text style={styles.prodPrice}>₹{p.price.toLocaleString('en-IN')}</Text>
+              <View style={styles.pillRow}>
+                <Pressable
+                  style={[styles.shelfPill, spotlightProduct && styles.shelfPillActive]}
+                  onPress={() => setShowcaseOpen(true)}
+                  accessibilityLabel="Show products"
+                >
+                  {spotlightProduct ? (
+                    <>
+                      {spotlightProduct.imageUrl ? (
+                        <Image source={{ uri: spotlightProduct.imageUrl }} style={styles.pillImg} />
+                      ) : (
+                        <View style={[styles.pillImg, styles.prodImgFallback]} />
+                      )}
+                      <View style={{ minWidth: 0, flexShrink: 1 }}>
+                        <View style={styles.pillNowRow}>
+                          <View style={styles.pillDot} />
+                          <Text style={styles.pillNow}>SHOWING</Text>
                         </View>
-                        <Pressable
-                          onPress={() => setSpotlightId(showing ? null : p._id)}
-                          style={showing ? styles.showBtnActive : styles.showBtn}
-                          accessibilityLabel={showing ? `Stop showing ${p.name}` : `Show ${p.name}`}
-                        >
-                          {showing ? (
-                            <>
-                              <Eye size={12} color="#3d2600" strokeWidth={2.4} />
-                              <Text style={styles.showBtnActiveText}>Showing</Text>
-                            </>
-                          ) : (
-                            <Text style={styles.showBtnText}>Show</Text>
-                          )}
-                        </Pressable>
+                        <Text style={styles.pillName} numberOfLines={1}>{spotlightProduct.name}</Text>
                       </View>
-                    );
-                  })}
-                </ScrollView>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag size={15} color="#fff" strokeWidth={2} />
+                      <Text style={styles.pillCount}>Products · {products.length}</Text>
+                    </>
+                  )}
+                  <ChevronUp size={18} color={spotlightProduct ? '#FFC74A' : '#fff'} strokeWidth={2.2} />
+                </Pressable>
               </View>
             )}
 
             <FlatList
               data={messages.slice(-5).reverse()}
               keyExtractor={(m) => m.id}
-              renderItem={({ item }) => <ChatRow item={item} />}
+              renderItem={({ item }) => <ChatRow item={item} onPin={pinMessage} />}
               inverted
               style={styles.chatList}
               showsVerticalScrollIndicator={false}
@@ -742,6 +773,58 @@ export const BroadcasterScreen: React.FC = () => {
             featured={products}
             onApply={applyFeatured}
           />
+
+          {/* ── "Show a product" sheet — pick which featured product to spotlight ── */}
+          <Modal visible={showcaseOpen} transparent animationType="slide" onRequestClose={() => setShowcaseOpen(false)}>
+            <View style={styles.scBackdrop}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowcaseOpen(false)} />
+              <View style={[styles.scCard, { paddingBottom: insets.bottom + 10 }]}>
+                <View style={styles.scHandle} />
+                <View style={styles.scHead}>
+                  <Text style={styles.scTitle}>Show a product</Text>
+                  <View style={{ flex: 1 }} />
+                  <Pressable onPress={() => { setShowcaseOpen(false); setTimeout(() => setPickerOpen(true), 260); }} style={styles.scEditBtn} accessibilityLabel="Edit featured products">
+                    <Text style={styles.scEditTxt}>Feature products</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setShowcaseOpen(false)} style={styles.scCloseBtn} accessibilityLabel="Close">
+                    <X size={18} color={Colors.text} />
+                  </Pressable>
+                </View>
+                <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+                  {products.map((p) => {
+                    const showing = spotlightId === p._id;
+                    return (
+                      <View key={p._id} style={styles.scRow}>
+                        {p.imageUrl ? (
+                          <Image source={{ uri: p.imageUrl }} style={styles.scRowImg} />
+                        ) : (
+                          <View style={[styles.scRowImg, styles.scRowImgFallback]} />
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.scRowName} numberOfLines={1}>{p.name}</Text>
+                          <Text style={styles.scRowPrice}>₹{p.price.toLocaleString('en-IN')}</Text>
+                        </View>
+                        <Pressable
+                          onPress={() => { const next = showing ? null : p._id; setSpotlightId(next); setSpotlight(next); }}
+                          style={showing ? styles.scShowOn : styles.scShowOff}
+                          accessibilityLabel={showing ? `Stop showing ${p.name}` : `Show ${p.name}`}
+                        >
+                          {showing ? (
+                            <>
+                              <Eye size={13} color="#3d2600" strokeWidth={2.4} />
+                              <Text style={styles.scShowOnTxt}>Showing</Text>
+                            </>
+                          ) : (
+                            <Text style={styles.scShowOffTxt}>Show</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
 
@@ -845,6 +928,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6, paddingHorizontal: 10,
   },
   chatText: { color: '#fff', fontSize: 13, fontFamily: Fonts.regular },
+  chatBubbleAuthor: { backgroundColor: 'rgba(255,199,74,0.18)', borderWidth: 1, borderColor: 'rgba(255,199,74,0.55)' },
+  authorBadge: { alignSelf: 'flex-start', backgroundColor: '#FFC74A', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginBottom: 2 },
+  authorBadgeTxt: { color: '#3d2600', fontSize: 9, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
+  pinnedBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.55)', borderLeftWidth: 3, borderLeftColor: '#FFC74A', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 8 },
+  pinnedAuthor: { color: '#FFC74A', fontSize: 10, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
+  pinnedText: { flex: 1, color: '#fff', fontSize: 12.5, fontFamily: Fonts.medium },
 
   inputRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8,
@@ -893,6 +982,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#FBBF24', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 9,
   },
   showBtnActiveText: { fontSize: 10.5, fontFamily: Fonts.extraBold, color: '#3d2600' },
+  // ── Compact product pill (Phase 3) ──
+  pillRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
+  shelfPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 8, maxWidth: 250, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+  shelfPillActive: { backgroundColor: 'rgba(255,199,74,0.18)', borderColor: 'rgba(255,199,74,0.6)' },
+  pillImg: { width: 32, height: 32, borderRadius: 8 },
+  pillNowRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pillDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#FFC74A' },
+  pillNow: { color: '#FFC74A', fontSize: 9, fontFamily: Fonts.extraBold, letterSpacing: 0.4 },
+  pillName: { color: '#fff', fontSize: 12, fontFamily: Fonts.semiBold, maxWidth: 140 },
+  pillCount: { color: '#fff', fontSize: 12.5, fontFamily: Fonts.bold, marginLeft: 2 },
+  // ── "Show a product" sheet ──
+  scBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  scCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 14, paddingTop: 8 },
+  scHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.backgroundGrey, marginBottom: 10 },
+  scHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  scTitle: { fontSize: 16, fontFamily: Fonts.extraBold, color: Colors.navy },
+  scEditBtn: { backgroundColor: Colors.backgroundGrey, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  scEditTxt: { fontSize: 12, fontFamily: Fonts.bold, color: Colors.primary },
+  scCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.backgroundGrey, alignItems: 'center', justifyContent: 'center' },
+  scRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: Colors.backgroundGrey },
+  scRowImg: { width: 46, height: 46, borderRadius: 10, backgroundColor: Colors.backgroundGrey },
+  scRowImgFallback: { backgroundColor: Colors.backgroundGrey },
+  scRowName: { fontSize: 13.5, fontFamily: Fonts.semiBold, color: Colors.text },
+  scRowPrice: { fontSize: 13.5, fontFamily: Fonts.extraBold, color: Colors.primary, marginTop: 2 },
+  scShowOff: { backgroundColor: Colors.navy, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 16 },
+  scShowOffTxt: { fontSize: 12.5, fontFamily: Fonts.bold, color: '#fff' },
+  scShowOn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFC74A', borderRadius: 999, paddingVertical: 7, paddingHorizontal: 13 },
+  scShowOnTxt: { fontSize: 12, fontFamily: Fonts.extraBold, color: '#3d2600' },
 
   // ── Floating hearts ──
   heartsLayer: { ...StyleSheet.absoluteFillObject },

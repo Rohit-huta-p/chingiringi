@@ -59,7 +59,10 @@ export function attachStreamSocket(ns) {
         if (!socket.data.counted) {
           // Non-viewer (broadcaster): don't increment — just send it the current
           // real count so its "watching" number is accurate (0 with no viewers).
-          const s = await Stream.findById(streamId).select('viewerCount').lean();
+          const s = await Stream.findById(streamId).select('viewerCount ownerId').lean();
+          // Is this socket the stream's owner (the broadcaster)? Drives the
+          // "Author" chat badge and gates message pinning.
+          socket.data.isHost = !!(user && s && String(s.ownerId) === String(user._id));
           socket.emit('viewer_count_update', { streamId, count: s?.viewerCount ?? 0 });
           return;
         }
@@ -81,6 +84,7 @@ export function attachStreamSocket(ns) {
           { new: true, updatePipeline: true } // Mongoose 9 requires this for array (aggregation) updates
         );
         if (stream) {
+          socket.data.isHost = !!(user && String(stream.ownerId) === String(user._id));
           ns.to(room).emit('viewer_count_update', {
             streamId,
             count: stream.viewerCount,
@@ -125,12 +129,64 @@ export function attachStreamSocket(ns) {
       if (!trimmed) return;
 
       const room = `stream:${streamId}`;
+      // Emit `user` as an OBJECT { name, avatarUrl } — the client reads
+      // msg.user?.name / msg.user?.avatarUrl. (Previously sent as a bare string,
+      // which made every message render as "Guest" with no avatar.) Guests → null.
       ns.to(room).emit('new_chat', {
         streamId,
-        user: user?.name ?? 'Guest',
+        user: user ? { name: user.name, avatarUrl: user.avatarUrl ?? null } : null,
         text: trimmed,
         timestamp: Date.now(),
+        isAuthor: !!socket.data.isHost, // the broadcaster's own messages
       });
+    });
+
+    // ── pin_message (host only) ────────────────────────────────────────────
+    // The broadcaster pins one message; it persists on the stream (so late
+    // joiners see it) and is pushed to everyone in the room.
+    socket.on('pin_message', async ({ streamId, message } = {}) => {
+      if (!streamId || !socket.data.isHost || !message?.text) return;
+      const room = `stream:${streamId}`;
+      const pinned = {
+        text:      String(message.text).slice(0, 200),
+        userName:  message.user?.name ?? null,
+        avatarUrl: message.user?.avatarUrl ?? null,
+        isAuthor:  message.isAuthor !== false,
+        at:        new Date(),
+      };
+      try {
+        await Stream.findByIdAndUpdate(streamId, { $set: { pinnedMessage: pinned } });
+      } catch (err) {
+        console.warn('[socket] pin_message persist failed:', err.message);
+      }
+      ns.to(room).emit('message_pinned', { streamId, pinned });
+    });
+
+    // ── unpin_message (host only) ──────────────────────────────────────────
+    socket.on('unpin_message', async ({ streamId } = {}) => {
+      if (!streamId || !socket.data.isHost) return;
+      const room = `stream:${streamId}`;
+      try {
+        await Stream.findByIdAndUpdate(streamId, { $set: { pinnedMessage: null } });
+      } catch (err) {
+        console.warn('[socket] unpin_message persist failed:', err.message);
+      }
+      ns.to(room).emit('message_unpinned', { streamId });
+    });
+
+    // ── set_spotlight (host only) ──────────────────────────────────────────
+    // The broadcaster "shows" one featured product live (or clears it with a
+    // null productId). Persisted so viewers who join later still see it.
+    socket.on('set_spotlight', async ({ streamId, productId } = {}) => {
+      if (!streamId || !socket.data.isHost) return;
+      const room = `stream:${streamId}`;
+      const pid = productId || null;
+      try {
+        await Stream.findByIdAndUpdate(streamId, { $set: { currentProductId: pid } });
+      } catch (err) {
+        console.warn('[socket] set_spotlight persist failed:', err.message);
+      }
+      ns.to(room).emit('stream_spotlight', { streamId, productId: pid });
     });
 
     // ── disconnect ─────────────────────────────────────────────────────────

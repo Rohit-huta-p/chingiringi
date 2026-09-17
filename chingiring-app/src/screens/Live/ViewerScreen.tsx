@@ -65,9 +65,9 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Send, Heart, WifiOff, Search, MessageCircle, ChevronRight, UserPlus, Check, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react-native';
+import { X, Send, Heart, Search, MessageCircle, ChevronRight, UserPlus, Check, ArrowUp, ArrowDown, ArrowUpDown, Pin } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { useSocket, LiveChatMsg } from '../../hooks/useSocket';
+import { useSocket, LiveChatMsg, PinnedMsg } from '../../hooks/useSocket';
 import { getStream, type StreamDetail, type StreamProductLite } from '../../api/streams';
 import { useFollow } from '../../hooks/useFollow';
 import { useAuthGate } from '../../context/AuthGateContext';
@@ -153,9 +153,14 @@ const ChatRow: React.FC<{ item: LiveChatMsg }> = ({ item }) => {
           <Text style={styles.chatAvatarTxt}>{initial}</Text>
         </View>
       )}
-      <View style={styles.chatBubble}>
+      <View style={[styles.chatBubble, item.isAuthor && styles.chatBubbleAuthor]}>
+        {item.isAuthor && (
+          <View style={styles.authorBadge}>
+            <Text style={styles.authorBadgeTxt}>Author</Text>
+          </View>
+        )}
         <Text style={styles.chatText} numberOfLines={2}>
-          {name}: {item.text}
+          {item.text}
         </Text>
       </View>
     </View>
@@ -182,6 +187,39 @@ const ProductChip: React.FC<{ item: StreamProductLite; onPress: () => void; onCh
     </Pressable>
   </Pressable>
 );
+
+// ─── Live product spotlight — the broadcaster's "Show" surfaced prominently ──
+const SpotlightCard: React.FC<{ product: StreamProductLite; onView: () => void; onChat: () => void }> = ({ product, onView, onChat }) => {
+  const hasMrp = !!product.mrp && product.mrp > product.price;
+  return (
+    <View style={styles.spotlightCard}>
+      <View style={styles.spotlightNowRow}>
+        <View style={styles.spotlightDot} />
+        <Text style={styles.spotlightNow}>SHOWING NOW</Text>
+      </View>
+      <View style={styles.spotlightBody}>
+        {product.imageUrl ? (
+          <Image source={{ uri: product.imageUrl }} style={styles.spotlightImg} />
+        ) : (
+          <View style={[styles.spotlightImg, styles.spotlightImgFallback]} />
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.spotlightName} numberOfLines={2}>{product.name}</Text>
+          <View style={styles.spotlightPriceRow}>
+            <Text style={styles.spotlightPrice}>₹{product.price.toLocaleString('en-IN')}</Text>
+            {hasMrp && <Text style={styles.spotlightMrp}>₹{product.mrp!.toLocaleString('en-IN')}</Text>}
+          </View>
+        </View>
+        <Pressable onPress={onChat} hitSlop={6} style={styles.spotlightChat} accessibilityLabel={`Chat about ${product.name}`}>
+          <MessageCircle size={16} color="#fff" strokeWidth={2} />
+        </Pressable>
+        <Pressable onPress={onView} style={styles.spotlightView} accessibilityLabel={`View ${product.name}`}>
+          <Text style={styles.spotlightViewTxt}>View</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+};
 
 // ─── Featured products "See all" sheet ─────────────────────────────────────
 // A light bottom sheet over the dark viewer: search + sort options +
@@ -305,14 +343,52 @@ const FeaturedSheet: React.FC<{
 
 // ─── StreamEndedOverlay ────────────────────────────────────────────────────
 
-const StreamEndedOverlay: React.FC<{ storeName: string; onBack: () => void }> = ({ storeName, onBack }) => (
+const StreamEndedOverlay: React.FC<{
+  storeName: string;
+  storeLogoUrl?: string;
+  hasStore: boolean;
+  following: boolean;
+  onFollow: () => void;
+  onStore: () => void;
+  onBack: () => void;
+}> = ({ storeName, storeLogoUrl, hasStore, following, onFollow, onStore, onBack }) => (
   <View style={endedStyles.overlay}>
-    <WifiOff size={52} color="rgba(255,255,255,0.4)" />
-    <Text style={endedStyles.title}>Stream has ended</Text>
-    <Text style={endedStyles.sub}>{storeName} wrapped up their live session.</Text>
-    <Pressable onPress={onBack} style={endedStyles.btn}>
-      <Text style={endedStyles.btnTxt}>Back to Discover</Text>
-    </Pressable>
+    {storeLogoUrl ? (
+      <Image source={{ uri: storeLogoUrl }} style={endedStyles.avatar} />
+    ) : (
+      <View style={[endedStyles.avatar, endedStyles.avatarFallback]}>
+        <Text style={endedStyles.avatarInitial}>{storeName[0]?.toUpperCase()}</Text>
+      </View>
+    )}
+    <View style={endedStyles.chip}>
+      <View style={endedStyles.chipDot} />
+      <Text style={endedStyles.chipTxt}>LIVE ENDED</Text>
+    </View>
+    <Text style={endedStyles.title}>Live has ended</Text>
+    <Text style={endedStyles.store}>{storeName}</Text>
+    {hasStore && (
+      <Text style={endedStyles.sub}>Follow to catch their next live and see new drops first.</Text>
+    )}
+    {hasStore && (
+      <Pressable
+        onPress={onFollow}
+        style={[endedStyles.followBtn, following && endedStyles.followBtnOn]}
+        accessibilityLabel={following ? 'Following' : `Follow ${storeName}`}
+      >
+        {following ? <Check size={17} color="#fff" strokeWidth={2.6} /> : <UserPlus size={17} color="#fff" strokeWidth={2.2} />}
+        <Text style={endedStyles.followTxt}>{following ? 'Following' : `Follow ${storeName}`}</Text>
+      </Pressable>
+    )}
+    <View style={endedStyles.exitRow}>
+      {hasStore && (
+        <Pressable onPress={onStore} style={endedStyles.exitBtn} accessibilityLabel="Visit store">
+          <Text style={endedStyles.exitTxt}>Visit store</Text>
+        </Pressable>
+      )}
+      <Pressable onPress={onBack} style={endedStyles.exitBtn} accessibilityLabel="Back to Discover">
+        <Text style={endedStyles.exitTxt}>Discover</Text>
+      </Pressable>
+    </View>
   </View>
 );
 
@@ -368,6 +444,8 @@ export const ViewerScreen: React.FC = () => {
   const [tokenLoading, setTokenLoading] = useState(true);
   const [streamDetail, setStreamDetail] = useState<StreamDetail | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [pinned, setPinned] = useState<PinnedMsg | null>(null);
+  const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [kbHeight, setKbHeight] = useState(0);
   // Product chat, presented as a cross-platform bottom sheet (web + native).
   const [chatSheet, setChatSheet] = useState<{
@@ -401,7 +479,7 @@ export const ViewerScreen: React.FC = () => {
   useEffect(() => {
     if (!streamId) return;
     getStream(streamId)
-      .then(setStreamDetail) // best-effort — getStream() never throws
+      .then((d) => { setStreamDetail(d); if (d) { setPinned((d.pinnedMessage as PinnedMsg) ?? null); setSpotlightId((d.currentProductId as string) ?? null); } }) // best-effort — getStream() never throws
       .finally(() => setTokenLoading(false));
   }, [streamId]);
 
@@ -423,6 +501,7 @@ export const ViewerScreen: React.FC = () => {
   }, [streamDetail, routeStoreId]);
 
   const products = streamDetail?.products ?? [];
+  const spotlightProduct = spotlightId ? (products.find((p) => p._id === spotlightId) ?? null) : null;
   const following = resolvedStoreId ? isFollowing(resolvedStoreId) : false;
   const isLive = streamDetail?.status === 'live' && !streamEnded;
 
@@ -447,6 +526,8 @@ export const ViewerScreen: React.FC = () => {
     // Broadcaster changed the featured set → refresh the shelf + "See all" sheet.
     onProductsUpdated: (next) =>
       setStreamDetail((prev) => (prev ? { ...prev, products: next } : prev)),
+    onPinned: setPinned,
+    onSpotlight: setSpotlightId,
   });
 
   // ── Actions ─────────────────────────────────────────────────────────────
@@ -599,6 +680,20 @@ export const ViewerScreen: React.FC = () => {
 
           {/* ── Bottom: featured products + chat feed + input row ── */}
           <View style={[styles.bottomOverlay, { paddingBottom: kbHeight > 0 ? kbHeight + 16 : insets.bottom + 28 }]}>
+            {spotlightProduct && (
+              <SpotlightCard
+                product={spotlightProduct}
+                onView={() => handleProductPress(spotlightProduct)}
+                onChat={() => openProductChat(spotlightProduct)}
+              />
+            )}
+            {pinned && (
+              <View style={styles.pinnedBar}>
+                <Pin size={13} color="#FFC74A" strokeWidth={2.4} fill="#FFC74A" />
+                {pinned.isAuthor && <Text style={styles.pinnedAuthor}>Author</Text>}
+                <Text style={styles.pinnedText} numberOfLines={1}>{pinned.text}</Text>
+              </View>
+            )}
             {products.length > 0 && (
               <>
                 <Pressable style={styles.featuredHead} onPress={() => setSheetOpen(true)} accessibilityLabel="See all featured products">
@@ -666,7 +761,17 @@ export const ViewerScreen: React.FC = () => {
       )}
 
       {/* ── Stream ended overlay ─────────────────────────────────── */}
-      {streamEnded && <StreamEndedOverlay storeName={storeName} onBack={handleBack} />}
+      {streamEnded && (
+        <StreamEndedOverlay
+          storeName={storeName}
+          storeLogoUrl={storeLogoUrl}
+          hasStore={!!resolvedStoreId}
+          following={following}
+          onFollow={handleFollow}
+          onStore={handleStorePress}
+          onBack={handleBack}
+        />
+      )}
 
       {/* ── Featured products "See all" sheet ── */}
       <FeaturedSheet
@@ -801,6 +906,27 @@ const styles = StyleSheet.create({
     paddingVertical: 6, paddingHorizontal: 10,
   },
   chatText: { color: '#fff', fontSize: 13, fontFamily: Fonts.regular },
+  chatBubbleAuthor: { backgroundColor: 'rgba(255,199,74,0.18)', borderWidth: 1, borderColor: 'rgba(255,199,74,0.55)' },
+  authorBadge: { alignSelf: 'flex-start', backgroundColor: '#FFC74A', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginBottom: 2 },
+  authorBadgeTxt: { color: '#3d2600', fontSize: 9, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
+  pinnedBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.55)', borderLeftWidth: 3, borderLeftColor: '#FFC74A', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 8 },
+  pinnedAuthor: { color: '#FFC74A', fontSize: 10, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
+  pinnedText: { flex: 1, color: '#fff', fontSize: 12.5, fontFamily: Fonts.medium },
+  // ── Live product spotlight ("Showing now") ──
+  spotlightCard: { backgroundColor: 'rgba(0,0,0,0.72)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,199,74,0.6)', padding: 10, marginBottom: 10 },
+  spotlightNowRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 7 },
+  spotlightDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFC74A' },
+  spotlightNow: { color: '#FFC74A', fontSize: 10, fontFamily: Fonts.extraBold, letterSpacing: 0.6 },
+  spotlightBody: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  spotlightImg: { width: 52, height: 52, borderRadius: 10 },
+  spotlightImgFallback: { backgroundColor: Colors.primary, opacity: 0.5 },
+  spotlightName: { color: '#fff', fontSize: 13.5, fontFamily: Fonts.semiBold },
+  spotlightPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 3 },
+  spotlightPrice: { color: '#fff', fontSize: 15, fontFamily: Fonts.extraBold },
+  spotlightMrp: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: Fonts.regular, textDecorationLine: 'line-through' },
+  spotlightChat: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  spotlightView: { backgroundColor: '#FFC74A', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
+  spotlightViewTxt: { color: '#3d2600', fontSize: 13, fontFamily: Fonts.extraBold },
 
   // ── Input row ──
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
@@ -828,38 +954,26 @@ const styles = StyleSheet.create({
 const endedStyles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.88)',
+    backgroundColor: 'rgba(10,10,14,0.93)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-    paddingHorizontal: 32,
+    paddingHorizontal: 26,
   },
-  title: {
-    color: '#fff',
-    fontSize: 22,
-    fontFamily: Fonts.extraBold,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  sub: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  btn: {
-    marginTop: 16,
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-  },
-  btnTxt: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: Fonts.bold,
-  },
+  avatar: { width: 76, height: 76, borderRadius: 38, borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)' },
+  avatarFallback: { backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { color: '#fff', fontSize: 28, fontFamily: Fonts.extraBold },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
+  chipDot: { width: 9, height: 9, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.85)' },
+  chipTxt: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontFamily: Fonts.bold, letterSpacing: 0.4 },
+  title: { color: '#fff', fontSize: 21, fontFamily: Fonts.extraBold, textAlign: 'center', marginTop: 12 },
+  store: { color: 'rgba(255,255,255,0.82)', fontSize: 14, fontFamily: Fonts.medium, textAlign: 'center', marginTop: 3 },
+  sub: { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: Fonts.regular, textAlign: 'center', marginTop: 10, maxWidth: 240, lineHeight: 19 },
+  followBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 20, width: 240, backgroundColor: Colors.primary, borderRadius: 999, paddingVertical: 12 },
+  followBtnOn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
+  followTxt: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold },
+  exitRow: { flexDirection: 'row', gap: 10, marginTop: 11, width: 240 },
+  exitBtn: { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
+  exitTxt: { color: '#fff', fontSize: 13, fontFamily: Fonts.semiBold },
 });
 
 // ─── Featured "See all" sheet styles ────────────────────────────────────────

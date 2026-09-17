@@ -26,7 +26,7 @@ import {
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Wallet, Store, User, Play } from 'lucide-react-native';
+import { Wallet, Store, User, Play, ShoppingBag } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 
 // Existing screens reused in tabs
@@ -39,6 +39,7 @@ import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
 import { BuyerOnboardingScreen } from '../screens/Buyer/BuyerOnboardingScreen';
 import { BuyerProfileScreen } from '../screens/Buyer/BuyerProfileScreen';
 import { ViewerScreen } from '../screens/Live/ViewerScreen';
+import { LiveNowScreen } from '../screens/Live/LiveNowScreen';
 
 // Seller public profile (Sprint 5 B2)
 import { SellerProfileScreen } from '../screens/Seller/SellerProfileScreen';
@@ -62,10 +63,16 @@ import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
 import { SignupScreen } from '../screens/Auth/SignupScreen';
 
 // ─── Tab icon map ──────────────────────────────────────────────────────────
+// NOTE: the tab *route names* are intentionally kept ('Videos' | 'Stores' |
+// 'Home' | 'Wallet' | 'Profile') so deep-links (linking.ts) and every
+// navigation.navigate(...) across the app keep resolving. Only the visible
+// labels, order, and icons changed:
+//   route 'Home'   → label "Products"     (the products / deals feed)
+//   route 'Stores' → label "Live Stores"  (centre anchor; store list + live)
 const BUYER_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
   Videos:  Play,
-  Stores:  Store,
-  Home:    Home,
+  Home:    ShoppingBag, // "Products"
+  Stores:  Store,       // "Live Stores" (centre)
   Wallet:  Wallet,
   Profile: User,
 };
@@ -82,7 +89,8 @@ function BuyerMobileTabBar({ state, descriptors, navigation }: any) {
           const label = options.tabBarLabel ?? route.name;
           const isFocused = state.index === index;
           const Icon = BUYER_TAB_ICON_MAP[route.name];
-          const isCashback = route.name === 'Home';
+          // Centre "Live Stores" tab gets the raised-circle anchor treatment.
+          const isCenter = route.name === 'Stores';
 
           const onPress = () => {
             const event = navigation.emit({
@@ -97,8 +105,8 @@ function BuyerMobileTabBar({ state, descriptors, navigation }: any) {
 
           const iconColor = isFocused ? Colors.primary : '#9ca3af';
 
-          // Cashback tab uses the raised-circle "home" treatment (centre visual anchor)
-          if (isCashback) {
+          // Centre tab uses the raised-circle treatment (centre visual anchor)
+          if (isCenter) {
             return (
               <TouchableOpacity
                 key={route.key}
@@ -144,9 +152,11 @@ function BuyerBottomTabs() {
       tabBar={(props) => <BuyerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
+      {/* Order: Videos · Products · Live Stores (centre) · Wallet · Profile.
+          Route names stay stable (see BUYER_TAB_ICON_MAP note); only labels + order changed. */}
       <Tab.Screen name="Videos"  component={MobileVideosScreen}  options={{ tabBarLabel: 'Videos' }} />
-      <Tab.Screen name="Stores"  component={OfflineStoresScreen} options={{ tabBarLabel: 'Stores' }} />
-      <Tab.Screen name="Home"    component={MobileHomeScreen}    options={{ tabBarLabel: 'Home' }} />
+      <Tab.Screen name="Home"    component={MobileHomeScreen}    options={{ tabBarLabel: 'Products' }} />
+      <Tab.Screen name="Stores"  component={OfflineStoresScreen} options={{ tabBarLabel: 'Live Stores' }} />
       <Tab.Screen name="Wallet"  component={MobileWalletScreen}  options={{ tabBarLabel: 'Wallet' }} />
       <Tab.Screen name="Profile" component={BuyerProfileScreen}  options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
@@ -177,6 +187,7 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="About"             component={MobileAboutScreen} />
         <Stack.Screen name="BuyerOnboarding"   component={BuyerOnboardingScreen} />
         <Stack.Screen name="ViewerScreen"      component={ViewerScreen} />
+        <Stack.Screen name="LiveNow"           component={LiveNowScreen} />
         <Stack.Screen name="SellerProfile"     component={SellerProfileScreen} />
         <Stack.Screen
           name="AuthLogin"

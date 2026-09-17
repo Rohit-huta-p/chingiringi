@@ -34,7 +34,7 @@ streamNs.use(async (socket, next) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    const user = await User.findById(decoded.id).select('_id name role').lean();
+    const user = await User.findById(decoded.id).select('_id name role avatarUrl').lean();
     socket.data.user = user || null;
   } catch {
     socket.data.user = null;

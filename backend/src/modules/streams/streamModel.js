@@ -44,6 +44,23 @@ const streamSchema = new mongoose.Schema(
 
     // Products featured in this stream
     products:     [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+
+    // The single product the broadcaster is currently "showing" (spotlight), or
+    // null. Pushed live to viewers and persisted so late joiners see it too.
+    currentProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
+
+    // The single chat message the broadcaster has pinned (host-only). Null when
+    // nothing is pinned. Persisted so late-joining viewers see the current pin.
+    pinnedMessage: {
+      type: {
+        text:      String,
+        userName:  String,
+        avatarUrl: String,
+        isAuthor:  Boolean,
+        at:        Date,
+      },
+      default: null,
+    },
   },
   { timestamps: true }
 );

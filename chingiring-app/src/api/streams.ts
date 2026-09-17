@@ -125,6 +125,15 @@ export interface StreamDetail {
   viewerCount: number;
   storeId: StreamStoreLite | string;
   products: StreamProductLite[];
+  /** The product the broadcaster is currently spotlighting ("Show"), or null. */
+  currentProductId?: string | null;
+  /** The broadcaster's currently pinned chat message (null/absent when none). */
+  pinnedMessage?: {
+    text: string;
+    userName?: string | null;
+    avatarUrl?: string | null;
+    isAuthor?: boolean;
+  } | null;
   /** Mux public playback id — build the HLS URL `https://stream.mux.com/{id}.m3u8`. */
   muxPlaybackId?: string;
 }
