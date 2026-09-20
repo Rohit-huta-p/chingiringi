@@ -14,7 +14,7 @@ import { Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 import apiClient from '../api/client';
-import type { ChatMessage } from '../api/chat';
+import type { ChatMessage, ChatOffer } from '../api/chat';
 
 export interface UseChatSocketOptions {
   /** The conversation to join. null/undefined suspends the connection. */
@@ -23,6 +23,8 @@ export interface UseChatSocketOptions {
   onTyping?: () => void;
   onStopTyping?: () => void;
   onMessagesRead?: (info: { readerRole: 'buyer' | 'seller'; at: number }) => void;
+  /** A pending offer was accepted/declined — patch that message's offer.status. */
+  onOfferUpdated?: (info: { messageId: string; offer: ChatOffer }) => void;
 }
 
 async function readAccessToken(): Promise<string | null> {
@@ -45,6 +47,7 @@ export function useChatSocket({
   onTyping,
   onStopTyping,
   onMessagesRead,
+  onOfferUpdated,
 }: UseChatSocketOptions): {
   sendTyping: () => void;
   sendStopTyping: () => void;
@@ -53,9 +56,9 @@ export function useChatSocket({
 
   // Stable callback refs — updated every render so callers never stale-close,
   // but changes do NOT re-trigger the socket effect.
-  const cbRef = useRef({ onNewMessage, onTyping, onStopTyping, onMessagesRead });
+  const cbRef = useRef({ onNewMessage, onTyping, onStopTyping, onMessagesRead, onOfferUpdated });
   useEffect(() => {
-    cbRef.current = { onNewMessage, onTyping, onStopTyping, onMessagesRead };
+    cbRef.current = { onNewMessage, onTyping, onStopTyping, onMessagesRead, onOfferUpdated };
   });
 
   useEffect(() => {
@@ -104,6 +107,15 @@ export function useChatSocket({
         (info: { conversationId: string; readerRole: 'buyer' | 'seller'; at: number }) => {
           if (info?.conversationId === conversationId) {
             cbRef.current.onMessagesRead?.({ readerRole: info.readerRole, at: info.at });
+          }
+        },
+      );
+
+      socket.on(
+        'offer_updated',
+        (info: { conversationId: string; messageId: string; offer: ChatOffer }) => {
+          if (info?.conversationId === conversationId && info.offer) {
+            cbRef.current.onOfferUpdated?.({ messageId: info.messageId, offer: info.offer });
           }
         },
       );

@@ -6,6 +6,8 @@ import {
   sendMessage,
   markRead,
   getUnreadTotal,
+  respondToOffer,
+  getConversationContext,
 } from './chatController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 
@@ -25,5 +27,8 @@ router.route('/conversations/:id/messages')
   .post(sendMessage);
 
 router.post('/conversations/:id/read', markRead);
+
+router.get('/conversations/:id/context', getConversationContext);
+router.post('/conversations/:id/offers/:messageId/respond', respondToOffer);
 
 export default router;
