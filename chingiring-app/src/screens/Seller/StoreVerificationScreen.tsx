@@ -33,7 +33,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronDown, ShieldCheck, Clock, XCircle, FileText, Truck, Receipt,
   CreditCard, Fingerprint, Car, Plane, Mail, Phone, Lock, CheckCircle2,
-  MessageCircle, FileCheck,
+  MessageCircle, FileCheck, Building2,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { KycUploader, type KycValue } from '../../components/KycUploader';
@@ -52,11 +52,22 @@ const STATE_COLOR = {
   rejected: '#DC2626',
 };
 
-const DOC_TYPES: { value: DocType; label: string; sub: string; icon: React.ComponentType<any> }[] = [
+// Store-document sets by store type — mirrors BusinessOnboardingScreen. Online
+// stores have no municipal premises, so Trade Licence is replaced by PAN / Udyam;
+// 'both' (and any unset legacy store) uses the physical set.
+const DOC_TYPES_PHYSICAL: { value: DocType; label: string; sub: string; icon: React.ComponentType<any> }[] = [
   { value: 'gst', label: 'GST Certificate', sub: 'Government-issued GST registration document', icon: FileText },
   { value: 'fssai', label: 'FSSAI Licence', sub: 'Food safety licence (for food & grocery stores)', icon: Receipt },
   { value: 'tradeLicence', label: 'Trade Licence', sub: 'Municipal trade / shop licence', icon: Truck },
 ];
+const DOC_TYPES_ONLINE: { value: DocType; label: string; sub: string; icon: React.ComponentType<any> }[] = [
+  { value: 'gst', label: 'GST Certificate', sub: 'Government-issued GST registration document', icon: FileText },
+  { value: 'pan', label: 'PAN Card', sub: 'Business or individual PAN', icon: CreditCard },
+  { value: 'udyam', label: 'Udyam / MSME', sub: 'MSME (Udyam) registration certificate', icon: Building2 },
+  { value: 'fssai', label: 'FSSAI Licence', sub: 'Food safety licence (if you sell food)', icon: Receipt },
+];
+const docTypesFor = (t?: SellerStore['storeType']) =>
+  (t === 'online' ? DOC_TYPES_ONLINE : DOC_TYPES_PHYSICAL);
 
 const ID_TYPES: { value: IdentityType; label: string; icon: React.ComponentType<any> }[] = [
   { value: 'aadhaar',  label: 'Aadhaar',         icon: Fingerprint },
@@ -172,7 +183,11 @@ export const StoreVerificationScreen: React.FC = () => {
 
   const rejectionReason = passedStore?.verificationDoc?.rejectionReason;
   const submittedAt = passedStore?.verificationDoc?.submittedAt as any;
-  const docSub = DOC_TYPES.find((d) => d.value === docType)?.label ?? 'document';
+  // Document set depends on store type — online stores use PAN / Udyam instead of
+  // a municipal Trade Licence (mirrors BusinessOnboardingScreen).
+  const storeType = passedStore?.storeType ?? 'physical';
+  const docTypes = docTypesFor(storeType);
+  const docSub = docTypes.find((d) => d.value === docType)?.label ?? 'document';
   const idSub = ID_TYPES.find((d) => d.value === idType)?.label ?? 'ID';
   const canSubmit = !!doc && !!idDoc && !!selfie;
   const identityOnFile = !!idDoc && !!selfie;
@@ -255,7 +270,7 @@ export const StoreVerificationScreen: React.FC = () => {
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Store document</Text>
               <View style={styles.chipRow}>
-                {DOC_TYPES.map((d) => (
+                {docTypes.map((d) => (
                   <DocChip key={d.value} selected={docType === d.value} onPress={() => setDocType(d.value)} icon={d.icon} label={d.label} />
                 ))}
               </View>
@@ -286,7 +301,7 @@ export const StoreVerificationScreen: React.FC = () => {
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Store document</Text>
               <View style={styles.chipRow}>
-                {DOC_TYPES.map((d) => (
+                {docTypes.map((d) => (
                   <DocChip key={d.value} selected={docType === d.value} onPress={() => setDocType(d.value)} icon={d.icon} label={d.label} />
                 ))}
               </View>

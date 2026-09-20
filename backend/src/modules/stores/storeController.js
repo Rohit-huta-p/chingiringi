@@ -112,9 +112,19 @@ export const createSellerStore = async (req, res) => {
 
   const { name, category, address, area, city, logoUrl, phone, website } = req.body;
 
-  if (!name || !category || !address) {
+  // Normalise store type; anything unrecognised falls back to 'physical'.
+  const storeType = ['physical', 'online', 'both'].includes(req.body.storeType)
+    ? req.body.storeType
+    : 'physical';
+  const isOnline = storeType === 'online';
+
+  // Address is required for physical/both (a shop buyers can visit); online-only
+  // stores have no premises, so it's optional there.
+  if (!name || !category || (!isOnline && !address)) {
     res.status(400);
-    throw new Error('name, category, and address are required.');
+    throw new Error(isOnline
+      ? 'name and category are required.'
+      : 'name, category, and address are required.');
   }
 
   // shortName = first 2 words of the store name (truncated display label).
@@ -125,7 +135,8 @@ export const createSellerStore = async (req, res) => {
     name:               name.trim(),
     shortName,
     category,
-    address:            address.trim(),
+    storeType,
+    address:            address?.trim() || '',
     area:               area?.trim()    || '',
     city:               city?.trim()    || 'Bengaluru',
     logoUrl:            logoUrl         || '',
@@ -141,7 +152,7 @@ export const createSellerStore = async (req, res) => {
 // Fields a seller may edit on their own store — excludes deal terms,
 // verification, ownership, flags and ratings (admin-controlled or computed).
 const SELLER_STORE_FIELDS = [
-  'name', 'shortName', 'category', 'description',
+  'name', 'shortName', 'category', 'storeType', 'description',
   'logoUrl', 'images', 'phone', 'website',
   'address', 'area', 'city', 'mapsUrl',
   'openTime', 'closeTime', 'openDays',
