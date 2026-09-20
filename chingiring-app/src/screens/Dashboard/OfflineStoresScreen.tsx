@@ -46,7 +46,7 @@ import {
 } from '../../data/offlineStores';
 import { LiveCard } from '../../components/LiveCard';
 import { CategoryTiles } from '../../components/CategoryTiles';
-import { CATEGORY_COLOR } from '../../constants/categories';
+import { CATEGORY_COLOR, getCategoryColor } from '../../constants/categories';
 
 type SortKey = 'discount' | 'rating';
 type ViewMode = 'live' | 'stores';
@@ -769,10 +769,10 @@ const StoreCard: React.FC<{
         <View
           style={[
             styles.categoryPill,
-            { backgroundColor: `${CATEGORY_COLOR[store.category]}1A` },
+            { backgroundColor: `${getCategoryColor(store.category)}1A` },
           ]}
         >
-          <Text style={[styles.categoryPillText, { color: CATEGORY_COLOR[store.category] }]}>
+          <Text style={[styles.categoryPillText, { color: getCategoryColor(store.category) }]}>
             {store.category}
           </Text>
         </View>

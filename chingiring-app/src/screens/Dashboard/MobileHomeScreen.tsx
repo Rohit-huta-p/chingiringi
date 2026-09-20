@@ -7,38 +7,26 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  Image,
   Animated,
   RefreshControl,
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Search, ChevronRight, ChevronDown, Bell, MessageCircle } from 'lucide-react-native';
+import { Search, ChevronRight, ChevronDown } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
-import { useAuthStore } from '../../store';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
-import { useUnreadCount } from '../../hooks/useUnreadCount';
-import { getUnreadTotal } from '../../api/chat';
+import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock } from '../../components/BannerBlock';
+import { CategoryTiles } from '../../components/CategoryTiles';
 import { tint } from '../../utils/color';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-
 
 // Emoji stand-ins for the category chips (real category images can replace these
 // once products/categories carry an imageUrl). Keyed case-insensitively.
@@ -85,16 +73,7 @@ type HomeItem =
 export const MobileHomeScreen = () => {
   const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
-  const user = useAuthStore((s) => s.user);
   const refresh = usePullToRefresh();
-  const unreadCount = useUnreadCount();
-  const { data: chatUnread = 0 } = useQuery({
-    queryKey: ['chat', 'unread'],
-    queryFn: getUnreadTotal,
-    enabled: !!user,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -155,13 +134,9 @@ export const MobileHomeScreen = () => {
     return m;
   }, [apiCategories]);
 
-  // Header theme: the selected category's admin-set color tints the header
-  // gradient (shades of that color, kept bold so the white chips stay legible).
-  // "All" or a category with no color → the default brand-blue gradient.
+  // The selected category's admin-set color still tints the content background
+  // below the (now fixed-gradient, OfflineStores-style) header.
   const themeColor = apiCategories.find((c) => c.name === selectedCategory)?.color || '';
-  const headerColors: [string, string, string] = themeColor
-    ? [themeColor, tint(themeColor, 0.2), tint(themeColor, 0.5)]
-    : ['#1E3A8A', '#4784E2', '#91BDFF'];
 
   // A category chip lists that category inline (with the header theming). Search
   // navigates to the paginated Results page (see the header search button);
@@ -189,6 +164,20 @@ export const MobileHomeScreen = () => {
     [categories],
   );
 
+  // Tiles for the shared CategoryTiles selector — each product category with its
+  // admin colour + image (emoji fallback).
+  const categoryTileItems = useMemo(
+    () =>
+      categoryNames.map((name) => ({
+        key: name,
+        label: name,
+        color: apiCategories.find((c) => c.name === name)?.color || undefined,
+        imageUrl: categoryImageByName[name],
+        emoji: emojiFor(name),
+      })),
+    [categoryNames, apiCategories, categoryImageByName],
+  );
+
   const handleProductPress = (p: Product) => {
     navigation.navigate('ProductDetail', { productId: p._id, product: p });
   };
@@ -200,13 +189,6 @@ export const MobileHomeScreen = () => {
   const sk = (w: number | string, h: number, r = 8) => (
     <Animated.View style={{ width: w as any, height: h, borderRadius: r, backgroundColor: '#dde3ea', opacity: shimmerAnim }} />
   );
-
-  const skeletonChips = [1, 2, 3, 4, 5, 6].map((i) => (
-    <View key={`sk-chip-${i}`} style={st.chip}>
-      <Animated.View style={[st.chipIcon, { backgroundColor: 'rgba(255,255,255,0.2)', opacity: shimmerAnim }]} />
-      <Animated.View style={{ width: 24 + i * 5, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)', opacity: shimmerAnim }} />
-    </View>
-  ));
 
   const skeletonRail = (key: string, titleW = 100) => (
     <View key={key} style={st.sec}>
@@ -305,103 +287,41 @@ export const MobileHomeScreen = () => {
   // ── Header (kept as an element, not a function, so the search field keeps
   //    focus and the chips stay in sync as state changes). ──
   const headerEl = (
-    <LinearGradient
-      colors={headerColors}
-      locations={[0, 0.6, 1]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={st.header}
-    >
-      <View style={st.hrow}>
-        <View style={st.greetWrap}>
-          <Text style={st.greet}>{greeting()},</Text>
-          {/* Non-interactive greeting line (was a fake location selector). */}
-          <View style={st.locRow}>
-            <Text style={st.locText} numberOfLines={1}>{user?.name || 'Welcome'}</Text>
+    <View>
+      <MobileAuthHeader hideBack title="Products" align="left">
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={st.searchBar}>
+            <Search size={18} color={Colors.primary} />
+            <TextInput
+              style={st.searchInput}
+              placeholder='Search products'
+              placeholderTextColor="#9ca3af"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              onSubmitEditing={() => goResults(searchQuery.trim())}
+            />
+            <TouchableOpacity
+              style={st.searchBtn}
+              onPress={() => goResults(searchQuery.trim())}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+            >
+              <Search size={16} color="#fff" strokeWidth={2.5} />
+            </TouchableOpacity>
           </View>
         </View>
-        <View style={st.headerIcons}>
-          <TouchableOpacity
-            style={st.bellBtn}
-            onPress={() => navigation.navigate('Messages')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Messages"
-          >
-            <MessageCircle size={20} color="#fff" strokeWidth={2.2} />
-            {chatUnread > 0 ? (
-              <View style={st.bellBadge}>
-                <Text style={st.bellBadgeText}>{chatUnread > 9 ? '9+' : chatUnread}</Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={st.bellBtn}
-            onPress={() => navigation.navigate('Notifications')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-          >
-            <Bell size={20} color="#fff" strokeWidth={2.2} />
-            {unreadCount > 0 ? (
-              <View style={st.bellBadge}>
-                <Text style={st.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        </View>
-      </View>
+      </MobileAuthHeader>
 
-      <View style={st.searchRow}>
-        <View style={st.searchBar}>
-          <Search size={18} color={Colors.primary} />
-          <TextInput
-            style={st.searchInput}
-            placeholder='Search products'
-            placeholderTextColor="#9ca3af"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            onSubmitEditing={() => goResults(searchQuery.trim())}
-          />
-          <TouchableOpacity
-            style={st.searchBtn}
-            onPress={() => goResults(searchQuery.trim())}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Search size={16} color="#fff" strokeWidth={2.5} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={st.chipsRow}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ flex: 1 }}
-          contentContainerStyle={st.chipsContent}
-        >
-          {productsLoading ? skeletonChips : categories.map((cat) => {
-            const on = selectedCategory === cat;
-            return (
-              <TouchableOpacity key={cat} style={st.chip} onPress={() => setSelectedCategory(cat)} activeOpacity={0.8}>
-                <View style={[st.chipIcon, on && st.chipIconOn]}>
-                  {categoryImageByName[cat] ? (
-                    <Image source={{ uri: categoryImageByName[cat] }} style={st.chipImg} resizeMode="cover" />
-                  ) : (
-                    <Text style={st.chipEmoji}>{emojiFor(cat)}</Text>
-                  )}
-                </View>
-                <Text style={[st.chipLabel, on && st.chipLabelOn]} numberOfLines={1}>{cat}</Text>
-                {on ? <View style={st.chipUnderline} /> : null}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-    </LinearGradient>
+      {/* Product category tiles — 79×86 gradient tiles (shared with Live Stores) */}
+      <CategoryTiles
+        active={selectedCategory}
+        onSelect={setSelectedCategory}
+        items={categoryTileItems}
+        contentStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 4 }}
+      />
+    </View>
   );
 
   // Rows below the header. Filter/search → 3-up grid rows; otherwise the curated
@@ -510,20 +430,21 @@ const st = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
 
-  chipsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 13, paddingRight: 10 },
-  chipsContent: { paddingHorizontal: 14, alignItems: 'flex-end', gap: 18 },
-  chip: { alignItems: 'center', paddingBottom: 8 },
+  chipsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingRight: 10 },
+  chipsContent: { paddingHorizontal: 14, alignItems: 'center', gap: 18 },
+  chip: { alignItems: 'center', paddingTop: 10, paddingBottom: 8 },
   chipIcon: {
     width: 46, height: 46, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#E6EBF2',
     justifyContent: 'center', alignItems: 'center', marginBottom: 5,
   },
-  chipIconOn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#bcd8fb' },
+  chipIconOn: { backgroundColor: '#E9F4FF', borderColor: Colors.primary },
   chipEmoji: { fontSize: 22 },
   chipImg: { width: '100%', height: '100%', borderRadius: 14 },
-  chipLabel: { fontSize: 11, fontFamily: Fonts.medium, color: 'rgba(255,255,255,0.85)', maxWidth: 64, textAlign: 'center' },
-  chipLabelOn: { color: '#fff', fontFamily: Fonts.bold },
-  chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: '#fff', marginTop: 5 },
+  chipLabel: { fontSize: 11, fontFamily: Fonts.medium, color: Colors.textSecondary, maxWidth: 64, textAlign: 'center' },
+  chipLabelOn: { color: Colors.primary, fontFamily: Fonts.bold },
+  chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 5 },
 
   // Placed banner wrapper — full-bleed (no side padding) so banners run
   // edge-to-edge; BannerBlock supplies the card itself.
