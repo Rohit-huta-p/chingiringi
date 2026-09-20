@@ -8,8 +8,8 @@
  *   - Verification banner (links to StoreVerification if unverified)
  *   - The "Stage" hero — the primary go-live CTA (followers-notified + last
  *     stream), navigates to the GoLive tab
- *   - "Today at a glance": horizontal stat chips (Followers · Views 7d ·
- *     Streams · Products)
+ *   - "Today at a glance": a responsive stat grid — 2 / 3 / 4 columns by
+ *     screen width (Followers · Views 7d · Streams · Products)
  *   - "Pick up where you left off": reply to buyers → Messages, add a product
  *
  * Loading / no-store / pending / rejected states are handled inline here;
@@ -24,6 +24,9 @@ import {
   Pressable,
   Image,
   RefreshControl,
+  useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -79,12 +82,21 @@ const inr = (n: number) => (n ?? 0).toLocaleString('en-IN');
 // safe-area inset is added on top at the call site.
 const TAB_BAR_CLEARANCE = 90;
 
-// ── Glance chip (horizontal stat strip) ─────────────────────────────────────
+// "Today at a glance" grid metrics. BODY_PAD mirrors styles.body's horizontal
+// padding; GLANCE_GAP is the gutter between chips (used both in the wrap style
+// and the per-chip width math). Keep these in sync with the styles below.
+const BODY_PAD = 16;
+const GLANCE_GAP = 11;
 
-const GlanceChip: React.FC<{ icon: React.ReactNode; value: string; label: string }> = ({
-  icon, value, label,
-}) => (
-  <View style={styles.chip}>
+// Column count by screen width: sm → 2, md → 3, lg → 4.
+const glanceColumns = (width: number) => (width >= 900 ? 4 : width >= 600 ? 3 : 2);
+
+// ── Glance chip (responsive stat grid cell) ─────────────────────────────────
+
+const GlanceChip: React.FC<{
+  icon: React.ReactNode; value: string; label: string; style?: StyleProp<ViewStyle>;
+}> = ({ icon, value, label, style }) => (
+  <View style={[styles.chip, style]}>
     {icon}
     <Text style={styles.chipValue}>{value}</Text>
     <Text style={styles.chipLabel}>{label}</Text>
@@ -136,7 +148,16 @@ const VerifBanner: React.FC<{ status: SellerStore['verificationStatus']; rejecti
 
 export const SellerDashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const { width: winWidth } = useWindowDimensions();
   const navigation = useNavigation<any>();
+
+  // Responsive "glance" grid: 2 / 3 / 4 columns by screen width. Floor the chip
+  // width so rounding never pushes a row's total past the container (avoids an
+  // unwanted extra wrap).
+  const glanceCols = glanceColumns(winWidth);
+  const glanceChipWidth = Math.floor(
+    (winWidth - BODY_PAD * 2 - GLANCE_GAP * (glanceCols - 1)) / glanceCols,
+  );
   const user = useAuthStore((s) => s.user);
   const setViewAsBuyer = useAuthStore((s) => s.setViewAsBuyer);
 
@@ -256,19 +277,6 @@ export const SellerDashboardScreen: React.FC = () => {
             <Text style={styles.shopText}>Shop</Text>
           </Pressable>
 
-          <Pressable
-            style={styles.bell}
-            onPress={() => navigation.navigate('Messages')}
-            accessibilityRole="button"
-            accessibilityLabel="Messages"
-          >
-            <MessageCircle size={18} color="#fff" strokeWidth={2} />
-            {chatUnread > 0 ? (
-              <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeText}>{chatUnread > 9 ? '9+' : chatUnread}</Text>
-              </View>
-            ) : null}
-          </Pressable>
         </View>
       </View>
 
@@ -327,16 +335,12 @@ export const SellerDashboardScreen: React.FC = () => {
         {/* ── Today at a glance ── */}
         <View>
           <Text style={styles.sectionLabel}>Today at a glance</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipRow}
-          >
-            <GlanceChip icon={<UsersRound size={21} color={Colors.orange} />} value={inr(followers)} label="Followers" />
-            <GlanceChip icon={<Eye size={21} color={Colors.orange} />} value={inr(stats.viewsLast7Days)} label="Views · 7d" />
-            <GlanceChip icon={<Video size={21} color={Colors.orange} />} value={String(stats.totalStreams ?? 0)} label="Streams" />
-            <GlanceChip icon={<Package size={21} color={Colors.orange} />} value={String(stats.totalProducts ?? 0)} label="Products" />
-          </ScrollView>
+          <View style={styles.chipGrid}>
+            <GlanceChip style={{ width: glanceChipWidth }} icon={<UsersRound size={21} color={Colors.orange} />} value={inr(followers)} label="Followers" />
+            <GlanceChip style={{ width: glanceChipWidth }} icon={<Eye size={21} color={Colors.orange} />} value={inr(stats.viewsLast7Days)} label="Views · 7d" />
+            <GlanceChip style={{ width: glanceChipWidth }} icon={<Video size={21} color={Colors.orange} />} value={String(stats.totalStreams ?? 0)} label="Streams" />
+            <GlanceChip style={{ width: glanceChipWidth }} icon={<Package size={21} color={Colors.orange} />} value={String(stats.totalProducts ?? 0)} label="Products" />
+          </View>
         </View>
 
         {/* ── Pick up where you left off ── */}
@@ -391,21 +395,8 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 7, paddingHorizontal: 11,
   },
   shopText: { fontSize: 11, fontFamily: Fonts.bold, color: '#fff' },
-  bell: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  bellBadge: {
-    position: 'absolute', top: -3, right: -3,
-    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
-    backgroundColor: Colors.orange, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: Colors.navy,
-  },
-  bellBadgeText: { fontSize: 9.5, fontFamily: Fonts.extraBold, color: '#fff' },
 
-  body: { padding: 16, gap: 18 },
+  body: { padding: BODY_PAD, gap: 18 },
 
   // Verification banner
   banner: {
@@ -449,10 +440,10 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary, marginBottom: 11,
   },
 
-  // Glance chips
-  chipRow: { gap: 11, paddingRight: 4 },
+  // Glance chips — responsive wrapped grid (2 / 3 / 4 cols by screen width)
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GLANCE_GAP },
   chip: {
-    minWidth: 120, backgroundColor: Colors.surface, borderRadius: 15, padding: 14,
+    backgroundColor: Colors.surface, borderRadius: 15, padding: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
   },
   chipValue: { fontSize: 23, fontFamily: Fonts.extraBold, color: Colors.navy, marginTop: 9, lineHeight: 26 },

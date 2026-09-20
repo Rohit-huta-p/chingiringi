@@ -1,91 +1,33 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Plus, ChevronLeft, Info } from 'lucide-react-native';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { VideoList } from '../../components/VideoList';
-import { VideoUploadModal } from '../../components/VideoUploadModal';
-import { VideoPlayerModal } from '../../components/VideoPlayerModal';
+import { Plus, ChevronLeft } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
-import { videosAPI, FeedVideo } from '../../api/videos';
-import { confirmAsync, notify } from '../../utils/dialog';
+import { MyVideosPanel, MyVideosPanelHandle } from '../../components/MyVideosPanel';
 
 /**
- * "My Videos" — the shopper-facing version of the admin video screen. Lists the
- * user's own clips (any status), with a Post CTA and edit/delete on their own.
- * User posts are moderated, so a clip shows "Under review" until an admin approves.
- * Reuses <VideoList/> + <VideoUploadModal/>.
+ * "My Videos" — the user's own clips (any status), with a Post CTA and
+ * edit/delete on their own. User posts are moderated, so a clip shows
+ * "Under review" until an admin approves. The list + flows live in
+ * <MyVideosPanel/>, shared with the seller "My Store → Videos" tab.
  */
 export const MyVideosScreen = () => {
   const nav = useNavigation<any>();
-  const qc = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<FeedVideo | null>(null);
-  const [playing, setPlaying] = useState<FeedVideo | null>(null);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['myVideos'],
-    queryFn: () => videosAPI.getMine(),
-    staleTime: 10_000,
-    refetchOnWindowFocus: true,
-    refetchInterval: 20_000, // surface processing / approval without a manual reload
-  });
-  const videos: FeedVideo[] = data?.data?.videos ?? [];
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['myVideos'] });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => videosAPI.adminDelete(id), // owner-or-admin on the backend
-    onSuccess: () => { invalidate(); qc.invalidateQueries({ queryKey: ['videoFeed'] }); },
-    onError: (e: any) => notify('Delete failed', e?.response?.data?.message || 'Could not delete the video.'),
-  });
-  const onDelete = async (v: FeedVideo) => {
-    const ok = await confirmAsync('Delete video', 'Delete this clip? This can’t be undone.', { confirmLabel: 'Delete', destructive: true });
-    if (ok) deleteMutation.mutate(v._id);
-  };
-
-  const openCreate = () => { setEditing(null); setShowForm(true); };
-  const onEdit = (v: FeedVideo) => { setEditing(v); setShowForm(true); };
-  const closeForm = () => { setShowForm(false); setEditing(null); };
-
-  // Tap a card → play it if it's live; otherwise explain why it can't play yet.
-  const onPlay = (v: FeedVideo) => {
-    if (v.status === 'ready' && v.hlsUrl) { setPlaying(v); return; }
-    const msg = v.moderation?.state === 'rejected' ? 'This clip was rejected, so it won’t play.'
-      : v.moderation?.state === 'pending' ? 'This clip is under review — it’ll play once approved.'
-      : v.status === 'processing' ? 'Still encoding — check back in a moment.'
-      : 'This clip isn’t ready to play yet.';
-    notify('Not ready', msg);
-  };
-
-  const pending = videos.filter((v) => v.moderation?.state === 'pending').length;
+  const panelRef = useRef<MyVideosPanelHandle>(null);
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'left', 'right']}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => nav.goBack()} hitSlop={8} style={s.back}><ChevronLeft size={24} color={Colors.text} /></TouchableOpacity>
         <Text style={s.headerTitle}>My Videos</Text>
-        <TouchableOpacity style={s.addBtn} onPress={openCreate} activeOpacity={0.85}>
+        <TouchableOpacity style={s.addBtn} onPress={() => panelRef.current?.openCreate()} activeOpacity={0.85}>
           <Plus size={16} color="#fff" strokeWidth={2.5} />
           <Text style={s.addBtnText}>Post</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-        <View style={s.note}>
-          <Info size={15} color={Colors.primary} />
-          <Text style={s.noteTxt}>New clips are reviewed before they go live{pending ? ` · ${pending} under review` : ''}.</Text>
-        </View>
-
-        {isLoading ? (
-          <View style={s.loading}><ActivityIndicator size="large" color={Colors.primary} /></View>
-        ) : (
-          <VideoList videos={videos} onPress={onPlay} onEdit={onEdit} onDelete={onDelete} emptyHint='Tap “Post” to share your first clip.' />
-        )}
-      </ScrollView>
-
-      <VideoUploadModal visible={showForm} onClose={closeForm} onUploaded={invalidate} editing={editing} />
-      <VideoPlayerModal video={playing} onClose={() => setPlaying(null)} />
+      <MyVideosPanel ref={panelRef} emptyHint='Tap “Post” to share your first clip.' />
     </SafeAreaView>
   );
 };
@@ -97,9 +39,6 @@ const s = StyleSheet.create({
   headerTitle: { flex: 1, fontSize: 18, fontFamily: Fonts.extraBold, color: Colors.text },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
   addBtnText: { fontSize: 13, fontFamily: Fonts.bold, color: '#fff' },
-  note: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primaryLight10, borderRadius: 10, padding: 12, marginTop: 14, marginBottom: 14 },
-  noteTxt: { flex: 1, fontSize: 12.5, color: Colors.text, lineHeight: 17 },
-  loading: { paddingVertical: 56, alignItems: 'center' },
 });
 
 export default MyVideosScreen;
