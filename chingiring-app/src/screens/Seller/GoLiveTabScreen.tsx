@@ -42,11 +42,9 @@ import { createStream, getMyStreams, formatStreamMeta, type StreamSummary } from
 import { productsAPI, type Product } from '../../api/products';
 import { type SellerStore } from '../../api/verification';
 import { ImageUploader } from '../../components/ImageUploader';
+import { CategorySelect } from '../../components/CategorySelect';
 import { useMyStore } from '../../hooks/useMyStore';
 import { cloudFolder } from '../../constants/cloudinaryFolders';
-
-// ── Categories — must match backend STORE_CATEGORIES enum (storeModel.js) ─
-const CATEGORIES = ['Fashion', 'Electronics', 'Grocery', 'Food & Cafe', 'Health', 'Jewellery', 'Sports', 'Beauty'];
 
 // ── GoLiveModal (bottom sheet) ──────────────────────────────────────────────
 
@@ -159,21 +157,9 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
               hint="Your stream's cover on the Live & Videos cards buyers browse. Recommended 1080 × 1440 px (3:4, portrait) — keep the subject centered."
             />
 
-            {/* Category pills */}
-            <Text style={[modal.label, { marginTop: 16 }]}>Category</Text>
-            <View style={modal.pillRow}>
-              {CATEGORIES.map((c) => {
-                const active = category === c;
-                return (
-                  <Pressable
-                    key={c}
-                    onPress={() => setCategory(c)}
-                    style={[modal.pill, active && modal.pillActive]}
-                  >
-                    <Text style={[modal.pillText, active && modal.pillTextActive]}>{c}</Text>
-                  </Pressable>
-                );
-              })}
+            {/* Category */}
+            <View style={{ marginTop: 16 }}>
+              <CategorySelect label="Category" value={category} onChange={setCategory} />
             </View>
 
             {/* Feature products */}

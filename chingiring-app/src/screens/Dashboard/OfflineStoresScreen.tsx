@@ -46,7 +46,7 @@ import {
 } from '../../data/offlineStores';
 import { LiveCard } from '../../components/LiveCard';
 import { CategoryTiles } from '../../components/CategoryTiles';
-import { CATEGORY_COLOR } from '../../constants/categories';
+import { CATEGORY_COLOR, getCategoryColor } from '../../constants/categories';
 
 type SortKey = 'discount' | 'rating';
 type ViewMode = 'live' | 'stores';
@@ -85,7 +85,8 @@ export const OfflineStoresScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<StoreCategory | 'All'>('All');
   const [sort, setSort] = useState<SortKey>('discount');
-  const [viewMode, setViewMode] = useState<ViewMode>('stores');
+  // Mobile opens on the Live tab; desktop keeps its Stores-first default.
+  const [viewMode, setViewMode] = useState<ViewMode>(isNarrow ? 'live' : 'stores');
   const [filters, setFilters] = useState<StoreFilters>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -174,6 +175,12 @@ export const OfflineStoresScreen: React.FC = () => {
     if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
     return list;
   }, [stores, search, activeCategory, sort, filters]);
+
+  // Live streams filtered by the shared category selector (mobile Live tab).
+  const filteredLive = useMemo(
+    () => (activeCategory === 'All' ? liveStreams : liveStreams.filter((s) => s.category === activeCategory)),
+    [liveStreams, activeCategory],
+  );
 
   const filterCount =
     (filters.openNow ? 1 : 0) + (filters.minDiscount > 0 ? 1 : 0) + (filters.minRating > 0 ? 1 : 0);
@@ -293,8 +300,9 @@ export const OfflineStoresScreen: React.FC = () => {
     </Modal>
   );
 
-  // ── Mobile: Live-First feed (native + narrow web) ────────────────────────
+  // ── Mobile: Header + Categories + [Live | Stores] tabs (native + narrow web) ─
   if (isNarrow) {
+    const mLiveCardW = Math.floor((width - 32 - 12) / 2); // 2-col grid: 16px gutters, 12px gap
     return (
       <View style={[styles.root, { paddingHorizontal: 0, paddingVertical: 0 }]}>
         {/* Blue gradient header (matches other screens): greeting + icons + search inside */}
@@ -347,107 +355,130 @@ export const OfflineStoresScreen: React.FC = () => {
           </View>
         </LinearGradient>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.mScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Live now */}
-          <View style={styles.mSecHead}>
-            <View style={styles.mSecHeadLeft}>
-              <View style={styles.mLivePulse} />
-              <Text style={[styles.mSecTitle, { fontSize: 22 }]}>Live now</Text>
-              {liveStreams.length > 0 && (
-                <View style={styles.mCountPill}><Text style={styles.mCountPillText}>{liveStreams.length}</Text></View>
-              )}
-            </View>
-            {liveStreams.length > 0 && (
-              <Pressable onPress={() => navigation.navigate('LiveNow')} hitSlop={8}>
-                <Text style={styles.mSeeAll}>See all ›</Text>
-              </Pressable>
-            )}
-          </View>
-          {liveLoading ? (
-            <View style={styles.mRailLoading}><ActivityIndicator color={Colors.primary} /></View>
-          ) : liveStreams.length === 0 ? (
-            <Pressable style={styles.mLiveEmpty} onPress={() => navigation.navigate('Notifications')}>
-              <Radio size={18} color={Colors.textSecondary} />
-              <Text style={styles.mLiveEmptyText}>No one is live right now — we&apos;ll notify you</Text>
-            </Pressable>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.mRail}
-            >
-              {liveStreams.slice(0, 8).map((item) => (
-                <LiveCard
-                  key={item._id}
-                  stream={item}
-                  width={150}
-                  onPress={() =>
-                    navigation.navigate('ViewerScreen', {
-                      streamId: item._id,
-                      storeId: item.storeId,
-                      storeName: item.storeName,
-                      storeLogoUrl: item.storeLogoUrl,
-                      streamTitle: item.title,
-                    })
-                  }
-                />
-              ))}
-            </ScrollView>
-          )}
-
-          {/* Nearby stores */}
-          <View style={styles.mSecHead}>
-            <Text style={styles.mSecTitle}>Nearby stores</Text>
-            <Pressable style={styles.filtersBtn} onPress={() => setFilterOpen(true)}>
-              <SlidersHorizontal size={16} color={PRIMARY} />
-              <Text style={[styles.filtersText, { fontSize: 13.5 }]}>Filters</Text>
-              {filterCount > 0 && (
-                <View style={styles.filterBadge}><Text style={styles.filterBadgeTxt}>{filterCount}</Text></View>
-              )}
-            </Pressable>
-          </View>
+        {/* Categories — shared filter, applies to both tabs */}
+        <View style={styles.mCatWrap}>
           <CategoryTiles
             active={activeCategory}
             onSelect={(c) => setActiveCategory(c as StoreCategory | 'All')}
             contentStyle={{ paddingHorizontal: 16 }}
           />
-          <View style={styles.mStatusRow}>
-            <View style={styles.openDot} />
-            <Text style={styles.statusText}>
-              <Text style={{ fontWeight: '700', color: Colors.text }}>{openCount} stores</Text>{' '}
-              open now
-            </Text>
-            <Text style={styles.statusSep}>·</Text>
-            <Text style={styles.statusText}>{filtered.length} near you</Text>
-          </View>
-          {sharesLeft != null && (
-            <Text style={[styles.shareQuotaText, { paddingHorizontal: 16, marginBottom: 2 }]}>
-              {sharesLeft}/{sharesCap} shares left today
-            </Text>
-          )}
-          <View style={styles.mStoreList}>
-            {filtered.map((s) => (
-              <StoreCard
-                key={s._id}
-                store={s}
-                onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
-              />
-            ))}
-            {filtered.length === 0 && (
-              <View style={styles.emptyState}>
-                {isLoading ? (
-                  <ActivityIndicator color={Colors.primary} />
-                ) : (
-                  <Text style={styles.emptyText}>No stores match your filters.</Text>
-                )}
+        </View>
+
+        {/* Live | Stores tabs */}
+        <View style={styles.mTabs}>
+          <Pressable
+            style={[styles.mTab, showLive && styles.mTabActive]}
+            onPress={() => setViewMode('live')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: showLive }}
+          >
+            <View style={[styles.mTabDot, { backgroundColor: showLive ? '#F2685E' : Colors.textSecondary }]} />
+            <Text style={[styles.mTabText, showLive && styles.mTabTextActive]}>Live</Text>
+            {filteredLive.length > 0 && (
+              <View style={[styles.mTabCount, showLive && styles.mTabCountActive]}>
+                <Text style={[styles.mTabCountText, showLive && styles.mTabCountTextActive]}>{filteredLive.length}</Text>
               </View>
             )}
-          </View>
-        </ScrollView>
+          </Pressable>
+          <Pressable
+            style={[styles.mTab, showStores && styles.mTabActive]}
+            onPress={() => setViewMode('stores')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: showStores }}
+          >
+            <List size={15} color={showStores ? PRIMARY : Colors.textSecondary} strokeWidth={2.2} />
+            <Text style={[styles.mTabText, showStores && styles.mTabTextActive]}>Stores</Text>
+          </Pressable>
+        </View>
+
+        {showLive ? (
+          /* ── Live tab — 2-col grid of live streams (category-filtered) ── */
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.mLiveScroll}
+            showsVerticalScrollIndicator={false}
+          >
+            {liveLoading ? (
+              <View style={styles.mRailLoading}><ActivityIndicator color={Colors.primary} /></View>
+            ) : filteredLive.length === 0 ? (
+              <View style={styles.mLiveEmptyBig}>
+                <Radio size={34} color={Colors.border} />
+                <Text style={styles.mLiveEmptyBigText}>
+                  {activeCategory === 'All' ? 'No one is live right now' : `No live ${activeCategory} stores right now`}
+                </Text>
+                <Text style={styles.mLiveEmptySub}>We&apos;ll notify you when a store goes live.</Text>
+              </View>
+            ) : (
+              <View style={styles.mLiveGrid}>
+                {filteredLive.map((item) => (
+                  <LiveCard
+                    key={item._id}
+                    stream={item}
+                    width={mLiveCardW}
+                    onPress={() =>
+                      navigation.navigate('ViewerScreen', {
+                        streamId: item._id,
+                        storeId: item.storeId,
+                        storeName: item.storeName,
+                        storeLogoUrl: item.storeLogoUrl,
+                        streamTitle: item.title,
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        ) : (
+          /* ── Stores tab — nearby stores list (category-filtered) ── */
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.mStoreScroll}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.mStatusRow, { justifyContent: 'space-between' }]}>
+              <View style={[styles.statusLeft, { flexShrink: 1 }]}>
+                <View style={styles.openDot} />
+                <Text style={styles.statusText}>
+                  <Text style={{ fontWeight: '700', color: Colors.text }}>{openCount} stores</Text>{' '}
+                  open now
+                </Text>
+                <Text style={styles.statusSep}>·</Text>
+                <Text style={styles.statusText}>{filtered.length} near you</Text>
+              </View>
+              <Pressable style={styles.filtersBtn} onPress={() => setFilterOpen(true)}>
+                <SlidersHorizontal size={16} color={PRIMARY} />
+                <Text style={[styles.filtersText, { fontSize: 13.5 }]}>Filters</Text>
+                {filterCount > 0 && (
+                  <View style={styles.filterBadge}><Text style={styles.filterBadgeTxt}>{filterCount}</Text></View>
+                )}
+              </Pressable>
+            </View>
+            {sharesLeft != null && (
+              <Text style={[styles.shareQuotaText, { paddingHorizontal: 16, marginBottom: 2 }]}>
+                {sharesLeft}/{sharesCap} shares left today
+              </Text>
+            )}
+            <View style={styles.mStoreList}>
+              {filtered.map((s) => (
+                <StoreCard
+                  key={s._id}
+                  store={s}
+                  onPress={() => navigation.navigate('StoreDetail', { storeId: s._id, store: s })}
+                />
+              ))}
+              {filtered.length === 0 && (
+                <View style={styles.emptyState}>
+                  {isLoading ? (
+                    <ActivityIndicator color={Colors.primary} />
+                  ) : (
+                    <Text style={styles.emptyText}>No stores match your filters.</Text>
+                  )}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
 
         {renderFilters()}
       </View>
@@ -738,10 +769,10 @@ const StoreCard: React.FC<{
         <View
           style={[
             styles.categoryPill,
-            { backgroundColor: `${CATEGORY_COLOR[store.category]}1A` },
+            { backgroundColor: `${getCategoryColor(store.category)}1A` },
           ]}
         >
-          <Text style={[styles.categoryPillText, { color: CATEGORY_COLOR[store.category] }]}>
+          <Text style={[styles.categoryPillText, { color: getCategoryColor(store.category) }]}>
             {store.category}
           </Text>
         </View>
@@ -888,7 +919,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
-  mScrollContent: { paddingBottom: 96, paddingTop: 4 },
   mSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -910,39 +940,69 @@ const styles = StyleSheet.create({
     height: 44,
     outlineStyle: 'none' as any,
   },
-  mSecHead: {
+  // Categories wrapper (below header, above tabs)
+  mCatWrap: { paddingTop: 14, paddingBottom: 2 },
+
+  // Segmented Live | Stores tabs
+  mTabs: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  mSecHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  mLivePulse: { width: 11, height: 11, borderRadius: 5.5, backgroundColor: '#F2685E' },
-  mSecTitle: { fontSize: 19, fontFamily: Fonts.bold, color: Colors.text },
-  mCountPill: {
-    backgroundColor: 'rgba(242,104,94,0.12)',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 2,
-  },
-  mCountPillText: { fontSize: 14, fontFamily: Fonts.bold, color: '#F2685E' },
-  mSeeAll: { fontSize: 14, fontFamily: Fonts.semiBold, color: PRIMARY },
-  mRail: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 2 },
-  mRailLoading: { paddingVertical: 40, alignItems: 'center' },
-  mLiveEmpty: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     marginHorizontal: 16,
-    padding: 14,
+    marginTop: 14,
+    marginBottom: 4,
+    backgroundColor: '#EEF2F7',
     borderRadius: 14,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    padding: 4,
+    gap: 4,
   },
-  mLiveEmptyText: { fontSize: 12.5, color: Colors.textSecondary, flex: 1 },
+  mTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  mTabActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  mTabDot: { width: 8, height: 8, borderRadius: 4 },
+  mTabText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  mTabTextActive: { color: Colors.text, fontFamily: Fonts.bold },
+  mTabCount: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: 'rgba(242,104,94,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mTabCountActive: { backgroundColor: '#F2685E' },
+  mTabCountText: { fontSize: 11, fontFamily: Fonts.bold, color: '#F2685E' },
+  mTabCountTextActive: { color: '#fff' },
+
+  // Live tab (grid + empty state)
+  mLiveScroll: { paddingTop: 14, paddingBottom: 96 },
+  mLiveGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 16,
+    alignItems: 'flex-start',
+  },
+  mLiveEmptyBig: { alignItems: 'center', justifyContent: 'center', paddingTop: 72, paddingHorizontal: 40, gap: 10 },
+  mLiveEmptyBigText: { fontSize: 15, fontFamily: Fonts.bold, color: Colors.text, textAlign: 'center' },
+  mLiveEmptySub: { fontSize: 12.5, color: Colors.textSecondary, textAlign: 'center', lineHeight: 18 },
+
+  // Stores tab
+  mStoreScroll: { paddingTop: 6, paddingBottom: 96 },
+  mRailLoading: { paddingVertical: 40, alignItems: 'center' },
   mStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',

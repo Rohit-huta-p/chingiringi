@@ -1,8 +1,15 @@
 import mongoose from 'mongoose';
 
+// Canonical *suggested* store categories (mirrors the app taxonomy in
+// chingiring-app/src/data/offlineStores.ts). Sellers may also enter a custom
+// category via the "Other" option, so `category` below is a validated string,
+// NOT a hard enum — an unrecognised value must not 400.
 export const STORE_CATEGORIES = [
-  'Fashion', 'Electronics', 'Grocery', 'Food & Cafe',
-  'Health', 'Jewellery', 'Sports', 'Beauty',
+  'Beauty', 'Electronics', "Women's Fashion", 'Sneakers & Shoes',
+  'Home & Garden', 'Video Games', 'Toys', 'Sports', 'Baby & Kids',
+  'Rocks & Crystals', 'Outdoors', "Men's Fashion", 'Arts & Handmade',
+  'Jewellery & Watches', 'Bags & Accessories', 'Antiques & Vintage Decor',
+  'Wholesale & Deals',
 ];
 
 const slugify = (s) =>
@@ -17,7 +24,17 @@ const storeSchema = new mongoose.Schema(
     category: {
       type: String,
       required: [true, 'Category is required'],
-      enum: STORE_CATEGORIES,
+      trim: true,
+      maxlength: [40, 'Category is too long'],
+    },
+    // 'physical' = a shop buyers can visit; 'online' = no storefront (home-based,
+    // D2C, social, marketplace); 'both'. Drives the conditional address rule below
+    // and the verification document set. Default 'physical' → every existing store
+    // and the buyer Live/Offline tabs are unchanged.
+    storeType: {
+      type: String,
+      enum: ['physical', 'online', 'both'],
+      default: 'physical',
     },
     description: { type: String, default: '' },
     logoUrl: { type: String, default: '' },
@@ -26,7 +43,15 @@ const storeSchema = new mongoose.Schema(
     website: { type: String, default: '', trim: true },
 
     // ── Location ─────────────────────────────────────────────
-    address: { type: String, required: [true, 'Address is required'], trim: true },
+    // Required for physical/both (a visitable shop); optional for online-only
+    // stores. Function-form `required` evaluates on document .save() — the
+    // seller-create path uses Store.create(), so `this` is the new document.
+    address: {
+      type: String,
+      required: [function requireAddress() { return this.storeType !== 'online'; }, 'Address is required'],
+      trim: true,
+      default: '',
+    },
     area: { type: String, default: '' },
     city: { type: String, default: 'Bengaluru' },
     // Admin pastes a Google Maps link; lat/lng are parsed from it on save

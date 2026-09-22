@@ -23,6 +23,17 @@ const conversationSchema = new mongoose.Schema(
     // Per-side unread counters — reset to 0 when that side opens the thread.
     unreadBuyer:  { type: Number, default: 0, min: 0 },
     unreadSeller: { type: Number, default: 0, min: 0 },
+
+    // Snapshot of the product/offer this thread is currently about — powers the
+    // inbox-row thumbnail. Persists across later plain-text messages (a thread
+    // stays "about" its product); refreshed whenever a product/offer is sent.
+    lastProduct: {
+      productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+      name:      { type: String, default: '' },
+      imageUrl:  { type: String, default: '' },
+      price:     { type: Number },
+      _id:       false,
+    },
   },
   { timestamps: true }
 );
@@ -51,6 +62,19 @@ const messageSchema = new mongoose.Schema(
       imageUrl:  { type: String, default: '' },
       price:     { type: Number },
       _id:       false,
+    },
+    // Optional seller offer — a custom price on a product. Only the seller may
+    // attach one; the buyer accepts/declines, flipping `status`. `listPrice` is
+    // the product's price at offer time (the strike-through reference).
+    offer: {
+      productId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+      name:        { type: String, default: '' },
+      imageUrl:    { type: String, default: '' },
+      listPrice:   { type: Number },
+      offerPrice:  { type: Number },
+      status:      { type: String, enum: ['pending', 'accepted', 'declined'], default: 'pending' },
+      respondedAt: { type: Date },
+      _id:         false,
     },
   },
   { timestamps: true }

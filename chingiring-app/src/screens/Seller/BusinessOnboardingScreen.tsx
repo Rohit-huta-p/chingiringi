@@ -1,13 +1,27 @@
 /**
- * BusinessOnboardingScreen — 4-step wizard for new sellers.
+ * BusinessOnboardingScreen — 5-step wizard for new sellers.
  *
- * Step 1 — Details:  store name + short name + category
- * Step 2 — Location:  address + area + city
- * Step 3 — Media:     logo (optional) + WhatsApp phone
- * Step 4 — Review:    summary card + submit
+ * Step 1 — Details:       store name + short name + category + store type
+ * Step 2 — Location:      address (optional for online) + area + city
+ * Step 3 — Media:         logo (optional) + WhatsApp phone
+ * Step 4 — Verification:  store document (physical: GST/FSSAI/trade licence ·
+ *                         online: GST/PAN/Udyam/FSSAI) + govt ID + selfie
+ * Step 5 — Review:        summary card + submit
  *
- * On finish: POST /api/stores/seller → navigate to StoreVerificationScreen.
- * All active elements, the progress bar, and CTAs use Colors.orange (#F97316).
+ * Verification is optional in the wizard — the seller can skip and finish it
+ * later on StoreVerificationScreen. But when the store document AND the identity
+ * (ID + selfie) are all provided, the KYC is submitted on finish and the store
+ * lands on that screen already 'pending' (backend flips status only once all
+ * three are on file).
+ *
+ * On finish: POST /api/stores/seller → (optional) PATCH /:id/verification →
+ * navigate to StoreVerificationScreen.
+ *
+ * Look ("hybrid" redesign): a dark navy→charcoal HERO band (with an orange glow)
+ * carries the back button, the segmented progress and the step headline; the
+ * body sits on the light app ground. Selections use a BOLD solid-orange fill
+ * (navy text) — store type as rich list rows, documents as a tilt-on-select
+ * grid. One full-width orange CTA; back lives in the hero.
  */
 import React, { useState } from 'react';
 import {
@@ -23,37 +37,47 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import { ChevronLeft, MapPin, Fingerprint, CreditCard, Car, Plane } from 'lucide-react-native';
+import { ChevronLeft, MapPin, Fingerprint, CreditCard, Car, Plane, FileText, Receipt, Truck, Store as StoreIcon, Globe, Layers, Building2, CheckCircle2, Flag } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { Input } from '../../components/Input';
+import { CategorySelect } from '../../components/CategorySelect';
 import { ImageUploader } from '../../components/ImageUploader';
 import { KycUploader, type KycValue } from '../../components/KycUploader';
 import apiClient from '../../api/client';
-import { verificationAPI, type IdentityType } from '../../api/verification';
+import { verificationAPI, type IdentityType, type DocType } from '../../api/verification';
 import { MY_STORE_QUERY_KEY } from '../../hooks/useMyStore';
 import { cloudFolder } from '../../constants/cloudinaryFolders';
 
-// ── Store categories (predefined; CategoryPicker is admin-only) ───────────
-// CategoryPicker uses adminAPI.getCategories() which is gated to admin role.
-// We use a simple single-select grid of the canonical store categories instead.
-// NB: must match backend STORE_CATEGORIES enum exactly (storeModel.js) — no
-// 'Other' option, since the schema would 400 on an unrecognised value.
-const STORE_CATEGORIES = [
-  { label: 'Fashion',     emoji: '👗' },
-  { label: 'Electronics', emoji: '📱' },
-  { label: 'Grocery',     emoji: '🛒' },
-  { label: 'Food & Cafe', emoji: '☕' },
-  { label: 'Health',      emoji: '💊' },
-  { label: 'Jewellery',   emoji: '💍' },
-  { label: 'Sports',      emoji: '⚽' },
-  { label: 'Beauty',      emoji: '💄' },
-] as const;
+// Store type — drives the address requirement (Step 2) and the verification
+// document set (Step 4). Mirrors the backend storeType enum (storeModel.js).
+type StoreType = 'physical' | 'online' | 'both';
+const STORE_TYPES: { value: StoreType; label: string; sub: string; icon: React.ComponentType<any> }[] = [
+  { value: 'physical', label: 'Physical shop', sub: 'Customers visit your store', icon: StoreIcon },
+  { value: 'online',   label: 'Online only',   sub: 'You sell & ship online',    icon: Globe },
+  { value: 'both',     label: 'Both',          sub: 'A shop and online',         icon: Layers },
+];
 
-type StoreCategory = (typeof STORE_CATEGORIES)[number]['label'];
+// Store document types by store type — must match backend DocType (verification.ts).
+// Online sellers have no municipal premises, so Trade Licence is replaced by PAN /
+// Udyam; 'both' uses the physical set. FSSAI is offered to everyone (there's no
+// canonical food category to gate on). Short labels keep the grid compact.
+const DOC_TYPES_PHYSICAL: { value: DocType; label: string; icon: React.ComponentType<any> }[] = [
+  { value: 'gst',          label: 'GST',           icon: FileText },
+  { value: 'fssai',        label: 'FSSAI',         icon: Receipt },
+  { value: 'tradeLicence', label: 'Trade Licence', icon: Truck },
+];
+const DOC_TYPES_ONLINE: { value: DocType; label: string; icon: React.ComponentType<any> }[] = [
+  { value: 'gst',   label: 'GST',   icon: FileText },
+  { value: 'pan',   label: 'PAN',   icon: CreditCard },
+  { value: 'udyam', label: 'Udyam', icon: Building2 },
+  { value: 'fssai', label: 'FSSAI', icon: Receipt },
+];
+const docTypesFor = (t: StoreType) => (t === 'online' ? DOC_TYPES_ONLINE : DOC_TYPES_PHYSICAL);
 
 const ID_TYPES: { value: IdentityType; label: string; icon: React.ComponentType<any> }[] = [
   { value: 'aadhaar',  label: 'Aadhaar',         icon: Fingerprint },
@@ -63,36 +87,39 @@ const ID_TYPES: { value: IdentityType; label: string; icon: React.ComponentType<
 ];
 
 const TOTAL_STEPS = 5;
-const STEP_LABELS = ['Details', 'Location', 'Media', 'Identity', 'Review'] as const;
 
-// ── Sticky progress header ─────────────────────────────────────────────────
-const ProgressHeader: React.FC<{ step: number; top: number }> = ({ step, top }) => (
-  <View style={[styles.progressHeader, { paddingTop: top + 12 }]}>
-    <View style={styles.progressTrack}>
-      <View style={[styles.progressFill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
+// ── Dark hero band: back + segmented progress + step headline ────────────────
+const HeroHeader: React.FC<{ step: number; title: string; sub: string; top: number; onBack: () => void }> = ({ step, title, sub, top, onBack }) => (
+  <LinearGradient
+    colors={['#13233F', '#0C1830', '#0A1226']}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 1 }}
+    style={[styles.hero, { paddingTop: top + 10 }]}
+  >
+    {/* Warm radial-ish glow, top-right */}
+    <LinearGradient
+      colors={['rgba(249,115,22,0.30)', 'rgba(249,115,22,0)']}
+      start={{ x: 1, y: 0 }}
+      end={{ x: 0.15, y: 0.9 }}
+      style={styles.heroGlow}
+      pointerEvents="none"
+    />
+    <View style={styles.heroTop}>
+      <Pressable onPress={onBack} hitSlop={10} style={styles.heroBack}>
+        <ChevronLeft size={22} color="#fff" />
+      </Pressable>
+      <View style={styles.progress}>
+        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+          <View key={i} style={[styles.progSeg, i + 1 === step && styles.progSegOn]} />
+        ))}
+      </View>
     </View>
-    <View style={styles.stepLabelsRow}>
-      {STEP_LABELS.map((label, i) => {
-        const active = i + 1 === step;
-        return (
-          <Text key={label} style={[styles.stepLabel, active && styles.stepLabelActive]}>
-            {label}
-          </Text>
-        );
-      })}
-    </View>
-  </View>
+    <Text style={styles.heroTitle}>{title}</Text>
+    <Text style={styles.heroSub}>{sub}</Text>
+  </LinearGradient>
 );
 
-// ── Step header (title + sub, inside the card) ────────────────────────────
-const StepHeader: React.FC<{ title: string; sub: string }> = ({ title, sub }) => (
-  <View style={styles.stepHead}>
-    <Text style={styles.stepTitle}>{title}</Text>
-    <Text style={styles.stepSub}>{sub}</Text>
-  </View>
-);
-
-// ── Summary row (Step 4 review card) ───────────────────────────────────────
+// ── Summary row (Step 5 review card) ───────────────────────────────────────
 const SummaryRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <View style={styles.summaryRow}>
     <Text style={styles.summaryLabel}>{label}</Text>
@@ -112,14 +139,18 @@ export const BusinessOnboardingScreen: React.FC = () => {
   const [storeName,  setStoreName]  = useState('');
   const [shortName,  setShortName]  = useState('');
   const [shortNameTouched, setShortNameTouched] = useState(false);
-  const [category,   setCategory]   = useState<StoreCategory | ''>('');
+  const [category,   setCategory]   = useState<string>('');
+  const [storeType,  setStoreType]  = useState<StoreType>('physical');
   const [address,    setAddress]    = useState('');
   const [area,       setArea]       = useState('');
   const [city,       setCity]       = useState('Bengaluru');
   const [logoUrl,    setLogoUrl]    = useState('');
   const [phone,      setPhone]      = useState('');
   const [website,    setWebsite]    = useState('');
-  // Personal identity (optional here; required before go-live on the verification screen).
+  // KYC — optional here; required before go-live on the verification screen.
+  // Store document + personal identity (govt ID + selfie).
+  const [docType,    setDocType]    = useState<DocType>('gst');
+  const [doc,        setDoc]        = useState<KycValue | null>(null);
   const [idType,     setIdType]     = useState<IdentityType>('aadhaar');
   const [idDoc,      setIdDoc]      = useState<KycValue | null>(null);
   const [selfie,     setSelfie]     = useState<KycValue | null>(null);
@@ -140,13 +171,38 @@ export const BusinessOnboardingScreen: React.FC = () => {
     setShortName(t);
   };
 
+  // Store type drives the address requirement (Step 2) and the doc set (Step 4).
+  const isOnline = storeType === 'online';
+  const docTypes = docTypesFor(storeType);
+  const handleStoreTypeChange = (t: StoreType) => {
+    setStoreType(t);
+    // Keep the selected document valid for the new set ('gst' is in both).
+    if (!docTypesFor(t).some((d) => d.value === docType)) setDocType('gst');
+  };
+
   // ── Validation ──────────────────────────────────────────────────────────
   const step1Valid = storeName.trim().length >= 2 && shortName.trim().length >= 1 && category !== '';
-  const step2Valid = address.trim().length >= 5 && city.trim().length >= 1;
+  const step2Valid = isOnline ? true : address.trim().length >= 5 && city.trim().length >= 1;
   const phoneDigits = phone.trim().replace(/\D/g, '');
   const step3Valid = phoneDigits.length >= 10;
+  // Online stores have no premises, so identity (ID + selfie) is the anchor and is
+  // required to finish onboarding; physical/both may still add it later.
+  const step4Valid = isOnline ? !!idDoc && !!selfie : true;
 
-  const canAdvance = step === 1 ? step1Valid : step === 2 ? step2Valid : step === 3 ? step3Valid : true;
+  const canAdvance = step === 1 ? step1Valid : step === 2 ? step2Valid : step === 3 ? step3Valid : step === 4 ? step4Valid : true;
+
+  // ── Per-step hero copy (title + sub shown in the dark band) ───────────────
+  const [heroTitle, heroSub] = ({
+    1: ['Tell us about your store', 'Choose a name and category customers will see.'],
+    2: isOnline
+      ? ['Where do you ship from?', 'Optional for online stores — add a ships-from area if you like.']
+      : ['Where is your store?', 'Customers will use this to find and visit you.'],
+    3: ['Logo & contact number', 'A great logo helps customers recognise you instantly.'],
+    4: ['Verify your store', isOnline
+      ? 'Online stores add a government ID and selfie to continue.'
+      : 'Add a store document and a personal ID — required before you go live.'],
+    5: ["You're all set!", 'One last look before you create your store.'],
+  } as Record<number, [string, string]>)[step];
 
   // ── Step 2: Use my location ─────────────────────────────────────────────
   const handleUseLocation = async () => {
@@ -181,6 +237,11 @@ export const BusinessOnboardingScreen: React.FC = () => {
       setStep(3);
       return;
     }
+    if (isOnline && !(idDoc && selfie)) {
+      Alert.alert('Identity required', 'Online stores must add a government ID and a selfie before creating the store.');
+      setStep(4);
+      return;
+    }
     const formatted = phoneDigits.length === 10 ? `+91${phoneDigits}` : `+${phoneDigits}`;
 
     setSubmitting(true);
@@ -192,7 +253,8 @@ export const BusinessOnboardingScreen: React.FC = () => {
         name:      storeName.trim(),
         shortName: shortName.trim(),
         category,
-        address:   address.trim(),
+        storeType,
+        address:   address.trim() || undefined,
         area:      area.trim() || undefined,
         city:      city.trim() || undefined,
         logoUrl:   logoUrl || undefined,
@@ -200,24 +262,38 @@ export const BusinessOnboardingScreen: React.FC = () => {
         website:   website.trim() || undefined,
       });
       const store = res.data?.data?.store ?? res.data?.store;
-      // If the seller added identity in the Identity step, submit it now so the
-      // verification screen shows it pre-filled (store stays unverified until the
-      // store document is added too).
-      if (store?._id && idDoc && selfie) {
+      // Submit whatever KYC the seller provided in the Verification step so the
+      // store lands on the verification screen pre-filled. The backend flips the
+      // store to 'pending' only once the store document AND the identity (ID +
+      // selfie) are all on file; a partial submission stays 'unverified' and is
+      // finished later on StoreVerificationScreen.
+      const hasIdentity = !!idDoc && !!selfie;
+      if (store?._id && (doc || hasIdentity)) {
         try {
           await verificationAPI.submitVerification(store._id, {
-            identityType: idType,
-            identityDocPublicId: idDoc.publicId,
-            identityDocFormat: idDoc.format,
-            selfiePublicId: selfie.publicId,
-            selfieFormat: selfie.format,
+            ...(doc ? { docType, docPublicId: doc.publicId, docFormat: doc.format } : {}),
+            ...(hasIdentity ? {
+              identityType: idType,
+              identityDocPublicId: idDoc!.publicId,
+              identityDocFormat: idDoc!.format,
+              selfiePublicId: selfie!.publicId,
+              selfieFormat: selfie!.format,
+            } : {}),
           });
-          store.identityDoc = {
-            type: idType,
-            docPublicId: idDoc.publicId, docFormat: idDoc.format,
-            selfiePublicId: selfie.publicId, selfieFormat: selfie.format,
-          };
-        } catch { /* non-fatal — they can add it on the verification screen */ }
+          if (doc) {
+            store.verificationDoc = { type: docType, publicId: doc.publicId, format: doc.format };
+          }
+          if (hasIdentity) {
+            store.identityDoc = {
+              type: idType,
+              docPublicId: idDoc!.publicId, docFormat: idDoc!.format,
+              selfiePublicId: selfie!.publicId, selfieFormat: selfie!.format,
+            };
+          }
+          // Mirror the backend: full KYC → 'pending' so the screen opens on the
+          // under-review state instead of the (now completed) upload form.
+          if (doc && hasIdentity) store.verificationStatus = 'pending';
+        } catch { /* non-fatal — they can finish on the verification screen */ }
       }
       // The seller tabs mounted before this store existed, so MY_STORE_QUERY_KEY
       // is cached as null. Invalidate it so the Dashboard / My Store refetch and
@@ -238,6 +314,11 @@ export const BusinessOnboardingScreen: React.FC = () => {
     setStep((s) => (s + 1) as any);
   };
   const goBack = () => setStep((s) => (s > 1 ? ((s - 1) as any) : s));
+  // Hero chevron: step back through the wizard, or leave onboarding on Step 1.
+  const onHeroBack = () => {
+    if (step > 1) { goBack(); return; }
+    if (navigation.canGoBack()) navigation.goBack();
+  };
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
@@ -246,7 +327,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.root}>
-        <ProgressHeader step={step} top={insets.top} />
+        <HeroHeader step={step} title={heroTitle} sub={heroSub} top={insets.top} onBack={onHeroBack} />
 
         <ScrollView
           style={{ flex: 1 }}
@@ -256,12 +337,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
         >
           {/* ── Step 1: Details ── */}
           {step === 1 && (
-            <View style={styles.card}>
-              <StepHeader
-                title="Tell us about your store"
-                sub="Choose a name and category that customers will see."
-              />
-
+            <View style={styles.stepBody}>
               <Input
                 label="Store name"
                 placeholder="e.g. Rohit's Boutique"
@@ -279,24 +355,26 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 maxLength={24}
               />
 
-              <Text style={styles.fieldLabel}>Category</Text>
-              <View style={styles.catGrid}>
-                {STORE_CATEGORIES.map(({ label, emoji }) => {
-                  const active = category === label;
+              <CategorySelect label="Category" value={category} onChange={setCategory} />
+
+              <Text style={styles.fieldLabel}>Store type</Text>
+              <View style={styles.rows}>
+                {STORE_TYPES.map(({ value, label, sub, icon: Icon }) => {
+                  const active = storeType === value;
                   return (
                     <Pressable
-                      key={label}
-                      onPress={() => setCategory(label)}
-                      style={({ pressed }) => [
-                        styles.catCard,
-                        active && styles.catCardActive,
-                        pressed && { opacity: 0.8 },
-                      ]}
+                      key={value}
+                      onPress={() => handleStoreTypeChange(value)}
+                      style={({ pressed }) => [styles.row, active && styles.rowActive, pressed && { opacity: 0.9 }]}
                     >
-                      <Text style={styles.catEmoji}>{emoji}</Text>
-                      <Text style={[styles.catLabel, active && styles.catLabelActive]}>
-                        {label}
-                      </Text>
+                      <View style={[styles.rowIcon, active && styles.rowIconActive]}>
+                        <Icon size={20} color={active ? Colors.navy : Colors.textSecondary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rowTitle}>{label}</Text>
+                        <Text style={[styles.rowDesc, active && styles.rowDescActive]}>{sub}</Text>
+                      </View>
+                      {active && <CheckCircle2 size={20} color={Colors.navy} />}
                     </Pressable>
                   );
                 })}
@@ -306,12 +384,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
           {/* ── Step 2: Location ── */}
           {step === 2 && (
-            <View style={styles.card}>
-              <StepHeader
-                title="Where is your store?"
-                sub="Customers will use this to find and visit you."
-              />
-
+            <View style={styles.stepBody}>
               <Pressable
                 onPress={handleUseLocation}
                 disabled={locationBusy}
@@ -327,7 +400,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
               {/* Address — custom multiline field (Input.tsx is single-line only) */}
               <View style={styles.fieldWrap}>
-                <Text style={styles.fieldLabel}>Address</Text>
+                <Text style={styles.fieldLabel}>{isOnline ? 'Address (optional)' : 'Address'}</Text>
                 <TextInput
                   style={styles.multilineInput}
                   placeholder="Shop no. / building name, street"
@@ -359,12 +432,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
           {/* ── Step 3: Media ── */}
           {step === 3 && (
-            <View style={styles.card}>
-              <StepHeader
-                title="Logo & contact number"
-                sub="A great logo helps customers recognise you instantly."
-              />
-
+            <View style={styles.stepBody}>
               <ImageUploader
                 value={logoUrl}
                 onChange={setLogoUrl}
@@ -396,13 +464,28 @@ export const BusinessOnboardingScreen: React.FC = () => {
             </View>
           )}
 
-          {/* ── Step 4: Identity (govt ID + selfie) ── */}
+          {/* ── Step 4: Verification (store document + govt ID + selfie) ── */}
           {step === 4 && (
-            <View style={styles.card}>
-              <StepHeader
-                title="Verify your identity"
-                sub="Add a government ID and a selfie. You can do this later too — it's required before you go live."
-              />
+            <View style={styles.stepBody}>
+              <Text style={styles.fieldLabel}>Store document</Text>
+              <View style={styles.grid}>
+                {docTypes.map(({ value, label, icon: Icon }) => {
+                  const active = docType === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => setDocType(value)}
+                      style={({ pressed }) => [styles.gcell, active && styles.gcellActive, pressed && !active && { opacity: 0.9 }]}
+                    >
+                      <View style={[styles.gIcon, active && styles.gIconActive]}>
+                        <Icon size={20} color={active ? Colors.navy : Colors.textSecondary} />
+                      </View>
+                      <Text style={styles.gLabel}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <KycUploader kind="doc" label="store document" value={doc} onChange={setDoc} disabled={submitting} />
 
               <Text style={styles.fieldLabel}>ID type</Text>
               <View style={styles.idChipRow}>
@@ -410,7 +493,7 @@ export const BusinessOnboardingScreen: React.FC = () => {
                   const active = idType === value;
                   return (
                     <Pressable key={value} onPress={() => setIdType(value)} style={[styles.idChip, active && styles.idChipActive]}>
-                      <Icon size={15} color={active ? Colors.orange : Colors.textSecondary} />
+                      <Icon size={15} color={active ? Colors.navy : Colors.textSecondary} />
                       <Text style={[styles.idChipText, active && styles.idChipTextActive]}>{label}</Text>
                     </Pressable>
                   );
@@ -427,11 +510,18 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
           {/* ── Step 5: Review & Submit ── */}
           {step === 5 && (
-            <View style={styles.card}>
-              <StepHeader
-                title="Review your details"
-                sub="Make sure everything looks right before you submit."
-              />
+            <View style={styles.stepBody}>
+              <View style={styles.callout}>
+                <View style={styles.calloutIcon}><Flag size={20} color={Colors.navy} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.calloutTitle}>Ready to submit</Text>
+                  <Text style={styles.calloutText}>
+                    {doc && idDoc && selfie
+                      ? "We'll review your store in 2–3 days. You can start setting up while you wait."
+                      : 'Create your store now — you can finish verification anytime before going live.'}
+                  </Text>
+                </View>
+              </View>
 
               <View style={styles.summaryCard}>
                 {logoUrl ? (
@@ -440,33 +530,28 @@ export const BusinessOnboardingScreen: React.FC = () => {
                 <SummaryRow label="Store name" value={storeName} />
                 <SummaryRow label="Short name" value={shortName} />
                 <SummaryRow label="Category" value={category} />
-                <SummaryRow label="Address" value={address} />
+                <SummaryRow label="Store type" value={STORE_TYPES.find((t) => t.value === storeType)?.label ?? ''} />
+                <SummaryRow label="Address" value={address ? address : (isOnline ? 'Not applicable (online)' : '')} />
                 <SummaryRow label="Area" value={area} />
                 <SummaryRow label="City" value={city} />
                 <SummaryRow label="WhatsApp" value={phone ? `+91 ${phoneDigits}` : ''} />
+                <SummaryRow label="Store document" value={doc ? (docTypes.find((d) => d.value === docType)?.label ?? 'Document') : 'Add later'} />
                 <SummaryRow label="Identity" value={idDoc && selfie ? `${ID_TYPES.find((d) => d.value === idType)?.label ?? 'ID'} + selfie` : 'Add later'} />
               </View>
             </View>
           )}
         </ScrollView>
 
-        {/* ── Bottom nav: Back ghost link + Next/Submit ── */}
-        <View style={[styles.navRow, { paddingBottom: insets.bottom + 12 }]}>
-          {step > 1 ? (
-            <Pressable onPress={goBack} hitSlop={10} style={styles.backLink}>
-              <ChevronLeft size={18} color={Colors.textSecondary} />
-              <Text style={styles.backLinkText}>Back</Text>
-            </Pressable>
-          ) : <View />}
-
+        {/* ── Bottom CTA (back lives in the hero) ── */}
+        <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
           <Pressable
             onPress={goNext}
             disabled={!canAdvance || submitting}
-            style={[styles.nextBtn, (!canAdvance || submitting) && styles.nextBtnDisabled]}
+            style={[styles.cta, (!canAdvance || submitting) && styles.ctaDisabled]}
           >
             {submitting
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.nextBtnText}>{step === 5 ? 'Create My Store' : 'Next →'}</Text>}
+              : <Text style={styles.ctaText}>{step === 5 ? 'Create my store' : 'Continue'}</Text>}
           </Pressable>
         </View>
       </View>
@@ -478,237 +563,123 @@ export const BusinessOnboardingScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
-  // Sticky progress header
-  progressHeader: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.backgroundGrey,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 10,
+  // Dark hero band
+  hero: { paddingHorizontal: 20, paddingBottom: 22, overflow: 'hidden' },
+  heroGlow: { position: 'absolute', top: 0, right: 0, left: 0, bottom: 0 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  heroBack: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.backgroundGrey,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.orange,
-  },
-  stepLabelsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  stepLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-  },
-  stepLabelActive: {
-    fontFamily: Fonts.semiBold,
-    color: Colors.orange,
-  },
+  progress: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  progSeg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.22)' },
+  progSegOn: { flex: 2.2, backgroundColor: Colors.orange },
+  heroTitle: { marginTop: 20, fontSize: 26, lineHeight: 31, fontFamily: Fonts.extraBold, color: '#fff', letterSpacing: -0.3 },
+  heroSub: { marginTop: 8, fontSize: 13.5, lineHeight: 19, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.72)' },
 
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
+  scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28 },
+  stepBody: { gap: 16 },
 
-  // Step card
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    gap: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  fieldLabel: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.navy },
 
-  stepHead: { gap: 6, marginBottom: -4 },
-  stepTitle: {
-    fontSize: 22,
-    fontFamily: Fonts.extraBold,
-    color: Colors.text,
+  // Store-type list rows
+  rows: { gap: 10, marginTop: -6 },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surface, borderRadius: 16, padding: 12,
+    borderWidth: 1.5, borderColor: Colors.border,
   },
-  stepSub: {
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-    lineHeight: 20,
+  rowActive: {
+    backgroundColor: Colors.orange, borderColor: Colors.orange,
+    shadowColor: Colors.orange, shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35, shadowRadius: 14, elevation: 4,
   },
+  rowIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
+  rowIconActive: { backgroundColor: 'rgba(12,26,61,0.14)' },
+  rowTitle: { fontSize: 15, fontFamily: Fonts.bold, color: Colors.navy },
+  rowDesc: { fontSize: 12.5, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 1 },
+  rowDescActive: { color: 'rgba(12,26,61,0.72)' },
 
-  fieldWrap: { gap: 8, marginBottom: -8 },
-  fieldLabel: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: Colors.text,
+  // Doc-type grid cards
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop: -6 },
+  gcell: {
+    width: '48%', backgroundColor: Colors.surface, borderRadius: 16, padding: 14,
+    gap: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'flex-start',
   },
-  multilineInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    backgroundColor: Colors.backgroundGrey,
-    minHeight: 80,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-    fontFamily: Fonts.regular,
-    color: Colors.text,
+  gcellActive: {
+    backgroundColor: Colors.orange, borderColor: Colors.orange,
+    transform: [{ rotate: '-2.5deg' }, { scale: 1.04 }],
+    shadowColor: Colors.orange, shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4, shadowRadius: 16, elevation: 5,
   },
+  gIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
+  gIconActive: { backgroundColor: 'rgba(12,26,61,0.14)' },
+  gLabel: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.navy },
 
-  // Category grid
-  catGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  catCard: {
-    width: '30%',
-    backgroundColor: Colors.backgroundGrey,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  catCardActive: {
-    borderColor: Colors.orange,
-    backgroundColor: '#FFF7ED',
-  },
-  catEmoji: { fontSize: 22 },
-  catLabel: {
-    fontSize: 11,
-    fontFamily: Fonts.semiBold,
-    color: Colors.text,
-    textAlign: 'center',
-  },
-  catLabelActive: { color: Colors.orange },
-
-  // Identity type chips
-  idChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // ID type chips
+  idChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -6 },
   idChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.backgroundGrey, borderRadius: 10,
+    backgroundColor: Colors.surface, borderRadius: 10,
     paddingVertical: 9, paddingHorizontal: 12,
-    borderWidth: 2, borderColor: 'transparent',
+    borderWidth: 1.5, borderColor: Colors.border,
   },
-  idChipActive: { borderColor: Colors.orange, backgroundColor: '#FFF7ED' },
+  idChipActive: { backgroundColor: Colors.orange, borderColor: Colors.orange },
   idChipText: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
-  idChipTextActive: { color: Colors.orange },
+  idChipTextActive: { color: Colors.navy },
 
   // Location button
   locationBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1.5,
-    borderColor: Colors.orange,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginBottom: -4,
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+    backgroundColor: '#FFF7ED', borderWidth: 1.5, borderColor: Colors.orange,
+    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16,
   },
-  locationBtnText: {
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: Colors.orange,
+  locationBtnText: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.orange },
+
+  fieldWrap: { gap: 8 },
+  multilineInput: {
+    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    backgroundColor: Colors.surface, minHeight: 80,
+    paddingHorizontal: 16, paddingVertical: 12,
+    fontSize: 15, fontFamily: Fonts.regular, color: Colors.text,
   },
 
-  // Review summary
+  // Review callout + summary
+  callout: {
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+    backgroundColor: Colors.orange, borderRadius: 18, padding: 15,
+    shadowColor: Colors.orange, shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35, shadowRadius: 16, elevation: 4,
+  },
+  calloutIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(12,26,61,0.14)', alignItems: 'center', justifyContent: 'center' },
+  calloutTitle: { fontSize: 15, fontFamily: Fonts.extraBold, color: Colors.navy },
+  calloutText: { fontSize: 12.5, fontFamily: Fonts.regular, color: 'rgba(12,26,61,0.8)', lineHeight: 17, marginTop: 3 },
+
   summaryCard: {
-    backgroundColor: Colors.backgroundGrey,
-    borderRadius: 12,
-    padding: 16,
-    gap: 10,
+    backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 10,
+    borderWidth: 1, borderColor: Colors.border,
   },
-  summaryLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignSelf: 'center',
-    marginBottom: 4,
-    backgroundColor: Colors.border,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  summaryLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-  },
-  summaryValue: {
-    flex: 1,
-    textAlign: 'right',
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: Colors.text,
-  },
+  summaryLogo: { width: 80, height: 80, borderRadius: 40, alignSelf: 'center', marginBottom: 4, backgroundColor: Colors.border },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  summaryLabel: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textSecondary },
+  summaryValue: { flex: 1, textAlign: 'right', fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.navy },
 
-  // Bottom nav
-  navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.backgroundGrey,
+  // Bottom CTA
+  ctaBar: {
+    paddingHorizontal: 20, paddingTop: 12,
+    backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  backLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingRight: 8,
+  cta: {
+    backgroundColor: Colors.orange, borderRadius: 16, paddingVertical: 16,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: Colors.orange, shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3, shadowRadius: 14, elevation: 3,
   },
-  backLinkText: {
-    fontSize: 15,
-    fontFamily: Fonts.semiBold,
-    color: Colors.textSecondary,
-  },
-  nextBtn: {
-    backgroundColor: Colors.orange,
-    borderRadius: 14,
-    paddingVertical: 15,
-    paddingHorizontal: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 140,
-  },
-  nextBtnDisabled: { opacity: 0.45 },
-  nextBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: Fonts.bold,
-  },
+  ctaDisabled: { opacity: 0.45, shadowOpacity: 0 },
+  ctaText: { color: '#fff', fontSize: 16, fontFamily: Fonts.bold },
 
   // Misc
-  dialCode: {
-    fontSize: 15,
-    fontFamily: Fonts.semiBold,
-    color: Colors.text,
-    paddingLeft: 4,
-  },
-  hint: {
-    fontSize: 12,
-    fontFamily: Fonts.regular,
-    color: Colors.textSecondary,
-    lineHeight: 17,
-    marginTop: -8,
-  },
+  dialCode: { fontSize: 15, fontFamily: Fonts.semiBold, color: Colors.text, paddingLeft: 4 },
+  hint: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, lineHeight: 17, marginTop: -8 },
 });

@@ -10,7 +10,7 @@ import type { Store } from './stores';
 import type { CloudFile } from '../components/useImageUpload';
 
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
-export type DocType = 'gst' | 'fssai' | 'tradeLicence';
+export type DocType = 'gst' | 'fssai' | 'tradeLicence' | 'pan' | 'udyam';
 export type IdentityType = 'aadhaar' | 'pan' | 'dl' | 'passport';
 
 export interface VerificationDoc {

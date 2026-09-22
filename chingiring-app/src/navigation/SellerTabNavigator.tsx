@@ -19,9 +19,12 @@ import {
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutDashboard, Store, Video, User } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
+import { LayoutDashboard, Store, Video, User, MessageCircle } from 'lucide-react-native';
 // Note: LayoutDashboard + Video kept — still used in SELLER_TAB_ICON_MAP below.
 import { Colors, Fonts } from '../constants/theme';
+import { getUnreadTotal } from '../api/chat';
+import { NavCountBadge } from '../components/NavCountBadge';
 
 import { MobileEditProfileScreen } from '../screens/Dashboard/MobileEditProfileScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
@@ -51,6 +54,7 @@ const SELLER_TAB_ICON_MAP: Record<string, React.ComponentType<any>> = {
   Dashboard: LayoutDashboard,
   MyStore:   Store,
   GoLive:    Video,
+  Messages:  MessageCircle,
   Profile:   User,
 };
 
@@ -60,6 +64,15 @@ const ACTIVE_COLOR = Colors.orange;
 // ─── Custom tab bar ───────────────────────────────────────────────────────
 function SellerMobileTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
+
+  // Unread chat total — drives the badge on the Messages tab. Shares the
+  // ['chat','unread'] key with the dashboard query so the two stay in sync.
+  const { data: chatUnread = 0 } = useQuery({
+    queryKey: ['chat', 'unread'],
+    queryFn: getUnreadTotal,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   return (
     <View style={[styles.barOuter, { paddingBottom: Math.max(insets.bottom, 8) }]}>
@@ -116,6 +129,9 @@ function SellerMobileTabBar({ state, descriptors, navigation }: any) {
                   {label}
                 </Text>
               </View>
+              {route.name === 'Messages' ? (
+                <NavCountBadge count={chatUnread} style={styles.tabBadge} />
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -138,6 +154,7 @@ function SellerBottomTabs() {
       <Tab.Screen name="Dashboard" component={SellerDashboardScreen} options={{ tabBarLabel: 'Dashboard' }} />
       <Tab.Screen name="MyStore"   component={MyStoreScreen}         options={{ tabBarLabel: 'My Store' }} />
       <Tab.Screen name="GoLive"    component={GoLiveTabScreen}       options={{ tabBarLabel: 'Go Live' }} />
+      <Tab.Screen name="Messages"  component={MessagesScreen}        options={{ tabBarLabel: 'Messages' }} initialParams={{ tabRoot: true }} />
       <Tab.Screen name="Profile"   component={SellerProfileTabScreen} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
   );
@@ -159,7 +176,6 @@ export default function SellerTabNavigator() {
         <Stack.Screen name="EditStoreDetails"   component={EditStoreDetailsScreen} />
         <Stack.Screen name="Settings"           component={MobileSettingsScreen} />
         <Stack.Screen name="Notifications"      component={NotificationsScreen} />
-        <Stack.Screen name="Messages"           component={MessagesScreen} />
         <Stack.Screen name="Chat"               component={ChatScreen} />
         <Stack.Screen name="ProductDetail"      component={MobileProductDetailScreen} />
         <Stack.Screen name="About"              component={MobileAboutScreen} />
@@ -218,6 +234,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: 4,
+    left: '52%',
+    borderWidth: 1.5,
+    borderColor: '#d8dbe2',
   },
   pill: {
     flexDirection: 'column',

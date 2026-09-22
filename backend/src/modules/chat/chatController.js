@@ -1,5 +1,6 @@
 import { Conversation, Message } from './chatModel.js';
 import Store from '../stores/storeModel.js';
+import Follow from '../follows/followModel.js';
 
 // ── Socket emit helper ───────────────────────────────────────────────────────
 // Emits to the /chat namespace. Multiple rooms in one call de-dupe recipients,
@@ -21,6 +22,8 @@ async function emitToChat(event, rooms, payload) {
 function shapeMessage(m) {
   const p = m.product;
   const hasProduct = p && (p.productId || p.name);
+  const o = m.offer;
+  const hasOffer = o && typeof o.offerPrice === 'number';
   return {
     _id:            String(m._id),
     conversationId: String(m.conversationId),
@@ -35,6 +38,15 @@ function shapeMessage(m) {
       imageUrl:  p.imageUrl ?? '',
       price:     typeof p.price === 'number' ? p.price : undefined,
     } : undefined,
+    offer: hasOffer ? {
+      productId:   o.productId ? String(o.productId) : undefined,
+      name:        o.name ?? '',
+      imageUrl:    o.imageUrl ?? '',
+      listPrice:   typeof o.listPrice === 'number' ? o.listPrice : undefined,
+      offerPrice:  o.offerPrice,
+      status:      o.status ?? 'pending',
+      respondedAt: o.respondedAt ?? null,
+    } : undefined,
   };
 }
 
@@ -47,6 +59,41 @@ function pickProduct(raw) {
     name:      String(raw.name ?? '').slice(0, 200),
     imageUrl:  String(raw.imageUrl ?? '').slice(0, 600),
     price:     Number.isFinite(price) ? price : undefined,
+  };
+}
+
+/**
+ * Normalize a client-sent offer into the stored snapshot shape. Requires a
+ * positive numeric offerPrice and a product (id or name); returns undefined
+ * otherwise so a malformed offer is simply dropped (the message still sends).
+ */
+function pickOffer(raw) {
+  if (!raw) return undefined;
+  const offerPrice = typeof raw.offerPrice === 'number' ? raw.offerPrice : Number(raw.offerPrice);
+  if (!Number.isFinite(offerPrice) || offerPrice <= 0) return undefined;
+  if (!raw.productId && !raw.name) return undefined;
+  const listPrice = typeof raw.listPrice === 'number' ? raw.listPrice : Number(raw.listPrice);
+  return {
+    productId:  raw.productId || undefined,
+    name:       String(raw.name ?? '').slice(0, 200),
+    imageUrl:   String(raw.imageUrl ?? '').slice(0, 600),
+    listPrice:  Number.isFinite(listPrice) ? listPrice : undefined,
+    offerPrice,
+    status:     'pending',
+  };
+}
+
+/** The inbox-row product snapshot from a message's product or offer, if any. */
+function productSnapshotFrom(product, offer) {
+  const src = product || offer;
+  if (!src) return undefined;
+  return {
+    productId: src.productId || undefined,
+    name:      src.name ?? '',
+    imageUrl:  src.imageUrl ?? '',
+    price:     typeof (offer ? offer.offerPrice : product.price) === 'number'
+      ? (offer ? offer.offerPrice : product.price)
+      : undefined,
   };
 }
 
@@ -67,6 +114,9 @@ function shapeConversation(conv, userId) {
     ? { kind: 'store', id: storeId, name: store?.name ?? 'Store', avatarUrl: store?.logoUrl ?? '', storeId }
     : { kind: 'user',  id: buyerId, name: buyer?.name ?? 'Buyer', avatarUrl: buyer?.avatarUrl ?? '' };
 
+  const lp = conv.lastProduct;
+  const hasLastProduct = lp && (lp.productId || lp.name);
+
   return {
     _id:           String(conv._id),
     role:          isBuyer ? 'buyer' : 'seller',
@@ -76,6 +126,12 @@ function shapeConversation(conv, userId) {
     lastMessageAt: conv.lastMessageAt ?? null,
     lastSenderId:  conv.lastSenderId ? String(conv.lastSenderId) : null,
     unread:        isBuyer ? (conv.unreadBuyer ?? 0) : (conv.unreadSeller ?? 0),
+    lastProduct: hasLastProduct ? {
+      productId: lp.productId ? String(lp.productId) : undefined,
+      name:      lp.name ?? '',
+      imageUrl:  lp.imageUrl ?? '',
+      price:     typeof lp.price === 'number' ? lp.price : undefined,
+    } : undefined,
   };
 }
 
@@ -231,17 +287,23 @@ export const sendMessage = async (req, res) => {
   if (!isBuyer && !isSeller) { res.status(403); throw new Error('Not a participant in this conversation'); }
 
   const product = pickProduct(req.body?.product);
+  // Only the seller may attach a price offer; a buyer-sent offer is ignored.
+  const offer = isSeller ? pickOffer(req.body?.offer) : undefined;
   const msg = await Message.create({
     conversationId: conv._id,
     senderId:       userId,
     senderRole:     isBuyer ? 'buyer' : 'seller',
     text:           text.slice(0, 2000),
     ...(product ? { product } : {}),
+    ...(offer ? { offer } : {}),
   });
 
   conv.lastMessage   = msg.text;
   conv.lastSenderId  = userId;
   conv.lastMessageAt = msg.createdAt;
+  // Keep the thread's product context fresh for the inbox thumbnail.
+  const snapshot = productSnapshotFrom(product, offer);
+  if (snapshot) conv.lastProduct = snapshot;
   if (isBuyer) conv.unreadSeller += 1; else conv.unreadBuyer += 1;
   await conv.save();
 
@@ -256,6 +318,69 @@ export const sendMessage = async (req, res) => {
   });
 
   res.status(201).json({ status: 'success', data: { message: shaped } });
+};
+
+/**
+ * POST /api/chat/conversations/:id/offers/:messageId/respond   body: { action }
+ * The BUYER accepts or declines a seller's pending offer. Flips the offer's
+ * status in place and broadcasts `offer_updated` so both open threads live-patch
+ * the card. There is no checkout/stock side — an accepted offer is a soft
+ * agreement the two carry on in chat.
+ */
+export const respondToOffer = async (req, res) => {
+  const userId = req.user._id;
+  const action = req.body?.action;
+  if (action !== 'accept' && action !== 'decline') {
+    res.status(400); throw new Error("action must be 'accept' or 'decline'");
+  }
+
+  const conv = await Conversation.findById(req.params.id);
+  if (!conv) { res.status(404); throw new Error('Conversation not found'); }
+  const isBuyer  = String(conv.buyerId) === String(userId);
+  const isSeller = String(conv.sellerId) === String(userId);
+  if (!isBuyer && !isSeller) { res.status(403); throw new Error('Not a participant in this conversation'); }
+  // Only the recipient of the offer (the buyer) may accept/decline it.
+  if (!isBuyer) { res.status(403); throw new Error('Only the buyer can respond to an offer'); }
+
+  const msg = await Message.findOne({ _id: req.params.messageId, conversationId: conv._id });
+  if (!msg || !msg.offer || typeof msg.offer.offerPrice !== 'number') {
+    res.status(404); throw new Error('Offer not found');
+  }
+  if (msg.offer.status !== 'pending') {
+    res.status(409); throw new Error('This offer has already been answered');
+  }
+
+  msg.offer.status = action === 'accept' ? 'accepted' : 'declined';
+  msg.offer.respondedAt = new Date();
+  await msg.save();
+
+  const shaped = shapeMessage(msg);
+  emitToChat(
+    'offer_updated',
+    [`conv:${conv._id}`, `user:${conv.buyerId}`, `user:${conv.sellerId}`],
+    { conversationId: String(conv._id), messageId: shaped._id, offer: shaped.offer },
+  );
+
+  res.status(200).json({ status: 'success', data: { message: shaped } });
+};
+
+/**
+ * GET /api/chat/conversations/:id/context
+ * Lightweight thread context for the header — currently whether the buyer
+ * follows the store (drives the seller's "Follows you" chip). One indexed
+ * lookup; fetched once when a thread opens.
+ */
+export const getConversationContext = async (req, res) => {
+  const userId = req.user._id;
+
+  const conv = await Conversation.findById(req.params.id).select('buyerId sellerId storeId').lean();
+  if (!conv) { res.status(404); throw new Error('Conversation not found'); }
+  const isBuyer  = String(conv.buyerId) === String(userId);
+  const isSeller = String(conv.sellerId) === String(userId);
+  if (!isBuyer && !isSeller) { res.status(403); throw new Error('Not a participant in this conversation'); }
+
+  const buyerFollows = !!(await Follow.exists({ userId: conv.buyerId, storeId: conv.storeId }));
+  res.status(200).json({ status: 'success', data: { buyerFollows } });
 };
 
 /**

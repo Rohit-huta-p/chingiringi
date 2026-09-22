@@ -39,7 +39,6 @@ import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
 import { BuyerOnboardingScreen } from '../screens/Buyer/BuyerOnboardingScreen';
 import { BuyerProfileScreen } from '../screens/Buyer/BuyerProfileScreen';
 import { ViewerScreen } from '../screens/Live/ViewerScreen';
-import { LiveNowScreen } from '../screens/Live/LiveNowScreen';
 
 // Seller public profile (Sprint 5 B2)
 import { SellerProfileScreen } from '../screens/Seller/SellerProfileScreen';
@@ -187,7 +186,6 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="About"             component={MobileAboutScreen} />
         <Stack.Screen name="BuyerOnboarding"   component={BuyerOnboardingScreen} />
         <Stack.Screen name="ViewerScreen"      component={ViewerScreen} />
-        <Stack.Screen name="LiveNow"           component={LiveNowScreen} />
         <Stack.Screen name="SellerProfile"     component={SellerProfileScreen} />
         <Stack.Screen
           name="AuthLogin"

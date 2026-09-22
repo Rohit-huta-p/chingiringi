@@ -1,12 +1,14 @@
 import apiClient from './client';
-import type { StoreCategory } from '../data/offlineStores';
 
 export interface Store {
   _id: string;
   name: string;
   shortName: string;
   slug?: string;
-  category: StoreCategory;
+  // Canonical category (STORE_CATEGORIES) or a seller's custom free-text value.
+  category: string;
+  /** 'physical' = a shop buyers can visit; 'online' = no storefront; 'both'. */
+  storeType?: 'physical' | 'online' | 'both';
   description?: string;
   logoUrl?: string;
   images?: string[];

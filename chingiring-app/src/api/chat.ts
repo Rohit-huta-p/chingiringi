@@ -29,6 +29,8 @@ export interface Conversation {
   lastSenderId: string | null;
   /** The caller's own unread count. */
   unread: number;
+  /** Snapshot of the product/offer the thread is about — powers the inbox thumbnail. */
+  lastProduct?: ChatProduct;
 }
 
 export interface ChatProduct {
@@ -36,6 +38,18 @@ export interface ChatProduct {
   name: string;
   imageUrl?: string;
   price?: number;
+}
+
+/** A seller's custom-price offer on a product; the buyer accepts/declines. */
+export interface ChatOffer {
+  productId?: string;
+  name: string;
+  imageUrl?: string;
+  /** The product's price when the offer was made (strike-through reference). */
+  listPrice?: number;
+  offerPrice: number;
+  status: 'pending' | 'accepted' | 'declined';
+  respondedAt?: string | null;
 }
 
 export interface ChatMessage {
@@ -48,6 +62,8 @@ export interface ChatMessage {
   readAt: string | null;
   /** Optional product context (e.g. sent from a product page's "Chat to buy"). */
   product?: ChatProduct;
+  /** Optional seller offer — a custom price on a product. */
+  offer?: ChatOffer;
 }
 
 // ── Endpoints ────────────────────────────────────────────────────────────────
@@ -85,18 +101,52 @@ export async function getMessages(conversationId: string, limit = 50): Promise<C
 
 /**
  * POST /api/chat/conversations/:id/messages — send. Throws on failure so the
- * composer can keep the text and show an error.
+ * composer can keep the text and show an error. An `offer` is honoured only
+ * when the caller is the seller (the backend ignores a buyer-sent offer).
  */
 export async function sendMessage(
   conversationId: string,
   text: string,
   product?: ChatProduct,
+  offer?: Omit<ChatOffer, 'status' | 'respondedAt'>,
 ): Promise<ChatMessage | null> {
   const res = await apiClient.post(`/api/chat/conversations/${conversationId}/messages`, {
     text,
     ...(product ? { product } : {}),
+    ...(offer ? { offer } : {}),
   });
   return res.data?.data?.message ?? null;
+}
+
+/**
+ * POST /api/chat/conversations/:id/offers/:messageId/respond — buyer accepts or
+ * declines a pending offer. Returns the updated message (offer.status flipped).
+ */
+export async function respondToOffer(
+  conversationId: string,
+  messageId: string,
+  action: 'accept' | 'decline',
+): Promise<ChatMessage | null> {
+  const res = await apiClient.post(
+    `/api/chat/conversations/${conversationId}/offers/${messageId}/respond`,
+    { action },
+  );
+  return res.data?.data?.message ?? null;
+}
+
+/**
+ * GET /api/chat/conversations/:id/context — lightweight thread header context
+ * (currently whether the buyer follows the store). Best-effort.
+ */
+export async function getConversationContext(
+  conversationId: string,
+): Promise<{ buyerFollows: boolean }> {
+  try {
+    const res = await apiClient.get(`/api/chat/conversations/${conversationId}/context`);
+    return { buyerFollows: !!res.data?.data?.buyerFollows };
+  } catch {
+    return { buyerFollows: false };
+  }
 }
 
 /**

@@ -1,15 +1,17 @@
 /**
  * MyStoreScreen — "My Store" tab for sellers.  (Redesign: "Shelf")
  *
- * Fetches the seller's store (GET /api/stores/mine) and its products
- * (GET /api/products?storeId=) and renders:
- *   - Compact navy header: logo + name (+ verified check) + product count,
- *     with an edit-store pencil → EditStoreDetails
- *   - Verification banner (links to StoreVerification if unverified)
- *   - Search + the shared ProductControlsBar (sort / filter)
- *   - A single-column product list (thumbnail · name · price + MRP/discount ·
- *     rating). Tap a row to preview → edit; the FAB / empty-state button adds.
- *   - "Set up store" empty state if GET /stores/mine returns 404
+ * A fixed navy store header + a Products / Videos segmented control, over the
+ * active tab's scrolling content:
+ *   - Products: search + shared ProductControlsBar (sort / filter) + a
+ *     single-column product list (GET /api/products?storeId=). Tap a row to
+ *     preview → edit; the FAB / empty-state button adds.
+ *   - Videos: the seller's own shoppable clips via <MyVideosPanel/> (shared
+ *     with the MyVideos screen) — Live / Under-review / Processing states,
+ *     edit/delete, and a "Post video" FAB.
+ * The store header shows logo + name (+ verified check) + product/video counts,
+ * with an edit-store pencil → EditStoreDetails, and (Products) a verification
+ * banner. "Set up store" empty state if GET /stores/mine returns 404.
  *
  * (Stock and "featured" cues are intentionally not surfaced here.)
  */
@@ -32,6 +34,7 @@ import {
   Store,
   Plus,
   Package,
+  Film,
   Search,
   MoreVertical,
   BadgeCheck,
@@ -42,6 +45,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { type SellerStore } from '../../api/verification';
 import { useMyStore } from '../../hooks/useMyStore';
 import { productsAPI, type Product } from '../../api/products';
+import { videosAPI } from '../../api/videos';
 import { discountPct } from '../../utils/product';
 import {
   applyProductControls,
@@ -52,6 +56,7 @@ import {
 import { ProductControlsBar } from '../../components/ProductControlsBar';
 import { ProductFormSheet } from './ProductFormSheet';
 import { ProductPreviewSheet } from '../../components/ProductPreviewSheet';
+import { MyVideosPanel, type MyVideosPanelHandle } from '../../components/MyVideosPanel';
 import { MyStoreSkeleton, SellerMessageState } from './SellerStates';
 
 // The seller tab bar is position:absolute and overlays content — pad the list
@@ -59,6 +64,8 @@ import { MyStoreSkeleton, SellerMessageState } from './SellerStates';
 const TAB_BAR_CLEARANCE = 90;
 
 const inr = (n: number) => (n ?? 0).toLocaleString('en-IN');
+
+type StoreTab = 'products' | 'videos';
 
 // ── Product row ─────────────────────────────────────────────────────────────
 
@@ -117,6 +124,44 @@ const VerifBanner: React.FC<{ store: SellerStore; onVerify: () => void }> = ({ s
   );
 };
 
+// ── Products / Videos segmented control ─────────────────────────────────────
+
+const StoreTabs: React.FC<{
+  tab: StoreTab;
+  onChange: (t: StoreTab) => void;
+  productCount: number;
+  videoCount: number;
+}> = ({ tab, onChange, productCount, videoCount }) => (
+  <View style={styles.tabsWrap}>
+    <View style={styles.tabs}>
+      <Pressable
+        style={[styles.tab, tab === 'products' && styles.tabActive]}
+        onPress={() => onChange('products')}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: tab === 'products' }}
+      >
+        <Package size={16} color={tab === 'products' ? Colors.orange : Colors.textSecondary} strokeWidth={2} />
+        <Text style={[styles.tabLabel, tab === 'products' && styles.tabLabelActive]}>Products</Text>
+        <View style={[styles.tabCount, tab === 'products' && styles.tabCountActive]}>
+          <Text style={[styles.tabCountTxt, tab === 'products' && styles.tabCountTxtActive]}>{productCount}</Text>
+        </View>
+      </Pressable>
+      <Pressable
+        style={[styles.tab, tab === 'videos' && styles.tabActive]}
+        onPress={() => onChange('videos')}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: tab === 'videos' }}
+      >
+        <Film size={16} color={tab === 'videos' ? Colors.orange : Colors.textSecondary} strokeWidth={2} />
+        <Text style={[styles.tabLabel, tab === 'videos' && styles.tabLabelActive]}>Videos</Text>
+        <View style={[styles.tabCount, tab === 'videos' && styles.tabCountActive]}>
+          <Text style={[styles.tabCountTxt, tab === 'videos' && styles.tabCountTxtActive]}>{videoCount}</Text>
+        </View>
+      </Pressable>
+    </View>
+  </View>
+);
+
 // ── Main screen ───────────────────────────────────────────────────────────
 
 export const MyStoreScreen: React.FC = () => {
@@ -138,6 +183,18 @@ export const MyStoreScreen: React.FC = () => {
     staleTime: 60_000,
   });
   const products: Product[] = productsData?.data?.products ?? productsData?.products ?? [];
+
+  // Videos count for the tab pill — shares the ['myVideos'] key with
+  // <MyVideosPanel/>, so React Query dedupes to a single fetch.
+  const { data: myVideosData } = useQuery({
+    queryKey: ['myVideos'],
+    queryFn: () => videosAPI.getMine(),
+    staleTime: 10_000,
+  });
+  const videoCount = myVideosData?.data?.videos?.length ?? 0;
+
+  const [tab, setTab] = React.useState<StoreTab>('products');
+  const videosPanelRef = React.useRef<MyVideosPanelHandle>(null);
 
   // Search + sort/filter (the shared controls run client-side over the loaded list).
   const [search, setSearch] = React.useState('');
@@ -201,35 +258,38 @@ export const MyStoreScreen: React.FC = () => {
 
   const productCount = products.length;
 
-  const Header = (
-    <View>
-      {/* ── Compact navy header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        {store.logoUrl ? (
-          <Image source={{ uri: store.logoUrl }} style={styles.logo} resizeMode="cover" />
-        ) : (
-          <View style={[styles.logo, styles.logoFallback]}>
-            <Text style={styles.logoInitial}>{(store.name ?? 'S').trim()[0]?.toUpperCase() ?? 'S'}</Text>
-          </View>
-        )}
-        <View style={styles.headerText}>
-          <View style={styles.nameRow}>
-            <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-            {isVerified ? <BadgeCheck size={15} color="#6ee7b7" strokeWidth={2.4} /> : null}
-          </View>
-          <Text style={styles.headerSub}>{productCount} {productCount === 1 ? 'product' : 'products'}</Text>
+  const NavyHeader = (
+    <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      {store.logoUrl ? (
+        <Image source={{ uri: store.logoUrl }} style={styles.logo} resizeMode="cover" />
+      ) : (
+        <View style={[styles.logo, styles.logoFallback]}>
+          <Text style={styles.logoInitial}>{(store.name ?? 'S').trim()[0]?.toUpperCase() ?? 'S'}</Text>
         </View>
-        <Pressable
-          style={styles.editBtn}
-          onPress={() => navigation.navigate('EditStoreDetails')}
-          accessibilityRole="button"
-          accessibilityLabel="Edit store details"
-        >
-          <Text style={{ color: 'white' }}>Edit store details</Text>
-        </Pressable>
+      )}
+      <View style={styles.headerText}>
+        <View style={styles.nameRow}>
+          <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
+          {isVerified ? <BadgeCheck size={15} color="#6ee7b7" strokeWidth={2.4} /> : null}
+        </View>
+        <Text style={styles.headerSub}>
+          {productCount} {productCount === 1 ? 'product' : 'products'} · {videoCount} {videoCount === 1 ? 'video' : 'videos'}
+        </Text>
       </View>
+      <Pressable
+        style={styles.editBtn}
+        onPress={() => navigation.navigate('EditStoreDetails')}
+        accessibilityRole="button"
+        accessibilityLabel="Edit store details"
+      >
+        <Text style={{ color: 'white' }}>Edit store details</Text>
+      </Pressable>
+    </View>
+  );
 
-      {/* ── Search + sort/filter ── */}
+  // Products-tab list header — search + sort/filter + verification banner.
+  const ProductsControls = (
+    <View>
       <View style={styles.controls}>
         <View style={styles.searchPill}>
           <Search size={18} color="#94a3b8" strokeWidth={2} />
@@ -245,7 +305,6 @@ export const MyStoreScreen: React.FC = () => {
         <ProductControlsBar state={controls} onChange={setControls} compact />
       </View>
 
-      {/* ── Verification banner ── */}
       {store.verificationStatus !== 'verified' && (
         <View style={styles.bannerWrap}>
           <VerifBanner store={store} onVerify={() => navigation.navigate('StoreVerification', { store })} />
@@ -256,47 +315,63 @@ export const MyStoreScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <FlatList
-        data={visible}
-        keyExtractor={(p) => p._id}
-        contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[Colors.orange]} tintColor={Colors.orange} />
-        }
-        ListHeaderComponent={Header}
-        renderItem={({ item }) => <ProductRow product={item} onPress={() => openPreview(item)} />}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        ListEmptyComponent={
-          productsLoading ? (
-            <ActivityIndicator color={Colors.orange} style={{ marginTop: 32 }} />
-          ) : search.trim() || isControlsActive(controls) ? (
-            <View style={styles.productsEmpty}>
-              <Search size={40} color={Colors.border} />
-              <Text style={styles.productsEmptyTitle}>No matches</Text>
-              <Text style={styles.productsEmptySub}>Try a different search or clear the filters.</Text>
-            </View>
-          ) : (
-            <View style={styles.productsEmpty}>
-              <Package size={52} color={Colors.textSecondary} />
-              <Text style={styles.productsEmptyTitle}>Add your first product</Text>
-              <Text style={styles.productsEmptySub}>Showcase what you sell during live streams.</Text>
-              <Pressable style={styles.addProductBtn} onPress={openCreate}>
-                <Text style={styles.addProductBtnText}>Add product</Text>
-              </Pressable>
-            </View>
-          )
-        }
-      />
+      {NavyHeader}
+      <StoreTabs tab={tab} onChange={setTab} productCount={productCount} videoCount={videoCount} />
 
-      {/* ── Extended FAB ── */}
+      {tab === 'products' ? (
+        <FlatList
+          style={{ flex: 1 }}
+          data={visible}
+          keyExtractor={(p) => p._id}
+          contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[Colors.orange]} tintColor={Colors.orange} />
+          }
+          ListHeaderComponent={ProductsControls}
+          renderItem={({ item }) => <ProductRow product={item} onPress={() => openPreview(item)} />}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          ListEmptyComponent={
+            productsLoading ? (
+              <ActivityIndicator color={Colors.orange} style={{ marginTop: 32 }} />
+            ) : search.trim() || isControlsActive(controls) ? (
+              <View style={styles.productsEmpty}>
+                <Search size={40} color={Colors.border} />
+                <Text style={styles.productsEmptyTitle}>No matches</Text>
+                <Text style={styles.productsEmptySub}>Try a different search or clear the filters.</Text>
+              </View>
+            ) : (
+              <View style={styles.productsEmpty}>
+                <Package size={52} color={Colors.textSecondary} />
+                <Text style={styles.productsEmptyTitle}>Add your first product</Text>
+                <Text style={styles.productsEmptySub}>Showcase what you sell during live streams.</Text>
+                <Pressable style={styles.addProductBtn} onPress={openCreate}>
+                  <Text style={styles.addProductBtnText}>Add product</Text>
+                </Pressable>
+              </View>
+            )
+          }
+        />
+      ) : (
+        <MyVideosPanel
+          ref={videosPanelRef}
+          accent={Colors.orange}
+          accentBg="#FFF1E7"
+          contentPaddingBottom={insets.bottom + TAB_BAR_CLEARANCE}
+          emptyHint='Tap “Post video” to share your first clip.'
+        />
+      )}
+
+      {/* ── Extended FAB — Add product (Products) / Post video (Videos) ── */}
       <Pressable
         style={[styles.fab, { bottom: insets.bottom + TAB_BAR_CLEARANCE }]}
-        onPress={openCreate}
+        onPress={tab === 'videos' ? () => videosPanelRef.current?.openCreate() : openCreate}
         accessibilityRole="button"
-        accessibilityLabel="Add product"
+        accessibilityLabel={tab === 'videos' ? 'Post video' : 'Add product'}
       >
-        <Plus size={20} color="#fff" strokeWidth={2.4} />
-        <Text style={styles.fabText}>Add product</Text>
+        {tab === 'videos'
+          ? <Film size={20} color="#fff" strokeWidth={2.4} />
+          : <Plus size={20} color="#fff" strokeWidth={2.4} />}
+        <Text style={styles.fabText}>{tab === 'videos' ? 'Post video' : 'Add product'}</Text>
       </Pressable>
 
       <ProductFormSheet
@@ -339,6 +414,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center', justifyContent: 'center',
   },
+
+  // Tabs (Products / Videos segmented control)
+  tabsWrap: { backgroundColor: Colors.background, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 2 },
+  tabs: { flexDirection: 'row', backgroundColor: '#e5e8ee', borderRadius: 14, padding: 4, gap: 4 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 40, borderRadius: 11 },
+  tabActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 2,
+  },
+  tabLabel: { fontSize: 13.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  tabLabelActive: { fontFamily: Fonts.bold, color: Colors.orange },
+  tabCount: { borderRadius: 8, paddingHorizontal: 7, paddingVertical: 1 },
+  tabCountActive: { backgroundColor: 'rgba(249,115,22,0.14)' },
+  tabCountTxt: { fontSize: 11, fontFamily: Fonts.bold, color: '#94a3b8' },
+  tabCountTxtActive: { color: Colors.orange },
 
   // Controls
   controls: {

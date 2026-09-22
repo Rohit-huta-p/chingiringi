@@ -51,6 +51,32 @@ export function clockTime(iso?: string | null): string {
   return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
 }
 
+/** True when two ISO timestamps fall on the same calendar day. */
+export function sameDay(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  const da = new Date(a);
+  const db = new Date(b);
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return false;
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+/** Thread day-separator label: "Today", "Yesterday", else a short date. */
+export function dayLabel(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(now) - startOf(d)) / 86_400_000);
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
+}
+
 const styles = StyleSheet.create({
   img: { backgroundColor: Colors.primaryLight10 },
   fallback: { alignItems: 'center', justifyContent: 'center' },

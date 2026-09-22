@@ -24,19 +24,7 @@ import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
 import { useFollow } from '../../hooks/useFollow';
 import { getOrCreateConversation } from '../../api/chat';
-import type { StoreCategory } from '../../data/offlineStores';
-
-// Category accent colors — mirrors the map/list on OfflineStoresScreen.
-const CATEGORY_COLOR: Record<StoreCategory, string> = {
-  Fashion: '#F97316',
-  Electronics: '#3B82F6',
-  Grocery: '#10B981',
-  'Food & Cafe': '#F59E0B',
-  Health: '#EF4444',
-  Jewellery: '#A855F7',
-  Sports: '#0EA5E9',
-  Beauty: '#EC4899',
-};
+import { getCategoryColor } from '../../constants/categories';
 
 // Deal gradient — matches the approved mockup (deep indigo → periwinkle).
 const DEAL_GRADIENT = ['#26307F', '#3E5BC8', '#5B84F0'] as const;
@@ -132,7 +120,7 @@ export const StoreDetailScreen: React.FC = () => {
     );
   }
 
-  const cat = CATEGORY_COLOR[store.category] ?? Colors.primary;
+  const cat = getCategoryColor(store.category);
   const openStr = fmt12(store.openTime);
   const closeStr = fmt12(store.closeTime);
   const hasHours = !!(openStr && closeStr);

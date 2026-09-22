@@ -26,14 +26,23 @@ import type { StoreCategory } from '../../data/offlineStores';
 
 // ── Store categories (mirrors offlineStores taxonomy) ─────────────────────
 const CATEGORIES: { label: StoreCategory; emoji: string }[] = [
-  { label: 'Fashion',      emoji: '👗' },
-  { label: 'Electronics',  emoji: '📱' },
-  { label: 'Grocery',      emoji: '🛒' },
-  { label: 'Food & Cafe',  emoji: '☕' },
-  { label: 'Health',       emoji: '💊' },
-  { label: 'Jewellery',    emoji: '💍' },
-  { label: 'Sports',       emoji: '⚽' },
-  { label: 'Beauty',       emoji: '💄' },
+  { label: 'Beauty',                   emoji: '💄' },
+  { label: 'Electronics',              emoji: '📱' },
+  { label: "Women's Fashion",          emoji: '👗' },
+  { label: 'Sneakers & Shoes',         emoji: '👟' },
+  { label: 'Home & Garden',            emoji: '🪴' },
+  { label: 'Video Games',              emoji: '🎮' },
+  { label: 'Toys',                     emoji: '🧸' },
+  { label: 'Sports',                   emoji: '⚽' },
+  { label: 'Baby & Kids',              emoji: '🍼' },
+  { label: 'Rocks & Crystals',         emoji: '💎' },
+  { label: 'Outdoors',                 emoji: '⛺' },
+  { label: "Men's Fashion",            emoji: '👔' },
+  { label: 'Arts & Handmade',          emoji: '🎨' },
+  { label: 'Jewellery & Watches',      emoji: '⌚' },
+  { label: 'Bags & Accessories',       emoji: '👜' },
+  { label: 'Antiques & Vintage Decor', emoji: '🕰️' },
+  { label: 'Wholesale & Deals',        emoji: '🏷️' },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────

@@ -11,12 +11,10 @@ import { Colors, Fonts } from '../../constants/theme';
 import { Input } from '../../components/Input';
 import { ImageUploader } from '../../components/ImageUploader';
 import { MultiImageUploader } from '../../components/MultiImageUploader';
+import { CategorySelect } from '../../components/CategorySelect';
 import { storesAPI, type MyStoreUpdate } from '../../api/stores';
 import { useMyStore } from '../../hooks/useMyStore';
 import { cloudFolder } from '../../constants/cloudinaryFolders';
-
-// Must match the backend STORE_CATEGORIES enum (storeModel.js).
-const CATEGORIES = ['Fashion', 'Electronics', 'Grocery', 'Food & Cafe', 'Health', 'Jewellery', 'Sports', 'Beauty'];
 
 /**
  * EditStoreDetailsScreen — a seller edits their own store (PATCH /api/stores/mine).
@@ -131,16 +129,8 @@ export const EditStoreDetailsScreen: React.FC = () => {
 
           <Input label="Store name" placeholder="Rohit's Boutique" value={name} onChangeText={setName} />
 
-          <Text style={[styles.groupLabel, { marginTop: 4 }]}>Category</Text>
-          <View style={styles.pillRow}>
-            {CATEGORIES.map((c) => {
-              const active = category === c;
-              return (
-                <Pressable key={c} onPress={() => setCategory(c)} style={[styles.pill, active && styles.pillActive]}>
-                  <Text style={[styles.pillText, active && styles.pillTextActive]}>{c}</Text>
-                </Pressable>
-              );
-            })}
+          <View style={{ marginTop: 4 }}>
+            <CategorySelect label="Category" value={category} onChange={setCategory} />
           </View>
 
           <Input label="Description" placeholder="What you sell, your specialty…" value={description} onChangeText={setDescription} />
