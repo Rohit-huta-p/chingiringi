@@ -17,18 +17,22 @@
  */
 import { v2 as cloudinary } from 'cloudinary';
 
-const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
-const API_KEY = process.env.CLOUDINARY_API_KEY || '';
-const API_SECRET = process.env.CLOUDINARY_API_SECRET || '';
-
 const KYC_ROOT = 'chingiringi/kyc';
 const KYC_KINDS = ['doc', 'id', 'selfie'];
 
 let _configured = false;
 function ensureConfig() {
   if (_configured) return true;
-  if (!CLOUD_NAME || !API_KEY || !API_SECRET) return false;
-  cloudinary.config({ cloud_name: CLOUD_NAME, api_key: API_KEY, api_secret: API_SECRET, secure: true });
+  // Read env LAZILY (at first call), not at module load. app.js runs
+  // dotenv.config() as a body statement, which executes AFTER this module is
+  // pulled in by the route chain (app.js → storeRoutes → storeController →
+  // cloudinaryKyc). Capturing these into module-level consts would therefore
+  // freeze them to '' and wedge KYC off even when the .env is correct.
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
+  const apiKey = process.env.CLOUDINARY_API_KEY || '';
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || '';
+  if (!cloudName || !apiKey || !apiSecret) return false;
+  cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true });
   _configured = true;
   return true;
 }
