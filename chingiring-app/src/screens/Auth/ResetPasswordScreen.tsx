@@ -1,106 +1,117 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { AuthLayout } from './AuthLayout';
-import { Input } from '../../components/Input';
-import { Button } from '../../components/Button';
-import { Colors } from '../../constants/theme';
-import { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import type { TextInput } from 'react-native';
+import { Lock } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
+import { AuthScaffold } from '../../components/AuthScaffold';
+import {
+  AuthField, AuthCTA, AuthCodeInput, AuthLink, AuthLinkRow, AuthError, AuthNotice, PasswordToggle,
+  authErrorMessage, useCountdown, EMAIL_RE, RESEND_SECONDS,
+} from '../../components/AuthParts';
+import { authBack, goToAuthScreen } from './authNavigation';
 
+// Password reset step 2 of 2: the emailed code + the new password, submitted
+// together to /auth/reset-password (which checks the code itself).
+//
+// Don't route the code through /auth/verify-otp first: for an existing account
+// that endpoint signs the user in and deletes the code, so the reset that
+// follows fails with "OTP not found or expired".
 export const ResetPasswordScreen = ({ navigation, route }: any) => {
-  const { identifier, otp } = route.params || { identifier: '', otp: '' };
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const email = String(route?.params?.email ?? route?.params?.identifier ?? '').trim();
 
-  const resetMutation = useMutation({
+  const [code, setCode] = useState(String(route?.params?.otp ?? '').replace(/\D/g, '').slice(0, 6));
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const passwordRef = useRef<TextInput>(null);
+  const confirmRef = useRef<TextInput>(null);
+  const { remaining, start: startCooldown } = useCountdown(RESEND_SECONDS);
+
+  useEffect(() => {
+    // No email (e.g. a bare /reset-password URL): start from the first step.
+    if (!EMAIL_RE.test(email)) navigation.replace('ForgotPassword');
+    else startCooldown(); // a code was just sent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const resetMut = useMutation({
     mutationFn: authAPI.resetPassword,
-    onSuccess: () => {
-      navigation.navigate('Login');
-    },
-    onError: (error: any) => {
-      console.warn('Reset Error:', error.message);
-    }
+    onSuccess: () => goToAuthScreen(navigation, 'Login', { notice: 'Password updated. Sign in with your new password.' }),
+    onError: (e: any) => setError(authErrorMessage(e, 'Could not update your password. Please try again.')),
   });
 
-  const handleReset = () => {
-    if (password !== confirmPassword) {
-      console.warn('Passwords do not match');
-      return;
-    }
-    resetMutation.mutate({ email: identifier, otp, newPassword: password });
+  const resendMut = useMutation({
+    mutationFn: authAPI.forgotPassword,
+    onSuccess: () => { setError(''); setCode(''); setInfo('We sent you a new code.'); startCooldown(); },
+    onError: (e: any) => setError(authErrorMessage(e, 'Could not resend the code. Try again.')),
+  });
+
+  const submit = () => {
+    if (code.length !== 6) { setError('Enter the 6-digit code from your email.'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (password !== confirm) { setError("Passwords don't match."); return; }
+    setError(''); setInfo('');
+    resetMut.mutate({ email, otp: code, newPassword: password });
   };
 
-  const Header = (
-    <>
-      <View style={styles.iconPill}>
-        {/* Placeholder for email icon */}
-        <View style={styles.iconInner} />
-      </View>
-      <Text style={styles.title}>Update Password</Text>
-    </>
-  );
-
-  const Subtitle = (
-    <Text style={styles.subtitle}>Enter your email to receive a password reset OTP</Text> // Using text from forgot screen per design standard, or a custom one
-  );
-
   return (
-    <AuthLayout 
-      title={Header} 
-      subtitle={Subtitle}
-      showBackButton
-      onBackPress={() => navigation.goBack()}
+    <AuthScaffold
+      mode="login"
+      hideChrome
+      compact
+      onBack={() => authBack(navigation, 'ForgotPassword')}
+      heading="Set a new password"
+      subheading={`If there's an account for ${email}, we've emailed it a 6-digit code. Enter it with your new password.`}
     >
-      <Text style={styles.inputLabel}>Set New Password</Text>
-      <Input placeholder="New Password" secureTextEntry value={password} onChangeText={setPassword} />
-      <Input placeholder="Re-type New Password" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
-
-      <Button 
-        title="Reset ->" 
-        onPress={handleReset} 
-        style={styles.mainButton} 
-        loading={resetMutation.isPending}
-        disabled={resetMutation.isPending || !password}
+      <AuthCodeInput
+        value={code}
+        onChangeText={(t) => { setCode(t); if (error) setError(''); }}
+        onComplete={() => passwordRef.current?.focus()}
       />
-    </AuthLayout>
+      <AuthField
+        ref={passwordRef}
+        label="New password"
+        icon={Lock}
+        placeholder="At least 6 characters"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry={!showPw}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="next"
+        onSubmitEditing={() => confirmRef.current?.focus()}
+        right={<PasswordToggle visible={showPw} onToggle={() => setShowPw((v) => !v)} />}
+      />
+      <AuthField
+        ref={confirmRef}
+        label="Confirm new password"
+        icon={Lock}
+        placeholder="Type it again"
+        value={confirm}
+        onChangeText={setConfirm}
+        secureTextEntry={!showPw}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="go"
+        onSubmitEditing={submit}
+      />
+      {info ? <AuthNotice text={info} /> : null}
+      <AuthError text={error} />
+      <AuthCTA label="Update password" onPress={submit} loading={resetMut.isPending} />
+      <AuthLinkRow>
+        <AuthLink label="Use a different email" onPress={() => authBack(navigation, 'ForgotPassword')} />
+        <AuthLink
+          label={resendMut.isPending ? 'Sending…' : remaining > 0 ? `Resend code in ${remaining}s` : 'Resend code'}
+          onPress={() => resendMut.mutate({ email })}
+          disabled={resendMut.isPending || remaining > 0}
+        />
+      </AuthLinkRow>
+    </AuthScaffold>
   );
 };
-
-const styles = StyleSheet.create({
-  iconPill: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  iconInner: {
-    width: 20,
-    height: 20,
-    backgroundColor: Colors.primary, 
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  mainButton: {
-    marginTop: 16,
-  },
-});

@@ -1,195 +1,85 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
-import { AuthLayout } from './AuthLayout';
-import { Button } from '../../components/Button';
-import { Colors } from '../../constants/theme';
+import React, { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
 import { useAuthStore } from '../../store';
+import { AuthScaffold } from '../../components/AuthScaffold';
+import {
+  AuthCTA, AuthCodeInput, AuthLink, AuthLinkRow, AuthError, AuthNotice,
+  authErrorMessage, formatIndianMobile, useCountdown, RESEND_SECONDS,
+} from '../../components/AuthParts';
+import { authBack } from './authNavigation';
 
+// Phone sign-in step 2 of 2: verify the SMS code. On success the backend
+// returns tokens (the interceptor stores them) and hydrate() flips the app
+// into the signed-in navigator. Password resets don't come through here —
+// ResetPassword takes the emailed code directly.
 export const OTPVerificationScreen = ({ navigation, route }: any) => {
-  const { identifier } = route.params || { identifier: 'Unknown' };
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const inputs = useRef<TextInput[]>([]);
-  
-  const hydrate = useAuthStore((state) => state.hydrate);
+  const rawIdentifier = String(route?.params?.identifier ?? '');
+  const phone = rawIdentifier.replace(/\D/g, '');
+  const hydrate = useAuthStore((s) => s.hydrate);
 
-  const verifyOtpMutation = useMutation({
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const { remaining, start: startCooldown } = useCountdown(RESEND_SECONDS);
+
+  useEffect(() => {
+    // Opened without a usable number (e.g. a bare /otp URL): start over. An
+    // email here is an old reset link — send it to the reset screen.
+    if (rawIdentifier.includes('@')) navigation.replace('ResetPassword', { email: rawIdentifier });
+    else if (phone.length !== 10) navigation.replace('PhoneLogin');
+    else startCooldown(); // a code was just sent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const verifyMut = useMutation({
     mutationFn: authAPI.verifyOtp,
-    onSuccess: async (data, variables) => {
-      // If server returns isLogin it means cookies were injected
-      if (data?.data?.isLogin) {
-        await hydrate();
-      } else {
-        // If no login intent, it's a password reset flow
-        navigation.navigate('ResetPassword', { identifier, otp: otp.join('') });
-      }
+    onSuccess: async (res: any) => {
+      if (res?.data?.isLogin) { setError(''); await hydrate(); }
+      else setError('Could not sign you in. Please try again.');
     },
-    onError: (error: any) => {
-      console.warn('Verify OTP Error:', error.message);
-    }
+    onError: (e: any) => {
+      setError(authErrorMessage(e, 'That code is invalid or has expired.'));
+      setCode('');
+    },
   });
 
-  const handleVerify = () => {
-    verifyOtpMutation.mutate({ identifier, otp: otp.join('') });
+  const resendMut = useMutation({
+    mutationFn: authAPI.sendOtp,
+    onSuccess: () => { setError(''); setInfo('We sent you a new code.'); startCooldown(); },
+    onError: (e: any) => setError(authErrorMessage(e, 'Could not resend the code. Try again.')),
+  });
+
+  const verify = (value = code) => {
+    if (value.length !== 6) { setError('Enter the 6-digit code.'); return; }
+    if (verifyMut.isPending) return;
+    setError(''); setInfo('');
+    verifyMut.mutate({ identifier: phone, otp: value });
   };
 
-  const handleOtpChange = (value: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // move focus
-    if (value && index < 5) {
-      inputs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      inputs.current[index - 1]?.focus();
-    }
-  };
-
-  const Header = (
-    <>
-      <View style={styles.iconPill}>
-        {/* Placeholder for phone icon */}
-        <View style={styles.iconInner} />
-      </View>
-      <Text style={styles.title}>Verify OTP</Text>
-    </>
-  );
-
-  const Subtitle = (
-    <Text style={styles.subtitle}>We sent a 6-digit code to <Text style={styles.strong}>{identifier}</Text></Text>
-  );
+  const back = () => authBack(navigation, 'PhoneLogin');
 
   return (
-    <AuthLayout 
-      title={Header} 
-      subtitle={Subtitle}
-      showBackButton
-      onBackPress={() => navigation.goBack()}
+    <AuthScaffold
+      mode="login"
+      hideChrome
+      compact
+      onBack={back}
+      heading="Verify your phone"
+      subheading={`Enter the 6-digit code we sent to ${formatIndianMobile(phone)}.`}
     >
-      <View style={styles.floatingInput}>
-        <Text style={styles.floatingInputText}>Enter any 6 digits to continue</Text>
-      </View>
-
-      <View style={styles.otpContainer}>
-        {otp.map((digit, index) => (
-          <TextInput
-            key={index}
-            ref={(ref: any) => inputs.current[index] = ref}
-            style={styles.otpInput}
-            keyboardType="number-pad"
-            maxLength={1}
-            value={digit}
-            onChangeText={(v: string) => handleOtpChange(v, index)}
-            onKeyPress={(e: any) => handleKeyPress(e, index)}
-          />
-        ))}
-      </View>
-
-      <Text style={styles.resendText}>
-        Resend OTP in <Text style={styles.strongText}>27s</Text>
-      </Text>
-
-      <Button 
-        title="Verify & Continue ->" 
-        onPress={handleVerify} 
-        style={styles.mainButton} 
-        disabled={otp.join('').length < 6 || verifyOtpMutation.isPending} 
-        loading={verifyOtpMutation.isPending}
-      />
-
-      <View style={styles.footerContainer}>
-        <Text style={styles.footerText}>Didn't receive the code? </Text>
-        <Button title="Try another method" variant="text" onPress={() => {}} />
-      </View>
-    </AuthLayout>
+      <AuthCodeInput value={code} onChangeText={(t) => { setCode(t); if (error) setError(''); }} onComplete={verify} />
+      {info ? <AuthNotice text={info} /> : null}
+      <AuthError text={error} />
+      <AuthCTA label="Verify & continue" onPress={() => verify()} loading={verifyMut.isPending} disabled={code.length !== 6} />
+      <AuthLinkRow>
+        <AuthLink label="Change number" onPress={back} />
+        <AuthLink
+          label={resendMut.isPending ? 'Sending…' : remaining > 0 ? `Resend code in ${remaining}s` : 'Resend code'}
+          onPress={() => resendMut.mutate({ phone })}
+          disabled={resendMut.isPending || remaining > 0}
+        />
+      </AuthLinkRow>
+    </AuthScaffold>
   );
 };
-
-const styles = StyleSheet.create({
-  iconPill: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  iconInner: {
-    width: 20,
-    height: 20,
-    backgroundColor: Colors.primary, // Placeholder for actual icon vector
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  strong: {
-    color: Colors.text,
-    fontWeight: '700',
-  },
-  floatingInput: {
-    backgroundColor: '#faf5ff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e9d5ff',
-    padding: 12,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  floatingInputText: {
-    color: '#9333ea',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  otpInput: {
-    width: 45,
-    height: 55,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    textAlign: 'center',
-    fontSize: 20,
-    color: Colors.text,
-    backgroundColor: Colors.surface,
-  },
-  resendText: {
-    textAlign: 'center',
-    color: Colors.textSecondary,
-    marginBottom: 24,
-  },
-  strongText: {
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  mainButton: {
-    marginBottom: 24,
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  footerText: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-  },
-});
