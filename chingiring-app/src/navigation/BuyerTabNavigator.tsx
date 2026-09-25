@@ -58,7 +58,7 @@ import { MessagesScreen } from '../screens/Messages/MessagesScreen';
 import { ChatScreen } from '../screens/Messages/ChatScreen';
 import { BlockedAccountsScreen } from '../screens/Dashboard/BlockedAccountsScreen';
 import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
-import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
+import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { SignupScreen } from '../screens/Auth/SignupScreen';
 
 // ─── Tab icon map ──────────────────────────────────────────────────────────
@@ -189,7 +189,7 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="SellerProfile"     component={SellerProfileScreen} />
         <Stack.Screen
           name="AuthLogin"
-          component={MobileLoginScreen}
+          component={LoginScreen}
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen

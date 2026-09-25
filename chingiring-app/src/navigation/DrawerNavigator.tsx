@@ -29,7 +29,6 @@ import { NotificationsScreen } from '../screens/Dashboard/NotificationsScreen';
 import { MobileSettingsScreen } from '../screens/Dashboard/MobileSettingsScreen';
 import { MobileReferenceScreen } from '../screens/Dashboard/MobileReferenceScreen';
 import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
-import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
 import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { SignupScreen } from '../screens/Auth/SignupScreen';
 import { MyVideosScreen } from '../screens/Dashboard/MyVideosScreen';
@@ -375,7 +374,7 @@ function MobileNavigator() {
         {/* Auth modal screens — navigated to by AuthGateContext when guest taps a gated CTA */}
         <Stack.Screen
           name="AuthLogin"
-          component={isMobile ? MobileLoginScreen : LoginScreen}
+          component={LoginScreen}
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen

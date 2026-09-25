@@ -1,5 +1,8 @@
 import type { LinkingOptions } from '@react-navigation/native';
 
+// A `stringify` that returns undefined leaves that param out of the URL.
+const dropFromUrl = () => undefined as unknown as string;
+
 /**
  * Centralised deep-link / web-URL routing config.
  *
@@ -31,13 +34,15 @@ export const linking: LinkingOptions<ReactNavigation.RootParamList> = {
   config: {
     screens: {
       // ── Auth (AuthNavigator stack — mounted while unauthenticated) ─────
-      Login:           'login',
+      // Phone numbers, emails and codes are passed as params but kept out of
+      // the web URL (browser history). A reload without them restarts that step.
+      Login:           { path: 'login', stringify: { notice: dropFromUrl } },
       PasswordLogin:   'login/password',
       Signup:          'signup',
       PhoneLogin:      'login/phone',
-      OTPVerification: 'otp',
-      ForgotPassword:  'forgot-password',
-      ResetPassword:   'reset-password',
+      OTPVerification: { path: 'otp', stringify: { identifier: dropFromUrl, channel: dropFromUrl } },
+      ForgotPassword:  { path: 'forgot-password', stringify: { email: dropFromUrl } },
+      ResetPassword:   { path: 'reset-password', stringify: { email: dropFromUrl, identifier: dropFromUrl, otp: dropFromUrl } },
 
       // ── Admin (AdminNavigator — mounted when user.role === 'admin') ────
       AdminDashboard:   'admin',
