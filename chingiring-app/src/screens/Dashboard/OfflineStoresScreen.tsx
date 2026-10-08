@@ -47,6 +47,7 @@ import {
 import { LiveCard } from '../../components/LiveCard';
 import { CategoryTiles } from '../../components/CategoryTiles';
 import { CATEGORY_COLOR, getCategoryColor } from '../../constants/categories';
+import { seededShuffle, makeShuffleSeed } from '../../utils/seededShuffle';
 
 type SortKey = 'discount' | 'rating';
 type ViewMode = 'live' | 'stores';
@@ -94,6 +95,9 @@ export const OfflineStoresScreen: React.FC = () => {
   // Measured width of the live grid pane (updated on layout so the column
   // math is correct inside the desktop drawer, not just at window width).
   const [liveGridW, setLiveGridW] = useState(0);
+  // One seed for the screen's lifetime: the live feed is shuffled per visit but
+  // stays put across the 30s refetch; a fresh mount reshuffles.
+  const [shuffleSeed] = useState(makeShuffleSeed);
 
   // Ask for GPS once so "Near" sorts by the shopper's real distance; fall back
   // to the city center (BENGALURU_CENTER) on denial/error.
@@ -181,6 +185,10 @@ export const OfflineStoresScreen: React.FC = () => {
     () => (activeCategory === 'All' ? liveStreams : liveStreams.filter((s) => s.category === activeCategory)),
     [liveStreams, activeCategory],
   );
+  // Shuffled per visit; the mount seed keeps the order stable while browsing.
+  // This same array + the tapped index are handed to the LiveFeed pager so its
+  // swipe order matches the grid.
+  const shuffledLive = useMemo(() => seededShuffle(filteredLive, shuffleSeed), [filteredLive, shuffleSeed]);
 
   const filterCount =
     (filters.openNow ? 1 : 0) + (filters.minDiscount > 0 ? 1 : 0) + (filters.minRating > 0 ? 1 : 0);
@@ -410,18 +418,15 @@ export const OfflineStoresScreen: React.FC = () => {
               </View>
             ) : (
               <View style={styles.mLiveGrid}>
-                {filteredLive.map((item) => (
+                {shuffledLive.map((item, idx) => (
                   <LiveCard
                     key={item._id}
                     stream={item}
                     width={mLiveCardW}
                     onPress={() =>
-                      navigation.navigate('ViewerScreen', {
-                        streamId: item._id,
-                        storeId: item.storeId,
-                        storeName: item.storeName,
-                        storeLogoUrl: item.storeLogoUrl,
-                        streamTitle: item.title,
+                      navigation.navigate('LiveFeed', {
+                        streams: shuffledLive,
+                        startIndex: idx,
                       })
                     }
                   />

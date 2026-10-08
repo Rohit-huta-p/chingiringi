@@ -1,0 +1,1034 @@
+/**
+ * LiveViewerPage — one live stream, rendered as a reusable page.
+ *
+ * Extracted from ViewerScreen so the same UI backs both the single-stream
+ * viewer (ViewerScreen, opened from StoreDetail) and the vertical reels pager
+ * (LiveFeedScreen). It is driven by props, not route params, and gates its
+ * three heavy subsystems on whether it is the on-screen page:
+ *
+ *   • Socket   — useSocket({ streamId: isActive ? id : null }): only the active
+ *                page joins; swiping away flips the id to null → leave + flush
+ *                the viewer count.
+ *   • Video    — VideoLayer mounts only when isActive || isAdjacent (the next
+ *                page pre-warms, paused); isActive drives play/pause.
+ *   • Detail   — getStream() runs once the page is active or adjacent.
+ *
+ * Inactive pages render a light poster (cover + LIVE badge + store/title) so
+ * they are recognizable while scrolling, with no chat/products/input/socket.
+ *
+ * Video layer is Mux HLS via VideoLayer (expo-video). Socket.io /stream
+ * namespace. Floating hearts (Reanimated). Live chat, featured products,
+ * spotlight, pinned message, and the "stream ended" overlay all live here.
+ */
+
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Image,
+  FlatList,
+  ScrollView,
+  TextInput,
+  ActivityIndicator,
+  Modal,
+  Alert,
+  Keyboard,
+  Platform,
+} from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { X, Send, Heart, Search, MessageCircle, ChevronRight, UserPlus, Check, ArrowUp, ArrowDown, ArrowUpDown, Pin } from 'lucide-react-native';
+import { Colors, Fonts } from '../constants/theme';
+import { useSocket, LiveChatMsg, PinnedMsg } from '../hooks/useSocket';
+import { getStream, type StreamDetail, type StreamProductLite } from '../api/streams';
+import { useFollow } from '../hooks/useFollow';
+import { useAuthGate } from '../context/AuthGateContext';
+import { getOrCreateConversation, type ChatProduct } from '../api/chat';
+import { ChatSheet } from '../screens/Messages/ChatSheet';
+import VideoLayer from './VideoLayer';
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+/** The minimal stream shape a page needs to render before/while detail loads. */
+export interface LiveViewerPageStream {
+  _id: string;
+  storeId?: string;
+  storeName?: string;
+  storeLogoUrl?: string;
+  title?: string;
+}
+
+export interface LiveViewerPageProps {
+  stream: LiveViewerPageStream;
+  /** True when this is the on-screen page: plays video, joins the socket, shows full chrome. */
+  isActive: boolean;
+  /** True for the immediate neighbour of the active page: pre-warms the video, paused. */
+  isAdjacent?: boolean;
+  /** Leave the viewer / feed (back button, ended overlay). */
+  onExit: () => void;
+}
+
+interface HeartItem {
+  id: string;
+  xOffset: number;
+}
+
+// ─── Floating hearts ───────────────────────────────────────────────────────
+// Hearts pop in near the heart button (bottom-right), rise, and fade — 1s.
+
+const HEART_DURATION_MS = 1000;
+const MAX_HEARTS = 20;
+
+function spawnHearts(count: number): HeartItem[] {
+  const n = Math.min(count, 5); // visible cap per burst
+  return Array.from({ length: n }, (_, i) => ({
+    id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`,
+    xOffset: Math.floor(Math.random() * 60) - 10,
+  }));
+}
+
+const FloatingHeart: React.FC<{ item: HeartItem; onDone: (id: string) => void }> = ({ item, onDone }) => {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const scale = useSharedValue(0.4);
+
+  useEffect(() => {
+    scale.value = withSpring(1, { damping: 9, stiffness: 220 });
+    translateY.value = withTiming(-170, { duration: HEART_DURATION_MS, easing: Easing.out(Easing.quad) });
+    opacity.value = withTiming(0, { duration: HEART_DURATION_MS, easing: Easing.in(Easing.quad) });
+    const t = setTimeout(() => onDone(item.id), HEART_DURATION_MS + 60);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View style={[styles.floatingHeart, { right: 20 + item.xOffset }, animStyle]}>
+      <Text style={{ fontSize: 26 }}>❤️</Text>
+    </Animated.View>
+  );
+};
+
+const FloatingHeartsLayer: React.FC<{ hearts: HeartItem[]; onDone: (id: string) => void }> = ({ hearts, onDone }) => (
+  <View pointerEvents="none" style={styles.heartsLayer}>
+    {hearts.map((h) => (
+      <FloatingHeart key={h.id} item={h} onDone={onDone} />
+    ))}
+  </View>
+);
+
+// ─── Chat feed row ─────────────────────────────────────────────────────────
+
+const ChatRow: React.FC<{ item: LiveChatMsg }> = ({ item }) => {
+  const name = item.user?.name ?? 'Guest';
+  const initial = name[0]?.toUpperCase() ?? '?';
+  return (
+    <View style={styles.chatRow}>
+      {item.user?.avatarUrl ? (
+        <Image source={{ uri: item.user.avatarUrl }} style={styles.chatAvatar} />
+      ) : (
+        <View style={[styles.chatAvatar, styles.chatAvatarFallback]}>
+          <Text style={styles.chatAvatarTxt}>{initial}</Text>
+        </View>
+      )}
+      <View style={[styles.chatBubble, item.isAuthor && styles.chatBubbleAuthor]}>
+        {item.isAuthor && (
+          <View style={styles.authorBadge}>
+            <Text style={styles.authorBadgeTxt}>Author</Text>
+          </View>
+        )}
+        <Text style={styles.chatText} numberOfLines={2}>
+          {item.text}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
+// ─── Featured products bar ─────────────────────────────────────────────────
+
+const ProductChip: React.FC<{ item: StreamProductLite; onPress: () => void; onChat: () => void }> = ({ item, onPress, onChat }) => (
+  <Pressable style={styles.productChip} onPress={onPress}>
+    {item.imageUrl ? (
+      <Image source={{ uri: item.imageUrl }} style={styles.productImg} />
+    ) : (
+      <View style={[styles.productImg, styles.productImgFallback]} />
+    )}
+    <View style={styles.productInfo}>
+      <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+      <Text style={styles.productPrice}>₹{item.price}</Text>
+    </View>
+    <Pressable onPress={onChat} hitSlop={6} style={styles.chipChatBtn} accessibilityLabel={`Chat about ${item.name}`}>
+      <MessageCircle size={15} color="#fff" strokeWidth={2} />
+    </Pressable>
+  </Pressable>
+);
+
+// ─── Live product spotlight — the broadcaster's "Show" surfaced prominently ──
+const SpotlightCard: React.FC<{ product: StreamProductLite; onView: () => void; onChat: () => void }> = ({ product, onView, onChat }) => {
+  const hasMrp = !!product.mrp && product.mrp > product.price;
+  return (
+    <View style={styles.spotlightCard}>
+      <View style={styles.spotlightNowRow}>
+        <View style={styles.spotlightDot} />
+        <Text style={styles.spotlightNow}>SHOWING NOW</Text>
+      </View>
+      <View style={styles.spotlightBody}>
+        {product.imageUrl ? (
+          <Image source={{ uri: product.imageUrl }} style={styles.spotlightImg} />
+        ) : (
+          <View style={[styles.spotlightImg, styles.spotlightImgFallback]} />
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.spotlightName} numberOfLines={2}>{product.name}</Text>
+          <View style={styles.spotlightPriceRow}>
+            <Text style={styles.spotlightPrice}>₹{product.price.toLocaleString('en-IN')}</Text>
+            {hasMrp && <Text style={styles.spotlightMrp}>₹{product.mrp!.toLocaleString('en-IN')}</Text>}
+          </View>
+        </View>
+        <Pressable onPress={onChat} hitSlop={6} style={styles.spotlightChat} accessibilityLabel={`Chat about ${product.name}`}>
+          <MessageCircle size={16} color="#fff" strokeWidth={2} />
+        </Pressable>
+        <Pressable onPress={onView} style={styles.spotlightView} accessibilityLabel={`View ${product.name}`}>
+          <Text style={styles.spotlightViewTxt}>View</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+};
+
+// ─── Featured products "See all" sheet ─────────────────────────────────────
+
+type SortKey = 'featured' | 'price-asc' | 'price-desc' | 'newest';
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'featured', label: 'Featured' },
+  { key: 'price-asc', label: 'Price' },
+  { key: 'price-desc', label: 'Price' },
+  { key: 'newest', label: 'Newest' },
+];
+
+const FeaturedSheet: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  storeName: string;
+  products: StreamProductLite[];
+  onChat: (p: StreamProductLite) => void;
+  onDetail: (p: StreamProductLite) => void;
+  bottomInset: number;
+}> = ({ visible, onClose, storeName, products, onChat, onDetail, bottomInset }) => {
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState<SortKey>('featured');
+
+  const visibleProducts = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const matched = products.filter((p) => !needle || p.name.toLowerCase().includes(needle));
+    const sorted = [...matched];
+    if (sort === 'price-asc') sorted.sort((a, b) => a.price - b.price);
+    else if (sort === 'price-desc') sorted.sort((a, b) => b.price - a.price);
+    else if (sort === 'newest') sorted.sort((a, b) => b._id.localeCompare(a._id));
+    return sorted;
+  }, [products, q, sort]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={sheet.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[sheet.card, { paddingBottom: bottomInset + 8 }]}>
+          <View style={sheet.handle} />
+          <View style={sheet.head}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={sheet.title}>Featured in this stream</Text>
+              <Text style={sheet.sub} numberOfLines={1}>{storeName} · tap chat to ask about a product</Text>
+            </View>
+            <Pressable onPress={onClose} style={sheet.closeBtn} accessibilityLabel="Close">
+              <X size={18} color={Colors.text} />
+            </Pressable>
+          </View>
+
+          <View style={sheet.searchPill}>
+            <Search size={17} color="#94a3b8" strokeWidth={2} />
+            <TextInput
+              style={sheet.searchInput}
+              placeholder="Search products…"
+              placeholderTextColor="#94a3b8"
+              value={q}
+              onChangeText={setQ}
+              returnKeyType="search"
+            />
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheet.chipRow}>
+            {SORTS.map((s) => {
+              const active = sort === s.key;
+              const tint = active ? Colors.primary : Colors.textSecondary;
+              return (
+                <Pressable key={s.key} onPress={() => setSort(s.key)} style={[sheet.sortChip, active && sheet.sortChipActive]}>
+                  {s.key === 'featured' && <ArrowUpDown size={13} color={tint} strokeWidth={2.2} />}
+                  <Text style={[sheet.sortChipText, active && sheet.sortChipTextActive]}>{s.label}</Text>
+                  {s.key === 'price-asc' && <ArrowUp size={13} color={tint} strokeWidth={2.4} />}
+                  {s.key === 'price-desc' && <ArrowDown size={13} color={tint} strokeWidth={2.4} />}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <FlatList
+            data={visibleProducts}
+            keyExtractor={(p) => p._id}
+            style={sheet.list}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => {
+              const hasMrp = !!item.mrp && item.mrp > item.price;
+              return (
+                <View style={sheet.row}>
+                  <Pressable style={sheet.rowMain} onPress={() => onDetail(item)}>
+                    {item.imageUrl ? (
+                      <Image source={{ uri: item.imageUrl }} style={sheet.rowImg} />
+                    ) : (
+                      <View style={[sheet.rowImg, sheet.rowImgFallback]} />
+                    )}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={sheet.rowName} numberOfLines={2}>{item.name}</Text>
+                      <View style={sheet.priceRow}>
+                        <Text style={sheet.price}>₹{item.price.toLocaleString('en-IN')}</Text>
+                        {hasMrp ? <Text style={sheet.mrp}>₹{item.mrp!.toLocaleString('en-IN')}</Text> : null}
+                      </View>
+                    </View>
+                  </Pressable>
+                  <Pressable style={sheet.chatBtn} onPress={() => onChat(item)} accessibilityLabel={`Chat about ${item.name}`}>
+                    <MessageCircle size={18} color={Colors.primary} strokeWidth={2} />
+                  </Pressable>
+                </View>
+              );
+            }}
+            ListEmptyComponent={<Text style={sheet.empty}>No products match your search.</Text>}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ─── StreamEndedOverlay ────────────────────────────────────────────────────
+
+const StreamEndedOverlay: React.FC<{
+  storeName: string;
+  storeLogoUrl?: string;
+  hasStore: boolean;
+  following: boolean;
+  onFollow: () => void;
+  onStore: () => void;
+  onBack: () => void;
+}> = ({ storeName, storeLogoUrl, hasStore, following, onFollow, onStore, onBack }) => (
+  <View style={endedStyles.overlay}>
+    {storeLogoUrl ? (
+      <Image source={{ uri: storeLogoUrl }} style={endedStyles.avatar} />
+    ) : (
+      <View style={[endedStyles.avatar, endedStyles.avatarFallback]}>
+        <Text style={endedStyles.avatarInitial}>{storeName[0]?.toUpperCase()}</Text>
+      </View>
+    )}
+    <View style={endedStyles.chip}>
+      <View style={endedStyles.chipDot} />
+      <Text style={endedStyles.chipTxt}>LIVE ENDED</Text>
+    </View>
+    <Text style={endedStyles.title}>Live has ended</Text>
+    <Text style={endedStyles.store}>{storeName}</Text>
+    {hasStore && (
+      <Text style={endedStyles.sub}>Follow to catch their next live and see new drops first.</Text>
+    )}
+    {hasStore && (
+      <Pressable
+        onPress={onFollow}
+        style={[endedStyles.followBtn, following && endedStyles.followBtnOn]}
+        accessibilityLabel={following ? 'Following' : `Follow ${storeName}`}
+      >
+        {following ? <Check size={17} color="#fff" strokeWidth={2.6} /> : <UserPlus size={17} color="#fff" strokeWidth={2.2} />}
+        <Text style={endedStyles.followTxt}>{following ? 'Following' : `Follow ${storeName}`}</Text>
+      </Pressable>
+    )}
+    <View style={endedStyles.exitRow}>
+      {hasStore && (
+        <Pressable onPress={onStore} style={endedStyles.exitBtn} accessibilityLabel="Visit store">
+          <Text style={endedStyles.exitTxt}>Visit store</Text>
+        </Pressable>
+      )}
+      <Pressable onPress={onBack} style={endedStyles.exitBtn} accessibilityLabel="Back to Discover">
+        <Text style={endedStyles.exitTxt}>Discover</Text>
+      </Pressable>
+    </View>
+  </View>
+);
+
+// ─── VideoPendingPlaceholder ───────────────────────────────────────────────
+
+const VideoPendingPlaceholder: React.FC<{
+  storeName: string;
+  storeLogoUrl?: string;
+  loading: boolean;
+}> = ({ storeName, storeLogoUrl, loading }) => (
+  <View style={styles.videoPlaceholder}>
+    {loading ? (
+      <ActivityIndicator color="rgba(255,255,255,0.5)" size="large" />
+    ) : (
+      <>
+        {storeLogoUrl ? (
+          <Image source={{ uri: storeLogoUrl }} style={styles.videoLogoLarge} blurRadius={2} />
+        ) : (
+          <View style={styles.videoLogoFallback}>
+            <Text style={styles.videoLogoInitial}>{storeName[0]?.toUpperCase()}</Text>
+          </View>
+        )}
+      </>
+    )}
+  </View>
+);
+
+// ─── LiveViewerPage ────────────────────────────────────────────────────────
+
+export const LiveViewerPage: React.FC<LiveViewerPageProps> = ({ stream, isActive, isAdjacent = false, onExit }) => {
+  const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
+
+  const {
+    _id: streamId,
+    storeName = 'Live Stream',
+    storeLogoUrl,
+    title: streamTitle,
+    storeId: routeStoreId,
+  } = stream;
+
+  // ── State ───────────────────────────────────────────────────────────────
+  const [viewerCount, setViewerCount] = useState(0);
+  const [hearts, setHearts] = useState<HeartItem[]>([]);
+  const [messages, setMessages] = useState<LiveChatMsg[]>([]);
+  const [chatText, setChatText] = useState('');
+  const [streamEnded, setStreamEnded] = useState(false);
+  const [tokenLoading, setTokenLoading] = useState(true);
+  const [streamDetail, setStreamDetail] = useState<StreamDetail | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [pinned, setPinned] = useState<PinnedMsg | null>(null);
+  const [spotlightId, setSpotlightId] = useState<string | null>(null);
+  const [kbHeight, setKbHeight] = useState(0);
+  const [chatSheet, setChatSheet] = useState<{
+    conversationId: string;
+    otherParty: any;
+    title: string;
+    product: ChatProduct;
+  } | null>(null);
+
+  const { follow, unfollow, isFollowing } = useFollow();
+  const { requireAuth } = useAuthGate();
+
+  // ── Keyboard avoidance (iOS; active page only) ───────────────────────────
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !isActive) return;
+    const show = Keyboard.addListener('keyboardWillShow', (e) =>
+      setKbHeight(e.endCoordinates?.height ?? 0),
+    );
+    const hide = Keyboard.addListener('keyboardWillHide', () => setKbHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [isActive]);
+
+  // ── Fetch stream detail once the page is active or adjacent ──────────────
+  const fetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!streamId || (!isActive && !isAdjacent)) return;
+    if (fetchedRef.current === streamId) return;
+    fetchedRef.current = streamId;
+    setTokenLoading(true);
+    getStream(streamId)
+      .then((d) => { setStreamDetail(d); if (d) { setPinned((d.pinnedMessage as PinnedMsg) ?? null); setSpotlightId((d.currentProductId as string) ?? null); } })
+      .finally(() => setTokenLoading(false));
+  }, [streamId, isActive, isAdjacent]);
+
+  // Live HLS URL from the Mux playback id.
+  const hlsUrl = useMemo(
+    () => (streamDetail?.muxPlaybackId ? `https://stream.mux.com/${streamDetail.muxPlaybackId}.m3u8` : null),
+    [streamDetail?.muxPlaybackId],
+  );
+  const canPlay = !!hlsUrl && streamDetail?.status === 'live' && !streamEnded;
+  const shouldLoadVideo = isActive || isAdjacent;
+
+  const resolvedStoreId = useMemo(() => {
+    if (typeof streamDetail?.storeId === 'object' && streamDetail.storeId?._id) {
+      return streamDetail.storeId._id;
+    }
+    if (typeof routeStoreId === 'string') return routeStoreId;
+    return (routeStoreId as any)?._id;
+  }, [streamDetail, routeStoreId]);
+
+  const products = streamDetail?.products ?? [];
+  const spotlightProduct = spotlightId ? (products.find((p) => p._id === spotlightId) ?? null) : null;
+  const following = resolvedStoreId ? isFollowing(resolvedStoreId) : false;
+  const isLive = streamDetail?.status === 'live' && !streamEnded;
+
+  // ── Heart helpers ───────────────────────────────────────────────────────
+  const addHearts = useCallback((count: number) => {
+    setHearts((prev) => {
+      const next = [...prev, ...spawnHearts(count)];
+      return next.length > MAX_HEARTS ? next.slice(-MAX_HEARTS) : next;
+    });
+  }, []);
+  const removeHeart = useCallback((id: string) => {
+    setHearts((prev) => prev.filter((h) => h.id !== id));
+  }, []);
+
+  // ── Socket.io — only the active page joins (null suspends the hook) ──────
+  const { sendHeart, sendChat } = useSocket({
+    streamId: isActive ? (streamId ?? null) : null,
+    onViewerCount: setViewerCount,
+    onHeartBurst: addHearts,
+    onNewChat: (msg) => setMessages((prev) => [...prev.slice(-49), msg]),
+    onStreamEnded: () => setStreamEnded(true),
+    onProductsUpdated: (next) =>
+      setStreamDetail((prev) => (prev ? { ...prev, products: next } : prev)),
+    onPinned: setPinned,
+    onSpotlight: setSpotlightId,
+  });
+
+  // ── Actions ─────────────────────────────────────────────────────────────
+  const handleHeartPress = useCallback(() => {
+    sendHeart();
+    addHearts(1); // optimistic local heart
+  }, [sendHeart, addHearts]);
+
+  const submitChat = useCallback(() => {
+    const t = chatText.trim();
+    if (!t) return;
+    sendChat(t);
+    setChatText('');
+  }, [chatText, sendChat]);
+
+  const handleStorePress = useCallback(() => {
+    if (!resolvedStoreId) return;
+    navigation.navigate('SellerProfile', { storeId: resolvedStoreId });
+  }, [navigation, resolvedStoreId]);
+
+  const handleProductPress = useCallback(
+    (product: StreamProductLite) => {
+      navigation.navigate('ProductDetail', { productId: product._id });
+    },
+    [navigation],
+  );
+
+  const handleFollow = useCallback(() => {
+    if (!resolvedStoreId) return;
+    requireAuth(
+      async () => {
+        try {
+          if (following) await unfollow(resolvedStoreId);
+          else await follow(resolvedStoreId);
+        } catch {
+          /* optimistic store already updated — ignore network hiccup */
+        }
+      },
+      { title: 'Sign in to follow stores', subtitle: 'See live streams and deals first when you follow a store.', icon: 'star' },
+    );
+  }, [resolvedStoreId, following, follow, unfollow, requireAuth]);
+
+  const openProductChat = useCallback(
+    (product: StreamProductLite) => {
+      if (!resolvedStoreId) return;
+      setSheetOpen(false);
+      requireAuth(
+        async () => {
+          try {
+            const conv = await getOrCreateConversation(resolvedStoreId);
+            if (conv) {
+              setChatSheet({
+                conversationId: conv._id,
+                title: conv.otherParty.name,
+                otherParty: conv.otherParty,
+                product: { productId: product._id, name: product.name, imageUrl: product.imageUrl, price: product.price },
+              });
+            }
+          } catch (e: any) {
+            Alert.alert('Couldn’t open chat', e?.response?.data?.message || 'Please try again in a moment.');
+          }
+        },
+        { title: 'Sign in to message', subtitle: 'Chat with sellers about their products and live streams.', icon: 'default' },
+      );
+    },
+    [resolvedStoreId, requireAuth],
+  );
+
+  const openProductDetail = useCallback(
+    (product: StreamProductLite) => {
+      setSheetOpen(false);
+      navigation.navigate('ProductDetail', { productId: product._id });
+    },
+    [navigation],
+  );
+
+  // ── Guard — missing streamId ────────────────────────────────────────────
+  if (!streamId) {
+    return (
+      <View style={styles.root}>
+        <Text style={{ color: '#fff', margin: 32 }}>No stream selected.</Text>
+      </View>
+    );
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  return (
+    <View style={styles.root}>
+      {/* ── Video layer (Mux HLS) — mounts for active + adjacent; plays only when active ── */}
+      {shouldLoadVideo && canPlay ? (
+        <View style={StyleSheet.absoluteFill}>
+          <VideoLayer source={hlsUrl} isActive={isActive} muted={!isActive} />
+        </View>
+      ) : (
+        <VideoPendingPlaceholder storeName={storeName} storeLogoUrl={storeLogoUrl} loading={isActive && tokenLoading} />
+      )}
+
+      {/* ── Inactive poster — recognizable while scrolling, no interactive chrome ── */}
+      {!isActive && (
+        <>
+          <LinearGradient
+            colors={['rgba(0,0,0,0.3)', 'transparent', 'rgba(0,0,0,0.72)']}
+            locations={[0, 0.5, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+          <View style={[styles.posterTop, { top: Math.max(insets.top, 12) }]} pointerEvents="none">
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          </View>
+          <View style={[styles.posterBottom, { bottom: insets.bottom + 40 }]} pointerEvents="none">
+            <Text style={styles.posterStore} numberOfLines={1}>{storeName}</Text>
+            {streamTitle ? <Text style={styles.posterTitle} numberOfLines={2}>{streamTitle}</Text> : null}
+          </View>
+        </>
+      )}
+
+      {/* ── Active chrome ── */}
+      {isActive && !streamEnded && (
+        <>
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.bottomGradient}
+            pointerEvents="none"
+          />
+
+          {/* Top bar */}
+          <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) }]}>
+            <Pressable style={styles.storeInfo} onPress={handleStorePress} hitSlop={6}>
+              {storeLogoUrl ? (
+                <Image source={{ uri: storeLogoUrl }} style={styles.storeAvatar} />
+              ) : (
+                <View style={[styles.storeAvatar, styles.storeAvatarFallback]}>
+                  <Text style={styles.storeAvatarInitial}>{storeName[0]?.toUpperCase()}</Text>
+                </View>
+              )}
+              <View style={styles.storeTextWrap}>
+                <View style={styles.storeNameRow}>
+                  <Text style={styles.storeName} numberOfLines={1}>{storeName}</Text>
+                  {isLive && (
+                    <View style={styles.liveBadge}>
+                      <View style={styles.liveDot} />
+                      <Text style={styles.liveText}>LIVE</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.viewerText} numberOfLines={1}>{viewerCount.toLocaleString('en-IN')} watching</Text>
+              </View>
+            </Pressable>
+
+            {resolvedStoreId ? (
+              <Pressable
+                onPress={handleFollow}
+                style={[styles.followBtn, following && styles.followBtnActive]}
+                accessibilityLabel={following ? 'Following' : 'Follow'}
+              >
+                {following ? <Check size={13} color="#fff" strokeWidth={2.6} /> : <UserPlus size={13} color="#fff" strokeWidth={2.4} />}
+                <Text style={styles.followText}>{following ? 'Following' : 'Follow'}</Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable onPress={onExit} style={styles.iconBtn} accessibilityLabel="Close">
+              <X size={20} color="#fff" />
+            </Pressable>
+          </View>
+
+          {/* Bottom: featured products + chat feed + input row */}
+          <View style={[styles.bottomOverlay, { paddingBottom: kbHeight > 0 ? kbHeight + 16 : insets.bottom + 28 }]}>
+            {spotlightProduct && (
+              <SpotlightCard
+                product={spotlightProduct}
+                onView={() => handleProductPress(spotlightProduct)}
+                onChat={() => openProductChat(spotlightProduct)}
+              />
+            )}
+            {pinned && (
+              <View style={styles.pinnedBar}>
+                <Pin size={13} color="#FFC74A" strokeWidth={2.4} fill="#FFC74A" />
+                {pinned.isAuthor && <Text style={styles.pinnedAuthor}>Author</Text>}
+                <Text style={styles.pinnedText} numberOfLines={1}>{pinned.text}</Text>
+              </View>
+            )}
+            {products.length > 0 && (
+              <>
+                <Pressable style={styles.featuredHead} onPress={() => setSheetOpen(true)} accessibilityLabel="See all featured products">
+                  <Text style={styles.featuredHeadText}>Featured in this stream</Text>
+                  <View style={styles.seeAll}>
+                    <Text style={styles.seeAllText}>See all</Text>
+                    <ChevronRight size={14} color="rgba(255,255,255,0.9)" />
+                  </View>
+                </Pressable>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.productsBarWrap}
+                  contentContainerStyle={styles.productsBar}
+                >
+                  {products.map((p) => (
+                    <ProductChip key={p._id} item={p} onPress={() => handleProductPress(p)} onChat={() => openProductChat(p)} />
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            {streamTitle ? (
+              <Text style={styles.streamTitle} numberOfLines={1}>{streamTitle}</Text>
+            ) : null}
+
+            <FlatList
+              data={messages.slice(-5).reverse()}
+              keyExtractor={(m) => m.id}
+              renderItem={({ item }) => <ChatRow item={item} />}
+              inverted
+              scrollEnabled={false}
+              style={styles.chatList}
+              showsVerticalScrollIndicator={false}
+            />
+
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.chatInput}
+                value={chatText}
+                onChangeText={setChatText}
+                placeholder="Say something…"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                returnKeyType="send"
+                onSubmitEditing={submitChat}
+                blurOnSubmit={false}
+                maxLength={200}
+              />
+              <Pressable
+                onPress={submitChat}
+                disabled={!chatText.trim()}
+                style={[styles.sendBtn, !chatText.trim() && { opacity: 0.5 }]}
+                accessibilityLabel="Send message"
+              >
+                <Send size={18} color="#fff" />
+              </Pressable>
+              <Pressable onPress={handleHeartPress} style={styles.heartBtn} accessibilityLabel="Send heart">
+                <Heart size={18} color="#fff" fill="#fff" />
+              </Pressable>
+            </View>
+          </View>
+
+          <FloatingHeartsLayer hearts={hearts} onDone={removeHeart} />
+        </>
+      )}
+
+      {/* ── Stream ended overlay (active page only) ── */}
+      {isActive && streamEnded && (
+        <StreamEndedOverlay
+          storeName={storeName}
+          storeLogoUrl={storeLogoUrl}
+          hasStore={!!resolvedStoreId}
+          following={following}
+          onFollow={handleFollow}
+          onStore={handleStorePress}
+          onBack={onExit}
+        />
+      )}
+
+      {/* ── Featured products "See all" sheet ── */}
+      {isActive && (
+        <FeaturedSheet
+          visible={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          storeName={storeName}
+          products={products}
+          onChat={openProductChat}
+          onDetail={openProductDetail}
+          bottomInset={insets.bottom}
+        />
+      )}
+
+      {/* Product chat as a slide-up bottom sheet (cross-platform: web + native) */}
+      {isActive && (
+        <ChatSheet
+          visible={!!chatSheet}
+          onClose={() => setChatSheet(null)}
+          conversationId={chatSheet?.conversationId}
+          otherParty={chatSheet?.otherParty}
+          title={chatSheet?.title}
+          product={chatSheet?.product ?? null}
+        />
+      )}
+    </View>
+  );
+};
+
+export default LiveViewerPage;
+
+// ─── Styles ────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#0A0A0A' },
+
+  // ── Video placeholder ──
+  videoPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#111',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  videoLogoLarge: { width: 96, height: 96, borderRadius: 48, opacity: 0.6 },
+  videoLogoFallback: {
+    width: 96, height: 96, borderRadius: 48,
+    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', opacity: 0.6,
+  },
+  videoLogoInitial: { color: '#fff', fontSize: 38, fontFamily: Fonts.extraBold },
+
+  // ── Inactive poster ──
+  posterTop: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center' },
+  posterBottom: { position: 'absolute', left: 16, right: 16 },
+  posterStore: {
+    color: '#fff', fontSize: 16, fontFamily: Fonts.bold,
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 },
+  },
+  posterTitle: {
+    color: 'rgba(255,255,255,0.9)', fontSize: 13, fontFamily: Fonts.regular, marginTop: 2,
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 },
+  },
+
+  // ── Gradient overlay ──
+  bottomGradient: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: 260,
+  },
+
+  // ── Top bar ──
+  topBar: {
+    position: 'absolute', top: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, gap: 10,
+  },
+  storeInfo: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
+  },
+  storeAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary, flexShrink: 0 },
+  storeAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  storeAvatarInitial: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+  storeTextWrap: { marginLeft: 8, flexShrink: 1, minWidth: 0 },
+  storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  storeName: { color: '#fff', fontSize: 14, fontFamily: Fonts.semiBold, flexShrink: 1 },
+  viewerText: { color: 'rgba(255,255,255,0.7)', fontSize: 11.5, fontFamily: Fonts.regular, marginTop: 1 },
+  liveBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0,
+    backgroundColor: '#EF4444', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  liveDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#fff' },
+  liveText: { color: '#fff', fontSize: 10, fontFamily: Fonts.extraBold, letterSpacing: 0.5 },
+  followBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0,
+    backgroundColor: Colors.primary, borderRadius: 18, paddingVertical: 7, paddingHorizontal: 13,
+  },
+  followBtnActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  followText: { color: '#fff', fontSize: 12.5, fontFamily: Fonts.bold },
+  iconBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+
+  // ── Bottom overlay ──
+  bottomOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 12,
+  },
+  streamTitle: {
+    color: '#fff', fontSize: 13, fontFamily: Fonts.medium, marginBottom: 6,
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 },
+  },
+
+  // ── Featured products bar ──
+  featuredHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 2, marginBottom: 2,
+  },
+  featuredHeadText: {
+    color: '#fff', fontSize: 12.5, fontFamily: Fonts.bold,
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4,
+  },
+  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  seeAllText: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontFamily: Fonts.semiBold },
+  productsBarWrap: { height: 72, flexGrow: 0 },
+  productsBar: { gap: 10, alignItems: 'center', paddingVertical: 12 },
+  productChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10,
+    paddingVertical: 8, paddingHorizontal: 12, maxWidth: 190,
+  },
+  productImg: { width: 40, height: 40, borderRadius: 20, flexShrink: 0 },
+  productImgFallback: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  productInfo: { flexShrink: 1, gap: 2 },
+  productName: { color: '#fff', fontSize: 12, fontFamily: Fonts.regular, lineHeight: 15 },
+  productPrice: { color: Colors.primary, fontSize: 12, fontFamily: Fonts.bold },
+  chipChatBtn: {
+    width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+
+  // ── Chat feed ──
+  chatList: { maxHeight: 160 },
+  chatRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  chatAvatar: { width: 28, height: 28, borderRadius: 14 },
+  chatAvatarFallback: { backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  chatAvatarTxt: { color: '#fff', fontSize: 11, fontFamily: Fonts.bold },
+  chatBubble: {
+    flexShrink: 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 8,
+    paddingVertical: 6, paddingHorizontal: 10,
+  },
+  chatText: { color: '#fff', fontSize: 13, fontFamily: Fonts.regular },
+  chatBubbleAuthor: { backgroundColor: 'rgba(255,199,74,0.18)', borderWidth: 1, borderColor: 'rgba(255,199,74,0.55)' },
+  authorBadge: { alignSelf: 'flex-start', backgroundColor: '#FFC74A', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginBottom: 2 },
+  authorBadgeTxt: { color: '#3d2600', fontSize: 9, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
+  pinnedBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.55)', borderLeftWidth: 3, borderLeftColor: '#FFC74A', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 8 },
+  pinnedAuthor: { color: '#FFC74A', fontSize: 10, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
+  pinnedText: { flex: 1, color: '#fff', fontSize: 12.5, fontFamily: Fonts.medium },
+  // ── Live product spotlight ("Showing now") ──
+  spotlightCard: { backgroundColor: 'rgba(0,0,0,0.72)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,199,74,0.6)', padding: 10, marginBottom: 10 },
+  spotlightNowRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 7 },
+  spotlightDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFC74A' },
+  spotlightNow: { color: '#FFC74A', fontSize: 10, fontFamily: Fonts.extraBold, letterSpacing: 0.6 },
+  spotlightBody: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  spotlightImg: { width: 52, height: 52, borderRadius: 10 },
+  spotlightImgFallback: { backgroundColor: Colors.primary, opacity: 0.5 },
+  spotlightName: { color: '#fff', fontSize: 13.5, fontFamily: Fonts.semiBold },
+  spotlightPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 3 },
+  spotlightPrice: { color: '#fff', fontSize: 15, fontFamily: Fonts.extraBold },
+  spotlightMrp: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: Fonts.regular, textDecorationLine: 'line-through' },
+  spotlightChat: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  spotlightView: { backgroundColor: '#FFC74A', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
+  spotlightViewTxt: { color: '#3d2600', fontSize: 13, fontFamily: Fonts.extraBold },
+
+  // ── Input row ──
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  chatInput: {
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20,
+    height: 40, color: '#fff', paddingHorizontal: 14, paddingVertical: 8,
+    fontSize: 14, fontFamily: Fonts.regular,
+  },
+  sendBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+  },
+  heartBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center',
+  },
+
+  // ── Floating hearts layer ──
+  heartsLayer: { ...StyleSheet.absoluteFillObject },
+  floatingHeart: { position: 'absolute', bottom: 130 },
+});
+
+// ─── Stream ended overlay styles ────────────────────────────────────────────
+
+const endedStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10,10,14,0.93)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 26,
+  },
+  avatar: { width: 76, height: 76, borderRadius: 38, borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)' },
+  avatarFallback: { backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { color: '#fff', fontSize: 28, fontFamily: Fonts.extraBold },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
+  chipDot: { width: 9, height: 9, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.85)' },
+  chipTxt: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontFamily: Fonts.bold, letterSpacing: 0.4 },
+  title: { color: '#fff', fontSize: 21, fontFamily: Fonts.extraBold, textAlign: 'center', marginTop: 12 },
+  store: { color: 'rgba(255,255,255,0.82)', fontSize: 14, fontFamily: Fonts.medium, textAlign: 'center', marginTop: 3 },
+  sub: { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: Fonts.regular, textAlign: 'center', marginTop: 10, maxWidth: 240, lineHeight: 19 },
+  followBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 20, width: 240, backgroundColor: Colors.primary, borderRadius: 999, paddingVertical: 12 },
+  followBtnOn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
+  followTxt: { color: '#fff', fontSize: 15, fontFamily: Fonts.bold },
+  exitRow: { flexDirection: 'row', gap: 10, marginTop: 11, width: 240 },
+  exitBtn: { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
+  exitTxt: { color: '#fff', fontSize: 13, fontFamily: Fonts.semiBold },
+});
+
+// ─── Featured "See all" sheet styles ────────────────────────────────────────
+
+const sheet = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  card: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingHorizontal: 16, paddingTop: 8, maxHeight: '82%',
+  },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', marginBottom: 10 },
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  title: { fontSize: 17, fontFamily: Fonts.extraBold, color: Colors.navy },
+  sub: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textSecondary, marginTop: 2 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.backgroundGrey, alignItems: 'center', justifyContent: 'center' },
+  searchPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 9, height: 44, borderRadius: 12, paddingHorizontal: 12,
+    backgroundColor: Colors.backgroundGrey, marginBottom: 10,
+  },
+  searchInput: { flex: 1, fontSize: 14.5, fontFamily: Fonts.regular, color: Colors.text, padding: 0 },
+  chipRow: { gap: 8, paddingBottom: 12, paddingRight: 8 },
+  sortChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 18, paddingVertical: 7, paddingHorizontal: 14,
+    borderWidth: 1.5, borderColor: 'transparent', backgroundColor: Colors.backgroundGrey,
+  },
+  sortChipActive: { backgroundColor: Colors.primaryLight10, borderColor: Colors.primary },
+  sortChipText: { fontSize: 12.5, fontFamily: Fonts.semiBold, color: Colors.textSecondary },
+  sortChipTextActive: { color: Colors.primary },
+  list: { flexGrow: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 },
+  rowImg: { width: 58, height: 58, borderRadius: 12, backgroundColor: Colors.backgroundGrey },
+  rowImgFallback: {},
+  rowName: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.text },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 3 },
+  price: { fontSize: 15, fontFamily: Fonts.extraBold, color: Colors.navy },
+  mrp: { fontSize: 12, fontFamily: Fonts.regular, color: '#94a3b8', textDecorationLine: 'line-through' },
+  chatBtn: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.primaryLight10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  empty: { textAlign: 'center', color: Colors.textSecondary, fontSize: 13, fontFamily: Fonts.regular, paddingVertical: 30 },
+});
