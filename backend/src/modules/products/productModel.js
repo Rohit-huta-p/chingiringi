@@ -107,9 +107,10 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // Optional store association — products without storeId are platform-wide.
-    // Sellers cannot create products themselves; admin assigns storeId to surface
-    // a product on that store's public profile.
+    // Optional store association — products without storeId are platform-wide
+    // (admin-created; visible only in the main catalogue, not on any store profile).
+    // Set automatically to the seller's own store on POST /api/products/mine; admin
+    // may also assign it to surface a platform product on that store's public profile.
     storeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Store',
