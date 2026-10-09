@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ import { Banner as BannerModel, bannersAPI } from '../../api/banners';
 import { BannerBlock } from '../../components/BannerBlock';
 import { ProductCard } from '../../components/ProductCard';
 import { tint } from '../../utils/color';
+import { seededShuffle, makeShuffleSeed } from '../../utils/seededShuffle';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -374,6 +375,10 @@ export const HomeScreen = () => {
   const userAvatarUrl = useAuthStore((st) => st.user?.avatarUrl);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  // Per-visit shuffle seed (same pattern as MobileHomeScreen) — fixed for the
+  // mount so the 60s refetch never reorders under the user. New Arrivals keeps the
+  // raw newest-first order; every other section reads the shuffled list.
+  const [shuffleSeed] = useState(makeShuffleSeed);
   const scrollRef = useRef<ScrollView>(null);
 
   // Content width adapts to the viewport. Wide desktop has a 250px left sidebar;
@@ -455,8 +460,14 @@ export const HomeScreen = () => {
 
   // Extract arrays with fallback normalization (handles a few backend shapes:
   // { data: { products } }, { products }, { data: Product[] }, raw array).
-  const products: Product[] =
+  // Raw list is newest-first (createdAt desc). rawProducts keeps that order for the
+  // New Arrivals section; everything else reads the per-visit shuffled `products`.
+  const rawProducts: Product[] =
     productsData?.data?.products ?? productsData?.products ?? productsData?.data ?? [];
+  const products: Product[] = useMemo(
+    () => seededShuffle(rawProducts, shuffleSeed),
+    [rawProducts, shuffleSeed],
+  );
   const categories: Category[] =
     categoriesData?.data?.categories ??
     categoriesData?.categories ??
@@ -609,7 +620,7 @@ export const HomeScreen = () => {
         onProductPress={onProductPress}
         onSeeAll={() => goToCategory('All')}
         hasFilter={false}
-        products={products}
+        products={rawProducts}
       />,
       <MoreToExploreSection
         key="more-to-explore"

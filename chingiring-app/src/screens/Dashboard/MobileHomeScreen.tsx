@@ -25,6 +25,7 @@ import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock } from '../../components/BannerBlock';
 import { CategoryTiles } from '../../components/CategoryTiles';
 import { tint } from '../../utils/color';
+import { seededShuffle, makeShuffleSeed } from '../../utils/seededShuffle';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,9 @@ export const MobileHomeScreen = () => {
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  // Per-visit shuffle seed — fixed for the screen's lifetime so the 30s refetch
+  // (and pull-to-refresh) never reorders products under the user; a fresh mount reshuffles.
+  const [shuffleSeed] = useState(makeShuffleSeed);
 
   // Data fetching
   const { data: productsRes, isLoading: productsLoading } = useQuery({
@@ -106,9 +110,13 @@ export const MobileHomeScreen = () => {
     return () => loop.stop();
   }, [productsLoading, shimmerAnim]);
 
-  // Normalise responses
-  const allProducts: Product[] =
-    productsRes?.data?.products ?? productsRes?.products ?? [];
+  // Normalise responses. Products arrive newest-first (createdAt desc); shuffle
+  // once per visit (seeded) so the feed isn't ordered by recency — every rail and
+  // grid below derives from allProducts, so they all inherit the shuffled order.
+  const allProducts: Product[] = useMemo(() => {
+    const raw = productsRes?.data?.products ?? productsRes?.products ?? [];
+    return seededShuffle(raw, shuffleSeed);
+  }, [productsRes, shuffleSeed]);
   const banners: Banner[] =
     bannersRes?.data?.banners ?? [];
   const apiCategories: Category[] =
