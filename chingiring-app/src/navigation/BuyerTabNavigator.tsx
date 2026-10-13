@@ -145,9 +145,10 @@ function BuyerMobileTabBar({ state, descriptors, navigation }: any) {
 const Tab = createBottomTabNavigator();
 
 function BuyerBottomTabs() {
+  // App opens on the Live Stores feed (the centre tab), not Products.
   return (
     <Tab.Navigator
-      initialRouteName="Home"
+      initialRouteName="Stores"
       backBehavior="history"
       tabBar={(props) => <BuyerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}
