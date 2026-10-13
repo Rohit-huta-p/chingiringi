@@ -10,6 +10,7 @@ import { Colors, Fonts } from '../../constants/theme';
 import { useAuthStore } from '../../store';
 import { useAuthGate } from '../../context/AuthGateContext';
 import { useVideoFeed, useVideoEngagement } from '../../hooks/useVideoFeed';
+import { useScreenActive } from '../../hooks/useScreenActive';
 import { VideoFeedItem, SAMPLE_VIDEOS } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
 import { VideoMoreSheet } from '../../components/VideoMoreSheet';
@@ -24,6 +25,9 @@ export const MobileVideosScreen = () => {
   const { like, share, view, qc } = useVideoEngagement();
   const user = useAuthStore((s) => s.user);
   const { requireAuth } = useAuthGate();
+  // False once you switch tabs or background the app → the active clip is muted
+  // and paused so sound never bleeds off this screen (resumes on return).
+  const screenActive = useScreenActive();
 
   // Dev fallback so the feed renders before the backend/Cloudflare are live.
   const data: FeedVideo[] = videos.length ? videos : (__DEV__ ? SAMPLE_VIDEOS : []);
@@ -141,7 +145,8 @@ export const MobileVideosScreen = () => {
       <VideoFeedItem
         video={item}
         isActive={index === activeIndex}
-        muted={muted}
+        // Force-mute off-screen/backgrounded; otherwise honour the user's choice.
+        muted={muted || !screenActive}
         height={h}
         liked={liked}
         likeCount={likeCount}
@@ -152,7 +157,9 @@ export const MobileVideosScreen = () => {
         onComment={() => setCommentsFor(item)}
         onMore={() => setMoreFor(item)}
         bottomOffset={bottomOffset}
-        paused={paused && index === activeIndex}
+        // Pause the feed entirely when the screen isn't active (belt-and-braces
+        // with the mute above), then restore tap-to-pause state on return.
+        paused={!screenActive || (paused && index === activeIndex)}
         onTogglePause={() => setPaused((p) => !p)}
         // Extreme right on all form factors; on mobile it sits BELOW the
         // inset-positioned "+ Post" pill (top = insets.top + 10, ~34px tall).
@@ -173,7 +180,7 @@ export const MobileVideosScreen = () => {
       );
     }
     return feedItem(itemH);
-  }, [activeIndex, muted, paused, itemH, frameH, frameW, isDesktopWeb, bottomOffset, insets.top, likeOverrides, commentsFor, onStorePress, onLike, onShare]);
+  }, [activeIndex, muted, paused, screenActive, itemH, frameH, frameW, isDesktopWeb, bottomOffset, insets.top, likeOverrides, commentsFor, onStorePress, onLike, onShare]);
 
   if (!user) {
     return (

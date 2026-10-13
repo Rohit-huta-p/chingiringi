@@ -8,6 +8,7 @@ import { VideoFeedItem } from '../../components/VideoFeedItem';
 import { CommentsSheet } from '../../components/CommentsSheet';
 import { VideoMoreSheet } from '../../components/VideoMoreSheet';
 import { useVideoEngagement } from '../../hooks/useVideoFeed';
+import { useScreenActive } from '../../hooks/useScreenActive';
 import { shareVideo } from '../../utils/shareVideo';
 import { videosAPI, FeedVideo } from '../../api/videos';
 import { Colors, Fonts } from '../../constants/theme';
@@ -35,6 +36,8 @@ export const VideoScreen = () => {
   const video = data?.data?.video as FeedVideo | undefined;
 
   const { like, share } = useVideoEngagement();
+  // Mute + pause when you leave this clip or background the app (resumes on return).
+  const screenActive = useScreenActive();
   const [muted, setMuted] = useState(true);
   const [paused, setPaused] = useState(false);
   const [likeToggle, setLikeToggle] = useState<boolean | null>(null);
@@ -96,7 +99,7 @@ export const VideoScreen = () => {
     <VideoFeedItem
       video={video}
       isActive
-      muted={muted}
+      muted={muted || !screenActive}
       height={h}
       liked={liked}
       likeCount={likeCount}
@@ -107,7 +110,7 @@ export const VideoScreen = () => {
       onComment={() => setShowComments(true)}
       onMore={() => setShowMore(true)}
       bottomOffset={bottomOffset}
-      paused={paused}
+      paused={paused || !screenActive}
       onTogglePause={() => setPaused((p) => !p)}
       // Extreme right; on mobile aligned with the back button's row (no Post pill here).
       muteTop={isDesktopWeb ? 52 : insets.top + 12}
