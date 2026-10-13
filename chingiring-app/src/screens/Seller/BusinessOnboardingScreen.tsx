@@ -39,7 +39,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { ChevronLeft, MapPin, Fingerprint, CreditCard, Car, Plane, FileText, Receipt, Truck, Store as StoreIcon, Globe, Layers, Building2, CheckCircle2, Flag } from 'lucide-react-native';
@@ -299,6 +299,18 @@ export const BusinessOnboardingScreen: React.FC = () => {
       // is cached as null. Invalidate it so the Dashboard / My Store refetch and
       // show the freshly-created (unverified) store.
       queryClient.invalidateQueries({ queryKey: MY_STORE_QUERY_KEY });
+      // createSellerStore returns 200 with the EXISTING store (201 for a fresh
+      // create). If the seller already has a store that's verified or under
+      // review, don't route to the verification screen — that would show a
+      // misleading "Store verified" / "Under review" after a flow where they
+      // added nothing this time. Send them to their dashboard instead.
+      const alreadyExisted = res?.status === 200;
+      const vs = store?.verificationStatus;
+      if (alreadyExisted && (vs === 'verified' || vs === 'pending')) {
+        Alert.alert('You already have a store', `"${store?.name ?? 'Your store'}" is already set up — taking you to your dashboard.`);
+        navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }));
+        return;
+      }
       navigation.replace('StoreVerification', { store });
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
@@ -505,6 +517,15 @@ export const BusinessOnboardingScreen: React.FC = () => {
 
               <Text style={styles.fieldLabel}>Selfie</Text>
               <KycUploader kind="selfie" label="selfie" value={selfie} onChange={setSelfie} disabled={submitting} />
+
+              {/* Verification is optional for physical/both — let them skip and
+                  finish it later on StoreVerificationScreen. (Online stores must
+                  add ID + selfie, so no skip there.) */}
+              {!isOnline && (
+                <Pressable onPress={goNext} hitSlop={8} style={styles.verifyLater}>
+                  <Text style={styles.verifyLaterText}>Verify later</Text>
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -678,6 +699,8 @@ const styles = StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.45, shadowOpacity: 0 },
   ctaText: { color: '#fff', fontSize: 16, fontFamily: Fonts.bold },
+  verifyLater: { alignItems: 'center', paddingVertical: 10, marginTop: 2 },
+  verifyLaterText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.textSecondary, textDecorationLine: 'underline' },
 
   // Misc
   dialCode: { fontSize: 15, fontFamily: Fonts.semiBold, color: Colors.text, paddingLeft: 4 },
