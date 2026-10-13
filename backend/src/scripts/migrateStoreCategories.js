@@ -2,17 +2,18 @@
  * One-off migration: align existing store categories with the new taxonomy.
  *
  * The store category taxonomy was replaced (see storeModel.js STORE_CATEGORIES).
- * Mapping of the old 8 values:
- *   • Electronics, Sports, Beauty  → unchanged (identical in the new list)
- *   • Jewellery                    → 'Jewellery & Watches'  (only clean remap)
- *   • Fashion, Grocery,            → LEFT AS-IS by product decision. The new
- *     Food & Cafe, Health            taxonomy has no equivalent, so these stay
- *                                     as valid CUSTOM (free-text) categories;
- *                                     their sellers can re-pick from the
- *                                     dropdown next time they edit their store.
+ * All store data is test data, so retired values are remapped to their nearest
+ * canonical category (rather than kept as custom) — this keeps the taxonomy AND
+ * the GET /api/stores/categories suggestion list (canonical ∪ distinct in-use)
+ * clean, so no retired value resurfaces as a suggestion:
+ *   • Electronics, Sports, Beauty → unchanged (already canonical)
+ *   • Jewellery    → 'Jewellery & Watches'
+ *   • Fashion      → "Women's Fashion"
+ *   • Health       → 'Beauty'
+ *   • Grocery      → 'Wholesale & Deals'   (no direct equivalent — general bucket)
+ *   • Food & Cafe  → 'Wholesale & Deals'   (no direct equivalent — general bucket)
  *
- * This script performs only the Jewellery remap and reports how many stores
- * still sit on a retired value. Idempotent — safe to re-run.
+ * Idempotent — safe to re-run (reports 0 updated once clean).
  *
  * Usage:
  *   node src/scripts/migrateStoreCategories.js
@@ -21,8 +22,13 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import connectDB from '../config/db.js';
 
-const REMAP = { Jewellery: 'Jewellery & Watches' };
-const LEFT_AS_CUSTOM = ['Fashion', 'Grocery', 'Food & Cafe', 'Health'];
+const REMAP = {
+  Jewellery: 'Jewellery & Watches',
+  Fashion: "Women's Fashion",
+  Health: 'Beauty',
+  Grocery: 'Wholesale & Deals',
+  'Food & Cafe': 'Wholesale & Deals',
+};
 
 async function run() {
   await connectDB();
@@ -35,14 +41,11 @@ async function run() {
     console.log(`🔁 ${from} → ${to}: ${res.modifiedCount} store(s) updated.`);
   }
 
-  // Report (but do NOT touch) stores still on a retired value — these are now
-  // custom categories by design.
-  for (const c of LEFT_AS_CUSTOM) {
-    const n = await coll.countDocuments({ category: c });
-    if (n) console.log(`ℹ️  ${n} store(s) remain on "${c}" (kept as a custom category).`);
-  }
+  // Sanity check: nothing should remain on a retired value.
+  const retired = Object.keys(REMAP);
+  const leftover = await coll.countDocuments({ category: { $in: retired } });
+  console.log(`✅ Done. Remapped ${total} store(s). Remaining on retired values: ${leftover}.`);
 
-  console.log(`✅ Done. Remapped ${total} store(s).`);
   await mongoose.disconnect();
   process.exit(0);
 }

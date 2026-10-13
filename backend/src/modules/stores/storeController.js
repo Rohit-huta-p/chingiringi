@@ -1,4 +1,4 @@
-import Store from './storeModel.js';
+import Store, { STORE_CATEGORIES } from './storeModel.js';
 import StoreReview from './storeReviewModel.js';
 import Stream from '../streams/streamModel.js';
 import { formatTime, isOpenNow } from './storeHours.js';
@@ -9,6 +9,27 @@ import { uploadKycImage, signedKycUrl, kycConfigured } from '../../services/clou
 // Public responses must never leak the seller's private review docs — the store
 // verification document and (especially) the personal identity ID + selfie.
 const PUBLIC_EXCLUDE = '-platformCommissionPercent -payoutAccount -verificationDoc -identityDoc';
+
+// @desc    List known store categories (canonical ∪ custom values already in use)
+// @route   GET /api/stores/categories
+// @access  Public
+// Custom categories live on store docs (the `category` field is free-text), so
+// the known set is the canonical suggestions plus the distinct values actually
+// saved by stores — canonical first, then customs, deduped case-insensitively.
+export const getStoreCategories = async (req, res) => {
+  const used = await Store.distinct('category', { category: { $nin: [null, ''] } });
+  const seen = new Set();
+  const categories = [];
+  for (const c of [...STORE_CATEGORIES, ...used]) {
+    const name = String(c).trim();
+    const key = name.toLowerCase();
+    if (name && !seen.has(key)) {
+      seen.add(key);
+      categories.push(name);
+    }
+  }
+  res.status(200).json({ status: 'success', data: { categories } });
+};
 
 // Parse coords from a pasted Google Maps link and write lat/lng onto `target`
 // (a plain body object or a Mongoose doc). An empty link clears the pin; an

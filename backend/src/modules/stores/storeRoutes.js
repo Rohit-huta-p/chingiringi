@@ -3,7 +3,7 @@ import multer from 'multer';
 import {
   getStores, getStore, createStore, createSellerStore, updateStore, updateMyStore, deleteStore,
   getMyStore, getStoreStats, updateVerification, getStoreReviews, createStoreReview,
-  getVerificationQueue, uploadKyc, getStoreKyc,
+  getVerificationQueue, uploadKyc, getStoreKyc, getStoreCategories,
 } from './storeController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
@@ -34,6 +34,8 @@ router.use('/', storeFollowRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 router.get('/', getStores);
+// Known category list (canonical + customs in use). MUST precede '/:id'.
+router.get('/categories', getStoreCategories);
 router.get('/:id', getStore);
 router.get('/:id/stats', getStoreStats);
 router.get('/:id/reviews', getStoreReviews);
