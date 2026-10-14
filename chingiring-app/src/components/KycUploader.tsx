@@ -46,10 +46,17 @@ export const KycUploader: React.FC<Props> = ({
   const doUpload = async (file: CloudFile, preview: string) => {
     setError(null);
     setUploading(true);
+    const prevPublicId = value?.publicId;
     try {
       const res = await verificationAPI.kycUpload(file, kind);
       onChange({ publicId: res.publicId, format: res.format });
       setLocalUri(preview);
+      // Replacing: if the new upload landed on a different path than the old one
+      // (e.g. onboarding staging → store folder), delete the now-orphaned asset.
+      // A same-path re-upload was already overwritten in place by Cloudinary.
+      if (prevPublicId && prevPublicId !== res.publicId) {
+        verificationAPI.kycDelete(prevPublicId).catch(() => {});
+      }
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e?.message ?? 'Upload failed');
     } finally {
@@ -89,7 +96,13 @@ export const KycUploader: React.FC<Props> = ({
   };
 
   const pick = () => { if (Platform.OS === 'web') pickWeb(); else pickNative(); };
-  const remove = () => { setLocalUri(null); onChange(null); };
+  const remove = () => {
+    const prevPublicId = value?.publicId;
+    setLocalUri(null);
+    onChange(null);
+    // Delete the stored copy from Cloudinary (fire-and-forget; UI already cleared).
+    if (prevPublicId) verificationAPI.kycDelete(prevPublicId).catch(() => {});
+  };
 
   const shownPreview = localUri ?? previewUrl ?? null;
   const hasDoc = !!value?.publicId || !!shownPreview;

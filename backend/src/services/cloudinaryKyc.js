@@ -45,20 +45,25 @@ export const kycConfigured = () => ensureConfig();
  * Returns the identifiers needed to rebuild a signed delivery URL later —
  * never a public URL.
  */
-export function uploadKycImage(buffer, { storeId, kind } = {}) {
+export function uploadKycImage(buffer, { storeId, userId, kind } = {}) {
   if (!ensureConfig()) {
     const err = new Error('KYC media storage is not configured on the server.');
     err.statusCode = 503;
     return Promise.reject(err);
   }
-  // Fold by store when we know it (chingiringi/kyc/<storeId>); onboarding uploads
-  // (store not created yet) land in a staging folder and are still linked via the
-  // publicId stored on the store at submit time.
-  const folder = storeId ? `${KYC_ROOT}/${storeId}` : `${KYC_ROOT}/staging`;
-  const opts = { folder, type: 'authenticated', resource_type: 'image', overwrite: false };
-  // Deterministic id per slot once we have the store → a re-submit overwrites the
-  // previous file instead of orphaning it (chingiringi/kyc/<storeId>/{doc,id,selfie}).
-  if (storeId && KYC_KINDS.includes(kind)) {
+  // Deterministic folder + id per owner & slot, so a re-upload OVERWRITES in place
+  // (never leaves an orphaned copy) and the owner can be verified from the publicId
+  // on delete. Store known → chingiringi/kyc/<storeId>/<kind>; onboarding (no store
+  // yet) → chingiringi/kyc/staging/<userId>/<kind>. Either way the publicId is what
+  // gets stored on the store at submit time.
+  const scope = storeId ? String(storeId) : `staging/${userId}`;
+  const opts = {
+    folder: `${KYC_ROOT}/${scope}`,
+    type: 'authenticated',
+    resource_type: 'image',
+    overwrite: false,
+  };
+  if (KYC_KINDS.includes(kind)) {
     opts.public_id = kind;
     opts.overwrite = true;
     opts.invalidate = true;
@@ -87,4 +92,28 @@ export function signedKycUrl(publicId, { format, version } = {}) {
     ...(format ? { format } : {}),
     ...(version ? { version } : {}),
   });
+}
+
+/**
+ * Delete a private KYC asset by publicId. Resolves to a harmless no-op when not
+ * configured or when no publicId is given, so callers can fire it without guards.
+ */
+export function deleteKycImage(publicId) {
+  if (!publicId || !ensureConfig()) return Promise.resolve({ result: 'skipped' });
+  return cloudinary.uploader.destroy(publicId, {
+    type: 'authenticated', resource_type: 'image', invalidate: true,
+  });
+}
+
+/**
+ * True when `publicId` lives under the caller's OWN KYC folder — their onboarding
+ * staging area (chingiringi/kyc/staging/<userId>/…) or their store's folder
+ * (chingiringi/kyc/<storeId>/…). Used to authorise deletes so a seller can never
+ * destroy another account's documents.
+ */
+export function ownsKycPublicId(publicId, { userId, storeId } = {}) {
+  if (!publicId || typeof publicId !== 'string') return false;
+  if (userId && publicId.startsWith(`${KYC_ROOT}/staging/${userId}/`)) return true;
+  if (storeId && publicId.startsWith(`${KYC_ROOT}/${storeId}/`)) return true;
+  return false;
 }

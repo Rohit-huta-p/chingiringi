@@ -135,6 +135,11 @@ export const verificationAPI = {
     return data as KycUploadResult;
   },
 
+  /** DELETE /api/stores/kyc — remove one of the caller's own private KYC images. */
+  kycDelete: async (publicId: string): Promise<void> => {
+    await apiClient.delete('/api/stores/kyc', { data: { publicId } });
+  },
+
   /**
    * GET /api/stores/:id/kyc — freshly-signed, inline-renderable URLs for a
    * store's KYC media. Owner (own store) or admin only; minted on demand, never
