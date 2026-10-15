@@ -24,22 +24,11 @@ import { bannersAPI, Banner } from '../../api/banners';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock } from '../../components/BannerBlock';
 import { CategoryTiles } from '../../components/CategoryTiles';
+import { getCategoryMeta, sortCategoryNames } from '../../constants/categories';
 import { tint } from '../../utils/color';
 import { seededShuffle, makeShuffleSeed } from '../../utils/seededShuffle';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-// Emoji stand-ins for the category chips (real category images can replace these
-// once products/categories carry an imageUrl). Keyed case-insensitively.
-const CATEGORY_EMOJI: Record<string, string> = {
-  all: '🛍️', fashion: '👗', electronics: '📱', home: '🏠', grocery: '🛒',
-  beauty: '💄', pharmacy: '💊', travel: '✈️', food: '🍔', snacks: '🍿',
-  dairy: '🥛', fruits: '🥬', household: '🧻', kitchen: '🍳', office: '🗂️',
-  fresh: '🥬', sweets: '🍫', drinks: '🥤', toys: '🧸',
-};
-function emojiFor(cat: string): string {
-  return CATEGORY_EMOJI[cat.trim().toLowerCase()] ?? '🛒';
-}
 
 // Zero the first block's top margin so a top banner (or the first rail) sits
 // flush under the header — no gap between the category header and the banner.
@@ -135,13 +124,6 @@ export const MobileHomeScreen = () => {
     ];
   }, [apiCategories, allProducts]);
 
-  // Real category tile images (admin-uploaded), keyed by name. Empty → emoji.
-  const categoryImageByName = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const c of apiCategories) if (c.imageUrl) m[c.name] = c.imageUrl;
-    return m;
-  }, [apiCategories]);
-
   // The selected category's admin-set color still tints the content background
   // below the (now fixed-gradient, OfflineStores-style) header.
   const themeColor = apiCategories.find((c) => c.name === selectedCategory)?.color || '';
@@ -168,22 +150,19 @@ export const MobileHomeScreen = () => {
     });
 
   const categoryNames = useMemo(
-    () => categories.filter((c) => c !== 'All'),
+    () => sortCategoryNames(categories.filter((c) => c !== 'All')),
     [categories],
   );
 
-  // Tiles for the shared CategoryTiles selector — each product category with its
-  // admin colour + image (emoji fallback).
+  // Tiles for the shared CategoryTiles selector — icon + colour via the shared
+  // resolver so the Products row matches the Live Stores row (icons on both).
   const categoryTileItems = useMemo(
     () =>
-      categoryNames.map((name) => ({
-        key: name,
-        label: name,
-        color: apiCategories.find((c) => c.name === name)?.color || undefined,
-        imageUrl: categoryImageByName[name],
-        emoji: emojiFor(name),
-      })),
-    [categoryNames, apiCategories, categoryImageByName],
+      categoryNames.map((name) => {
+        const meta = getCategoryMeta(name);
+        return { key: name, label: name, color: meta.color, Icon: meta.Icon };
+      }),
+    [categoryNames],
   );
 
   const handleProductPress = (p: Product) => {

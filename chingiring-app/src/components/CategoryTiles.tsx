@@ -7,7 +7,7 @@ import { ScrollView, View, Text, Image, Pressable, StyleSheet } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../constants/theme';
 import { STORE_CATEGORIES } from '../data/offlineStores';
-import { CATEGORY_META, ALL_ICON } from '../constants/categories';
+import { getCategoryMeta, ALL_ICON, sortCategoryNames } from '../constants/categories';
 
 export type CategorySelection = string;
 
@@ -79,7 +79,10 @@ export const CategoryTiles: React.FC<{
 }> = ({ active, onSelect, items, allLabel = 'All', contentStyle }) => {
   const tiles: CategoryTileItem[] =
     items ??
-    STORE_CATEGORIES.map((c) => ({ key: c, label: c, color: CATEGORY_META[c].color, Icon: CATEGORY_META[c].Icon }));
+    sortCategoryNames(STORE_CATEGORIES).map((c) => {
+      const meta = getCategoryMeta(c);
+      return { key: c, label: c, color: meta.color, Icon: meta.Icon };
+    });
   return (
     <ScrollView
       horizontal
