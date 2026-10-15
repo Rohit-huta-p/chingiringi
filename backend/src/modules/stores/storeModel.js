@@ -133,11 +133,23 @@ const storeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Derive the slug from the store name before saving.
-// Sync pre-save hook — no `next` (same modern pattern as bannerModel; a
-// `function(next)` form throws "next is not a function" under this Mongoose version).
-storeSchema.pre('save', function preSave() {
-  if (this.isModified('name') || !this.slug) this.slug = slugify(this.name);
+// Derive a UNIQUE slug from the store name before saving. Two stores may share a
+// name (different sellers, or re-tested data), so disambiguate with a numeric
+// suffix (-2, -3, …) rather than letting the `slug` unique index throw E11000 —
+// which previously surfaced as a 500 on seller store creation.
+// Async hook (returns a promise); the `function(next)` form throws "next is not a
+// function" under this Mongoose version, but an async function is fine.
+storeSchema.pre('save', async function preSave() {
+  if (!(this.isModified('name') || !this.slug)) return;
+  const base = slugify(this.name) || 'store';
+  let slug = base;
+  let n = 2;
+  // eslint-disable-next-line no-await-in-loop
+  while (await this.constructor.exists({ slug, _id: { $ne: this._id } })) {
+    slug = `${base}-${n}`;
+    n += 1;
+  }
+  this.slug = slug;
 });
 
 storeSchema.index({ category: 1 });
