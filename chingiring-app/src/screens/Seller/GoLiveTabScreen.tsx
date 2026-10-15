@@ -56,6 +56,8 @@ interface GoLiveModalProps {
 const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const categoryY = useRef(0); // Category field's offset in the scroll content
   const [title, setTitle] = useState('');
   const [thumbnail, setThumbnail] = useState('');
   const [category, setCategory] = useState<string>(store?.category ?? '');
@@ -139,6 +141,7 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
           </View>
 
           <ScrollView
+            ref={scrollRef}
             contentContainerStyle={modal.body}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -165,9 +168,25 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
               hint="Your stream's cover on the Live & Videos cards buyers browse. Recommended 1080 × 1440 px (3:4, portrait) — keep the subject centered."
             />
 
-            {/* Category */}
-            <View style={{ marginTop: 16 }}>
-              <CategorySelect label="Category" value={category} onChange={setCategory} />
+            {/* Category — scroll it (and the dropdown that opens beneath it)
+                above the keyboard on focus. */}
+            <View
+              style={{ marginTop: 16 }}
+              onLayout={(e) => { categoryY.current = e.nativeEvent.layout.y; }}
+            >
+              <CategorySelect
+                label="Category"
+                value={category}
+                onChange={setCategory}
+                onFocus={() => {
+                  // Wait for the keyboard + dropdown to lay out, then lift the
+                  // field near the top so its dropdown clears the keyboard.
+                  setTimeout(
+                    () => scrollRef.current?.scrollTo({ y: Math.max(categoryY.current - 12, 0), animated: true }),
+                    220,
+                  );
+                }}
+              />
             </View>
 
             {/* Feature products */}

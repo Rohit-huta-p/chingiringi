@@ -28,10 +28,13 @@ interface Props {
   label?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** Fired when the field gains focus — lets a parent scroll it (and the
+   *  dropdown that opens beneath it) clear of the keyboard. */
+  onFocus?: () => void;
 }
 
 export const CategorySelect: React.FC<Props> = ({
-  value, onChange, label, placeholder = 'Search or type a category', disabled,
+  value, onChange, label, placeholder = 'Search or type a category', disabled, onFocus,
 }) => {
   const [query, setQuery] = useState(value ?? '');
   const [open, setOpen] = useState(false);
@@ -98,7 +101,7 @@ export const CategorySelect: React.FC<Props> = ({
           value={query}
           editable={!disabled}
           onChangeText={(t) => { setQuery(t); onChange(t); setDirty(true); if (!open) setOpen(true); }}
-          onFocus={() => { focused.current = true; setDirty(false); setOpen(true); }}
+          onFocus={() => { focused.current = true; setDirty(false); setOpen(true); onFocus?.(); }}
           onBlur={() => { focused.current = false; setTimeout(() => setOpen(false), 120); }}
           selectTextOnFocus
           placeholder={placeholder}
