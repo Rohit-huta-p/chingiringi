@@ -289,8 +289,18 @@ export const BroadcasterScreen: React.FC = () => {
   const [facing, setFacing] = useState<'front' | 'back'>('front');
   const [muted, setMuted] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  // RTMP publish connection state → drives the connecting / failed overlay.
-  const [connState, setConnState] = useState<'connecting' | 'live' | 'failed'>('connecting');
+  // RTMP publish connection state → drives the connecting / reconnecting /
+  // failed overlays. 'connecting' is the first-time connect (full overlay);
+  // 'reconnecting' is a drop AFTER we were live, debounced so a brief
+  // self-healing blip never flashes anything, then shown as a subtle pill.
+  const [connState, setConnState] = useState<'connecting' | 'live' | 'reconnecting' | 'failed'>('connecting');
+  // Mirror of connState so the stable onDisconnect callback reads it without a
+  // stale closure.
+  const connStateRef = useRef(connState);
+  useEffect(() => { connStateRef.current = connState; }, [connState]);
+  // Grace timer: a disconnect while live waits this out before surfacing the
+  // "Reconnecting…" pill, so a momentary RTMP hiccup on good internet is hidden.
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // True once RTMP actually connected — decides whether ending saves a past
   // stream (endStream) or discards a never-live attempt (abortStream).
   const wasLiveRef = useRef(false);
@@ -298,6 +308,17 @@ export const BroadcasterScreen: React.FC = () => {
   // can see the real cause without native logs).
   const [connErr, setConnErr] = useState<string>('');
   const endedRef = useRef(false); // true once we've ended/aborted (avoid double-end on unmount)
+
+  // Ingest transport. Dial Mux over RTMPS (port 443 — open on virtually every
+  // mobile/Wi-Fi network) FIRST; only if that attempt fails do we fall back once
+  // to plain RTMP on :5222. Port 5222 is commonly blocked (java.net.
+  // ConnectException on the very first go-live), so RTMPS-first is what makes
+  // the connection succeed.
+  const ingestModeRef = useRef<'rtmps' | 'rtmp'>('rtmps');
+  const triedFallbackRef = useRef(false);
+  // Indirection so beginBroadcast can report a failure without a useCallback
+  // dependency cycle with failConnection (which retries via beginBroadcast).
+  const failRef = useRef<(detail: string) => void>(() => { });
 
   // End-stream flow
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -392,7 +413,7 @@ export const BroadcasterScreen: React.FC = () => {
     if (!micPermission?.granted) requestMicPermission();
   }, [permission, requestPermission, micPermission, requestMicPermission]);
 
-  // ── Start pushing camera+mic to Mux over RTMPS ─────────────────────────────
+  // ── Start pushing camera+mic to Mux ────────────────────────────────────────
   const beginBroadcast = useCallback(async () => {
     if (startedRef.current) return;
     if (!liveRef.current || !rtmpUrl || !streamKey) {
@@ -401,11 +422,11 @@ export const BroadcasterScreen: React.FC = () => {
       return;
     }
     startedRef.current = true;
-    // rtmpdroid doesn't support RTMPS; both Mux ports are reachable, so use PLAIN
-    // RTMP on :5222.
-    const ingestUrl = rtmpUrl
-      .replace(/^rtmps:\/\//i, 'rtmp://')
-      .replace('global-live.mux.com:443', 'global-live.mux.com:5222');
+    // RTMPS (443) as the backend returns it; the plain-RTMP :5222 rewrite is only
+    // the fallback transport (see ingestModeRef / failConnection).
+    const ingestUrl = ingestModeRef.current === 'rtmps'
+      ? rtmpUrl
+      : rtmpUrl.replace(/^rtmps:\/\//i, 'rtmp://').replace('global-live.mux.com:443', 'global-live.mux.com:5222');
     try {
       // startStreaming returns a Promise that REJECTS if the native publisher
       // can't start (bad key, camera/codec/permission, or a broken native
@@ -413,18 +434,55 @@ export const BroadcasterScreen: React.FC = () => {
       await liveRef.current.startStreaming(streamKey, ingestUrl);
     } catch (e: any) {
       startedRef.current = false;
-      setConnErr('start rejected: ' + (e?.message ?? String(e)).slice(0, 120));
-      setConnState('failed');
+      failRef.current('start rejected: ' + (e?.message ?? String(e)).slice(0, 120));
     }
   }, [rtmpUrl, streamKey]);
+
+  // Shared connection-failure path. On the FIRST failure while on RTMPS, fall
+  // back once to plain RTMP (:5222) and retry silently — only surface the error
+  // overlay if the fallback also fails. Covers both a network that blocks 5222
+  // and (defensively) a stack that can't negotiate RTMPS, without the seller
+  // seeing a failure when one transport works.
+  const failConnection = useCallback((detail: string) => {
+    if (ingestModeRef.current === 'rtmps' && !triedFallbackRef.current) {
+      triedFallbackRef.current = true;
+      ingestModeRef.current = 'rtmp';
+      try { liveRef.current?.stopStreaming?.(); } catch { /* already down */ }
+      startedRef.current = false;
+      setConnErr('');
+      setConnState('connecting');
+      setTimeout(() => beginBroadcast(), 400);
+      return;
+    }
+    setConnErr(detail);
+    setConnState('failed');
+  }, [beginBroadcast]);
+  useEffect(() => { failRef.current = failConnection; }, [failConnection]);
 
   // RTMP actually connected → mark the stream live server-side (idle → live),
   // which is what puts it in the live feed and starts the duration timer.
   const handleConnected = useCallback(() => {
+    // Recovered (or connected for the first time) — cancel any pending
+    // reconnect grace so a stale timer can't flip us back to "reconnecting".
+    if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
     wasLiveRef.current = true;
     setConnState('live');
     if (streamId) markStreamLive(streamId).catch(() => { });
   }, [streamId]);
+
+  // RTMP dropped. The native publisher has no auto-reconnect, but a brief drop
+  // often self-heals (onConnectionSuccess fires again), so debounce: keep the
+  // live UI up through a short grace window and only surface the subtle
+  // "Reconnecting…" pill if it hasn't recovered. A drop during the first
+  // connect just stays on the "Connecting…" overlay.
+  const handleDisconnect = useCallback(() => {
+    if (connStateRef.current === 'connecting') return; // still on the initial-connect overlay
+    if (reconnectTimer.current) return;                // grace already pending
+    reconnectTimer.current = setTimeout(() => {
+      reconnectTimer.current = null;
+      setConnState((s) => (s === 'live' ? 'reconnecting' : s));
+    }, 1500); // grace window — hides momentary blips on good internet
+  }, []);
 
   // Auto-start once the native view is mounted and camera is granted (give the
   // native surface a beat to lay out before we kick the RTMP session).
@@ -434,14 +492,21 @@ export const BroadcasterScreen: React.FC = () => {
     return () => clearTimeout(t);
   }, [permission?.granted, micPermission?.granted, beginBroadcast]);
 
-  // Don't hang on "Connecting…" forever — if neither success nor failure fires
-  // within 20s, surface it as failed so the seller can retry / see the issue.
+  // Don't hang on "Connecting…"/"Reconnecting…" forever — if neither success nor
+  // failure fires within 20s, surface it as failed so the seller can retry / see
+  // the issue (the native publisher won't reconnect on its own).
   useEffect(() => {
-    if (connState !== 'connecting') return;
-    const t = setTimeout(() => setConnState((s) => {
-      if (s === 'connecting') { setConnErr('timed out — no response in 20s (ingest never reached Mux)'); return 'failed'; }
-      return s;
-    }), 20000);
+    if (connState !== 'connecting' && connState !== 'reconnecting') return;
+    const t = setTimeout(() => {
+      // A hung initial connect routes through failConnection too, so RTMPS
+      // stalling (not just hard-failing) still triggers the :5222 fallback.
+      if (connStateRef.current === 'connecting') {
+        failRef.current('timed out — no response in 20s (ingest never reached Mux)');
+      } else if (connStateRef.current === 'reconnecting') {
+        setConnErr('lost connection — the broadcast dropped and could not reconnect');
+        setConnState('failed');
+      }
+    }, 20000);
     return () => clearTimeout(t);
   }, [connState]);
 
@@ -450,6 +515,9 @@ export const BroadcasterScreen: React.FC = () => {
     // "Stream is already running".
     try { liveRef.current?.stopStreaming?.(); } catch { /* already down */ }
     startedRef.current = false;
+    // Manual retry starts the transport search over from RTMPS.
+    ingestModeRef.current = 'rtmps';
+    triedFallbackRef.current = false;
     setConnErr('');
     setConnState('connecting');
     setTimeout(() => beginBroadcast(), 400);
@@ -460,6 +528,7 @@ export const BroadcasterScreen: React.FC = () => {
   // as a phantom live in the buyer feed.
   useEffect(() => {
     return () => {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       try { liveRef.current?.stopStreaming?.(); } catch { /* already down */ }
       if (streamId && wasLiveRef.current && !endedRef.current) {
         endStream(streamId).catch(() => { });
@@ -606,8 +675,8 @@ export const BroadcasterScreen: React.FC = () => {
             video={{ bitrate: 1_000_000, fps: 30, resolution: { width: 480, height: 848 } }}
             audio={{ bitrate: 64_000, sampleRate: 44_100, isStereo: false }}
             onConnectionSuccess={handleConnected}
-            onConnectionFailed={(code: any) => { setConnErr('code: ' + String(code ?? 'unknown')); setConnState('failed'); }}
-            onDisconnect={() => setConnState('connecting')}
+            onConnectionFailed={(code: any) => failRef.current('code: ' + String(code ?? 'unknown'))}
+            onDisconnect={handleDisconnect}
             onPermissionsDenied={() => { setConnErr('camera/mic permission denied'); setConnState('failed'); }}
           />
         </LiveStreamBoundary>
@@ -843,8 +912,8 @@ export const BroadcasterScreen: React.FC = () => {
         />
       )}
 
-      {/* ── RTMP connection overlay (connecting / failed) ── */}
-      {LiveStreamView && !streamEnded && connState !== 'live' && (
+      {/* ── RTMP connection overlay (first connect / failure) ── */}
+      {LiveStreamView && !streamEnded && (connState === 'connecting' || connState === 'failed') && (
         <View style={styles.connOverlay} pointerEvents={connState === 'failed' ? 'auto' : 'none'}>
           {connState === 'connecting' ? (
             <>
@@ -865,6 +934,18 @@ export const BroadcasterScreen: React.FC = () => {
               </View>
             </>
           )}
+        </View>
+      )}
+
+      {/* ── Reconnecting pill — a drop AFTER we were live. Subtle and
+          non-blocking: the broadcast stays on screen while the connection
+          recovers, instead of the full-screen "Connecting…" takeover. ── */}
+      {LiveStreamView && !streamEnded && connState === 'reconnecting' && (
+        <View style={[styles.reconnectBar, { top: Math.max(insets.top, 12) + 52 }]} pointerEvents="none">
+          <View style={styles.reconnectPill}>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={styles.reconnectPillText}>Reconnecting…</Text>
+          </View>
         </View>
       )}
     </View>
@@ -1053,6 +1134,15 @@ const styles = StyleSheet.create({
     paddingVertical: 11, paddingHorizontal: 26,
   },
   endInlineText: { color: '#fff', fontSize: 14, fontFamily: Fonts.bold },
+
+  // Subtle "Reconnecting…" indicator — a drop after we were live (non-blocking).
+  reconnectBar: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  reconnectPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 20,
+    paddingVertical: 8, paddingHorizontal: 14,
+  },
+  reconnectPillText: { color: '#fff', fontSize: 13, fontFamily: Fonts.semiBold },
 });
 
 // ── End Stream confirmation styles ──────────────────────────────────────────
