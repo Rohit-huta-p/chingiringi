@@ -43,7 +43,6 @@ import {
   ShoppingBag,
   Plus,
   BadgeCheck,
-  Store,
   CloudOff,
 } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
@@ -53,7 +52,7 @@ import apiClient from '../../api/client';
 import { getMyStreams, formatStreamMeta } from '../../api/streams';
 import { type SellerStore } from '../../api/verification';
 import { useMyStore } from '../../hooks/useMyStore';
-import { DashboardSkeleton, SellerMessageState } from './SellerStates';
+import { DashboardSkeleton, SellerMessageState, DashboardNoStore, DashboardLocked } from './SellerStates';
 
 // ── API helpers ───────────────────────────────────────────────────────────
 
@@ -223,13 +222,33 @@ export const SellerDashboardScreen: React.FC = () => {
 
   if (!store) {
     return (
-      <SellerMessageState
-        icon={Store}
-        title="No store yet"
-        sub="Complete your store setup to start selling and going live."
-        ctaLabel="Set up my store"
-        onCta={() => navigation.navigate('BusinessOnboarding')}
+      <DashboardNoStore
+        name={firstName}
+        greeting={greeting()}
+        onSetup={() => navigation.navigate('BusinessOnboarding')}
+        onMessages={() => navigation.navigate('Messages')}
         topInset={insets.top}
+        bottomInset={insets.bottom}
+      />
+    );
+  }
+
+  // Pending / rejected get the dedicated verification-locked dashboard
+  // (unverified keeps the full dashboard + the inline VerifBanner below).
+  if (store.verificationStatus === 'pending' || store.verificationStatus === 'rejected') {
+    return (
+      <DashboardLocked
+        variant={store.verificationStatus}
+        storeName={store.name ?? ''}
+        name={firstName}
+        greeting={greeting()}
+        logoUrl={store.logoUrl}
+        followers={followers}
+        products={stats.totalProducts ?? 0}
+        reason={store.verificationDoc?.rejectionReason}
+        onResolve={() => navigation.navigate('StoreVerification', { store })}
+        topInset={insets.top}
+        bottomInset={insets.bottom}
       />
     );
   }

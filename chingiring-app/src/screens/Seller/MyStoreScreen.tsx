@@ -282,7 +282,7 @@ export const MyStoreScreen: React.FC = () => {
         accessibilityRole="button"
         accessibilityLabel="Edit store details"
       >
-        <Text style={{ color: 'white' }}>Edit store details</Text>
+        <Text style={{ color: 'white', fontSize: 12 }}>Edit store details</Text>
       </Pressable>
     </View>
   );
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   storeName: { fontSize: 18, fontFamily: Fonts.extraBold, color: '#fff', flexShrink: 1 },
   headerSub: { fontSize: 12, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   editBtn: {
-    paddingVertical: 4, paddingHorizontal: 2, borderRadius: 20,
+    paddingVertical: 6, paddingHorizontal: 6, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center', justifyContent: 'center',
   },

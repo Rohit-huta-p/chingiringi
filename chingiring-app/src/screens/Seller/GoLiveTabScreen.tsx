@@ -4,12 +4,11 @@
  * Unverified stores see a banner linking to StoreVerificationScreen instead
  * of the hero — going live is gated on verification.
  *
- * GoLiveModal calls POST /api/streams (via createStream), then navigates
- * to BroadcasterScreen with { streamId, roomUrl, broadcasterToken, title }.
- * Category + featured products are collected in the sheet and sent as
- * best-effort extra fields on the payload — the backend doesn't persist them
- * yet (createStream only reads title/storeId today), so they're forward
- * compatible rather than functional until that lands.
+ * GoLiveModal calls POST /api/streams (via createStream), then navigates to
+ * BroadcasterScreen with { streamId, rtmpUrl, streamKey, playbackId, title }
+ * (Mux ingest credentials + playback id).
+ * Title, category, thumbnail and featured productIds collected in the sheet are
+ * all persisted on the Stream doc by the backend (streamController.createStream).
  *
  * Navigation params: none (standalone tab)
  * Stack screens reachable: BroadcasterScreen, StoreVerification
@@ -35,7 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video, ChevronRight, Radio, Play, Check, Package, BadgeCheck, Lock } from 'lucide-react-native';
+import { Video, ChevronRight, Radio, Play, Check, Package, BadgeCheck, Lock, X } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import apiClient from '../../api/client';
 import { createStream, getMyStreams, formatStreamMeta, type StreamSummary } from '../../api/streams';
@@ -56,6 +55,7 @@ interface GoLiveModalProps {
 
 const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) => {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [thumbnail, setThumbnail] = useState('');
   const [category, setCategory] = useState<string>(store?.category ?? '');
@@ -125,10 +125,18 @@ const GoLiveModal: React.FC<GoLiveModalProps> = ({ visible, onClose, store }) =>
     >
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={modal.root}>
-          <View style={modal.handleWrap}>
-            <View style={modal.handle} />
+          <View style={[modal.header, { paddingTop: insets.top + 8 }]}>
+            <Pressable
+              onPress={handleClose}
+              style={modal.hBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            >
+              <X size={22} color={Colors.text} />
+            </Pressable>
+            <Text style={modal.hTitle}>Start a Live Stream</Text>
+            <View style={modal.hBtn} />
           </View>
-          <Text style={modal.title}>Start a Live Stream</Text>
 
           <ScrollView
             contentContainerStyle={modal.body}
@@ -586,11 +594,19 @@ const styles = StyleSheet.create({
 
 const modal = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.surface },
-  handleWrap: { alignItems: 'center', paddingTop: 12 },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
-  title: { fontSize: 20, fontFamily: Fonts.extraBold, color: Colors.navy, padding: 20, paddingBottom: 8 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  hBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  hTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: Fonts.bold, color: Colors.navy },
 
-  body: { paddingHorizontal: 20, paddingBottom: 12 },
+  body: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
   label: { fontSize: 13, fontFamily: Fonts.semiBold, color: Colors.text, marginBottom: 8 },
   input: {
     backgroundColor: Colors.backgroundGrey, borderRadius: 10, height: 48,

@@ -129,6 +129,7 @@ export const verificationAPI = {
     fd.append('kind', kind);
     const res = await apiClient.post('/api/stores/kyc/upload', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // uploads need more than the global 30s on a slow uplink
     });
     const data = res.data?.data;
     if (!data?.publicId) throw new Error('Upload did not return a document id.');

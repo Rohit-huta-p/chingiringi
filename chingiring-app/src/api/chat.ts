@@ -27,6 +27,12 @@ export interface Conversation {
   lastMessage: string;
   lastMessageAt: string | null;
   lastSenderId: string | null;
+  /**
+   * Did the CALLER send the newest message? Computed server-side (authoritative).
+   * Optional so an app pointed at a backend that predates this field degrades to
+   * "not sure" rather than flagging every thread as unanswered.
+   */
+  lastMine?: boolean;
   /** The caller's own unread count. */
   unread: number;
   /** Snapshot of the product/offer the thread is about — powers the inbox thumbnail. */

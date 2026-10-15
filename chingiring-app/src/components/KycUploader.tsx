@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image, Platform, ActivityIndicator,
+  Pressable, Modal, useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Upload, Check, X, ShieldCheck, AlertCircle } from 'lucide-react-native';
+import { Upload, Check, X, ShieldCheck, AlertCircle, Maximize2, UserRound } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { verificationAPI } from '../api/verification';
 import type { CloudFile } from './useImageUpload';
@@ -28,6 +29,44 @@ interface Props {
 }
 
 /**
+ * Downscale a picked image in the browser before upload. Phone/camera photos are
+ * often 5–10 MB, and streaming that straight through to Cloudinary makes its
+ * ingest close the connection with a 499 "Request Timeout" on a slow uplink.
+ * Resizing the longest edge to ≤1600px and re-encoding as JPEG ~0.82 brings a KYC
+ * photo under ~1 MB with no loss of legibility. Web-only (canvas); falls back to
+ * the original file for tiny/non-image files or on any failure.
+ */
+const compressImageWeb = (file: File, maxDim = 1600, quality = 0.82): Promise<File> =>
+  new Promise((resolve) => {
+    if (!file.type.startsWith('image/') || file.size < 600 * 1024) { resolve(file); return; }
+    const url = URL.createObjectURL(file);
+    const img = document.createElement('img');
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(file); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return; }
+          const base = file.name.replace(/\.[^.]+$/, '') || 'photo';
+          resolve(new File([blob], `${base}.jpg`, { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        quality,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+
+/**
  * Private KYC image picker. Unlike MultiImageUploader (which uploads unsigned to
  * a public Cloudinary URL), this streams the image through our backend to a
  * private (authenticated) Cloudinary asset and holds only its publicId. Preview
@@ -42,6 +81,8 @@ export const KycUploader: React.FC<Props> = ({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const { width: winW, height: winH } = useWindowDimensions();
 
   const doUpload = async (file: CloudFile, preview: string) => {
     setError(null);
@@ -70,9 +111,11 @@ export const KycUploader: React.FC<Props> = ({
     input.accept = 'image/*';
     input.style.display = 'none';
     input.addEventListener('change', async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+      const raw = (e.target as HTMLInputElement).files?.[0];
       input.remove();
-      if (file) await doUpload(file, URL.createObjectURL(file));
+      if (!raw) return;
+      const file = await compressImageWeb(raw);
+      await doUpload(file, URL.createObjectURL(file));
     });
     document.body.appendChild(input);
     input.click();
@@ -112,7 +155,15 @@ export const KycUploader: React.FC<Props> = ({
       {hasDoc ? (
         <View style={[styles.tile, { width: w, height: h }]}>
           {shownPreview ? (
-            <Image source={{ uri: shownPreview }} style={styles.img} resizeMode="cover" />
+            <Pressable
+              style={styles.fill}
+              onPress={() => setPreviewOpen(true)}
+              accessibilityRole="imagebutton"
+              accessibilityLabel={`View ${label}`}
+            >
+              <Image source={{ uri: shownPreview }} style={styles.img} resizeMode="cover" />
+              <View style={styles.zoomHint}><Maximize2 size={11} color="#fff" strokeWidth={2.5} /></View>
+            </Pressable>
           ) : (
             <View style={styles.uploadedFill}>
               <Check size={22} color="#16A34A" strokeWidth={2.5} />
@@ -144,7 +195,11 @@ export const KycUploader: React.FC<Props> = ({
             <ActivityIndicator color={Colors.primary} />
           ) : (
             <>
-              <View style={styles.addIcon}><Upload size={17} color={Colors.primary} strokeWidth={2.5} /></View>
+              {kind === 'selfie' ? (
+                <UserRound size={44} color={Colors.primary} strokeWidth={1.75} />
+              ) : (
+                <View style={styles.addIcon}><Upload size={17} color={Colors.primary} strokeWidth={2.5} /></View>
+              )}
               <Text style={styles.addText}>Add {label}</Text>
             </>
           )}
@@ -168,6 +223,34 @@ export const KycUploader: React.FC<Props> = ({
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
+
+      <Modal
+        visible={previewOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewOpen(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setPreviewOpen(false)}>
+          <TouchableOpacity
+            style={styles.modalClose}
+            onPress={() => setPreviewOpen(false)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <X size={22} color="#fff" strokeWidth={2.5} />
+          </TouchableOpacity>
+          {shownPreview ? (
+            <Image
+              source={{ uri: shownPreview }}
+              style={{ width: winW * 0.9, height: winH * 0.78 }}
+              resizeMode="contain"
+            />
+          ) : null}
+          <View style={styles.modalCaption}>
+            <ShieldCheck size={12} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+            <Text style={styles.modalCaptionText}>Private — only you and the reviewer can view this.</Text>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -182,6 +265,28 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   img: { width: '100%', height: '100%' },
+  fill: { width: '100%', height: '100%' },
+  zoomHint: {
+    position: 'absolute', right: 6, bottom: 6,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(15,23,42,0.6)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  backdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center', justifyContent: 'center', padding: 20,
+  },
+  modalClose: {
+    position: 'absolute', top: 52, right: 20, zIndex: 2,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modalCaption: {
+    position: 'absolute', bottom: 46,
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16,
+  },
+  modalCaptionText: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: Fonts.regular },
   uploadedFill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#F0FDF4' },
   uploadedText: { fontSize: 12, fontFamily: Fonts.semiBold, color: '#16A34A' },
   badge: {

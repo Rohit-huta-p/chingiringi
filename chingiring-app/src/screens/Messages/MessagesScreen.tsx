@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, MessageCircle, Search, X } from 'lucide-react-native';
 import { Colors, Fonts } from '../../constants/theme';
 import { getConversations, type Conversation } from '../../api/chat';
-import { useAuthStore } from '../../store';
 import { Avatar, timeAgo } from './parts';
 
 const UNREAD_RED = '#EF4444';
@@ -31,7 +30,6 @@ export function MessagesScreen() {
   // a pushed stack screen (no tabRoot) and keeps the back arrow.
   const isTabRoot = !!route.params?.tabRoot;
   const seller = isTabRoot; // the seller Messages tab is the only tab-root mount
-  const myId = useAuthStore((s) => s.user?.id);
 
   const [filter, setFilter] = useState<'all' | 'unanswered'>('all');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -52,11 +50,12 @@ export function MessagesScreen() {
   // a thread was open or the app was backgrounded).
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
-  // A thread "needs a reply" when the other party spoke last — the seller's
-  // core triage signal. Derived, not stored (no separate "answered" flag).
+  // A thread "needs a reply" when the other party spoke last. Uses the
+  // server-computed `lastMine` so the flag can't drift on a client/server
+  // id-representation mismatch (which left threads stuck as "unanswered").
   const needsReply = useCallback(
-    (c: Conversation) => !!c.lastSenderId && !!myId && c.lastSenderId !== myId,
-    [myId],
+    (c: Conversation) => !!c.lastSenderId && c.lastMine === false,
+    [],
   );
 
   const unansweredCount = useMemo(
@@ -87,7 +86,7 @@ export function MessagesScreen() {
   }, [navigation]);
 
   const renderItem = useCallback(({ item }: { item: Conversation }) => {
-    const mineLast = !!item.lastSenderId && !!myId && item.lastSenderId === myId;
+    const mineLast = item.lastMine;
     const preview = `${mineLast ? 'You: ' : ''}${item.lastMessage || ''}`;
 
     // ── Seller row — Stage treatment ──────────────────────────────────────────
@@ -133,7 +132,7 @@ export function MessagesScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, [myId, seller, needsReply, openThread]);
+  }, [seller, needsReply, openThread]);
 
   const emptyCopy = useMemo(() => {
     if (query.trim()) return { title: 'No matches', sub: `No conversations match “${query.trim()}”.` };
