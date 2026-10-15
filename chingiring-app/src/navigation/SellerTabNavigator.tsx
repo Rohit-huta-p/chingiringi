@@ -109,7 +109,11 @@ function SellerMobileTabBar({ state, descriptors, navigation }: any) {
                 <View style={[styles.homeCircle, isFocused && styles.homeCircleActive]}>
                   {Icon ? <Icon size={22} color={iconColor} strokeWidth={2.2} /> : null}
                 </View>
-                <Text style={[styles.label, isFocused && { color: ACTIVE_COLOR, fontFamily: Fonts.bold }]}>
+                <Text
+                  numberOfLines={1}
+                  allowFontScaling={false}
+                  style={[styles.label, isFocused && { color: ACTIVE_COLOR, fontFamily: Fonts.bold }]}
+                >
                   {label}
                 </Text>
               </TouchableOpacity>
@@ -125,7 +129,11 @@ function SellerMobileTabBar({ state, descriptors, navigation }: any) {
             >
               <View style={[styles.pill, isFocused && styles.pillActive]}>
                 {Icon ? <Icon size={20} color={iconColor} strokeWidth={2} /> : null}
-                <Text style={[styles.label, isFocused && { color: ACTIVE_COLOR, fontFamily: Fonts.bold }]}>
+                <Text
+                  numberOfLines={1}
+                  allowFontScaling={false}
+                  style={[styles.label, isFocused && { color: ACTIVE_COLOR, fontFamily: Fonts.bold }]}
+                >
                   {label}
                 </Text>
               </View>
@@ -282,7 +290,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   label: {
-    fontSize: 11,
+    // 10 (not 11) + numberOfLines=1 + allowFontScaling=false on the <Text> keeps
+    // the longest label ("Dashboard") on one line on narrow physical phones.
+    fontSize: 10,
     fontFamily: Fonts.medium,
     color: '#9ca3af',
   },
