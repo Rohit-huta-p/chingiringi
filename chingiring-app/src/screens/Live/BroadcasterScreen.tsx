@@ -596,11 +596,14 @@ export const BroadcasterScreen: React.FC = () => {
             camera={facing}
             isMuted={muted}
             enablePinchedZoom
-            // Conservative encode so the RTMP push sustains on a weak/unstable
+            // PORTRAIT encode (480×848) so the stream fills the buyer's portrait
+            // screen like a normal video — no letterbox, no crop. The library's
+            // landscape-forcing (resolveResolution) is patched out in patches/.
+            // Conservative bitrate so the RTMP push sustains on a weak/unstable
             // uplink (the default ~720p high-bitrate drops after a few seconds).
-            // Width MUST be 16-aligned — Android H.264 encoders reject non-multiples
-            // of 16 with "Failed to create codec" (854 crashed; 848 = 53×16 is safe).
-            video={{ bitrate: 1_000_000, fps: 30, resolution: { width: 848, height: 480 } }}
+            // Both dims MUST be 16-aligned — Android H.264 encoders reject
+            // non-multiples of 16 ("Failed to create codec"); 480=30×16, 848=53×16.
+            video={{ bitrate: 1_000_000, fps: 30, resolution: { width: 480, height: 848 } }}
             audio={{ bitrate: 64_000, sampleRate: 44_100, isStereo: false }}
             onConnectionSuccess={handleConnected}
             onConnectionFailed={(code: any) => { setConnErr('code: ' + String(code ?? 'unknown')); setConnState('failed'); }}

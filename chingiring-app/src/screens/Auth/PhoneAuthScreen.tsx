@@ -1,118 +1,71 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { AuthLayout } from './AuthLayout';
-import { Input } from '../../components/Input';
-import { Button } from '../../components/Button';
-import { Colors } from '../../constants/theme';
+import { Phone } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
+import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
+import { AuthScaffold } from '../../components/AuthScaffold';
+import {
+  AuthField, AuthCTA, AuthLink, AuthError, AuthTerms, authErrorMessage, normalizeIndianMobile,
+} from '../../components/AuthParts';
+import { goToAuthScreen } from './authNavigation';
 
-// Passwordless phone login/signup — step 1 of 2. Collects a mobile number,
-// asks the backend to send an SMS OTP (MSG91), then hands off to the shared
-// OTPVerification screen which verifies the code and logs the user in. The
-// identifier passed forward is the raw 10-digit string the backend stores and
-// verifies against (see authService.verifyUserOTP) — keep it un-formatted.
-export const PhoneAuthScreen = ({ navigation }: any) => {
+// Passwordless phone sign-in / sign-up — step 1 of 2. Sends an SMS code
+// (MSG91), then OTPVerification verifies it; the backend creates the account
+// on first verify. The identifier passed forward is the raw 10-digit string
+// the backend stores and verifies against (authService.verifyUserOTP).
+export const PhoneAuthScreen = ({ navigation, route }: any) => {
+  const mode: 'login' | 'signup' = route?.params?.mode === 'signup' ? 'signup' : 'login';
   const [phone, setPhone] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [error, setError] = useState('');
+  const { signIn: googleSignIn, loading: googleLoading } = useGoogleSignIn(setError);
 
-  const digits = phone.replace(/\D/g, '');
-
-  const sendMutation = useMutation({
+  const sendMut = useMutation({
     mutationFn: authAPI.sendOtp,
-    onSuccess: () => {
-      setErrorMsg('');
-      navigation.navigate('OTPVerification', { identifier: digits, channel: 'phone' });
+    onSuccess: (_data, vars) => {
+      setError('');
+      navigation.navigate('OTPVerification', { identifier: vars.phone, channel: 'phone' });
     },
-    onError: (error: any) => {
-      setErrorMsg(error?.message || 'Could not send the code. Please try again.');
-    },
+    onError: (e: any) => setError(authErrorMessage(e, 'Could not send the code. Please try again.')),
   });
 
-  const handleContinue = () => {
-    setErrorMsg('');
-    if (digits.length !== 10) {
-      setErrorMsg('Enter a valid 10-digit mobile number.');
-      return;
-    }
-    sendMutation.mutate({ phone: digits });
+  const submit = () => {
+    const digits = normalizeIndianMobile(phone);
+    if (digits.length !== 10) { setError('Enter a valid 10-digit mobile number.'); return; }
+    setError('');
+    sendMut.mutate({ phone: digits });
   };
 
-  const Header = (
-    <>
-      <View style={styles.iconPill}>
-        <View style={styles.iconInner} />
-      </View>
-      <Text style={styles.title}>Continue with phone</Text>
-    </>
-  );
-
-  const Subtitle = (
-    <Text style={styles.subtitle}>We'll text you a 6-digit code to sign in — no password needed.</Text>
-  );
+  const emailScreen = mode === 'signup' ? 'Signup' : 'Login';
 
   return (
-    <AuthLayout
-      title={Header}
-      subtitle={Subtitle}
-      showBackButton
-      onBackPress={() => navigation.goBack()}
+    <AuthScaffold
+      mode={mode}
+      heading={mode === 'signup' ? 'Sign up with phone' : 'Sign in with phone'}
+      subheading="Sign in or create an account with just your mobile number."
+      onSwitch={() => goToAuthScreen(navigation, mode === 'signup' ? 'Login' : 'Signup')}
+      onGoogle={googleSignIn}
+      googleLoading={googleLoading}
+      footer={<AuthTerms verb="continuing" />}
     >
-      <Input
+      <AuthField
         label="Mobile number"
+        icon={Phone}
+        prefix="+91"
         placeholder="10-digit mobile number"
-        keyboardType="phone-pad"
+        hint="We'll text you a 6-digit code. No password needed."
         value={phone}
         onChangeText={setPhone}
+        keyboardType="phone-pad"
+        autoComplete="tel"
+        textContentType="telephoneNumber"
         maxLength={15}
+        autoFocus
+        returnKeyType="done"
+        onSubmitEditing={submit}
       />
-
-      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-      <Button
-        title="Send code ->"
-        onPress={handleContinue}
-        style={styles.mainButton}
-        loading={sendMutation.isPending}
-        disabled={sendMutation.isPending}
-      />
-    </AuthLayout>
+      <AuthLink label="Use email & password instead" align="right" onPress={() => goToAuthScreen(navigation, emailScreen)} />
+      <AuthError text={error} />
+      <AuthCTA label="Send code" onPress={submit} loading={sendMut.isPending} />
+    </AuthScaffold>
   );
 };
-
-const styles = StyleSheet.create({
-  iconPill: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  iconInner: {
-    width: 20,
-    height: 20,
-    backgroundColor: Colors.primary,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  errorText: {
-    color: '#ef4444',
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  mainButton: {
-    marginTop: 16,
-  },
-});

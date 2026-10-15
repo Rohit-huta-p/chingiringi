@@ -3,7 +3,7 @@ import multer from 'multer';
 import {
   getStores, getStore, createStore, createSellerStore, updateStore, updateMyStore, deleteStore,
   getMyStore, getStoreStats, updateVerification, getStoreReviews, createStoreReview,
-  getVerificationQueue, uploadKyc, getStoreKyc,
+  getVerificationQueue, uploadKyc, deleteKyc, getStoreKyc, getStoreCategories,
 } from './storeController.js';
 import { protect } from '../../middleware/authMiddleware.js';
 import { admin } from '../../middleware/adminMiddleware.js';
@@ -28,12 +28,17 @@ router.get('/admin/verifications', protect, admin, getVerificationQueue);
 
 // Upload a private KYC image (store doc / ID / selfie); returns a publicId.
 router.post('/kyc/upload', protect, kycUpload.single('file'), uploadKyc);
+// Delete one of the caller's own KYC images (owner-checked in the controller).
+// MUST precede the admin '/:id' DELETE below so it isn't shadowed.
+router.delete('/kyc', protect, deleteKyc);
 
 // ── Follow / unfollow (merged from followRoutes) ─────────────────────────────
 router.use('/', storeFollowRouter);
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 router.get('/', getStores);
+// Known category list (canonical + customs in use). MUST precede '/:id'.
+router.get('/categories', getStoreCategories);
 router.get('/:id', getStore);
 router.get('/:id/stats', getStoreStats);
 router.get('/:id/reviews', getStoreReviews);

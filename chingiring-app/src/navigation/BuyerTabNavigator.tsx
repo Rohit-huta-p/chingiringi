@@ -39,6 +39,7 @@ import { MobileVideosScreen } from '../screens/Dashboard/MobileVideosScreen';
 import { BuyerOnboardingScreen } from '../screens/Buyer/BuyerOnboardingScreen';
 import { BuyerProfileScreen } from '../screens/Buyer/BuyerProfileScreen';
 import { ViewerScreen } from '../screens/Live/ViewerScreen';
+import { LiveFeedScreen } from '../screens/Live/LiveFeedScreen';
 
 // Seller public profile (Sprint 5 B2)
 import { SellerProfileScreen } from '../screens/Seller/SellerProfileScreen';
@@ -58,7 +59,7 @@ import { MessagesScreen } from '../screens/Messages/MessagesScreen';
 import { ChatScreen } from '../screens/Messages/ChatScreen';
 import { BlockedAccountsScreen } from '../screens/Dashboard/BlockedAccountsScreen';
 import { CategoryProductsScreen } from '../screens/Dashboard/CategoryProductsScreen';
-import { MobileLoginScreen } from '../screens/Auth/MobileLoginScreen';
+import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { SignupScreen } from '../screens/Auth/SignupScreen';
 
 // ─── Tab icon map ──────────────────────────────────────────────────────────
@@ -144,9 +145,10 @@ function BuyerMobileTabBar({ state, descriptors, navigation }: any) {
 const Tab = createBottomTabNavigator();
 
 function BuyerBottomTabs() {
+  // App opens on the Live Stores feed (the centre tab), not Products.
   return (
     <Tab.Navigator
-      initialRouteName="Home"
+      initialRouteName="Stores"
       backBehavior="history"
       tabBar={(props) => <BuyerMobileTabBar {...props} />}
       screenOptions={{ headerShown: false }}
@@ -186,10 +188,11 @@ export default function BuyerTabNavigator() {
         <Stack.Screen name="About"             component={MobileAboutScreen} />
         <Stack.Screen name="BuyerOnboarding"   component={BuyerOnboardingScreen} />
         <Stack.Screen name="ViewerScreen"      component={ViewerScreen} />
+        <Stack.Screen name="LiveFeed"          component={LiveFeedScreen} />
         <Stack.Screen name="SellerProfile"     component={SellerProfileScreen} />
         <Stack.Screen
           name="AuthLogin"
-          component={MobileLoginScreen}
+          component={LoginScreen}
           options={{ presentation: 'modal' }}
         />
         <Stack.Screen

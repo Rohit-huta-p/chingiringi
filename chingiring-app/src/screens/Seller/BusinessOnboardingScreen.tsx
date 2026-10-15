@@ -39,7 +39,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { ChevronLeft, MapPin, Fingerprint, CreditCard, Car, Plane, FileText, Receipt, Truck, Store as StoreIcon, Globe, Layers, Building2, CheckCircle2, Flag } from 'lucide-react-native';
@@ -185,9 +185,12 @@ export const BusinessOnboardingScreen: React.FC = () => {
   const step2Valid = isOnline ? true : address.trim().length >= 5 && city.trim().length >= 1;
   const phoneDigits = phone.trim().replace(/\D/g, '');
   const step3Valid = phoneDigits.length >= 10;
-  // Online stores have no premises, so identity (ID + selfie) is the anchor and is
-  // required to finish onboarding; physical/both may still add it later.
-  const step4Valid = isOnline ? !!idDoc && !!selfie : true;
+  // Step 4 "Continue" is gated on the documents being added:
+  //  • physical/both — store document + ID + selfie (or tap "Verify later" to skip).
+  //  • online — ID + selfie are the mandatory anchor (store doc is deferred).
+  const step4Valid = isOnline
+    ? !!idDoc && !!selfie
+    : !!doc && !!idDoc && !!selfie;
 
   const canAdvance = step === 1 ? step1Valid : step === 2 ? step2Valid : step === 3 ? step3Valid : step === 4 ? step4Valid : true;
 
@@ -299,7 +302,24 @@ export const BusinessOnboardingScreen: React.FC = () => {
       // is cached as null. Invalidate it so the Dashboard / My Store refetch and
       // show the freshly-created (unverified) store.
       queryClient.invalidateQueries({ queryKey: MY_STORE_QUERY_KEY });
-      navigation.replace('StoreVerification', { store });
+      // Where to land after creating the store:
+      //  • pending / rejected   → the verification screen (show the "Under review"
+      //    confirmation of what was just submitted, or let them resubmit).
+      //  • verified / unverified → into the app (dashboard). The store and all its
+      //    details are already saved; when verification was skipped ('unverified')
+      //    the dashboard's verify banner + the Go-Live lock nudge the seller to
+      //    finish it later. (createSellerStore returns 200 with an EXISTING store,
+      //    201 for a fresh one — an already-'verified' store means they came back.)
+      const alreadyExisted = res?.status === 200;
+      const vs = store?.verificationStatus;
+      if (vs === 'pending' || vs === 'rejected') {
+        navigation.replace('StoreVerification', { store });
+        return;
+      }
+      if (alreadyExisted && vs === 'verified') {
+        Alert.alert('You already have a store', `"${store?.name ?? 'Your store'}" is already set up — taking you to your dashboard.`);
+      }
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'MainTabs' }] }));
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
       Alert.alert('Could not create store', msg);
@@ -313,6 +333,9 @@ export const BusinessOnboardingScreen: React.FC = () => {
     if (step === 5) { handleSubmit(); return; }
     setStep((s) => (s + 1) as any);
   };
+  // "Verify later" deliberately bypasses the step-4 gate (canAdvance is false
+  // until all docs are added) and advances straight to the review step.
+  const skipVerification = () => setStep((s) => (s + 1) as any);
   const goBack = () => setStep((s) => (s > 1 ? ((s - 1) as any) : s));
   // Hero chevron: step back through the wizard, or leave onboarding on Step 1.
   const onHeroBack = () => {
@@ -553,6 +576,15 @@ export const BusinessOnboardingScreen: React.FC = () => {
               ? <ActivityIndicator color="#fff" />
               : <Text style={styles.ctaText}>{step === 5 ? 'Create my store' : 'Continue'}</Text>}
           </Pressable>
+
+          {/* Verification is optional for physical/both — the skip sits with the
+              primary action, and only while there's still something to defer.
+              (Online stores must add ID + selfie, so no skip there.) */}
+          {step === 4 && !isOnline && !submitting && !(doc && idDoc && selfie) && (
+            <Pressable onPress={skipVerification} hitSlop={8} style={styles.verifyLater}>
+              <Text style={styles.verifyLaterText}>Verify later</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -678,6 +710,8 @@ const styles = StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.45, shadowOpacity: 0 },
   ctaText: { color: '#fff', fontSize: 16, fontFamily: Fonts.bold },
+  verifyLater: { alignItems: 'center', paddingVertical: 10, marginTop: 2 },
+  verifyLaterText: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.textSecondary, textDecorationLine: 'underline' },
 
   // Misc
   dialCode: { fontSize: 15, fontFamily: Fonts.semiBold, color: Colors.text, paddingLeft: 4 },

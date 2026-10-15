@@ -63,3 +63,58 @@ index 6cf2bbd..f8f4a2a 100644
    private val requestId: Int,
    private val result: Boolean,
    private val error: String? = null
+diff --git a/node_modules/@api.video/react-native-livestream/lib/commonjs/index.js b/node_modules/@api.video/react-native-livestream/lib/commonjs/index.js
+index 1de63cb..2de4616 100644
+--- a/node_modules/@api.video/react-native-livestream/lib/commonjs/index.js
++++ b/node_modules/@api.video/react-native-livestream/lib/commonjs/index.js
+@@ -79,9 +79,10 @@ function resolveResolution(resolution) {
+     }
+     return predefined;
+   }
++  // PATCHED (Chingiringi): keep requested dims (allow PORTRAIT) — see src/index.tsx.
+   return {
+-    width: Math.max(resolution.height, resolution.width),
+-    height: Math.min(resolution.height, resolution.width)
++    width: resolution.width,
++    height: resolution.height
+   };
+ }
+ const ApiVideoLiveStreamView = exports.ApiVideoLiveStreamView = /*#__PURE__*/(0, _react.forwardRef)((props, forwardedRef) => {
+diff --git a/node_modules/@api.video/react-native-livestream/lib/module/index.js b/node_modules/@api.video/react-native-livestream/lib/module/index.js
+index 37f2d16..7505084 100644
+--- a/node_modules/@api.video/react-native-livestream/lib/module/index.js
++++ b/node_modules/@api.video/react-native-livestream/lib/module/index.js
+@@ -71,9 +71,10 @@ function resolveResolution(resolution) {
+     }
+     return predefined;
+   }
++  // PATCHED (Chingiringi): keep requested dims (allow PORTRAIT) — see src/index.tsx.
+   return {
+-    width: Math.max(resolution.height, resolution.width),
+-    height: Math.min(resolution.height, resolution.width)
++    width: resolution.width,
++    height: resolution.height
+   };
+ }
+ const ApiVideoLiveStreamView = /*#__PURE__*/forwardRef((props, forwardedRef) => {
+diff --git a/node_modules/@api.video/react-native-livestream/src/index.tsx b/node_modules/@api.video/react-native-livestream/src/index.tsx
+index 677b097..b054516 100644
+--- a/node_modules/@api.video/react-native-livestream/src/index.tsx
++++ b/node_modules/@api.video/react-native-livestream/src/index.tsx
+@@ -96,9 +96,14 @@ function resolveResolution(
+     }
+     return predefined;
+   }
++  // PATCHED (Chingiringi): return the requested dimensions as-is instead of
++  // forcing landscape (width=max, height=min), so the broadcaster can stream
++  // PORTRAIT (e.g. 480×848) and fill the viewer's portrait screen like a normal
++  // video. Dims are passed explicitly as { width, height }; both must be
++  // 16-aligned for the Android H.264 encoder.
+   return {
+-    width: Math.max(resolution.height, resolution.width),
+-    height: Math.min(resolution.height, resolution.width),
++    width: resolution.width,
++    height: resolution.height,
+   };
+ }
+ 

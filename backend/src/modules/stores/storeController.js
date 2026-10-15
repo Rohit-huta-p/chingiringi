@@ -1,14 +1,35 @@
-import Store from './storeModel.js';
+import Store, { STORE_CATEGORIES } from './storeModel.js';
 import StoreReview from './storeReviewModel.js';
 import Stream from '../streams/streamModel.js';
 import { formatTime, isOpenNow } from './storeHours.js';
 import { resolveGoogleMapsCoords } from './googleMapsCoords.js';
-import { uploadKycImage, signedKycUrl, kycConfigured } from '../../services/cloudinaryKyc.js';
+import { uploadKycImage, deleteKycImage, ownsKycPublicId, signedKycUrl, kycConfigured } from '../../services/cloudinaryKyc.js';
 
 // Fields that must never reach a public (non-admin) client.
 // Public responses must never leak the seller's private review docs — the store
 // verification document and (especially) the personal identity ID + selfie.
 const PUBLIC_EXCLUDE = '-platformCommissionPercent -payoutAccount -verificationDoc -identityDoc';
+
+// @desc    List known store categories (canonical ∪ custom values already in use)
+// @route   GET /api/stores/categories
+// @access  Public
+// Custom categories live on store docs (the `category` field is free-text), so
+// the known set is the canonical suggestions plus the distinct values actually
+// saved by stores — canonical first, then customs, deduped case-insensitively.
+export const getStoreCategories = async (req, res) => {
+  const used = await Store.distinct('category', { category: { $nin: [null, ''] } });
+  const seen = new Set();
+  const categories = [];
+  for (const c of [...STORE_CATEGORIES, ...used]) {
+    const name = String(c).trim();
+    const key = name.toLowerCase();
+    if (name && !seen.has(key)) {
+      seen.add(key);
+      categories.push(name);
+    }
+  }
+  res.status(200).json({ status: 'success', data: { categories } });
+};
 
 // Parse coords from a pasted Google Maps link and write lat/lng onto `target`
 // (a plain body object or a Mongoose doc). An empty link clears the pin; an
@@ -306,15 +327,48 @@ export const uploadKyc = async (req, res) => {
     res.status(400);
     throw new Error('No image file received.');
   }
+  const kind = req.body?.kind;
+  if (!['doc', 'id', 'selfie'].includes(kind)) {
+    res.status(400);
+    throw new Error('kind must be one of: doc, id, selfie.');
+  }
   // Fold under the CALLER'S OWN store (derived server-side, never a client-
   // supplied id — so a seller can't write into another store's KYC folder).
-  // No store yet (onboarding) → the service uses a staging folder.
+  // No store yet (onboarding) → the service uses a per-user staging folder.
   const own = await Store.findOne({ ownerId: req.user._id }).select('_id').lean();
   const out = await uploadKycImage(req.file.buffer, {
     storeId: own?._id ? own._id.toString() : undefined,
-    kind: req.body?.kind,
+    userId: req.user._id.toString(),
+    kind,
   });
   res.status(201).json({ status: 'success', data: out }); // { publicId, format, version }
+};
+
+// @desc    Delete one of the caller's own private KYC images from Cloudinary.
+// @route   DELETE /api/stores/kyc   body: { publicId }
+// @access  Private (only the owner of the asset)
+export const deleteKyc = async (req, res) => {
+  if (!kycConfigured()) {
+    res.status(503);
+    throw new Error('Secure document upload is not configured on the server yet.');
+  }
+  const { publicId } = req.body || {};
+  if (!publicId || typeof publicId !== 'string') {
+    res.status(400);
+    throw new Error('publicId is required.');
+  }
+  // Authorise against the caller's own folders only (staging/<userId> or <storeId>).
+  const own = await Store.findOne({ ownerId: req.user._id }).select('_id').lean();
+  const owns = ownsKycPublicId(publicId, {
+    userId: req.user._id.toString(),
+    storeId: own?._id ? own._id.toString() : undefined,
+  });
+  if (!owns) {
+    res.status(403);
+    throw new Error('You can only delete your own documents.');
+  }
+  await deleteKycImage(publicId);
+  res.status(200).json({ status: 'success', data: { publicId } });
 };
 
 // @desc    Freshly-signed, inline-renderable URLs for a store's KYC media.

@@ -1,184 +1,97 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { AuthLayout } from './AuthLayout';
-import { Input } from '../../components/Input';
-import { Button } from '../../components/Button';
-import { Colors } from '../../constants/theme';
-import { useAuthStore } from '../../store';
+import React, { useEffect, useRef, useState } from 'react';
+import type { TextInput } from 'react-native';
+import { Mail, Lock } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
+import { useAuthStore } from '../../store';
 import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
+import { AuthScaffold } from '../../components/AuthScaffold';
+import {
+  AuthField, AuthCTA, AuthLink, AuthError, AuthNotice, AuthTerms, PasswordToggle,
+  authErrorMessage, EMAIL_RE,
+} from '../../components/AuthParts';
+import { goToAuthScreen } from './authNavigation';
 
-export const LoginScreen = ({ navigation }: any) => {
-  const [identifier, setIdentifier] = useState('');
+// Email + password sign-in — one screen for every platform. AuthScaffold picks
+// the hero-band layout on phones and the split card on desktop web.
+export const LoginScreen = ({ navigation, route }: any) => {
+  const hydrate = useAuthStore((s) => s.hydrate);
+  const user = useAuthStore((s) => s.user);
+
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState('');
+  const passwordRef = useRef<TextInput>(null);
+  const notice: string | undefined = route?.params?.notice; // e.g. after a password reset
 
-  const hydrate = useAuthStore((state) => state.hydrate);
+  // Guest stacks (AuthLogin route) close once signed in. Under AuthNavigator
+  // the root swaps navigators on its own.
+  useEffect(() => {
+    if (user && navigation.canGoBack()) navigation.goBack();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-  const loginMutation = useMutation({
+  const loginMut = useMutation({
     mutationFn: authAPI.login,
-    onSuccess: async () => {
-      setErrorMsg('');
-      await hydrate();
-    },
-    onError: (error: any) => {
-      setErrorMsg(error.message || 'Login failed. Please try again.');
-    }
+    onSuccess: async () => { setError(''); await hydrate(); },
+    onError: (e: any) => setError(authErrorMessage(e, 'Could not sign you in. Please try again.')),
   });
+  const { signIn: googleSignIn, loading: googleLoading } = useGoogleSignIn(setError);
 
-  const { signIn: googleSignIn, loading: googleLoading } = useGoogleSignIn(setErrorMsg);
-
-  const handleLogin = () => {
-    setErrorMsg('');
-    loginMutation.mutate({ identifier: identifier.trim(), password });
+  const submit = () => {
+    const id = email.trim();
+    if (!id || !password) { setError('Enter your email and password.'); return; }
+    if (!EMAIL_RE.test(id)) { setError('Enter a valid email address.'); return; }
+    setError('');
+    loginMut.mutate({ identifier: id, password });
   };
 
-  const Header = (
-    <>
-      <View style={styles.logoPlaceholder} />
-      <Text style={styles.title}>Welcome back</Text>
-    </>
-  );
-
-  const Subtitle = (
-    <Text style={styles.subtitle}>Sign in to continue earning cashback</Text>
-  );
-
   return (
-    <AuthLayout title={Header} subtitle={Subtitle}>
-      <Input
+    <AuthScaffold
+      mode="login"
+      heading="Welcome back"
+      subheading="Sign in to continue earning cashback."
+      onSwitch={() => goToAuthScreen(navigation, 'Signup')}
+      onGoogle={googleSignIn}
+      googleLoading={googleLoading}
+      onPhone={() => navigation.navigate('PhoneLogin', { mode: 'login' })}
+      footer={<AuthTerms verb="continuing" />}
+    >
+      {notice ? <AuthNotice text={notice} /> : null}
+      <AuthField
         label="Email"
+        icon={Mail}
         placeholder="your@email.com"
+        value={email}
+        onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
-        value={identifier}
-        onChangeText={setIdentifier}
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
       />
-      <Input
+      <AuthField
+        ref={passwordRef}
         label="Password"
+        icon={Lock}
         placeholder="Enter your password"
-        secureTextEntry
         value={password}
         onChangeText={setPassword}
+        secureTextEntry={!showPw}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="current-password"
+        textContentType="password"
+        returnKeyType="go"
+        onSubmitEditing={submit}
+        right={<PasswordToggle visible={showPw} onToggle={() => setShowPw((v) => !v)} />}
       />
-      <View style={styles.forgotContainer}>
-        <Button
-          title="Forgot Password?"
-          variant="text"
-          onPress={() => navigation.navigate('ForgotPassword')}
-          textStyle={styles.forgotText}
-        />
-      </View>
-
-      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-      <Button
-        title="Sign In ->"
-        onPress={handleLogin}
-        style={styles.mainButton}
-        loading={loginMutation.isPending}
-        disabled={loginMutation.isPending}
-      />
-
-      <View style={styles.dividerContainer}>
-        <View style={styles.divider} />
-        <Text style={styles.dividerText}>OR</Text>
-        <View style={styles.divider} />
-      </View>
-
-      <Button
-        title="Continue with Google"
-        variant="outline"
-        onPress={googleSignIn}
-        loading={googleLoading}
-        disabled={googleLoading}
-        style={styles.googleButton}
-      />
-
-      <Button
-        title="Continue with phone"
-        variant="outline"
-        onPress={() => navigation.navigate('PhoneLogin')}
-        style={styles.googleButton}
-      />
-
-      <View style={styles.footerContainer}>
-        <Text style={styles.footerText}>Don't have an account? </Text>
-        <Button title="Sign up" variant="text" onPress={() => navigation.navigate('Signup')} textStyle={styles.signupText} />
-      </View>
-    </AuthLayout>
+      <AuthLink label="Forgot password?" align="right" onPress={() => navigation.navigate('ForgotPassword')} />
+      <AuthError text={error} />
+      <AuthCTA label="Sign in" onPress={submit} loading={loginMut.isPending} />
+    </AuthScaffold>
   );
 };
-
-const styles = StyleSheet.create({
-  logoPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 16,
-  },
-  forgotContainer: {
-    alignItems: 'flex-end',
-    marginBottom: 16,
-  },
-  forgotText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  errorText: {
-    color: '#ef4444',
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  mainButton: {
-    marginTop: 8,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#94a3b8',
-    fontSize: 12,
-  },
-  googleButton: {
-    marginBottom: 24,
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  footerText: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-  },
-  signupText: {
-    fontWeight: '700',
-  },
-});

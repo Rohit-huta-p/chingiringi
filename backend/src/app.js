@@ -1,5 +1,9 @@
-import dotenv from 'dotenv';
-dotenv.config();
+// MUST be the first import: this side-effect import runs dotenv.config() during
+// its own evaluation, and ESM evaluates imports in source order — so env is
+// loaded before any other module below is imported. (A bare `dotenv.config()`
+// statement runs AFTER all imports, so any module that reads process.env at
+// import time would see empty values — the bug that wedged KYC uploads off.)
+import 'dotenv/config';
 import 'express-async-errors';
 
 import express from 'express';

@@ -1,121 +1,62 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { AuthLayout } from './AuthLayout';
-import { Input } from '../../components/Input';
-import { Button } from '../../components/Button';
-import { Colors } from '../../constants/theme';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { Mail } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { authAPI } from '../../api/auth';
+import { AuthScaffold } from '../../components/AuthScaffold';
+import {
+  AuthField, AuthCTA, AuthLink, AuthError, authErrorMessage, EMAIL_RE,
+} from '../../components/AuthParts';
+import { authBack, goToAuthScreen } from './authNavigation';
 
-export const ForgotPasswordScreen = ({ navigation }: any) => {
-  const [email, setEmail] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+// Password reset step 1 of 2: email a 6-digit reset code. The backend answers
+// the same whether or not the account exists (no email enumeration).
+export const ForgotPasswordScreen = ({ navigation, route }: any) => {
+  const [email, setEmail] = useState(String(route?.params?.email ?? ''));
+  const [error, setError] = useState('');
 
-  const forgotMutation = useMutation({
+  const forgotMut = useMutation({
     mutationFn: authAPI.forgotPassword,
-    onSuccess: () => {
-      setErrorMsg('');
-      setSuccessMsg('OTP sent to your email!');
-      navigation.navigate('OTPVerification', { identifier: email });
+    onSuccess: (_data, vars) => {
+      setError('');
+      navigation.navigate('ResetPassword', { email: vars.email });
     },
-    onError: (error: any) => {
-      setSuccessMsg('');
-      setErrorMsg(error.message || 'Failed to send OTP. Please try again.');
-    }
+    onError: (e: any) => setError(authErrorMessage(e, 'Could not send the reset code. Please try again.')),
   });
 
-  const handleForgot = () => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    forgotMutation.mutate({ email });
+  const submit = () => {
+    const em = email.trim();
+    if (!EMAIL_RE.test(em)) { setError('Enter the email address you signed up with.'); return; }
+    setError('');
+    forgotMut.mutate({ email: em });
   };
 
-  const Header = (
-    <>
-      <View style={styles.iconPill}>
-        {/* Placeholder for email icon */}
-        <View style={styles.iconInner} />
-      </View>
-      <Text style={styles.title}>Forgot Password?</Text>
-    </>
-  );
-
-  const Subtitle = (
-    <Text style={styles.subtitle}>Enter your email to receive a password reset OTP</Text>
-  );
-
   return (
-    <AuthLayout 
-      title={Header} 
-      subtitle={Subtitle}
-      showBackButton
-      onBackPress={() => navigation.goBack()}
+    <AuthScaffold
+      mode="login"
+      hideChrome
+      compact
+      onBack={() => authBack(navigation)}
+      heading="Forgot your password?"
+      subheading="Enter the email you signed up with and we'll send you a 6-digit code to reset it."
     >
-      <Text style={styles.inputLabel}>Email Address</Text>
-      <Input placeholder="your@email.com" keyboardType="email-address" value={email} onChangeText={setEmail} />
-
-      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-      {successMsg ? <Text style={styles.successText}>{successMsg}</Text> : null}
-
-      <Button
-        title="Send OTP ->"
-        onPress={handleForgot}
-        style={styles.mainButton}
-        loading={forgotMutation.isPending}
-        disabled={forgotMutation.isPending}
+      <AuthField
+        label="Email"
+        icon={Mail}
+        placeholder="your@email.com"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        autoFocus
+        returnKeyType="send"
+        onSubmitEditing={submit}
       />
-    </AuthLayout>
+      <AuthError text={error} />
+      <AuthCTA label="Send reset code" onPress={submit} loading={forgotMut.isPending} />
+      <AuthLink label="Back to sign in" align="center" onPress={() => goToAuthScreen(navigation, 'Login')} />
+    </AuthScaffold>
   );
 };
-
-const styles = StyleSheet.create({
-  iconPill: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  iconInner: {
-    width: 20,
-    height: 20,
-    backgroundColor: Colors.primary, // Placeholder for actual icon vector
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorText: {
-    color: '#ef4444',
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  successText: {
-    color: '#22c55e',
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  mainButton: {
-    marginTop: 16,
-  },
-});

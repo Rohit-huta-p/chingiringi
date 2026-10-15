@@ -129,10 +129,16 @@ export const verificationAPI = {
     fd.append('kind', kind);
     const res = await apiClient.post('/api/stores/kyc/upload', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // uploads need more than the global 30s on a slow uplink
     });
     const data = res.data?.data;
     if (!data?.publicId) throw new Error('Upload did not return a document id.');
     return data as KycUploadResult;
+  },
+
+  /** DELETE /api/stores/kyc — remove one of the caller's own private KYC images. */
+  kycDelete: async (publicId: string): Promise<void> => {
+    await apiClient.delete('/api/stores/kyc', { data: { publicId } });
   },
 
   /**

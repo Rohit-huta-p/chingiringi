@@ -87,4 +87,10 @@ export const storesAPI = {
     const response = await apiClient.patch('/api/stores/mine', input);
     return response.data?.data?.store ?? response.data?.store;
   },
+
+  /** Known store categories — canonical suggestions ∪ custom values already in use. */
+  getCategories: async (): Promise<string[]> => {
+    const response = await apiClient.get('/api/stores/categories');
+    return response.data?.data?.categories ?? response.data?.categories ?? [];
+  },
 };

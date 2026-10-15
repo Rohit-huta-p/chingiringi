@@ -31,8 +31,8 @@ export interface CreateStreamResponse {
 
 /**
  * POST /api/streams
- * Creates a Daily.co room, saves a Stream doc, returns broadcaster credentials.
- * Called from GoLiveModal when the seller taps "Start Streaming".
+ * Creates a Mux live stream, saves a Stream doc, returns broadcaster credentials.
+ * Called from GoLiveModal when the seller taps "Go Live Now".
  */
 export async function createStream(
   payload: CreateStreamRequest,

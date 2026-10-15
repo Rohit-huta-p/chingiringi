@@ -201,24 +201,43 @@ export const StoreVerificationScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!passedStore?._id) { goToMain(); return; }
-    if (!canSubmit) {
-      Alert.alert('Almost there', 'Upload your store document, a government ID, and a selfie to submit.');
+    // Resubmit re-uploads ONLY the store document — the identity (ID + selfie)
+    // stays on file server-side, so we require just the new doc here and let the
+    // backend retain the stored identity (it skips the identity block when no
+    // identity fields are sent). The full (unverified) form still needs all three.
+    // NB: the passed store object usually omits the private identityDoc, so
+    // gating resubmit on idDoc/selfie in state would wrongly block it.
+    if (resubmitMode ? !doc : !canSubmit) {
+      Alert.alert('Almost there', resubmitMode
+        ? 'Upload your store document to resubmit for review.'
+        : 'Upload your store document, a government ID, and a selfie to submit.');
       return;
     }
     setSubmitting(true);
     try {
-      await verificationAPI.submitVerification(passedStore._id, {
-        docType,
-        docPublicId: doc!.publicId,
-        docFormat: doc!.format,
-        identityType: idType,
-        identityDocPublicId: idDoc!.publicId,
-        identityDocFormat: idDoc!.format,
-        selfiePublicId: selfie!.publicId,
-        selfieFormat: selfie!.format,
+      const updated = await verificationAPI.submitVerification(passedStore._id, {
+        ...(doc ? { docType, docPublicId: doc.publicId, docFormat: doc.format } : {}),
+        ...(idDoc && selfie ? {
+          identityType: idType,
+          identityDocPublicId: idDoc.publicId,
+          identityDocFormat: idDoc.format,
+          selfiePublicId: selfie.publicId,
+          selfieFormat: selfie.format,
+        } : {}),
       });
-      setStatus('pending');
+      // Reflect the REAL status the backend computed — it flips to 'pending' only
+      // once store doc + ID + selfie are ALL on file, else it stays 'unverified'.
+      // Using the returned value avoids showing a false "Under review" for a
+      // partial (e.g. doc-only) submission that never reaches the admin queue.
+      const nextStatus = updated?.verificationStatus ?? 'pending';
+      setStatus(nextStatus);
       setResubmitMode(false);
+      if (nextStatus !== 'pending') {
+        Alert.alert(
+          'Almost there',
+          'Your document was saved, but your store still needs a government ID and a selfie before it can go for review.',
+        );
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Submission failed.';
       Alert.alert('Could not submit', msg);

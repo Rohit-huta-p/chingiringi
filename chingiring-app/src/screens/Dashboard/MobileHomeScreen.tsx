@@ -24,21 +24,11 @@ import { bannersAPI, Banner } from '../../api/banners';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock } from '../../components/BannerBlock';
 import { CategoryTiles } from '../../components/CategoryTiles';
+import { getCategoryMeta, sortCategoryNames } from '../../constants/categories';
 import { tint } from '../../utils/color';
+import { seededShuffle, makeShuffleSeed } from '../../utils/seededShuffle';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-// Emoji stand-ins for the category chips (real category images can replace these
-// once products/categories carry an imageUrl). Keyed case-insensitively.
-const CATEGORY_EMOJI: Record<string, string> = {
-  all: '🛍️', fashion: '👗', electronics: '📱', home: '🏠', grocery: '🛒',
-  beauty: '💄', pharmacy: '💊', travel: '✈️', food: '🍔', snacks: '🍿',
-  dairy: '🥛', fruits: '🥬', household: '🧻', kitchen: '🍳', office: '🗂️',
-  fresh: '🥬', sweets: '🍫', drinks: '🥤', toys: '🧸',
-};
-function emojiFor(cat: string): string {
-  return CATEGORY_EMOJI[cat.trim().toLowerCase()] ?? '🛒';
-}
 
 // Zero the first block's top margin so a top banner (or the first rail) sits
 // flush under the header — no gap between the category header and the banner.
@@ -77,6 +67,9 @@ export const MobileHomeScreen = () => {
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  // Per-visit shuffle seed — fixed for the screen's lifetime so the 30s refetch
+  // (and pull-to-refresh) never reorders products under the user; a fresh mount reshuffles.
+  const [shuffleSeed] = useState(makeShuffleSeed);
 
   // Data fetching
   const { data: productsRes, isLoading: productsLoading } = useQuery({
@@ -106,9 +99,13 @@ export const MobileHomeScreen = () => {
     return () => loop.stop();
   }, [productsLoading, shimmerAnim]);
 
-  // Normalise responses
-  const allProducts: Product[] =
-    productsRes?.data?.products ?? productsRes?.products ?? [];
+  // Normalise responses. Products arrive newest-first (createdAt desc); shuffle
+  // once per visit (seeded) so the feed isn't ordered by recency — every rail and
+  // grid below derives from allProducts, so they all inherit the shuffled order.
+  const allProducts: Product[] = useMemo(() => {
+    const raw = productsRes?.data?.products ?? productsRes?.products ?? [];
+    return seededShuffle(raw, shuffleSeed);
+  }, [productsRes, shuffleSeed]);
   const banners: Banner[] =
     bannersRes?.data?.banners ?? [];
   const apiCategories: Category[] =
@@ -126,13 +123,6 @@ export const MobileHomeScreen = () => {
         .map((c) => c.name),
     ];
   }, [apiCategories, allProducts]);
-
-  // Real category tile images (admin-uploaded), keyed by name. Empty → emoji.
-  const categoryImageByName = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const c of apiCategories) if (c.imageUrl) m[c.name] = c.imageUrl;
-    return m;
-  }, [apiCategories]);
 
   // The selected category's admin-set color still tints the content background
   // below the (now fixed-gradient, OfflineStores-style) header.
@@ -160,22 +150,19 @@ export const MobileHomeScreen = () => {
     });
 
   const categoryNames = useMemo(
-    () => categories.filter((c) => c !== 'All'),
+    () => sortCategoryNames(categories.filter((c) => c !== 'All')),
     [categories],
   );
 
-  // Tiles for the shared CategoryTiles selector — each product category with its
-  // admin colour + image (emoji fallback).
+  // Tiles for the shared CategoryTiles selector — icon + colour via the shared
+  // resolver so the Products row matches the Live Stores row (icons on both).
   const categoryTileItems = useMemo(
     () =>
-      categoryNames.map((name) => ({
-        key: name,
-        label: name,
-        color: apiCategories.find((c) => c.name === name)?.color || undefined,
-        imageUrl: categoryImageByName[name],
-        emoji: emojiFor(name),
-      })),
-    [categoryNames, apiCategories, categoryImageByName],
+      categoryNames.map((name) => {
+        const meta = getCategoryMeta(name);
+        return { key: name, label: name, color: meta.color, Icon: meta.Icon };
+      }),
+    [categoryNames],
   );
 
   const handleProductPress = (p: Product) => {
