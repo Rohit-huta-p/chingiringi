@@ -35,6 +35,10 @@ export const CategorySelect: React.FC<Props> = ({
 }) => {
   const [query, setQuery] = useState(value ?? '');
   const [open, setOpen] = useState(false);
+  // True once the seller edits the field — tells a real search apart from the
+  // field merely displaying the current selection. Without it, a selected value
+  // sitting in the input would filter the list down to itself on reopen.
+  const [dirty, setDirty] = useState(false);
   const focused = useRef(false);
 
   const { data } = useQuery({
@@ -47,19 +51,37 @@ export const CategorySelect: React.FC<Props> = ({
   // Mirror an external value change (e.g. seeding an edit form) into the input,
   // but never while the seller is actively typing.
   useEffect(() => {
-    if (!focused.current) setQuery(value ?? '');
+    if (!focused.current) { setQuery(value ?? ''); setDirty(false); }
   }, [value]);
 
   const q = query.trim();
   const ql = q.toLowerCase();
-  const filtered = ql ? categories.filter((c) => c.toLowerCase().includes(ql)) : categories;
-  const hasExact = categories.some((c) => c.toLowerCase() === ql);
-  const canAdd = q.length > 0 && !hasExact;
   const activeVal = (value ?? '').trim().toLowerCase();
+
+  // Only filter while the seller is actually typing a search — otherwise show
+  // the full list so every category stays reachable even when one is selected.
+  const searching = dirty && ql.length > 0;
+  const base = searching ? categories.filter((c) => c.toLowerCase().includes(ql)) : categories;
+
+  // Pin the selected category to the top. When not searching, a custom value
+  // that isn't in the known list is still shown (and pinned) as the current pick.
+  let filtered = base;
+  if (activeVal) {
+    const selected = base.find((c) => c.toLowerCase() === activeVal);
+    if (selected) {
+      filtered = [selected, ...base.filter((c) => c.toLowerCase() !== activeVal)];
+    } else if (!searching && (value ?? '').trim()) {
+      filtered = [(value as string).trim(), ...base];
+    }
+  }
+
+  const hasExact = categories.some((c) => c.toLowerCase() === ql);
+  const canAdd = searching && !hasExact;
 
   const choose = (c: string) => {
     onChange(c);
     setQuery(c);
+    setDirty(false);
     focused.current = false;
     setOpen(false);
     Keyboard.dismiss();
@@ -75,9 +97,10 @@ export const CategorySelect: React.FC<Props> = ({
           style={styles.input}
           value={query}
           editable={!disabled}
-          onChangeText={(t) => { setQuery(t); onChange(t); if (!open) setOpen(true); }}
-          onFocus={() => { focused.current = true; setOpen(true); }}
+          onChangeText={(t) => { setQuery(t); onChange(t); setDirty(true); if (!open) setOpen(true); }}
+          onFocus={() => { focused.current = true; setDirty(false); setOpen(true); }}
           onBlur={() => { focused.current = false; setTimeout(() => setOpen(false), 120); }}
+          selectTextOnFocus
           placeholder={placeholder}
           placeholderTextColor={Colors.textSecondary}
           autoCapitalize="words"
