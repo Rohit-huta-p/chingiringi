@@ -3,6 +3,8 @@ import Store from '../stores/storeModel.js';
 import Product from '../products/productModel.js';
 import { Message } from '../chat/chatModel.js';
 import * as mux from '../../services/muxVideo.js';
+import StreamReport from './streamReportModel.js';
+import VideoBlock from '../videos/videoBlockModel.js';
 
 // Live video is Mux (RTMP ingest → HLS playback). The Mux helpers live in
 // services/muxVideo.js and reuse the same Basic-auth token as the VOD provider.
@@ -356,12 +358,29 @@ export const muxLiveWebhook = async (req, res) => {
   res.status(200).json({ received: true });
 };
 
+// Strip Mux secrets from any stream leaving a PUBLIC endpoint. `muxStreamKey`
+// is the RTMP publish key — anyone holding it can hijack the broadcast — and
+// `muxStreamId` is an internal Mux resource id; viewers only need
+// `muxPlaybackId`. `ownerId` is kept (powers "Block seller" in the live viewer).
+// Owner-only reads (getMyStreams) and the broadcaster's own createStream
+// response are untouched — the broadcaster is entitled to their own key.
+const publicStream = ({ muxStreamKey, muxStreamId, ...safe }) => safe;
+
 /**
  * GET /api/streams/active
  * Public — returns live streams sorted by viewer count desc.
  */
 export const getActiveStreams = async (req, res) => {
-  let streams = await Stream.find({ status: 'live' })
+  // Signed-in viewers don't see streams from broadcasters they've blocked — the
+  // same user→user VideoBlock as the clip feed, so blocking a seller in the live
+  // viewer removes their future lives here too. Guests (no auth) → no filter.
+  const filter = { status: 'live' };
+  if (req.user?._id) {
+    const blocks = await VideoBlock.find({ user: req.user._id }).select('blockedUser').lean();
+    if (blocks.length) filter.ownerId = { $nin: blocks.map((b) => b.blockedUser) };
+  }
+
+  let streams = await Stream.find(filter)
     .populate('storeId', 'name shortName logoUrl category city')
     .sort({ viewerCount: -1 })
     .lean();
@@ -391,7 +410,7 @@ export const getActiveStreams = async (req, res) => {
     streams = streams.filter((s) => !staleSet.has(String(s._id)));
   }
 
-  res.status(200).json({ status: 'success', data: { streams } });
+  res.status(200).json({ status: 'success', data: { streams: streams.map(publicStream) } });
 };
 
 /**
@@ -411,7 +430,7 @@ export const getStream = async (req, res) => {
     throw new Error('Stream not found');
   }
 
-  res.status(200).json({ status: 'success', data: { stream } });
+  res.status(200).json({ status: 'success', data: { stream: publicStream(stream) } });
 };
 
 /**
@@ -432,4 +451,28 @@ export const getMyStreams = async (req, res) => {
   await attachLeadsGenerated(streams);
 
   res.status(200).json({ status: 'success', data: { streams } });
+};
+
+// ── Report a live stream ───────────────────────────────────────────────────
+const STREAM_REPORT_REASONS = ['spam', 'inappropriate', 'violence', 'hate', 'misleading', 'copyright', 'other'];
+
+/**
+ * POST /api/streams/:id/reports
+ * Authenticated viewer reports a live stream. Idempotent per (stream, reporter)
+ * — the unique index swallows re-reports. `reportedUser` snapshots the
+ * broadcaster so moderation can act on the person. Mirrors videoController's
+ * reportVideo (same reasons + 11000 handling).
+ */
+export const reportStream = async (req, res) => {
+  const reason = String(req.body?.reason || '');
+  if (!STREAM_REPORT_REASONS.includes(reason)) { res.status(400); throw new Error('Pick a valid reason'); }
+  const note = String(req.body?.note || '').trim().slice(0, 300);
+  const stream = await Stream.findById(req.params.id).select('_id ownerId').lean();
+  if (!stream) { res.status(404); throw new Error('Stream not found'); }
+  try {
+    await StreamReport.create({ stream: stream._id, reportedUser: stream.ownerId, reporter: req.user._id, reason, note });
+  } catch (e) {
+    if (e.code !== 11000) throw e; // 11000 = already reported by this user → fine
+  }
+  res.status(200).json({ status: 'success', data: { reported: true } });
 };
