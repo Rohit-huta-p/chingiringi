@@ -170,6 +170,7 @@ export const MobileEditProfileScreen = () => {
         {/* Shared blue gradient header — scrolls with the rest of the page.
             extraBottomSpace leaves room for the avatar card to overlap. */}
         <MobileAuthHeader
+          insetTop={false}
           kicker="ACCOUNT"
           title="Edit Profile"
           align="left"

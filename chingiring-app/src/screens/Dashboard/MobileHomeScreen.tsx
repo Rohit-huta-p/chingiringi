@@ -275,7 +275,7 @@ export const MobileHomeScreen = () => {
   //    focus and the chips stay in sync as state changes). ──
   const headerEl = (
     <View>
-      <MobileAuthHeader hideBack title="Products" align="left">
+      <MobileAuthHeader hideBack title="Products" align="left" insetTop={false}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={st.searchBar}>
             <Search size={18} color={Colors.primary} />

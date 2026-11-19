@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pencil, Settings } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
@@ -39,7 +38,7 @@ export const MobileProfileHeader: React.FC<Props> = ({ name, avatarUrl, onEditPr
       end={{ x: 1, y: 1 }}
       style={styles.gradient}
     >
-      <SafeAreaView edges={['top']} style={styles.safe}>
+      <View style={styles.safe}>
         {/* Decorative blobs */}
         <View style={styles.blobLeft} pointerEvents="none" />
         <View style={styles.blobRight} pointerEvents="none" />
@@ -83,14 +82,13 @@ export const MobileProfileHeader: React.FC<Props> = ({ name, avatarUrl, onEditPr
           </View>
           <Text style={styles.name} numberOfLines={1}>{name || 'Guest'}</Text>
         </View>
-      </SafeAreaView>
+      </View>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   gradient: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     shadowColor: '#000',

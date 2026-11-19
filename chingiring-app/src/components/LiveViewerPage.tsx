@@ -53,7 +53,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { X, Send, Heart, Search, MessageCircle, ChevronRight, UserPlus, Check, ArrowUp, ArrowDown, ArrowUpDown, Pin } from 'lucide-react-native';
+import { X, Send, Heart, Search, MessageCircle, ChevronRight, UserPlus, Check, ArrowUp, ArrowDown, ArrowUpDown, Pin, MoreVertical } from 'lucide-react-native';
 import { Colors, Fonts } from '../constants/theme';
 import { useSocket, LiveChatMsg, PinnedMsg } from '../hooks/useSocket';
 import { getStream, type StreamDetail, type StreamProductLite } from '../api/streams';
@@ -62,6 +62,9 @@ import { useAuthGate } from '../context/AuthGateContext';
 import { getOrCreateConversation, type ChatProduct } from '../api/chat';
 import { ChatSheet } from '../screens/Messages/ChatSheet';
 import VideoLayer from './VideoLayer';
+import { LiveMoreSheet } from './LiveMoreSheet';
+import { useAuthStore } from '../store';
+import { useQueryClient } from '@tanstack/react-query';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -409,6 +412,8 @@ const VideoPendingPlaceholder: React.FC<{
 export const LiveViewerPage: React.FC<LiveViewerPageProps> = ({ stream, isActive, isAdjacent = false, onExit }) => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
+  const myId = useAuthStore((st) => st.user?.id);
 
   const {
     _id: streamId,
@@ -427,6 +432,7 @@ export const LiveViewerPage: React.FC<LiveViewerPageProps> = ({ stream, isActive
   const [tokenLoading, setTokenLoading] = useState(true);
   const [streamDetail, setStreamDetail] = useState<StreamDetail | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [pinned, setPinned] = useState<PinnedMsg | null>(null);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [kbHeight, setKbHeight] = useState(0);
@@ -485,6 +491,8 @@ export const LiveViewerPage: React.FC<LiveViewerPageProps> = ({ stream, isActive
   const spotlightProduct = spotlightId ? (products.find((p) => p._id === spotlightId) ?? null) : null;
   const following = resolvedStoreId ? isFollowing(resolvedStoreId) : false;
   const isLive = streamDetail?.status === 'live' && !streamEnded;
+  const broadcasterId = streamDetail?.ownerId;
+  const canBlock = !!broadcasterId && broadcasterId !== myId;
 
   // ── Heart helpers ───────────────────────────────────────────────────────
   const addHearts = useCallback((count: number) => {
@@ -671,6 +679,16 @@ export const LiveViewerPage: React.FC<LiveViewerPageProps> = ({ stream, isActive
               </Pressable>
             ) : null}
 
+            <Pressable
+              onPress={() => requireAuth(
+                () => setMoreOpen(true),
+                { title: 'Sign in to report or block', subtitle: 'Help keep live shopping safe — report a stream or block a seller.', icon: 'default' },
+              )}
+              style={styles.iconBtn}
+              accessibilityLabel="More options"
+            >
+              <MoreVertical size={20} color="#fff" />
+            </Pressable>
             <Pressable onPress={onExit} style={styles.iconBtn} accessibilityLabel="Close">
               <X size={20} color="#fff" />
             </Pressable>
@@ -781,6 +799,21 @@ export const LiveViewerPage: React.FC<LiveViewerPageProps> = ({ stream, isActive
           onChat={openProductChat}
           onDetail={openProductDetail}
           bottomInset={insets.bottom}
+        />
+      )}
+
+      {/* ── Report / block sheet (live moderation — UGC safety) ── */}
+      {isActive && (
+        <LiveMoreSheet
+          visible={moreOpen}
+          streamId={streamId}
+          broadcasterId={canBlock ? broadcasterId : undefined}
+          storeLabel={storeName}
+          onClose={() => setMoreOpen(false)}
+          onBlocked={() => {
+            queryClient.invalidateQueries({ queryKey: ['streams', 'active'] });
+            onExit();
+          }}
         />
       )}
 

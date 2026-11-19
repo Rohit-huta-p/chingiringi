@@ -4,6 +4,7 @@
  * Owned by the Streaming track (screens/Live/, hooks/).
  */
 import apiClient from './client';
+import type { ReportReason } from './videos';
 
 // ── Create stream ──────────────────────────────────────────────────────────
 
@@ -123,6 +124,8 @@ export interface StreamDetail {
   title: string;
   status: 'idle' | 'live' | 'ended';
   viewerCount: number;
+  /** The broadcaster's user id — powers "Block this seller" in the live viewer. */
+  ownerId?: string;
   storeId: StreamStoreLite | string;
   products: StreamProductLite[];
   /** The product the broadcaster is currently spotlighting ("Show"), or null. */
@@ -151,6 +154,17 @@ export async function getStream(streamId: string): Promise<StreamDetail | null> 
   } catch {
     return null;
   }
+}
+
+// ── Report a live stream ────────────────────────────────────────────────────
+
+/**
+ * POST /api/streams/:id/reports
+ * Viewer reports a live stream (reason + optional note). Idempotent per
+ * (stream, reporter) server-side. Reuses the clip report reasons.
+ */
+export async function reportStream(streamId: string, reason: ReportReason, note?: string): Promise<void> {
+  await apiClient.post(`/api/streams/${streamId}/reports`, { reason, note });
 }
 
 // ── My streams (history) ────────────────────────────────────────────────────

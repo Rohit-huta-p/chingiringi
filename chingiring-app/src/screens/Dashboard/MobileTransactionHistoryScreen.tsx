@@ -266,6 +266,7 @@ export const MobileTransactionHistoryScreen = () => {
       {/* Shared mobile header — gradient + safe-area + working back button
           (navigation.goBack), with Export as the right-side slot. */}
       <MobileAuthHeader
+        insetTop={false}
         title="Transaction History"
         kicker="ACCOUNT"
         align="left"

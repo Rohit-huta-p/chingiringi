@@ -7,11 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  StatusBar,
 } from 'react-native';
 import { ArrowDownToLine, Clock, ChevronRight, ArrowUpRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Fonts } from '../../constants/theme';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -93,7 +91,7 @@ export const MobileWalletScreen = () => {
           <View pointerEvents="none" style={[m.blob, m.blobTR]} />
           <View pointerEvents="none" style={[m.blob, m.blobBL]} />
 
-          <SafeAreaView edges={['top']} style={m.heroInner}>
+          <View style={m.heroInner}>
             {/* greeting */}
             <View style={m.heroTop}>
               <Text style={m.greeting}>Hi, {firstName} 👋</Text>
@@ -113,7 +111,7 @@ export const MobileWalletScreen = () => {
               <ArrowDownToLine size={16} color="#1E3A8A" strokeWidth={2.6} />
               <Text style={m.heroWithdrawTxt}>Withdraw</Text>
             </TouchableOpacity>
-          </SafeAreaView>
+          </View>
         </LinearGradient>
 
         {/* ── GOAL BAR ─────────────────────────────────────────────── */}
@@ -208,7 +206,6 @@ const m = StyleSheet.create({
 
   // Hero
   hero: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',

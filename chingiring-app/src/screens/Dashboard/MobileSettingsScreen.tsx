@@ -110,7 +110,7 @@ export const MobileSettingsScreen = () => {
         refreshControl={<RefreshControl {...refresh} />}
       >
         {/* Shared blue gradient header */}
-        <MobileAuthHeader kicker="ACCOUNT" title="Settings" align="left" />
+        <MobileAuthHeader kicker="ACCOUNT" title="Settings" align="left" insetTop={false} />
 
         <View style={s.body}>
           {/* ── Profile strip ───────────────────────────── */}

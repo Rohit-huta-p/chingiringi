@@ -5,7 +5,8 @@ import { Colors, Fonts } from '../constants/theme';
 import { FeedVideo, ReportReason, videosAPI } from '../api/videos';
 import { confirmAsync, notify } from '../utils/dialog';
 
-const REASONS: { key: ReportReason; label: string }[] = [
+/** Shared report-reason list — also reused by the live viewer's LiveMoreSheet. */
+export const REASONS: { key: ReportReason; label: string }[] = [
   { key: 'spam', label: 'Spam or scam' },
   { key: 'inappropriate', label: 'Nudity or inappropriate' },
   { key: 'violence', label: 'Violence or harmful' },

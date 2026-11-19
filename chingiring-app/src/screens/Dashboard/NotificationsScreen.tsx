@@ -55,6 +55,7 @@ export const NotificationsScreen = () => {
           title (drawer layout, no back needed). */}
       {isMobile && (
         <MobileAuthHeader
+          insetTop={false}
           kicker="UPDATES"
           title="Notifications"
           align="left"
