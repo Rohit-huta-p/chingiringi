@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -19,8 +19,11 @@ const HEADER_GRADIENT_LOCATIONS: readonly [number, number, number] =
  * Password, Signup, etc.). One blue gradient bar with back button + title,
  * identical on Android + iOS.
  *
- * Drop it at the top of any auth screen — handles status-bar safe area
- * automatically and falls back to navigation.goBack() if no `onBack` passed.
+ * Drop it at the top of any screen — handles the status-bar safe area
+ * automatically. Pass insetTop={false} when the screen already sits inside a
+ * top safe-area parent (e.g. a tab/drawer navigator whose SafeAreaView uses
+ * edges={['top']}), otherwise the inset is applied twice and a large empty gap
+ * appears above the title. Falls back to navigation.goBack() if no `onBack` passed.
  */
 interface Props {
   title: string;
@@ -56,6 +59,12 @@ interface Props {
    * the content sits snug under the title instead of the overlap-card gap.
    */
   children?: React.ReactNode;
+  /**
+   * Apply the top safe-area (status-bar) inset so the gradient clears the
+   * status bar. Default true. Pass false when the screen is ALREADY inside a
+   * top safe-area parent (tab/drawer navigator) so the inset isn't doubled.
+   */
+  insetTop?: boolean;
 }
 
 // Standard bottom padding inside every mobile header. Picked to match the
@@ -66,9 +75,16 @@ const HEADER_BOTTOM_PAD = 60;
 export const MobileAuthHeader: React.FC<Props> = ({
   title, onBack, hideBack = false, subtitle, kicker, align = 'center',
   rightSlot, extraBottomSpace = 0, bottomPad = HEADER_BOTTOM_PAD, children,
+  insetTop = true,
 }) => {
   const navigation = useNavigation<any>();
   const handleBack = onBack ?? (() => navigation.goBack());
+  // Top safe-area inset applied ONCE here (not also via a nested SafeAreaView).
+  // Skipped (0) when a parent navigator already pads the top — insetTop={false}.
+  const insets = useSafeAreaInsets();
+  const topPad = insetTop
+    ? Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0)
+    : 0;
 
   const titleAlignStyle =
     align === 'left' ? styles.titleWrapLeft : styles.titleWrapCenter;
@@ -79,9 +95,9 @@ export const MobileAuthHeader: React.FC<Props> = ({
       locations={HEADER_GRADIENT_LOCATIONS}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradient}
+      style={[styles.gradient, { paddingTop: topPad }]}
     >
-      <SafeAreaView edges={['top']} style={styles.safe}>
+      <View style={styles.safe}>
         {/* Decorative blobs — match the brand surface used on Profile/Home. */}
         <View style={styles.blobLeft} pointerEvents="none" />
         <View style={styles.blobRight} pointerEvents="none" />
@@ -118,15 +134,13 @@ export const MobileAuthHeader: React.FC<Props> = ({
         </View>
 
         {children ? <View style={styles.belowRow}>{children}</View> : null}
-      </SafeAreaView>
+      </View>
     </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   gradient: {
-    // Android status-bar padding fallback when SafeAreaView's top inset is 0.
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     shadowColor: '#000',
