@@ -4,6 +4,12 @@
     "slug": "chingiring-app",
     "scheme": "chingiring",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d0d7487b-cf61-4259-995a-621490ff2f3c"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
