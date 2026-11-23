@@ -1,0 +1,87 @@
+# fastlane/Fastfile — Google Play delivery for Chingiringi (Android).
+#
+# fastlane does NOT build the app. EAS Build produces the signed .aab; these
+# lanes take that .aab and talk to the Google Play Developer API via `supply`
+# (the upload_to_play_store action).
+#
+# Auth: a Google Play service-account JSON key, referenced by the Appfile
+#       (env SUPPLY_JSON_KEY, or fastlane/play-service-account.json — both
+#       gitignored). See fastlane/SETUP.md for how to create it and how to
+#       pull the .aab out of EAS.
+#
+# Safety: the binary lanes (validate, internal) touch only the INTERNAL track as
+#         a DRAFT — never a public release. The `metadata` lane DOES edit the
+#         PUBLIC store listing (Google reviews changes before they go live).
+
+# The human setup guide lives in fastlane/SETUP.md. `skip_docs` stops fastlane
+# from regenerating (and overwriting) its own auto-generated README on each run.
+skip_docs
+
+default_platform(:android)
+
+# Resolve the .aab path from the lane option `aab:` or the AAB_PATH env var.
+# fastlane runs Fastfile code with the working directory inside ./fastlane, so a
+# relative path is resolved against the PROJECT ROOT (the parent of ./fastlane)
+# first — that's what the README examples (e.g. aab:build/app.aab) assume.
+def resolve_aab(options)
+  raw = (options[:aab] || ENV["AAB_PATH"]).to_s
+  if raw.empty?
+    UI.user_error!(
+      "No .aab given. Pass  aab:<path>  or set AAB_PATH. " \
+      "Download the EAS build first (see fastlane/SETUP.md section 3)."
+    )
+  end
+  candidates =
+    if raw.start_with?("/")
+      [raw]
+    else
+      [File.expand_path(File.join("..", raw)), File.expand_path(raw)]
+    end
+  found = candidates.find { |p| File.exist?(p) }
+  unless found
+    UI.user_error!("No .aab found. Looked for: #{candidates.join(', ')} (see fastlane/SETUP.md section 3).")
+  end
+  found
+end
+
+platform :android do
+  desc "Dry run: validate the .aab against Google Play and upload nothing. " \
+       "Usage: fastlane android validate aab:path/to/app.aab"
+  lane :validate do |options|
+    upload_to_play_store(
+      aab: resolve_aab(options),
+      track: "internal",
+      validate_only: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Upload the .aab to the INTERNAL testing track as a DRAFT (nothing goes public). " \
+       "Usage: fastlane android internal aab:path/to/app.aab"
+  lane :internal do |options|
+    upload_to_play_store(
+      aab: resolve_aab(options),
+      track: "internal",
+      release_status: "draft",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Push ONLY the store listing (title, descriptions, images, screenshots) from " \
+       "fastlane/metadata/android — no binary. NOTE: this edits the PUBLIC listing " \
+       "(Google reviews it before it goes live). Run `fastlane supply init` first to " \
+       "populate it. Usage: fastlane android metadata"
+  lane :metadata do
+    upload_to_play_store(
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_changelogs: true
+    )
+  end
+end
