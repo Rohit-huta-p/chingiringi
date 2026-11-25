@@ -38,6 +38,8 @@ import { Video, ChevronRight, Radio, Play, Check, Package, BadgeCheck, Lock, X }
 import { Colors, Fonts } from '../../constants/theme';
 import apiClient from '../../api/client';
 import { createStream, getMyStreams, formatStreamMeta, type StreamSummary } from '../../api/streams';
+import { useFeatureFlags } from '../../hooks/useFeatureFlags';
+import { FeaturePausedNotice } from '../../components/FeaturePausedNotice';
 import { productsAPI, type Product } from '../../api/products';
 import { type SellerStore } from '../../api/verification';
 import { ImageUploader } from '../../components/ImageUploader';
@@ -354,6 +356,7 @@ export const GoLiveTabScreen: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
 
   const { data: store, isLoading } = useMyStore();
+  const { live } = useFeatureFlags();
 
   const { data: stats } = useQuery({
     queryKey: ['seller', 'stats', store?._id],
@@ -420,11 +423,13 @@ export const GoLiveTabScreen: React.FC = () => {
         />
       ) : (
         <View style={styles.heroBlock}>
+          {live.disabled && <FeaturePausedNotice message={live.message} />}
           {/* Big pulsing GO LIVE button → opens the setup sheet */}
           <View style={styles.bigWrap}>
             <Pressable
-              style={styles.bigButtonHit}
+              style={[styles.bigButtonHit, live.disabled && { opacity: 0.4 }]}
               onPress={() => setModalOpen(true)}
+              disabled={live.disabled}
               accessibilityRole="button"
               accessibilityLabel="Start a live stream"
             >

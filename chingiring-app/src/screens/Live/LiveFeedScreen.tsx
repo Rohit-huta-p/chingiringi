@@ -17,6 +17,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { LiveViewerPage } from '../../components/LiveViewerPage';
 import type { LiveStream } from '../Buyer/LiveDiscoveryScreen';
 import { Colors, Fonts } from '../../constants/theme';
+import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 
 interface RouteParams {
   streams: LiveStream[];
@@ -27,6 +28,7 @@ export const LiveFeedScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { streams = [], startIndex = 0 }: RouteParams = route.params ?? {};
+  const { live } = useFeatureFlags();
 
   // Measure the pane so each page is exactly one screen tall and paging snaps.
   const [pageH, setPageH] = useState(0);
@@ -44,7 +46,11 @@ export const LiveFeedScreen: React.FC = () => {
   if (!streams.length) {
     return (
       <View style={[styles.root, styles.center]}>
-        <Text style={styles.empty}>No live streams right now.</Text>
+        <Text style={styles.empty}>
+          {live.disabled
+            ? 'Live shopping is taking a short break — check back soon.'
+            : 'No live streams right now.'}
+        </Text>
       </View>
     );
   }
@@ -89,7 +95,7 @@ export const LiveFeedScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0A0A0A' },
   center: { alignItems: 'center', justifyContent: 'center' },
-  empty: { color: Colors.textSecondary, fontSize: 14, fontFamily: Fonts.regular },
+  empty: { color: Colors.textSecondary, fontSize: 14, fontFamily: Fonts.regular, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 },
 });
 
 export default LiveFeedScreen;
