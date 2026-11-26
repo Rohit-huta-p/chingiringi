@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import Video from './videoModel.js';
 import { videoProvider, activeProvider, providerFor } from '../../services/videoProvider.js';
+import { videoUploadsDisabled, videoUploadsGateMessage } from '../../services/featureGate.js';
 import { buildFeedQuery, nextCursor, clampWatchSec } from './videoRanking.js';
 import VideoInteraction from './videoInteractionModel.js';
 import VideoComment from './videoCommentModel.js';
@@ -10,6 +11,10 @@ import { notify } from '../notifications/notificationService.js';
 
 // @desc  Mint a direct-upload URL (Cloudflare or Mux)  @route POST /api/videos/upload-url  @access admin
 export const createUploadUrl = async (req, res) => {
+  // Kill-switch: when the VOD provider's plan lapses, refuse before minting a
+  // (doomed) upload URL — the client shows the "upgrade the <provider> plan"
+  // message instead of a raw provider error. 503 = temporarily unavailable.
+  if (videoUploadsDisabled()) { res.status(503); throw new Error(videoUploadsGateMessage()); }
   const { storeName } = req.body;
   const { uid, uploadURL, uploadMethod } = await videoProvider().createDirectUpload({
     maxDurationSeconds: 30, // 30s cap — provider rejects anything longer

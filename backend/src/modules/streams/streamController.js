@@ -5,6 +5,7 @@ import { Message } from '../chat/chatModel.js';
 import * as mux from '../../services/muxVideo.js';
 import StreamReport from './streamReportModel.js';
 import VideoBlock from '../videos/videoBlockModel.js';
+import { liveDisabled, liveGateMessage } from '../../services/featureGate.js';
 
 // Live video is Mux (RTMP ingest → HLS playback). The Mux helpers live in
 // services/muxVideo.js and reuse the same Basic-auth token as the VOD provider.
@@ -90,6 +91,11 @@ const attachLeadsGenerated = async (streams) => {
  * Requires: auth, store must be owned by user and verified.
  */
 export const createStream = async (req, res) => {
+  // Kill-switch: when the Mux plan lapses, refuse up front — before any store
+  // lookup or the Mux createLiveStream call — so the seller sees the "upgrade
+  // the Mux plan" message rather than a verification/provider error.
+  if (liveDisabled()) { res.status(503); throw new Error(liveGateMessage()); }
+
   const { storeId, title = '', productIds, category, thumbnail } = req.body;
 
   if (!storeId) {
