@@ -11,6 +11,8 @@ import { useVideoUpload, PickedVideo } from './useVideoUpload';
 import { videosAPI, FeedVideo } from '../api/videos';
 import { notify } from '../utils/dialog';
 import LocalVideoPreview from './LocalVideoPreview';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { FeaturePausedNotice } from './FeaturePausedNotice';
 
 type ProductForm = { title: string; description: string; price: string; url: string };
 const blankProduct = (): ProductForm => ({ title: '', description: '', price: '', url: '' });
@@ -35,6 +37,9 @@ interface Props {
 export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded, editing }) => {
   const isEdit = !!editing;
   const { uploading, pickVideo, uploadVideo } = useVideoUpload();
+  const { videoUploads } = useFeatureFlags();
+  // Gate NEW uploads only — editing an existing clip's metadata stays allowed.
+  const uploadsPaused = videoUploads.disabled && !isEdit;
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const busy = uploading || saving;
@@ -77,6 +82,7 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
 
   const onSubmit = async () => {
     if (!isEdit && !video) return notify('Add a video', 'Pick a clip to upload first.');
+    if (uploadsPaused) return notify('Uploads paused', videoUploads.message);
     if (!storeName.trim()) return notify('Add a store', 'Enter the store / business name.');
     if (!isEdit && video?.sizeMB && video.sizeMB > 200) {
       return notify('Too large', `That clip is ${video.sizeMB.toFixed(0)} MB. Keep it under 200 MB.`);
@@ -126,6 +132,8 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
             <Text style={s.sub}>
               {isEdit ? 'Update the store, caption and products for this clip.' : 'Upload a shoppable clip. It goes live once encoding finishes.'}
             </Text>
+
+            {uploadsPaused && <FeaturePausedNotice message={videoUploads.message} />}
 
             {/* Clip */}
             <Text style={s.label}>Clip</Text>
@@ -241,7 +249,7 @@ export const VideoUploadModal: React.FC<Props> = ({ visible, onClose, onUploaded
             ))}
 
             {/* Submit */}
-            <TouchableOpacity style={[s.publish, (busy || overLength) && s.publishBusy]} onPress={onSubmit} disabled={busy || overLength}>
+            <TouchableOpacity style={[s.publish, (busy || overLength || uploadsPaused) && s.publishBusy]} onPress={onSubmit} disabled={busy || overLength || uploadsPaused}>
               {busy
                 ? <><ActivityIndicator color="#fff" /><Text style={s.publishTxt}>{uploading ? 'Uploading…' : 'Saving…'}</Text></>
                 : isEdit

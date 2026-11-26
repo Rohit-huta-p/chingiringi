@@ -40,6 +40,7 @@ import followRoutes from './modules/follows/followRoutes.js';
 import streamRoutes from './modules/streams/streamRoutes.js';
 import streamWebhookRoutes from './modules/streams/streamWebhookRoutes.js';
 import chatRoutes from './modules/chat/chatRoutes.js';
+import configRoutes from './modules/config/configRoutes.js';
 import { activeProvider } from './services/videoProvider.js';
 
 const app = express();
@@ -156,6 +157,7 @@ app.use('/api/users', followRoutes);
 app.use('/api/streams', streamRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/api/config', configRoutes);
 app.use('/s', shareRedirectRoutes);
 
 // Public legal pages for store listings (Google Play, etc.) — plain HTML, no auth.

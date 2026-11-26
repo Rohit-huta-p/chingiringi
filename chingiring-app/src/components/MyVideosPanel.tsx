@@ -8,6 +8,7 @@ import { VideoPlayerModal } from './VideoPlayerModal';
 import { Colors, Fonts } from '../constants/theme';
 import { videosAPI, FeedVideo } from '../api/videos';
 import { confirmAsync, notify } from '../utils/dialog';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 export interface MyVideosPanelHandle {
   /** Open the "post a video" form (called by a host header button or FAB). */
@@ -37,6 +38,7 @@ export const MyVideosPanel = forwardRef<MyVideosPanelHandle, Props>(function MyV
   ref,
 ) {
   const qc = useQueryClient();
+  const { videoUploads } = useFeatureFlags();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FeedVideo | null>(null);
   const [playing, setPlaying] = useState<FeedVideo | null>(null);
@@ -61,7 +63,10 @@ export const MyVideosPanel = forwardRef<MyVideosPanelHandle, Props>(function MyV
     if (ok) deleteMutation.mutate(v._id);
   };
 
-  const openCreate = () => { setEditing(null); setShowForm(true); };
+  const openCreate = () => {
+    if (videoUploads.disabled) return notify('Uploads paused', videoUploads.message);
+    setEditing(null); setShowForm(true);
+  };
   const onEdit = (v: FeedVideo) => { setEditing(v); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditing(null); };
 
