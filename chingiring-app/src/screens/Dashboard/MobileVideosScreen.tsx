@@ -16,6 +16,7 @@ import { CommentsSheet } from '../../components/CommentsSheet';
 import { VideoMoreSheet } from '../../components/VideoMoreSheet';
 import { shareVideo } from '../../utils/shareVideo';
 import { FeedVideo, VideoStore } from '../../api/videos';
+import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 
 export const MobileVideosScreen = () => {
   const { height, width } = useWindowDimensions();
@@ -28,6 +29,7 @@ export const MobileVideosScreen = () => {
   // False once you switch tabs or background the app → the active clip is muted
   // and paused so sound never bleeds off this screen (resumes on return).
   const screenActive = useScreenActive();
+  const { videoUploads } = useFeatureFlags();
 
   // Dev fallback so the feed renders before the backend/Cloudflare are live.
   const data: FeedVideo[] = videos.length ? videos : (__DEV__ ? SAMPLE_VIDEOS : []);
@@ -181,6 +183,18 @@ export const MobileVideosScreen = () => {
     }
     return feedItem(itemH);
   }, [activeIndex, muted, paused, screenActive, itemH, frameH, frameW, isDesktopWeb, bottomOffset, insets.top, likeOverrides, commentsFor, onStorePress, onLike, onShare]);
+
+  // Video paused (provider plan lapsed) → a friendly notice instead of a feed of
+  // clips that may fail to play. Buyer-facing copy, not the staff upgrade message.
+  if (videoUploads.disabled) {
+    return (
+      <View style={[s.center, { backgroundColor: '#0b0d12' }]}>
+        <View style={s.iconBox}><PlaySquare size={44} color={Colors.primary} strokeWidth={1.6} /></View>
+        <Text style={s.emptyTitle}>Videos are taking a short break</Text>
+        <Text style={[s.emptySub, { textAlign: 'center', paddingHorizontal: 32 }]}>We’ll have shoppable clips back for you soon.</Text>
+      </View>
+    );
+  }
 
   if (!user) {
     return (
