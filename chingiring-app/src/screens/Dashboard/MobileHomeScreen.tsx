@@ -151,8 +151,9 @@ export const MobileHomeScreen = () => {
     [categories],
   );
 
-  // Tiles for the shared CategoryTiles selector — icon + colour via the shared
-  // resolver so the Products row matches the Live Stores row (icons on both).
+  // Tiles for the compact CategoryTiles strip (Products tab — mockup style):
+  // icon + per-category colour via the shared resolver. (Live Stores keeps the
+  // default 79×86 label-over-icon tiles.)
   const categoryTileItems = useMemo(
     () =>
       categoryNames.map((name) => {
@@ -277,7 +278,8 @@ export const MobileHomeScreen = () => {
         active={selectedCategory}
         onSelect={setSelectedCategory}
         items={categoryTileItems}
-        contentStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 4 }}
+        compact
+        contentStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}
       />
       {!isListing ? (
         <>
