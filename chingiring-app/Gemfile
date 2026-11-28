@@ -1,0 +1,14 @@
+# Ruby dependencies for fastlane (Google Play store delivery for this Expo + EAS app).
+#
+# fastlane here does NOT build the app — EAS Build keeps compiling & signing.
+# fastlane's job is `supply`: upload the EAS-built .aab to Google Play and
+# manage the store listing (metadata, screenshots, release notes).
+#
+# Install without touching system Ruby (configured to vendor/bundle, no sudo):
+#     bundle install
+# Run a lane:
+#     bundle exec fastlane android <lane>
+
+source "https://rubygems.org"
+
+gem "fastlane"

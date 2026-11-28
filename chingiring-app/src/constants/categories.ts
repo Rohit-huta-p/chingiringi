@@ -67,7 +67,6 @@ const CATEGORY_ALIASES: Record<string, CategoryMeta> = {
   kids: { color: '#FB7185', Icon: Baby },
   music: { color: '#0891B2', Icon: Music },
   electronics: { color: '#3B82F6', Icon: Smartphone },
-  eletronics: { color: '#3B82F6', Icon: Smartphone }, // tolerate the current DB typo
 };
 
 // Case-insensitive view of CATEGORY_META, so a store category matches regardless
@@ -112,7 +111,6 @@ export const CATEGORY_COLOR = Object.fromEntries(
 export const CANONICAL_CATEGORY_ORDER: string[] = [
   'Beauty',
   'Electronics',
-  'eletronics',
   "Women's Fashion",
   'Fashion',
   'Sneakers & Shoes',

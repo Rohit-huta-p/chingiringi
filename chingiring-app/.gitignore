@@ -43,3 +43,18 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# fastlane / Ruby bundle (Google Play delivery) — see fastlane/README.md
+# Track .bundle/config (BUNDLE_PATH only, no secrets) so `bundle install` vendors
+# gems on a fresh clone — macOS system Bundler otherwise needs sudo.
+/.bundle/*
+!/.bundle/config
+/vendor/
+fastlane/report.xml
+fastlane/test_output/
+# Google Play service-account key — NEVER commit (keep real keys outside the repo)
+fastlane/play-service-account.json
+fastlane/*.service-account.json
+# EAS build artifact downloaded locally for a fastlane upload
+/build/
+*.aab

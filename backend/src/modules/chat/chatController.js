@@ -125,6 +125,10 @@ function shapeConversation(conv, userId) {
     lastMessage:   conv.lastMessage ?? '',
     lastMessageAt: conv.lastMessageAt ?? null,
     lastSenderId:  conv.lastSenderId ? String(conv.lastSenderId) : null,
+    // Did the CALLER send the newest message? Drives the seller inbox's
+    // "Unanswered" filter and the "You: " preview prefix. undefined when the
+    // thread has no messages yet (caller then treats it as "not sure").
+    lastMine:      conv.lastSenderId ? String(conv.lastSenderId) === uid : undefined,
     unread:        isBuyer ? (conv.unreadBuyer ?? 0) : (conv.unreadSeller ?? 0),
     lastProduct: hasLastProduct ? {
       productId: lp.productId ? String(lp.productId) : undefined,
@@ -196,6 +200,7 @@ export const getOrCreateConversation = async (req, res) => {
         lastMessage:   conv.lastMessage ?? '',
         lastMessageAt: conv.lastMessageAt ?? null,
         lastSenderId:  conv.lastSenderId ? String(conv.lastSenderId) : null,
+        lastMine:      conv.lastSenderId ? String(conv.lastSenderId) === String(buyerId) : undefined,
         unread:        conv.unreadBuyer ?? 0,
       },
     },

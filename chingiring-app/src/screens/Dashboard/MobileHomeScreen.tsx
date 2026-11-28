@@ -5,25 +5,27 @@ import {
   StyleSheet,
   ScrollView,
   FlatList,
-  TextInput,
   TouchableOpacity,
   Animated,
   RefreshControl,
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { Search, ChevronRight, ChevronDown } from 'lucide-react-native';
+import { ChevronRight, Coins, Info } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../../constants/theme';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
-import { MobileAuthHeader } from '../../components/MobileAuthHeader';
 import { categoriesAPI, Category } from '../../api/deals';
 import { productsAPI, Product } from '../../api/products';
 import { bannersAPI, Banner } from '../../api/banners';
 import { ProductCard } from '../../components/ProductCard';
 import { BannerBlock } from '../../components/BannerBlock';
 import { CategoryTiles } from '../../components/CategoryTiles';
+import { ProductsHeader } from '../../components/ProductsHeader';
+import { LiveNowHero } from '../../components/LiveNowHero';
+import { CategoryPromoGrid } from '../../components/CategoryPromoGrid';
+import { LiveStoresNowRail } from '../../components/LiveStoresNowRail';
 import { getCategoryMeta, sortCategoryNames } from '../../constants/categories';
 import { tint } from '../../utils/color';
 import { seededShuffle, makeShuffleSeed } from '../../utils/seededShuffle';
@@ -31,8 +33,7 @@ import { seededShuffle, makeShuffleSeed } from '../../utils/seededShuffle';
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 // Zero the first block's top margin so a top banner (or the first rail) sits
-// flush under the header — no gap between the category header and the banner.
-// Later blocks keep their own spacing.
+// flush under the curated sections above. Later blocks keep their own spacing.
 function flushFirst(nodes: React.ReactNode[]): React.ReactNode[] {
   if (nodes.length === 0) return nodes;
   const [first, ...rest] = nodes;
@@ -53,10 +54,6 @@ type HomeItem =
   | { kind: 'node'; node: React.ReactNode; key: string }
   | { kind: 'gridRow'; products: Product[]; key: string }
   | { kind: 'empty'; key: string };
-
-// Banners render through the shared <BannerBlock> (hero | dual), placed by
-// afterCategory (woven into categoryRailBlocks). The old local PromoBanner +
-// banners[0] / every-2-rows placement was removed in the slot→position redesign.
 
 // ─── Main screen ────────────────────────────────────────────────────────────
 
@@ -154,8 +151,9 @@ export const MobileHomeScreen = () => {
     [categories],
   );
 
-  // Tiles for the shared CategoryTiles selector — icon + colour via the shared
-  // resolver so the Products row matches the Live Stores row (icons on both).
+  // Tiles for the compact CategoryTiles strip (Products tab — mockup style):
+  // icon + per-category colour via the shared resolver. (Live Stores keeps the
+  // default 79×86 label-over-icon tiles.)
   const categoryTileItems = useMemo(
     () =>
       categoryNames.map((name) => {
@@ -198,7 +196,6 @@ export const MobileHomeScreen = () => {
   );
 
   const skeletonContent: HomeItem[] = [
-    { kind: 'node', node: <View style={[st.bannerWrap, { marginTop: 0 }]}>{sk('100%', 130, 14)}</View>, key: 'sk-banner' },
     { kind: 'node', node: skeletonRail('sk-rail-1', 110), key: 'sk-rail-1' },
     { kind: 'node', node: skeletonRail('sk-rail-2', 80), key: 'sk-rail-2' },
   ];
@@ -268,46 +265,45 @@ export const MobileHomeScreen = () => {
     return blocks;
   };
 
-  // (skeleton loading replaces the old full-screen spinner — header renders
-  //  immediately; only backend-dependent chips + content show placeholders)
-
-  // ── Header (kept as an element, not a function, so the search field keeps
-  //    focus and the chips stay in sync as state changes). ──
+  // ── Header: rich Products header + category selector, then (in discovery
+  //    mode only) the live hero and the 2×2 category shortcut tiles. ──
   const headerEl = (
     <View>
-      <MobileAuthHeader hideBack title="Products" align="left" insetTop={false}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={st.searchBar}>
-            <Search size={18} color={Colors.primary} />
-            <TextInput
-              style={st.searchInput}
-              placeholder='Search products'
-              placeholderTextColor="#9ca3af"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="search"
-              onSubmitEditing={() => goResults(searchQuery.trim())}
-            />
-            <TouchableOpacity
-              style={st.searchBtn}
-              onPress={() => goResults(searchQuery.trim())}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Search"
-            >
-              <Search size={16} color="#fff" strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </MobileAuthHeader>
-
-      {/* Product category tiles — 79×86 gradient tiles (shared with Live Stores) */}
+      <ProductsHeader
+        searchQuery={searchQuery}
+        onChangeSearch={setSearchQuery}
+        onSubmitSearch={() => goResults(searchQuery.trim())}
+      />
       <CategoryTiles
         active={selectedCategory}
         onSelect={setSelectedCategory}
         items={categoryTileItems}
-        contentStyle={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 4 }}
+        compact
+        contentStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}
       />
+      {!isListing ? (
+        <>
+          <LiveNowHero />
+          <CategoryPromoGrid />
+        </>
+      ) : null}
+    </View>
+  );
+
+  // Footer: in discovery mode, the circular "Stores Live Now" rail and the
+  // info-only CR Coins strip; then the tab-bar clearance spacer.
+  const footerEl = (
+    <View>
+      {!isListing ? <LiveStoresNowRail /> : null}
+      {!isListing ? (
+        <View style={st.crbar}>
+          <Coins size={22} color="#F5B301" strokeWidth={2.2} />
+          <View style={st.crDivider} />
+          <Text style={st.crTxt}>Earn CR Coins on every activity</Text>
+          <Info size={16} color="#9db7d6" strokeWidth={2.2} />
+        </View>
+      ) : null}
+      <View style={{ height: 110 }} />
     </View>
   );
 
@@ -350,7 +346,7 @@ export const MobileHomeScreen = () => {
       keyExtractor={(it) => it.key}
       renderItem={renderHomeItem}
       ListHeaderComponent={headerEl}
-      ListFooterComponent={<View style={{ height: 110 }} />}
+      ListFooterComponent={footerEl}
       refreshControl={<RefreshControl {...refresh} />}
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={Platform.OS === 'android'}
@@ -366,94 +362,9 @@ export const MobileHomeScreen = () => {
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F4F8' },
 
-  // Header
-  header: {
-    paddingTop: 10,
-    paddingBottom: 6,
-
-  },
-  hrow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-  },
-  greetWrap: { alignItems: 'flex-start' },
-  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bellBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bellBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    backgroundColor: '#ef4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bellBadgeText: { color: '#fff', fontSize: 9, fontFamily: Fonts.bold },
-  greet: { fontSize: 12.5, fontFamily: Fonts.regular, color: 'rgba(255,255,255,0.9)' },
-  locRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
-  locText: { fontSize: 16, fontFamily: Fonts.extraBold, color: '#fff', maxWidth: 220 },
-
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginTop: 12 },
-  searchBar: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9,
-    backgroundColor: '#fff', borderRadius: 13, paddingHorizontal: 13, height: 44,
-  },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: Fonts.regular, color: Colors.text, height: 44 },
-  searchBtn: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center',
-  },
-
-  chipsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingRight: 10 },
-  chipsContent: { paddingHorizontal: 14, alignItems: 'center', gap: 18 },
-  chip: { alignItems: 'center', paddingTop: 10, paddingBottom: 8 },
-  chipIcon: {
-    width: 46, height: 46, borderRadius: 14,
-    backgroundColor: '#fff',
-    borderWidth: 1, borderColor: '#E6EBF2',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 5,
-  },
-  chipIconOn: { backgroundColor: '#E9F4FF', borderColor: Colors.primary },
-  chipEmoji: { fontSize: 22 },
-  chipImg: { width: '100%', height: '100%', borderRadius: 14 },
-  chipLabel: { fontSize: 11, fontFamily: Fonts.medium, color: Colors.textSecondary, maxWidth: 64, textAlign: 'center' },
-  chipLabelOn: { color: Colors.primary, fontFamily: Fonts.bold },
-  chipUnderline: { height: 2.5, width: 26, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 5 },
-
   // Placed banner wrapper — full-bleed (no side padding) so banners run
   // edge-to-edge; BannerBlock supplies the card itself.
   bannerWrap: { marginTop: 16 },
-
-  // Promo banner
-  banner: {
-    height: 150, marginHorizontal: 16, marginTop: 16, borderRadius: 18,
-    overflow: 'hidden', justifyContent: 'center', paddingHorizontal: 18,
-  },
-  bannerBlobRight: {
-    position: 'absolute', bottom: -40, right: -30,
-    width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  bannerContent: { maxWidth: '72%' },
-  bannerTitle: { color: '#fff', fontSize: 22, fontFamily: Fonts.extraBold, letterSpacing: 0.3 },
-  bannerSub: { color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontFamily: Fonts.medium, marginTop: 6 },
-  bannerCta: {
-    alignSelf: 'flex-start', marginTop: 12, backgroundColor: '#fff',
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9,
-  },
-  bannerCtaText: { color: Colors.primary, fontSize: 12.5, fontFamily: Fonts.extraBold },
 
   // Section
   sec: { marginTop: 6 },
@@ -467,10 +378,17 @@ const st = StyleSheet.create({
   rail: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, gap: 12 },
 
   // Grid (listing mode)
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 14, gap: 12 },
   gridRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 12, marginTop: 12 },
 
-
+  // CR Coins — info-only strip (no navigation)
+  crbar: {
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    marginTop: 18, marginHorizontal: 16,
+    backgroundColor: '#E9F4FF', borderWidth: 1, borderColor: '#D4E6FB',
+    borderRadius: 14, paddingVertical: 13, paddingHorizontal: 15,
+  },
+  crDivider: { width: 1, height: 22, backgroundColor: '#bcd6f3' },
+  crTxt: { flex: 1, fontSize: 13.5, fontFamily: Fonts.bold, color: '#1E3A8A' },
 
   // Empty
   empty: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24 },

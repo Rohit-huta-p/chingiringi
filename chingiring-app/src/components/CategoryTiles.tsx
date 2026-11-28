@@ -69,6 +69,39 @@ const Tile: React.FC<{
   </Pressable>
 );
 
+// Compact tile — icon box over a small label (Products tab, mockup style).
+// Selected = filled brand-blue box with a white icon.
+const CompactTile: React.FC<{
+  label: string;
+  selected: boolean;
+  accent: string;
+  Icon?: IconType;
+  imageUrl?: string;
+  emoji?: string;
+  onPress: () => void;
+}> = ({ label, selected, Icon, imageUrl, emoji, onPress }) => (
+  <Pressable
+    onPress={onPress}
+    style={styles.cTile}
+    accessibilityRole="button"
+    accessibilityState={{ selected }}
+  >
+    <View style={[styles.cIcon, selected && styles.cIconSel]}>
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.cImg} resizeMode="cover" />
+      ) : Icon ? (
+        // Uniform brand-blue icons (mockup style); white when the tile is selected.
+        <Icon size={25} color={selected ? '#fff' : Colors.primary} strokeWidth={2} />
+      ) : (
+        <Text style={styles.cEmoji}>{emoji ?? '🛒'}</Text>
+      )}
+    </View>
+    <Text style={[styles.cLabel, selected && styles.cLabelSel]} numberOfLines={1}>
+      {label}
+    </Text>
+  </Pressable>
+);
+
 export const CategoryTiles: React.FC<{
   active: CategorySelection;
   onSelect: (c: CategorySelection) => void;
@@ -76,20 +109,24 @@ export const CategoryTiles: React.FC<{
   items?: CategoryTileItem[];
   allLabel?: string;
   contentStyle?: any;
-}> = ({ active, onSelect, items, allLabel = 'All', contentStyle }) => {
+  /** Compact icon-over-label strip (Products tab — mockup style). Default is the
+   *  79×86 label-over-icon tiles used by the Live Stores feed / See-all. */
+  compact?: boolean;
+}> = ({ active, onSelect, items, allLabel = 'All', contentStyle, compact }) => {
   const tiles: CategoryTileItem[] =
     items ??
     sortCategoryNames(STORE_CATEGORIES).map((c) => {
       const meta = getCategoryMeta(c);
       return { key: c, label: c, color: meta.color, Icon: meta.Icon };
     });
+  const TileComp = compact ? CompactTile : Tile;
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.row, contentStyle]}
+      contentContainerStyle={[compact ? styles.rowCompact : styles.row, contentStyle]}
     >
-      <Tile
+      <TileComp
         label={allLabel}
         selected={active === 'All'}
         accent={ALL_ACCENT}
@@ -97,7 +134,7 @@ export const CategoryTiles: React.FC<{
         onPress={() => onSelect('All')}
       />
       {tiles.map((t) => (
-        <Tile
+        <TileComp
           key={t.key}
           label={t.label}
           selected={active === t.key}
@@ -136,6 +173,26 @@ const styles = StyleSheet.create({
   iconWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tileImg: { width: 40, height: 40, borderRadius: 10 },
   emoji: { fontSize: 30 },
+
+  // ── Compact variant (Products tab) — icon box over label, mockup style ──
+  rowCompact: { gap: 16, paddingVertical: 2 },
+  cTile: { width: 56, alignItems: 'center', gap: 6 },
+  cIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E6EBF2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  cIconSel: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  cImg: { width: '100%', height: '100%' },
+  cEmoji: { fontSize: 26 },
+  cLabel: { fontSize: 11, fontFamily: Fonts.semiBold, color: Colors.textSecondary, textAlign: 'center', maxWidth: 62 },
+  cLabelSel: { fontFamily: Fonts.bold, color: Colors.primary },
 });
 
 export default CategoryTiles;

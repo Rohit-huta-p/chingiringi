@@ -1,0 +1,11 @@
+# fastlane Appfile — Google Play identity used by `supply` (upload_to_play_store).
+#
+# json_key_file : the Google Play service-account key (JSON). Keep it OUT of git.
+#   Preferred : set SUPPLY_JSON_KEY to an absolute path OUTSIDE this repo.
+#   Fallback  : fastlane/play-service-account.json  (gitignored).
+# package_name : the Android applicationId — expo.android.package in app.json.
+#
+# See fastlane/SETUP.md for how to create the key.
+
+json_key_file(ENV["SUPPLY_JSON_KEY"].to_s.empty? ? "fastlane/play-service-account.json" : ENV["SUPPLY_JSON_KEY"])
+package_name("com.chingiringi.app")
